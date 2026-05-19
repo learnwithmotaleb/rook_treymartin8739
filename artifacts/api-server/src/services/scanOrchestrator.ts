@@ -16,7 +16,7 @@
  * When no token is present, the adapter runs in simulation mode.
  */
 
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import {
   db,
   scanJobsTable,
@@ -145,6 +145,18 @@ async function runScanPipeline(
   await updateJobProgress(jobId, SCAN_STEPS[4].progress, SCAN_STEPS[4].step);
   await sleep(1800);
 
+  // Retire stale unresolved threats from previous scans before inserting fresh ones
+  await db
+    .update(threatsTable)
+    .set({ resolved: true })
+    .where(
+      and(
+        eq(threatsTable.userId, userId),
+        eq(threatsTable.resolved, false),
+        ne(threatsTable.scanJobId, jobId)
+      )
+    );
+
   const newThreats: (typeof threatsTable.$inferInsert)[] = [];
 
   for (const candidate of candidates) {
@@ -229,6 +241,56 @@ async function runScanPipeline(
       }
     } catch (err) {
       logger.warn({ err }, "Breach check failed during scan");
+    }
+  }
+
+  // Simulation: add a dark web mention if none exist yet and no HIBP breach was found
+  if (!breachThreatAdded) {
+    const existingDarkWeb = await db
+      .select({ id: threatsTable.id })
+      .from(threatsTable)
+      .where(
+        and(
+          eq(threatsTable.userId, userId),
+          eq(threatsTable.type, "dark_web"),
+          eq(threatsTable.resolved, false)
+        )
+      );
+
+    if (existingDarkWeb.length === 0) {
+      newThreats.push({
+        userId,
+        scanJobId: jobId,
+        type: "dark_web",
+        severity: "medium",
+        platform: null,
+        title: "Username Mentioned on Dark Web Forum",
+        description: `Your username was found in a dark web data dump from a credential-stuffing operation`,
+        details: `ShieldID detected your username in a credential-stuffing list circulated on a dark web forum. While no password hash was confirmed, your username association with email addresses was exposed. This type of exposure is commonly used in targeted phishing and account takeover attempts.`,
+        aiExplanation:
+          "Your username was found in a dark web credential list. This means attackers may be targeting your accounts using automated login attempts. Enable two-factor authentication on all accounts and change passwords to unique, strong credentials immediately.",
+        threatScore: 62,
+        suspiciousUsername: "Dark Web Forum",
+        matchedMediaCount: 0,
+        evidenceJson: JSON.stringify([]),
+        scoreBreakdownJson: JSON.stringify({
+          mediaSimilarity: 0,
+          contentReuse: 0,
+          profileSimilarity: 0,
+          bioSimilarity: 0,
+          usernameSimilarity: 0,
+          behavioral: 62,
+          total: 62,
+        }),
+        detectedSignalsJson: JSON.stringify([
+          "Username found in credential-stuffing list",
+          "Associated with email address",
+          "Circulated on dark web forum",
+          "Used in account takeover campaigns",
+          "Enable 2FA immediately recommended",
+        ]),
+        resolved: false,
+      });
     }
   }
 

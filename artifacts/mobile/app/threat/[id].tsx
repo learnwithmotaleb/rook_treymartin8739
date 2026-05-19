@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,9 +14,10 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
-import { useApp, Severity, MatchedEvidence, ThreatScoreBreakdown } from "@/context/AppContext";
+import { useApp, Severity, type MatchedEvidence, type ThreatScoreBreakdown } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { getThreat, resolveThreat as apiResolveThreat, type ThreatDetail } from "@/lib/api";
 
 function severityColor(severity: Severity, colors: ReturnType<typeof useColors>) {
   if (severity === "high") return colors.danger;
@@ -83,7 +85,7 @@ function ScoreBar({
   );
 }
 
-function EvidenceCard({ item, index }: { item: MatchedEvidence; index: number }) {
+function EvidenceCard({ item }: { item: MatchedEvidence }) {
   const colors = useColors();
   const isHighSimilarity = item.similarity >= 85;
   const simColor = isHighSimilarity ? colors.danger : colors.warning;
@@ -211,22 +213,106 @@ export default function ThreatDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { threats, resolveThreat } = useApp();
 
-  const threat = threats.find((t) => t.id === id);
+  const [detail, setDetail] = useState<ThreatDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [resolving, setResolving] = useState(false);
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  if (!threat) {
+  const summary = threats.find((t) => t.id === id);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    getThreat(id)
+      .then(setDetail)
+      .catch(() => setDetail(null))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const threat = detail ?? summary;
+
+  if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.foreground }}>Threat not found</Text>
+      <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Threat Details
+          </Text>
+          <View style={{ width: 30 }} />
+        </View>
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={[styles.loadingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Loading threat details…
+          </Text>
+        </View>
       </View>
     );
   }
 
-  const sc = severityColor(threat.severity, colors);
+  if (!threat) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Threat Details
+          </Text>
+          <View style={{ width: 30 }} />
+        </View>
+        <View style={styles.center}>
+          <Ionicons name="alert-circle" size={48} color={colors.danger} />
+          <Text style={[styles.loadingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Threat not found
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
-  const handleResolve = () => {
+  const severity = threat.severity as Severity;
+  const sc = severityColor(severity, colors);
+
+  const breakdown: ThreatScoreBreakdown = detail?.scoreBreakdown ?? {
+    mediaSimilarity: 0,
+    contentReuse: 0,
+    profileSimilarity: 0,
+    bioSimilarity: 0,
+    usernameSimilarity: 0,
+    behavioral: 0,
+  };
+
+  const evidence: MatchedEvidence[] = (detail?.evidence ?? []).map((e) => ({
+    id: e.id,
+    type: e.type,
+    similarity: e.similarity,
+    label: e.label,
+    yourCaption: e.yourCaption,
+    stolenCaption: e.stolenCaption,
+  }));
+
+  const detectedSignals = detail?.detectedSignals ?? [];
+  const aiExplanation = detail?.aiExplanation ?? "";
+  const suspiciousUsername = detail?.suspiciousUsername ?? ("suspiciousUsername" in threat ? (threat as { suspiciousUsername?: string | null }).suspiciousUsername : "") ?? "";
+
+  const time =
+    "time" in threat
+      ? (threat as { time: string }).time
+      : detail?.createdAt
+      ? new Date(detail.createdAt).toLocaleDateString()
+      : "";
+
+  const handleResolve = async () => {
+    if (resolving) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setResolving(true);
     resolveThreat(threat.id);
     router.back();
   };
@@ -234,8 +320,6 @@ export default function ThreatDetail() {
   const handleReport = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
-
-  const breakdown = threat.scoreBreakdown;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -253,10 +337,11 @@ export default function ThreatDetail() {
         >
           Threat Details
         </Text>
-        {threat.platform && (
-          <PlatformIcon platform={threat.platform} size={30} />
+        {threat.platform ? (
+          <PlatformIcon platform={threat.platform as Parameters<typeof PlatformIcon>[0]["platform"]} size={30} />
+        ) : (
+          <View style={{ width: 30 }} />
         )}
-        {!threat.platform && <View style={{ width: 30 }} />}
       </View>
 
       <ScrollView
@@ -276,7 +361,7 @@ export default function ThreatDetail() {
               <Text
                 style={[styles.severityText, { color: sc, fontFamily: "Inter_700Bold" }]}
               >
-                {threat.severity.toUpperCase()} SEVERITY
+                {severity.toUpperCase()} SEVERITY
               </Text>
             </View>
             <Text
@@ -287,14 +372,14 @@ export default function ThreatDetail() {
             <Text
               style={[styles.suspiciousHandle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
             >
-              {threat.suspiciousUsername} · {threat.time}
+              {suspiciousUsername} · {time}
             </Text>
           </View>
           <ScoreGauge score={threat.threatScore} />
         </View>
 
-        {/* Visual Evidence — most prominent section */}
-        {threat.evidence.length > 0 && (
+        {/* Visual Evidence */}
+        {evidence.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialCommunityIcons name="image-search" size={18} color={colors.danger} />
@@ -319,10 +404,10 @@ export default function ThreatDetail() {
                 { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
               ]}
             >
-              Showing {threat.evidence.length} of {threat.matchedMediaCount} matched media items
+              Showing {evidence.length} of {threat.matchedMediaCount} matched media items
             </Text>
-            {threat.evidence.map((item, i) => (
-              <EvidenceCard key={item.id} item={item} index={i} />
+            {evidence.map((item) => (
+              <EvidenceCard key={item.id} item={item} />
             ))}
           </View>
         )}
@@ -337,66 +422,38 @@ export default function ThreatDetail() {
               Threat Score Breakdown
             </Text>
           </View>
-          <ScoreBar
-            label="Media Similarity"
-            value={breakdown.mediaSimilarity}
-            max={40}
-            color={colors.danger}
-          />
-          <ScoreBar
-            label="Content Reuse"
-            value={breakdown.contentReuse}
-            max={20}
-            color={colors.warning}
-          />
-          <ScoreBar
-            label="Profile Match"
-            value={breakdown.profileSimilarity}
-            max={15}
-            color={colors.warning}
-          />
-          <ScoreBar
-            label="Bio Similarity"
-            value={breakdown.bioSimilarity}
-            max={10}
-            color={colors.primary}
-          />
-          <ScoreBar
-            label="Username"
-            value={breakdown.usernameSimilarity}
-            max={10}
-            color={colors.primary}
-          />
-          <ScoreBar
-            label="Behavior"
-            value={breakdown.behavioral}
-            max={5}
-            color={colors.mutedForeground}
-          />
+          <ScoreBar label="Media Similarity" value={breakdown.mediaSimilarity} max={40} color={colors.danger} />
+          <ScoreBar label="Content Reuse" value={breakdown.contentReuse} max={20} color={colors.warning} />
+          <ScoreBar label="Profile Match" value={breakdown.profileSimilarity} max={15} color={colors.warning} />
+          <ScoreBar label="Bio Similarity" value={breakdown.bioSimilarity} max={10} color={colors.primary} />
+          <ScoreBar label="Username" value={breakdown.usernameSimilarity} max={10} color={colors.primary} />
+          <ScoreBar label="Behavior" value={breakdown.behavioral} max={5} color={colors.mutedForeground} />
         </GlassCard>
 
         {/* AI Explanation */}
-        <GlassCard style={[styles.aiCard, { borderColor: colors.primary + "44" }]}>
-          <View style={styles.aiHeader}>
-            <View style={[styles.aiIcon, { backgroundColor: colors.primary + "22" }]}>
-              <MaterialCommunityIcons name="brain" size={20} color={colors.primary} />
+        {aiExplanation ? (
+          <GlassCard style={[styles.aiCard, { borderColor: colors.primary + "44" }]}>
+            <View style={styles.aiHeader}>
+              <View style={[styles.aiIcon, { backgroundColor: colors.primary + "22" }]}>
+                <MaterialCommunityIcons name="brain" size={20} color={colors.primary} />
+              </View>
+              <View>
+                <Text style={[styles.aiLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                  AI Analysis
+                </Text>
+                <Text style={[styles.aiPowered, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  ShieldID Identity Investigator
+                </Text>
+              </View>
             </View>
-            <View>
-              <Text style={[styles.aiLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                AI Analysis
-              </Text>
-              <Text style={[styles.aiPowered, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                ShieldID Identity Investigator
-              </Text>
-            </View>
-          </View>
-          <Text style={[styles.aiText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-            {threat.aiExplanation}
-          </Text>
-        </GlassCard>
+            <Text style={[styles.aiText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+              {aiExplanation}
+            </Text>
+          </GlassCard>
+        ) : null}
 
         {/* Detected Signals */}
-        {threat.detectedSignals.length > 0 && (
+        {detectedSignals.length > 0 && (
           <GlassCard style={styles.signalsCard}>
             <View style={styles.sectionHeader}>
               <Ionicons name="alert-circle" size={18} color={colors.warning} />
@@ -406,7 +463,7 @@ export default function ThreatDetail() {
                 Detected Signals
               </Text>
             </View>
-            {threat.detectedSignals.map((signal, i) => (
+            {detectedSignals.map((signal, i) => (
               <View key={i} style={styles.signalItem}>
                 <View style={[styles.signalDot, { backgroundColor: colors.warning }]} />
                 <Text
@@ -438,6 +495,7 @@ export default function ThreatDetail() {
             ]}
             activeOpacity={0.8}
             onPress={handleResolve}
+            disabled={resolving}
           >
             <Ionicons name="checkmark-circle" size={18} color={colors.success} />
             <Text
@@ -468,6 +526,8 @@ export default function ThreatDetail() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+  loadingText: { fontSize: 15, marginTop: 8 },
   header: {
     flexDirection: "row",
     alignItems: "center",

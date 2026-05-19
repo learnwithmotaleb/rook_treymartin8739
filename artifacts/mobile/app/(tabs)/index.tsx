@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import {
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -60,11 +61,20 @@ function FingerprintStat({ label, value }: { label: string; value: string }) {
 export default function Dashboard() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, threats, activeThreats, fakeAccounts, leakedPasswords } = useApp();
+  const { user, threats, activeThreats, fakeAccounts, leakedPasswords, refreshData } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const recentThreats = threats.filter((t) => !t.resolved).slice(0, 3);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshData();
+    setRefreshing(false);
+  }, [refreshData]);
+
+  const darkWebCount = threats.filter((t) => !t.resolved && t.type === "dark_web").length;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -98,6 +108,14 @@ export default function Dashboard() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Status Banner */}
         <GlassCard style={styles.statusBanner}>
@@ -218,10 +236,14 @@ export default function Dashboard() {
           />
           <StatCard
             label="Dark Web"
-            value="1 Found"
-            valueColor={colors.warning}
+            value={darkWebCount > 0 ? `${darkWebCount} Found` : "Clean"}
+            valueColor={darkWebCount > 0 ? colors.warning : colors.success}
             icon={
-              <MaterialCommunityIcons name="eye-off" size={22} color={colors.warning} />
+              <MaterialCommunityIcons
+                name="eye-off"
+                size={22}
+                color={darkWebCount > 0 ? colors.warning : colors.success}
+              />
             }
           />
         </View>
@@ -249,7 +271,7 @@ export default function Dashboard() {
                     </View>
                   </View>
                   <Text style={[styles.accountPhotos, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    {acc.photosIndexed}
+                    {acc.photosIndexed} photos
                   </Text>
                 </View>
               ))}
@@ -273,9 +295,18 @@ export default function Dashboard() {
             </Text>
           </TouchableOpacity>
         </View>
-        {recentThreats.map((t) => (
-          <ThreatCard key={t.id} threat={t} compact />
-        ))}
+        {recentThreats.length === 0 ? (
+          <GlassCard style={styles.noThreats}>
+            <Ionicons name="shield-checkmark" size={32} color={colors.success} />
+            <Text style={[styles.noThreatsText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              No active threats detected
+            </Text>
+          </GlassCard>
+        ) : (
+          recentThreats.map((t) => (
+            <ThreatCard key={t.id} threat={t} compact />
+          ))
+        )}
       </ScrollView>
     </View>
   );
@@ -410,4 +441,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: "dashed",
   },
+
+  noThreats: { alignItems: "center", gap: 10, paddingVertical: 8 },
+  noThreatsText: { fontSize: 14 },
 });

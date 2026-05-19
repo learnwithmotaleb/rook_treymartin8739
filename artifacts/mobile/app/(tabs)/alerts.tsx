@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   FlatList,
   Platform,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -10,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-import { useApp, Severity, Threat } from "@/context/AppContext";
+import { useApp, Severity, type Threat } from "@/context/AppContext";
 import { ThreatCard } from "@/components/ThreatCard";
 
 type Filter = "all" | Severity;
@@ -25,8 +26,9 @@ const FILTERS: { label: string; value: Filter }[] = [
 export default function AlertsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { threats } = useApp();
+  const { threats, refreshData } = useApp();
   const [filter, setFilter] = useState<Filter>("all");
+  const [refreshing, setRefreshing] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -43,6 +45,17 @@ export default function AlertsScreen() {
     if (f === "low") return colors.success;
     return colors.primary;
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshData();
+    setRefreshing(false);
+  }, [refreshData]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Threat }) => <ThreatCard threat={item} />,
+    []
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -95,12 +108,19 @@ export default function AlertsScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ThreatCard threat={item} />}
+        renderItem={renderItem}
         contentContainerStyle={[
           styles.list,
           { paddingBottom: bottomPad + 100 },
         ]}
-        scrollEnabled={!!filtered.length}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.success + "22" }]}>
@@ -110,7 +130,9 @@ export default function AlertsScreen() {
               All Clear
             </Text>
             <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              No active threats detected
+              {filter === "all"
+                ? "No active threats detected"
+                : `No ${filter}-severity threats`}
             </Text>
           </View>
         }

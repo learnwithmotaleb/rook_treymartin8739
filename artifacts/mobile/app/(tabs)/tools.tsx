@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 
 interface ToolCardProps {
@@ -22,6 +23,7 @@ interface ToolCardProps {
   buttonLabel: string;
   onPress: () => void;
   badge?: string;
+  alertCount?: number;
 }
 
 function ToolCard({
@@ -32,6 +34,7 @@ function ToolCard({
   buttonLabel,
   onPress,
   badge,
+  alertCount,
 }: ToolCardProps) {
   const colors = useColors();
   return (
@@ -40,13 +43,20 @@ function ToolCard({
         <View style={[styles.toolIcon, { backgroundColor: accentColor + "22" }]}>
           {icon}
         </View>
-        {badge && (
-          <View style={[styles.badge, { backgroundColor: colors.primary + "22" }]}>
-            <Text style={[styles.badgeText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-              {badge}
-            </Text>
-          </View>
-        )}
+        <View style={styles.toolBadges}>
+          {badge && (
+            <View style={[styles.badge, { backgroundColor: colors.primary + "22" }]}>
+              <Text style={[styles.badgeText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                {badge}
+              </Text>
+            </View>
+          )}
+          {alertCount !== undefined && alertCount > 0 && (
+            <View style={[styles.alertBadge, { backgroundColor: colors.danger }]}>
+              <Text style={styles.alertBadgeText}>{alertCount}</Text>
+            </View>
+          )}
+        </View>
       </View>
       <Text style={[styles.toolTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
         {title}
@@ -70,8 +80,17 @@ function ToolCard({
 export default function ToolsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { threats } = useApp();
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const mediaThreats = threats.filter(
+    (t) => !t.resolved && ["stolen_photo", "impersonator", "fake_account", "scam"].includes(t.type)
+  ).length;
+  const darkWebThreats = threats.filter(
+    (t) => !t.resolved && ["dark_web", "leaked_password"].includes(t.type)
+  ).length;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -118,6 +137,7 @@ export default function ToolsScreen() {
           title="Photo Monitor"
           description="We scan the web to find where your photos are being used without permission across all major platforms."
           buttonLabel="View Results"
+          alertCount={mediaThreats}
           onPress={() => router.push("/photo-monitor" as any)}
         />
 
@@ -136,7 +156,8 @@ export default function ToolsScreen() {
           title="Dark Web Monitor"
           description="Continuously monitors dark web databases, forums, and breach databases for your personal information."
           buttonLabel="View Report"
-          onPress={() => {}}
+          alertCount={darkWebThreats}
+          onPress={() => router.push("/dark-web" as any)}
         />
 
         {/* Premium Upsell */}
@@ -197,12 +218,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  toolBadges: { flexDirection: "row", alignItems: "center", gap: 6 },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 20,
   },
   badgeText: { fontSize: 11 },
+  alertBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  alertBadgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
   toolTitle: { fontSize: 17 },
   toolDesc: { fontSize: 14, lineHeight: 21 },
   toolBtn: {

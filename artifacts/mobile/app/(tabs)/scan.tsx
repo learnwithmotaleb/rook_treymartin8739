@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Platform,
   StyleSheet,
   Text,
@@ -16,22 +17,63 @@ import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
 
+const SCAN_STEPS = [
+  "Indexing connected accounts…",
+  "Comparing visual fingerprints…",
+  "Scanning Instagram…",
+  "Scanning TikTok…",
+  "Scanning X & Facebook…",
+  "Checking breach databases…",
+  "Running AI threat analysis…",
+  "Finalizing report…",
+];
+
 export default function ScanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, isScanning, scanProgress, startScan, activeThreats, fakeAccounts } = useApp();
+  const { user, isScanning, scanProgress, startScan, activeThreats, fakeAccounts, threats } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  const [lastResult, setLastResult] = useState<{ threatsFound: number; time: string } | null>(null);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const resultOpacity = useRef(new Animated.Value(0)).current;
+  const prevScanning = useRef(false);
+
+  useEffect(() => {
+    if (isScanning) {
+      prevScanning.current = true;
+      const stepIdx = Math.min(
+        Math.floor((scanProgress / 100) * SCAN_STEPS.length),
+        SCAN_STEPS.length - 1
+      );
+      setCurrentStepIndex(stepIdx);
+    } else if (prevScanning.current) {
+      prevScanning.current = false;
+      const activeCount = threats.filter((t) => !t.resolved).length;
+      setLastResult({
+        threatsFound: activeCount,
+        time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+      });
+      resultOpacity.setValue(0);
+      Animated.timing(resultOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isScanning, scanProgress, threats, resultOpacity]);
+
   const handleScan = () => {
+    if (isScanning) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLastResult(null);
     startScan();
   };
 
-  const statusText = isScanning
-    ? `Scanning... ${scanProgress}%`
-    : "All systems active";
+  const currentStep = isScanning ? SCAN_STEPS[currentStepIndex] : null;
+  const statusText = isScanning ? `${scanProgress}% complete` : "All systems active";
   const statusColor = isScanning ? colors.primary : colors.success;
 
   return (
@@ -106,6 +148,12 @@ export default function ScanScreen() {
               {statusText}
             </Text>
           </View>
+
+          {currentStep ? (
+            <Text style={[styles.stepText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {currentStep}
+            </Text>
+          ) : null}
         </View>
 
         {/* Stats */}
@@ -183,7 +231,7 @@ export default function ScanScreen() {
                 { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
               ]}
             >
-              Fake Accounts
+              Fake Accts
             </Text>
           </GlassCard>
         </View>
@@ -216,6 +264,62 @@ export default function ScanScreen() {
           </View>
         )}
 
+        {/* Scan result card after completion */}
+        {lastResult && !isScanning && (
+          <Animated.View style={{ opacity: resultOpacity, width: "100%" }}>
+            <GlassCard
+              style={[
+                styles.resultCard,
+                {
+                  borderColor:
+                    lastResult.threatsFound > 0
+                      ? colors.danger + "44"
+                      : colors.success + "44",
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.resultIcon,
+                  {
+                    backgroundColor:
+                      lastResult.threatsFound > 0
+                        ? colors.danger + "22"
+                        : colors.success + "22",
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={lastResult.threatsFound > 0 ? "alert-circle" : "shield-checkmark"}
+                  size={22}
+                  color={lastResult.threatsFound > 0 ? colors.danger : colors.success}
+                />
+              </View>
+              <View style={styles.resultText}>
+                <Text
+                  style={[
+                    styles.resultTitle,
+                    {
+                      color:
+                        lastResult.threatsFound > 0 ? colors.danger : colors.success,
+                      fontFamily: "Inter_600SemiBold",
+                    },
+                  ]}
+                >
+                  Scan Complete · {lastResult.time}
+                </Text>
+                <Text
+                  style={[styles.resultSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                >
+                  {lastResult.threatsFound > 0
+                    ? `${lastResult.threatsFound} active threat${lastResult.threatsFound !== 1 ? "s" : ""} detected`
+                    : "No new threats found — you're protected"}
+                </Text>
+              </View>
+            </GlassCard>
+          </Animated.View>
+        )}
+
         {/* Scan button */}
         <TouchableOpacity
           style={[
@@ -238,7 +342,7 @@ export default function ScanScreen() {
                   { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
                 ]}
               >
-                Scanning...
+                Scanning…
               </Text>
             </>
           ) : (
@@ -262,8 +366,8 @@ export default function ScanScreen() {
             { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
           ]}
         >
-          Scans all connected accounts for impersonators, stolen photos, and
-          suspicious activity
+          Scans all {user.monitored} connected accounts for impersonators,
+          stolen photos, and data breaches
         </Text>
       </View>
     </View>
@@ -311,6 +415,7 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 14 },
+  stepText: { fontSize: 13, textAlign: "center" },
   statsRow: { flexDirection: "row", gap: 10, width: "100%" },
   statItem: { flex: 1, alignItems: "center", gap: 6 },
   statValue: { fontSize: 20 },
@@ -324,6 +429,22 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   progressFill: { height: "100%", borderRadius: 2 },
+  resultCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    width: "100%",
+  },
+  resultIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resultText: { flex: 1, gap: 2 },
+  resultTitle: { fontSize: 13 },
+  resultSub: { fontSize: 12 },
   scanBtn: {
     width: "100%",
     height: 56,
