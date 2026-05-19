@@ -1,0 +1,467 @@
+```text id="shieldidv2"
+Build a production-ready mobile app called “ShieldID” using React Native with Expo for iOS and Android.
+
+ShieldID is a premium AI-powered identity protection platform that continuously monitors the public internet and social platforms for impersonation, stolen profile photos, scam attempts, fake accounts, and identity compromise risks.
+
+The app should feel like a next-generation cybersecurity product for creators, professionals, influencers, businesses, and everyday users.
+
+The quality standard should match apps like:
+- Robinhood
+- Credit Karma
+- Life360
+- Aura
+- 1Password
+
+The app must look visually stunning, modern, smooth, secure, and App Store ready.
+
+---------------------------------------------------
+# 🧠 CORE PRODUCT PHILOSOPHY
+---------------------------------------------------
+
+Users should NOT need to upload photos manually.
+
+The system should intelligently:
+1. Discover the user's likely real social profiles
+2. Extract publicly available profile photos and metadata
+3. Build an “identity fingerprint”
+4. Continuously monitor for impersonators, stolen photos, fake accounts, cloned bios, scams, and suspicious identity activity
+
+The app should feel like:
+“AI-powered identity threat intelligence for social media.”
+
+---------------------------------------------------
+# ⚙️ TECH STACK
+---------------------------------------------------
+
+MOBILE APP:
+- React Native
+- Expo
+- TypeScript
+- Expo Router
+- React Query / TanStack Query
+- Zustand state management
+- NativeWind/Tailwind styling
+- Reanimated animations
+- Expo Notifications
+- Expo SecureStore
+
+BACKEND:
+- Node.js
+- Express API
+- TypeScript backend
+- BullMQ background jobs
+- Redis caching/queues
+- Modular provider architecture
+
+DATABASE:
+- Supabase PostgreSQL
+
+AUTH:
+- Firebase Authentication
+- Email/password
+- Google login
+- Apple login
+- Biometric login support
+- 2FA-ready architecture
+
+PAYMENTS:
+- Stripe
+- RevenueCat
+
+STORAGE:
+- Cloudinary for cached profile images and screenshots
+
+AI + ANALYSIS:
+- OpenAI API
+- Username similarity scoring
+- Image similarity scoring
+- Scam analysis engine
+- Risk explanation generation
+
+MONITORING:
+- Background scan workers
+- Scheduled monitoring jobs
+- Real-time alert pipeline
+
+ERROR TRACKING:
+- Sentry
+
+---------------------------------------------------
+# 🎨 DESIGN STYLE
+---------------------------------------------------
+
+Theme:
+- Dark mode by default
+- Black / deep navy / electric blue
+- Cybersecurity aesthetic
+- Glassmorphism cards
+- Subtle glows
+- Smooth transitions
+- Futuristic but clean
+
+UI should feel:
+- trustworthy
+- intelligent
+- premium
+- security-focused
+
+Use:
+- animated dashboards
+- threat pulse animations
+- live monitoring visuals
+- modern typography
+- beautiful empty states
+
+The app should visually impress investors immediately.
+
+---------------------------------------------------
+# 📱 CORE APP FLOW
+---------------------------------------------------
+
+1. Splash Screen
+2. Onboarding
+3. Login / Register
+4. Username Identity Setup
+5. Optional Social Verification
+6. Dashboard
+7. Threat Monitoring
+8. Alerts Feed
+9. Fake Account Detection
+10. Scam Analyzer
+11. Recovery Hub
+12. Subscription Paywall
+13. Settings/Profile
+
+---------------------------------------------------
+# 🔐 IDENTITY SETUP FLOW
+---------------------------------------------------
+
+Users enter:
+- full name
+- usernames/handles
+- optional linked accounts
+
+The app should then:
+1. Search public sources
+2. Discover likely real profiles
+3. Select canonical identity profiles
+4. Extract:
+   - profile photos
+   - bios
+   - usernames
+   - follower counts
+   - platform metadata
+
+This becomes the:
+“Identity Fingerprint”
+
+The app should support:
+- Instagram
+- TikTok
+- X/Twitter
+- Facebook
+- LinkedIn
+- YouTube
+- Snapchat
+
+---------------------------------------------------
+# 🧬 IMPERSONATION DETECTION ENGINE
+---------------------------------------------------
+
+The app continuously scans for:
+
+- Username copycats
+- Stolen profile photos
+- Cloned bios
+- Fake verified pages
+- Catfish accounts
+- Scam/fraud pages
+- Fake giveaways
+- Fan page impersonators
+- Business impersonators
+
+Detection should use:
+
+1. Username similarity
+2. Profile image similarity
+3. Bio similarity
+4. AI facial/image matching
+5. Follower anomalies
+6. Post caption duplication
+7. Cross-platform identity mapping
+
+IMPORTANT:
+Even if usernames are completely different, the system should still detect impersonators using stolen profile photos and image similarity analysis.
+
+---------------------------------------------------
+# 🧠 AI FEATURES
+---------------------------------------------------
+
+Use OpenAI API to:
+- Analyze suspicious DMs
+- Detect phishing attempts
+- Explain impersonation risks
+- Generate recovery recommendations
+- Analyze suspicious bios
+- Detect scam probability
+
+Provide plain-English explanations for threats.
+
+Example:
+“This account was flagged because its profile photo closely matches yours and its bio contains copied keywords.”
+
+---------------------------------------------------
+# 📊 SECURITY SCORE SYSTEM
+---------------------------------------------------
+
+Create a live “Identity Security Score” from 1–100.
+
+Score factors:
+- impersonators found
+- leaked credentials
+- suspicious activity
+- weak usernames
+- public exposure
+- scam mentions
+- compromised accounts
+
+Dashboard should show:
+- score trend
+- active threats
+- accounts monitored
+- recent alerts
+- monitoring status
+
+---------------------------------------------------
+# 🚨 REAL-TIME ALERT SYSTEM
+---------------------------------------------------
+
+Push notifications for:
+- new impersonator detected
+- stolen photo detected
+- suspicious scam account
+- leaked password found
+- profile cloning
+- fake verified page found
+- suspicious follower spikes
+
+Premium users receive:
+- instant push alerts
+- email alerts
+- SMS alerts
+
+---------------------------------------------------
+# 🖼️ PHOTO MONITORING SYSTEM
+---------------------------------------------------
+
+The app should:
+1. Discover profile photos from canonical identities
+2. Create image embeddings
+3. Compare against discovered candidate profiles
+4. Detect reused/stolen photos
+
+Use:
+- image similarity scoring
+- AI vector comparison
+- reverse image search architecture placeholders
+
+DO NOT require manual photo uploads.
+
+---------------------------------------------------
+# 🌐 MONITORING ARCHITECTURE
+---------------------------------------------------
+
+Create a modular monitoring provider system.
+
+Use:
+- official APIs where possible
+- public profile monitoring
+- search-based discovery
+- AI similarity analysis
+
+Structure providers so future integrations can easily be added.
+
+Example providers:
+- InstagramProvider
+- TikTokProvider
+- TwitterProvider
+- WebSearchProvider
+- ReverseImageProvider
+
+---------------------------------------------------
+# 💰 MONETIZATION
+---------------------------------------------------
+
+FREE TIER:
+- 1 username monitored
+- daily scans
+- limited alerts
+
+PREMIUM ($9.99/month):
+- unlimited monitoring
+- real-time alerts
+- scam analyzer
+- stolen photo detection
+- recovery tools
+
+FAMILY PLAN ($19.99/month):
+- up to 5 users
+- shared dashboard
+- parental/family monitoring
+
+CREATOR MODE:
+- advanced creator/business protection
+- fake fan page detection
+- giveaway scam detection
+- brand impersonator tracking
+
+---------------------------------------------------
+# 🛡️ RECOVERY HUB
+---------------------------------------------------
+
+Provide:
+- account recovery guides
+- emergency recovery checklist
+- platform support links
+- identity lockdown checklist
+- compromise response steps
+
+---------------------------------------------------
+# ⚠️ IMPORTANT DEVELOPMENT REQUIREMENTS
+---------------------------------------------------
+
+Build as scalable SaaS architecture.
+
+Requirements:
+- modular codebase
+- reusable components
+- proper environment variables
+- API security
+- encrypted token storage
+- rate limiting
+- background workers
+- caching strategy
+- clean folder structure
+- production-ready patterns
+
+Use mock APIs temporarily if necessary BUT structure everything so real integrations can easily replace mocks later.
+
+---------------------------------------------------
+# 🧱 DATABASE TABLES
+---------------------------------------------------
+
+Create schemas for:
+- users
+- identities
+- connected_accounts
+- impersonation_reports
+- alerts
+- scans
+- subscriptions
+- risk_scores
+- scam_analysis
+- family_accounts
+- monitoring_jobs
+- provider_results
+
+---------------------------------------------------
+# 📲 SCREENS TO BUILD
+---------------------------------------------------
+
+Build polished screens for:
+- Splash
+- Onboarding
+- Login/Register
+- Dashboard
+- Security Score
+- Alerts Feed
+- Fake Accounts List
+- Threat Details
+- Scam Analyzer
+- Photo Monitoring Results
+- Recovery Hub
+- Subscription Paywall
+- Family Dashboard
+- Settings/Profile
+
+---------------------------------------------------
+# 🖥️ ADMIN DASHBOARD
+---------------------------------------------------
+
+Create a web-based admin dashboard for:
+- user management
+- threat analytics
+- fake account analytics
+- monitoring jobs
+- subscription tracking
+- provider health monitoring
+- alert logs
+
+---------------------------------------------------
+# 🚀 DEPLOYMENT TARGETS
+---------------------------------------------------
+
+Prepare architecture for:
+- App Store deployment
+- Google Play deployment
+- Railway/Render backend deployment
+- Supabase hosting
+
+---------------------------------------------------
+# 📦 DELIVERABLES
+---------------------------------------------------
+
+Generate:
+- Expo React Native app
+- Backend API structure
+- Database schema
+- Authentication flow
+- Subscription architecture
+- Monitoring engine architecture
+- Push notification setup
+- Admin dashboard structure
+- Folder structure
+- API routes
+- Environment variable template
+- README setup instructions
+- Seed/demo data
+
+---------------------------------------------------
+# 🧠 IMPORTANT IMPLEMENTATION STRATEGY
+---------------------------------------------------
+
+Build incrementally in phases.
+
+PHASE 1:
+- authentication
+- onboarding
+- dashboard UI
+- risk score UI
+
+PHASE 2:
+- identity discovery engine
+- monitoring architecture
+- fake account detection UI
+
+PHASE 3:
+- image similarity system
+- AI scam analyzer
+- alerts pipeline
+
+PHASE 4:
+- subscriptions
+- notifications
+- admin dashboard
+
+PHASE 5:
+- optimization
+- App Store polish
+- production hardening
+
+PRIORITIZE:
+- visually impressive MVP first
+- scalable architecture second
+- real integrations later
+
+Use mock providers initially but build all systems modularly so real APIs can replace them later without refactoring the app.
+```
