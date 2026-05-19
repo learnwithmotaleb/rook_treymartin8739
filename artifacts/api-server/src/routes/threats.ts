@@ -1,0 +1,136 @@
+import { Router, type IRouter } from "express";
+import { eq, and, desc } from "drizzle-orm";
+import { db, threatsTable } from "@workspace/db";
+import { resolveUserId } from "../lib/demoUser";
+
+const router: IRouter = Router();
+
+function parseThreat(t: typeof threatsTable.$inferSelect) {
+  const evidence = safeParseJson<unknown[]>(t.evidenceJson, []);
+  const scoreBreakdown = safeParseJson<Record<string, number>>(
+    t.scoreBreakdownJson,
+    {}
+  );
+  const detectedSignals = safeParseJson<string[]>(t.detectedSignalsJson, []);
+
+  return {
+    id: t.id,
+    type: t.type,
+    severity: t.severity,
+    platform: t.platform,
+    title: t.title,
+    description: t.description,
+    details: t.details,
+    aiExplanation: t.aiExplanation,
+    threatScore: t.threatScore,
+    suspiciousUsername: t.suspiciousUsername,
+    matchedMediaCount: t.matchedMediaCount,
+    evidence,
+    scoreBreakdown,
+    detectedSignals,
+    resolved: t.resolved,
+    resolvedAt: t.resolvedAt?.toISOString() ?? null,
+    createdAt: t.createdAt.toISOString(),
+  };
+}
+
+function parseThreatSummary(t: typeof threatsTable.$inferSelect) {
+  return {
+    id: t.id,
+    type: t.type,
+    severity: t.severity,
+    platform: t.platform,
+    title: t.title,
+    description: t.description,
+    threatScore: t.threatScore,
+    matchedMediaCount: t.matchedMediaCount,
+    suspiciousUsername: t.suspiciousUsername,
+    resolved: t.resolved,
+    createdAt: t.createdAt.toISOString(),
+  };
+}
+
+function safeParseJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+router.get("/threats", async (req, res): Promise<void> => {
+  const userId = await resolveUserId(req.headers["x-user-id"]);
+
+  const { severity, resolved, limit = "50", offset = "0" } = req.query as {
+    severity?: string;
+    resolved?: string;
+    limit?: string;
+    offset?: string;
+  };
+
+  const conditions = [eq(threatsTable.userId, userId)];
+
+  if (severity && ["high", "medium", "low"].includes(severity)) {
+    conditions.push(eq(threatsTable.severity, severity));
+  }
+
+  if (resolved !== undefined) {
+    conditions.push(eq(threatsTable.resolved, resolved === "true"));
+  }
+
+  const rows = await db
+    .select()
+    .from(threatsTable)
+    .where(and(...conditions))
+    .orderBy(desc(threatsTable.createdAt))
+    .limit(Math.min(parseInt(limit, 10), 100))
+    .offset(Math.max(parseInt(offset, 10), 0));
+
+  res.json(rows.map(parseThreatSummary));
+});
+
+router.get("/threats/:threatId", async (req, res): Promise<void> => {
+  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const threatId = Array.isArray(req.params.threatId)
+    ? req.params.threatId[0]
+    : req.params.threatId;
+
+  const [threat] = await db
+    .select()
+    .from(threatsTable)
+    .where(
+      and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId))
+    );
+
+  if (!threat) {
+    res.status(404).json({ error: "Threat not found" });
+    return;
+  }
+
+  res.json(parseThreat(threat));
+});
+
+router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
+  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const threatId = Array.isArray(req.params.threatId)
+    ? req.params.threatId[0]
+    : req.params.threatId;
+
+  const [updated] = await db
+    .update(threatsTable)
+    .set({ resolved: true, resolvedAt: new Date() })
+    .where(
+      and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId))
+    )
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "Threat not found" });
+    return;
+  }
+
+  res.json(parseThreat(updated));
+});
+
+export default router;

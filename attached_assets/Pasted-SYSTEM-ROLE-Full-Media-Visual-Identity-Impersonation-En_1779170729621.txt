@@ -1,0 +1,249 @@
+SYSTEM ROLE: Full Media Visual Identity Impersonation Engine
+
+You are the backend intelligence system for a Social Identity Protection Platform.
+
+Your primary function is to detect impersonator accounts across social platforms by analyzing the entire visual media history of a user’s accounts, including:
+
+profile images
+posts
+stories (if available via API)
+reels/videos (key frames extracted via API)
+all publicly accessible media returned through official platform APIs
+
+You MUST prioritize visual analysis across all user-generated media, not just profile photos.
+
+You MUST NOT scrape or crawl social media platforms.
+
+You MUST NOT access content outside official APIs or user-authorized data exports.
+
+🧠 CORE PRODUCT BEHAVIOR (UNCHANGED)
+
+The system must:
+
+Automatically discover unknown accounts similar to a user
+Collect all available media from those accounts (via allowed sources)
+Build a full visual identity fingerprint from ALL media
+Detect impersonation based on visual similarity across content history
+Alert users about impersonator accounts they did not know existed
+🎥 CORE ENGINE: FULL MEDIA VISUAL FINGERPRINT SYSTEM
+
+This system treats every account as a visual dataset, not just a profile.
+
+1. MEDIA INGESTION LAYER (COMPLIANT ONLY)
+
+Allowed sources:
+
+Instagram Graph API media endpoints
+TikTok API video/image endpoints
+X media endpoints (tweets + images/videos)
+Facebook Graph media endpoints
+
+Each account produces:
+
+{
+  "account_id": "",
+  "platform": "",
+  "media_items": [
+    {
+      "media_id": "",
+      "type": "image | video",
+      "url": "",
+      "timestamp": ""
+    }
+  ]
+}
+🧠 2. VISUAL FINGERPRINT ENGINE (CORE OF SYSTEM)
+
+Each account is converted into a multi-layer visual identity model:
+
+A. Profile image embeddings
+B. Post image embeddings (ALL images)
+C. Video frame embeddings (keyframes extracted)
+D. Aesthetic/style embeddings (global content style)
+OUTPUT:
+{
+  "account_id": "",
+  "visual_identity": {
+    "profile_image_embedding": [],
+    "media_embeddings": [],
+    "video_frame_embeddings": [],
+    "style_embedding": [],
+    "color_palette_signature": [],
+    "composition_signature": []
+  }
+}
+🔍 3. AUTOMATIC IMPERSONATOR DISCOVERY ENGINE
+
+The system finds unknown accounts using visual similarity across ALL media, not just profile pictures.
+
+A. FULL MEDIA SIMILARITY SEARCH (PRIMARY MECHANISM)
+
+The system compares:
+
+image-to-image similarity across posts
+video frame similarity across reels/videos
+aesthetic consistency matching
+repeated content structures
+
+This detects impersonators who:
+
+reuse content, not just profile photos
+
+B. CROSS-ACCOUNT MEDIA REUSE DETECTION
+
+Detect:
+
+reposted images across fake accounts
+stolen content libraries
+cloned video clips
+slightly edited versions of original media
+C. STYLE CLONE DETECTION (VERY IMPORTANT)
+
+Even without exact image matches, detect:
+
+identical editing style
+same filters
+same lighting + composition patterns
+same posting templates
+
+This catches “soft impersonation” accounts.
+
+D. VISUAL NETWORK CLUSTERING
+
+Group accounts by:
+
+shared media fingerprints
+overlapping content sets
+similar posting history structures
+
+This reveals impersonation networks.
+
+🧠 4. EXTERNAL AI ANALYSIS ENGINE
+
+All reasoning is handled externally.
+
+INPUT:
+{
+  "primary_account": {
+    "visual_identity": {}
+  },
+  "candidate_accounts": [
+    {
+      "account_id": "",
+      "visual_identity": {},
+      "source": "api_discovery | media_similarity | graph_match"
+    }
+  ],
+  "task": "full_media_impersonation_detection"
+}
+AI RESPONSIBILITIES
+
+The AI performs:
+
+Visual similarity analysis
+image embedding comparisons across ALL posts
+video frame similarity detection
+content reuse scoring
+Identity cloning detection
+reused media libraries
+duplicated content strategies
+impersonation content mimicry
+Network-level analysis
+coordinated fake accounts
+bot farms sharing media templates
+AI OUTPUT:
+{
+  "results": [
+    {
+      "candidate_account": "",
+      "risk_score": 0,
+      "classification": "SAFE | SUSPICIOUS | IMPERSONATOR | MEDIA_CLONE_NETWORK",
+      "signals": [
+        "72% overlap in posted media embeddings",
+        "Repeated video frame duplication detected",
+        "Style embedding match above threshold"
+      ],
+      "confidence": 0.0
+    }
+  ]
+}
+🔎 5. AUTOMATED DISCOVERY SYSTEM (NO USER INPUT REQUIRED)
+
+The system discovers unknown accounts via:
+
+A. Official API search endpoints
+username search
+similar accounts
+recommended accounts
+B. Media-based reverse matching
+accounts sharing similar images/videos
+content reuse clusters
+C. Cross-platform identity matching
+same media appearing across platforms
+duplicated content signatures
+⚙️ BACKEND ARCHITECTURE (REPLIT)
+/src
+  /auth
+  /controllers
+  /routes
+  /services
+    mediaIngestionService.js
+    mediaFingerprintService.js
+    mediaSimilarityEngine.js
+    aiMediaAnalysisService.js
+    scanOrchestrator.js
+  /adapters
+    instagramAdapter.js
+    tiktokAdapter.js
+    xAdapter.js
+    facebookAdapter.js
+  /jobs
+  /models
+  /utils
+  /config
+🗄️ DATABASE DESIGN (FULL MEDIA SYSTEM)
+users
+id
+email
+accounts
+id
+user_id
+platform
+username
+media_items
+id
+account_id
+type
+url
+embedding_vector
+visual_fingerprints
+account_id
+media_embedding_blob
+style_embedding_blob
+discovered_candidates
+id
+account_id
+source
+impersonation_results
+id
+account_id
+risk_score
+ai_output_json
+🔁 SYSTEM FLOW (FULL MEDIA LOOP)
+User connects social account via OAuth
+System pulls ALL available media via API
+Media is embedded into vector space
+System searches for visually similar accounts:
+profile images
+posts
+videos
+style fingerprints
+Unknown accounts are discovered via API + similarity graph
+External AI analyzes full media overlap
+Impersonators are ranked and flagged
+User is alerted to unknown fake accounts
+🧠 FINAL SYSTEM DEFINITION
+
+This system is:
+
+“A full-media visual identity intelligence engine that automatically discovers and detects impersonator accounts by analyzing entire visual content histories across platforms using AI-powered embedding similarity and compliant API-based data ingestion.”

@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
+import { analyzeScam } from "@/lib/api";
 
 type RiskLevel = "safe" | "suspicious" | "scam";
 
@@ -26,31 +27,6 @@ interface AnalysisResult {
   indicators: string[];
   recommendation: string;
 }
-
-const MOCK_RESULTS: Record<string, AnalysisResult> = {
-  default: {
-    risk: "suspicious",
-    score: 67,
-    explanation:
-      'This message contains several red flags commonly associated with phishing and social engineering attacks. The urgency language, request for personal action, and unverified link are concerning.',
-    indicators: [
-      "Urgency language detected",
-      "Unverified external link",
-      "Request for personal information",
-      "Grammar inconsistencies",
-    ],
-    recommendation:
-      "Do not click any links in this message. If you believe it may be legitimate, contact the sender directly through official channels.",
-  },
-  safe: {
-    risk: "safe",
-    score: 12,
-    explanation:
-      "This message does not contain any significant threat indicators. The content appears to be a normal communication without suspicious patterns.",
-    indicators: ["No suspicious links detected", "No urgent call-to-action"],
-    recommendation: "This message appears safe, but always exercise caution with unknown senders.",
-  },
-};
 
 function riskColor(risk: RiskLevel, colors: ReturnType<typeof useColors>) {
   if (risk === "scam") return colors.danger;
@@ -64,23 +40,40 @@ export default function ScamAnalyzer() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!text.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLoading(true);
     setResult(null);
-    setTimeout(() => {
-      const lowerText = text.toLowerCase();
-      const isSafe =
-        lowerText.includes("hello") || lowerText.length < 20;
-      setResult(isSafe ? MOCK_RESULTS.safe : MOCK_RESULTS.default);
-      setLoading(false);
+    setError(null);
+    try {
+      const apiResult = await analyzeScam(text.trim());
+      const riskMap: Record<string, RiskLevel> = {
+        low: "safe",
+        medium: "suspicious",
+        high: "scam",
+      };
+      setResult({
+        risk: riskMap[apiResult.riskLevel] ?? "suspicious",
+        score: apiResult.riskScore,
+        explanation: apiResult.explanation,
+        indicators: apiResult.detectedPatterns.length > 0
+          ? apiResult.detectedPatterns
+          : ["No specific patterns detected"],
+        recommendation: apiResult.recommendation,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }, 2000);
+    } catch (err) {
+      setError("Analysis failed. Please check your connection and try again.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -204,6 +197,15 @@ export default function ScamAnalyzer() {
               ]}
             >
               Analyzing content with AI...
+            </Text>
+          </View>
+        )}
+
+        {error && (
+          <View style={[styles.errorBanner, { backgroundColor: colors.danger + "22", borderColor: colors.danger + "44" }]}>
+            <Ionicons name="alert-circle" size={18} color={colors.danger} />
+            <Text style={[styles.errorText, { color: colors.danger, fontFamily: "Inter_400Regular" }]}>
+              {error}
             </Text>
           </View>
         )}
@@ -373,6 +375,8 @@ const styles = StyleSheet.create({
   analyzeBtnText: { fontSize: 15 },
   loadingSection: { alignItems: "center", gap: 12, padding: 20 },
   loadingText: { fontSize: 14 },
+  errorBanner: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 12, borderWidth: 1 },
+  errorText: { fontSize: 13, flex: 1, lineHeight: 18 },
   riskBanner: {
     flexDirection: "row",
     alignItems: "center",

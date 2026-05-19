@@ -3,13 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ShieldID — AI-powered identity protection API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User profile operations
+  - name: accounts
+    description: Connected social account operations
+  - name: scan
+    description: Identity scan operations
+  - name: threats
+    description: Threat detection and management
+  - name: fingerprint
+    description: Identity fingerprint operations
+  - name: ai
+    description: AI analysis endpoints
 paths:
   /healthz:
     get:
@@ -24,6 +36,326 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile with fingerprint stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /accounts:
+    get:
+      operationId: listAccounts
+      tags: [accounts]
+      summary: List connected social accounts
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of connected accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConnectedAccount"
+    post:
+      operationId: connectAccount
+      tags: [accounts]
+      summary: Connect a social account
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectAccountBody"
+      responses:
+        "201":
+          description: Account connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectedAccount"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /accounts/{accountId}:
+    delete:
+      operationId: disconnectAccount
+      tags: [accounts]
+      summary: Disconnect a social account
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: accountId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Account disconnected
+        "404":
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /scan:
+    post:
+      operationId: startScan
+      tags: [scan]
+      summary: Start a new identity protection scan
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Scan job created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanJob"
+
+  /scan/{jobId}:
+    get:
+      operationId: getScanStatus
+      tags: [scan]
+      summary: Get scan job status
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scan job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanJob"
+        "404":
+          description: Scan job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /threats:
+    get:
+      operationId: listThreats
+      tags: [threats]
+      summary: List threats for the current user
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: severity
+          schema:
+            type: string
+            enum: [high, medium, low]
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of threats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ThreatSummary"
+
+  /threats/{threatId}:
+    get:
+      operationId: getThreat
+      tags: [threats]
+      summary: Get full threat detail
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: threatId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Full threat detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreatDetail"
+        "404":
+          description: Threat not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /threats/{threatId}/resolve:
+    patch:
+      operationId: resolveThreat
+      tags: [threats]
+      summary: Mark a threat as resolved
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: threatId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Threat resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreatDetail"
+        "404":
+          description: Threat not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /fingerprint:
+    get:
+      operationId: getFingerprint
+      tags: [fingerprint]
+      summary: Get identity fingerprint for the current user
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Identity fingerprint data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityFingerprint"
+
+  /ai/analyze-scam:
+    post:
+      operationId: analyzeScam
+      tags: [ai]
+      summary: Analyze text for scam patterns using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeScamBody"
+      responses:
+        "200":
+          description: Scam analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScamAnalysisResult"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/generate-explanation:
+    post:
+      operationId: generateExplanation
+      tags: [ai]
+      summary: Generate AI explanation for a threat
+      parameters:
+        - in: header
+          name: x-user-id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateExplanationBody"
+      responses:
+        "200":
+          description: Generated explanation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExplanationResult"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +366,376 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        username:
+          type: string
+        avatarInitials:
+          type: string
+        isPremium:
+          type: boolean
+        securityScore:
+          type: integer
+        scoreTrend:
+          type: integer
+        monitored:
+          type: integer
+        lastScan:
+          type: string
+        totalPhotosIndexed:
+          type: integer
+        totalCaptionsIndexed:
+          type: integer
+        reelsIndexed:
+          type: integer
+        fingerprintUpdated:
+          type: string
+      required:
+        - id
+        - name
+        - email
+        - username
+        - avatarInitials
+        - isPremium
+        - securityScore
+        - scoreTrend
+        - monitored
+        - lastScan
+        - totalPhotosIndexed
+        - totalCaptionsIndexed
+        - reelsIndexed
+        - fingerprintUpdated
+
+    ConnectedAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        platform:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        followers:
+          type: integer
+        verified:
+          type: boolean
+        photosIndexed:
+          type: integer
+        captionsIndexed:
+          type: integer
+        reelsIndexed:
+          type: integer
+        lastSynced:
+          type: string
+          nullable: true
+      required:
+        - id
+        - platform
+        - username
+        - followers
+        - verified
+        - photosIndexed
+        - captionsIndexed
+        - reelsIndexed
+
+    ConnectAccountBody:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum: [instagram, x, tiktok, linkedin, youtube, facebook, snapchat]
+        username:
+          type: string
+        accessToken:
+          type: string
+          nullable: true
+      required:
+        - platform
+        - username
+
+    ScanJob:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        progress:
+          type: integer
+        currentStep:
+          type: string
+          nullable: true
+        threatsFound:
+          type: integer
+        startedAt:
+          type: string
+          nullable: true
+        completedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - status
+        - progress
+        - threatsFound
+
+    ThreatEvidence:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        similarity:
+          type: integer
+        label:
+          type: string
+        yourCaption:
+          type: string
+          nullable: true
+        stolenCaption:
+          type: string
+          nullable: true
+      required:
+        - id
+        - type
+        - similarity
+        - label
+
+    ThreatScoreBreakdown:
+      type: object
+      properties:
+        mediaSimilarity:
+          type: integer
+        contentReuse:
+          type: integer
+        profileSimilarity:
+          type: integer
+        bioSimilarity:
+          type: integer
+        usernameSimilarity:
+          type: integer
+        behavioral:
+          type: integer
+      required:
+        - mediaSimilarity
+        - contentReuse
+        - profileSimilarity
+        - bioSimilarity
+        - usernameSimilarity
+        - behavioral
+
+    ThreatSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        severity:
+          type: string
+        platform:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+        threatScore:
+          type: integer
+        matchedMediaCount:
+          type: integer
+        suspiciousUsername:
+          type: string
+          nullable: true
+        resolved:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - severity
+        - title
+        - description
+        - threatScore
+        - matchedMediaCount
+        - resolved
+        - createdAt
+
+    ThreatDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        severity:
+          type: string
+        platform:
+          type: string
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+        details:
+          type: string
+        aiExplanation:
+          type: string
+          nullable: true
+        threatScore:
+          type: integer
+        suspiciousUsername:
+          type: string
+          nullable: true
+        matchedMediaCount:
+          type: integer
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreatEvidence"
+        scoreBreakdown:
+          $ref: "#/components/schemas/ThreatScoreBreakdown"
+          nullable: true
+        detectedSignals:
+          type: array
+          items:
+            type: string
+        resolved:
+          type: boolean
+        resolvedAt:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - severity
+        - title
+        - description
+        - details
+        - threatScore
+        - matchedMediaCount
+        - evidence
+        - detectedSignals
+        - resolved
+        - createdAt
+
+    IdentityFingerprint:
+      type: object
+      properties:
+        totalPhotosIndexed:
+          type: integer
+        totalCaptionsIndexed:
+          type: integer
+        reelsIndexed:
+          type: integer
+        monitoredAccounts:
+          type: integer
+        lastUpdated:
+          type: string
+          nullable: true
+        platforms:
+          type: array
+          items:
+            type: string
+      required:
+        - totalPhotosIndexed
+        - totalCaptionsIndexed
+        - reelsIndexed
+        - monitoredAccounts
+        - platforms
+
+    AnalyzeScamBody:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+      required:
+        - text
+
+    ScamAnalysisResult:
+      type: object
+      properties:
+        riskScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+        detectedPatterns:
+          type: array
+          items:
+            type: string
+        explanation:
+          type: string
+        recommendation:
+          type: string
+        analyzedAt:
+          type: string
+      required:
+        - riskScore
+        - riskLevel
+        - detectedPatterns
+        - explanation
+        - recommendation
+        - analyzedAt
+
+    GenerateExplanationBody:
+      type: object
+      properties:
+        threatId:
+          type: string
+        threatType:
+          type: string
+        signals:
+          type: array
+          items:
+            type: string
+        matchedMediaCount:
+          type: integer
+        platform:
+          type: string
+          nullable: true
+        suspiciousUsername:
+          type: string
+          nullable: true
+      required:
+        - threatType
+        - signals
+        - matchedMediaCount
+
+    ExplanationResult:
+      type: object
+      properties:
+        explanation:
+          type: string
+        generatedAt:
+          type: string
+      required:
+        - explanation
+        - generatedAt
