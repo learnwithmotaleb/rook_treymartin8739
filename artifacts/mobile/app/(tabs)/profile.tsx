@@ -205,32 +205,74 @@ export default function ProfileScreen() {
         )}
 
         {/* Connected Accounts */}
-        <Text
-          style={[
-            styles.sectionLabel,
-            { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-          ]}
+        <View style={styles.sectionHeader}>
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
+            ]}
+          >
+            Connected Accounts
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/manage-accounts" as any)}
+          >
+            <Text style={[styles.manageLink, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+              Manage
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push("/manage-accounts" as any)}
         >
-          Connected Accounts
-        </Text>
-        <GlassCard style={styles.connectedCard}>
-          <View style={styles.connectedGrid}>
-            {user.connectedAccounts.map((acc) => (
-              <View key={acc.platform} style={styles.connectedItem}>
-                <PlatformIcon platform={acc.platform!} size={40} />
-                <Text
-                  style={[
-                    styles.connectedUsername,
-                    { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {acc.username}
+          <GlassCard style={styles.connectedCard}>
+            {user.connectedAccounts.length === 0 ? (
+              <View style={styles.connectedEmpty}>
+                <Ionicons name="person-add-outline" size={22} color={colors.mutedForeground} />
+                <Text style={[styles.connectedEmptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  No accounts connected yet
                 </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
               </View>
-            ))}
-          </View>
-        </GlassCard>
+            ) : (
+              <>
+                <View style={styles.connectedGrid}>
+                  {user.connectedAccounts.slice(0, 6).map((acc) => (
+                    <View key={acc.id} style={styles.connectedItem}>
+                      <View style={styles.connectedIconWrap}>
+                        <PlatformIcon platform={acc.platform!} size={38} />
+                        {acc.verified && (
+                          <View style={[styles.verifiedDot, { backgroundColor: colors.success, borderColor: colors.card }]}>
+                            <Ionicons name="checkmark" size={8} color="#FFFFFF" />
+                          </View>
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.connectedUsername,
+                          { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {acc.username}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                {user.connectedAccounts.length < 7 && (
+                  <View style={[styles.addAccountRow, { borderTopColor: colors.border }]}>
+                    <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+                    <Text style={[styles.addAccountText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+                      Add another account
+                    </Text>
+                    <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                  </View>
+                )}
+              </>
+            )}
+          </GlassCard>
+        </TouchableOpacity>
 
         {/* Settings Sections */}
         <Text
@@ -361,10 +403,28 @@ const styles = StyleSheet.create({
   upgradeTitle: { fontSize: 15 },
   upgradeSub: { fontSize: 12 },
   sectionLabel: { fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 4 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  manageLink: { fontSize: 14 },
   connectedCard: {},
+  connectedEmpty: { flexDirection: "row", alignItems: "center", gap: 10 },
+  connectedEmptyText: { flex: 1, fontSize: 14 },
   connectedGrid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
   connectedItem: { alignItems: "center", gap: 6, width: "28%" },
+  connectedIconWrap: { position: "relative" },
+  verifiedDot: {
+    position: "absolute",
+    bottom: -1,
+    right: -1,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   connectedUsername: { fontSize: 11 },
+  addAccountRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 12, marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
+  addAccountText: { flex: 1, fontSize: 13 },
   settingsItem: {
     flexDirection: "row",
     alignItems: "center",

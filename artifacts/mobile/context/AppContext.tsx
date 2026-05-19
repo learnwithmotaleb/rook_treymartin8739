@@ -14,6 +14,9 @@ import {
   startScan as apiStartScan,
   getScanStatus,
   resolveThreat as apiResolveThreat,
+  addAccount as apiAddAccount,
+  removeAccount as apiRemoveAccount,
+  updateAccount as apiUpdateAccount,
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
@@ -76,12 +79,14 @@ export interface Threat {
 }
 
 export interface ConnectedAccount {
+  id: string;
   platform: Platform;
   username: string;
   followers: number;
   verified: boolean;
   photosIndexed: number;
   captionsIndexed: number;
+  lastSynced: string | null;
 }
 
 export interface User {
@@ -135,6 +140,9 @@ interface AppContextType {
   startScan: () => void;
   resolveThreat: (id: string) => void;
   refreshData: () => Promise<void>;
+  addAccount: (platform: string, username: string, accessToken?: string) => Promise<ConnectedAccount>;
+  removeAccount: (id: string) => Promise<void>;
+  updateAccount: (id: string, updates: { accessToken?: string; displayName?: string; followers?: number; platformUserId?: string }) => Promise<ConnectedAccount>;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -183,12 +191,14 @@ function mapSummaryToThreat(t: ThreatSummary): Threat {
 
 function mapAccountToConnected(a: AccountProfile): ConnectedAccount {
   return {
+    id: a.id,
     platform: a.platform as Platform,
     username: a.username,
     followers: a.followers,
     verified: a.verified,
     photosIndexed: a.photosIndexed,
     captionsIndexed: a.captionsIndexed,
+    lastSynced: a.lastSynced ?? null,
   };
 }
 
@@ -335,6 +345,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const addAccount = useCallback(async (platform: string, username: string, accessToken?: string): Promise<ConnectedAccount> => {
+    const account = await apiAddAccount(platform, username, accessToken);
+    const mapped = mapAccountToConnected(account);
+    setUser((prev) => ({
+      ...prev,
+      connectedAccounts: [...prev.connectedAccounts, mapped],
+      monitored: prev.connectedAccounts.length + 1,
+    }));
+    return mapped;
+  }, []);
+
+  const removeAccount = useCallback(async (id: string): Promise<void> => {
+    setUser((prev) => ({
+      ...prev,
+      connectedAccounts: prev.connectedAccounts.filter((a) => a.id !== id),
+      monitored: Math.max(0, prev.connectedAccounts.length - 1),
+    }));
+    try {
+      await apiRemoveAccount(id);
+    } catch {
+      const accounts = await getAccounts();
+      const profile = await getMe();
+      setUser(mapProfileToUser(profile, accounts));
+    }
+  }, []);
+
+  const updateAccount = useCallback(async (id: string, updates: { accessToken?: string; displayName?: string; followers?: number; platformUserId?: string }): Promise<ConnectedAccount> => {
+    const account = await apiUpdateAccount(id, updates);
+    const mapped = mapAccountToConnected(account);
+    setUser((prev) => ({
+      ...prev,
+      connectedAccounts: prev.connectedAccounts.map((a) => a.id === id ? mapped : a),
+    }));
+    return mapped;
+  }, []);
+
   const activeThreats = threats.filter(
     (t) => !t.resolved && t.severity === "high"
   ).length;
@@ -368,6 +414,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         startScan,
         resolveThreat,
         refreshData,
+        addAccount,
+        removeAccount,
+        updateAccount,
       }}
     >
       {children}

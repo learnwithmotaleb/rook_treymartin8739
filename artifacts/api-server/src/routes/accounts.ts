@@ -102,6 +102,56 @@ router.post("/accounts", async (req, res): Promise<void> => {
   });
 });
 
+router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
+  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const accountId = Array.isArray(req.params.accountId)
+    ? req.params.accountId[0]
+    : req.params.accountId;
+
+  const { accessToken, displayName, followers, platformUserId } = req.body as {
+    accessToken?: string;
+    displayName?: string;
+    followers?: number;
+    platformUserId?: string;
+  };
+
+  const [updated] = await db
+    .update(connectedAccountsTable)
+    .set({
+      ...(accessToken !== undefined && { accessToken }),
+      ...(displayName !== undefined && { displayName }),
+      ...(followers !== undefined && { followers }),
+      ...(platformUserId !== undefined && { platformUserId }),
+      verified: accessToken ? true : undefined,
+      lastSynced: new Date(),
+    })
+    .where(
+      and(
+        eq(connectedAccountsTable.id, accountId),
+        eq(connectedAccountsTable.userId, userId)
+      )
+    )
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
+
+  res.json({
+    id: updated.id,
+    platform: updated.platform,
+    username: updated.username,
+    displayName: updated.displayName,
+    followers: updated.followers,
+    verified: updated.verified,
+    photosIndexed: updated.photosIndexed,
+    captionsIndexed: updated.captionsIndexed,
+    reelsIndexed: updated.reelsIndexed,
+    lastSynced: updated.lastSynced?.toISOString() ?? null,
+  });
+});
+
 router.delete("/accounts/:accountId", async (req, res): Promise<void> => {
   const userId = await resolveUserId(req.headers["x-user-id"]);
   const accountId = Array.isArray(req.params.accountId)

@@ -195,3 +195,33 @@ export interface DarkWebReport {
 export async function getDarkWebReport(): Promise<DarkWebReport> {
   return apiFetch<DarkWebReport>("/dark-web");
 }
+
+export async function addAccount(
+  platform: string,
+  username: string,
+  accessToken?: string
+): Promise<AccountProfile> {
+  return apiFetch<AccountProfile>("/accounts", {
+    method: "POST",
+    body: JSON.stringify({ platform, username, accessToken }),
+  });
+}
+
+export async function removeAccount(id: string): Promise<void> {
+  await apiFetch(`/accounts/${id}`, { method: "DELETE" });
+}
+
+export async function updateAccount(
+  id: string,
+  updates: {
+    accessToken?: string;
+    displayName?: string;
+    followers?: number;
+    platformUserId?: string;
+  }
+): Promise<AccountProfile> {
+  return apiFetch<AccountProfile>(`/accounts/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
