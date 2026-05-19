@@ -36,6 +36,13 @@ export function ThreatCard({ threat, compact }: ThreatCardProps) {
   const sc = severityColor(threat.severity, colors);
   const icon = threatIcon(threat.type);
 
+  const scoreColor =
+    threat.threatScore >= 80
+      ? colors.danger
+      : threat.threatScore >= 55
+      ? colors.warning
+      : colors.success;
+
   return (
     <TouchableOpacity
       activeOpacity={0.75}
@@ -58,9 +65,9 @@ export function ThreatCard({ threat, compact }: ThreatCardProps) {
             >
               {threat.title}
             </Text>
-            <View style={[styles.severityBadge, { backgroundColor: sc + "22" }]}>
-              <Text style={[styles.severityText, { color: sc, fontFamily: "Inter_600SemiBold" }]}>
-                {threat.severity.charAt(0).toUpperCase() + threat.severity.slice(1)}
+            <View style={[styles.scoreChip, { backgroundColor: scoreColor + "22" }]}>
+              <Text style={[styles.scoreText, { color: scoreColor, fontFamily: "Inter_700Bold" }]}>
+                {threat.threatScore}
               </Text>
             </View>
           </View>
@@ -70,11 +77,21 @@ export function ThreatCard({ threat, compact }: ThreatCardProps) {
           >
             {threat.description}
           </Text>
-          <Text style={[styles.time, { color: colors.mutedForeground + "99", fontFamily: "Inter_400Regular" }]}>
-            {threat.time}
-          </Text>
+          <View style={styles.footer}>
+            <Text style={[styles.time, { color: colors.mutedForeground + "99", fontFamily: "Inter_400Regular" }]}>
+              {threat.time}
+            </Text>
+            {threat.matchedMediaCount > 0 && (
+              <View style={[styles.mediaBadge, { backgroundColor: colors.secondary }]}>
+                <MaterialCommunityIcons name="image-multiple" size={11} color={colors.mutedForeground} />
+                <Text style={[styles.mediaBadgeText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                  {threat.matchedMediaCount} media matched
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+        <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
       </GlassCard>
     </TouchableOpacity>
   );
@@ -91,9 +108,8 @@ const styles = StyleSheet.create({
   },
   severityBar: {
     width: 3,
-    height: "100%",
-    borderRadius: 2,
     alignSelf: "stretch",
+    borderRadius: 2,
     marginRight: 4,
   },
   iconBox: {
@@ -104,33 +120,34 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  content: {
-    flex: 1,
-    gap: 3,
-  },
+  content: { flex: 1, gap: 4 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
   },
-  title: {
-    fontSize: 14,
-    flex: 1,
-  },
-  severityBadge: {
-    paddingHorizontal: 8,
+  title: { fontSize: 14, flex: 1 },
+  scoreChip: {
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 20,
   },
-  severityText: {
-    fontSize: 11,
+  scoreText: { fontSize: 12 },
+  desc: { fontSize: 13, lineHeight: 18 },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  desc: {
-    fontSize: 13,
-    lineHeight: 18,
+  time: { fontSize: 12 },
+  mediaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 20,
   },
-  time: {
-    fontSize: 12,
-  },
+  mediaBadgeText: { fontSize: 10 },
 });

@@ -33,34 +33,34 @@ function StatCard({
   return (
     <GlassCard style={styles.statCard}>
       <View style={styles.statIcon}>{icon}</View>
-      <Text
-        style={[
-          styles.statValue,
-          {
-            color: valueColor ?? colors.foreground,
-            fontFamily: "Inter_700Bold",
-          },
-        ]}
-      >
+      <Text style={[styles.statValue, { color: valueColor ?? colors.foreground, fontFamily: "Inter_700Bold" }]}>
         {value}
       </Text>
-      <Text
-        style={[
-          styles.statLabel,
-          { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-        ]}
-      >
+      <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
         {label}
       </Text>
     </GlassCard>
   );
 }
 
+function FingerprintStat({ label, value }: { label: string; value: string }) {
+  const colors = useColors();
+  return (
+    <View style={styles.fpStat}>
+      <Text style={[styles.fpStatValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+        {value}
+      </Text>
+      <Text style={[styles.fpStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 export default function Dashboard() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, threats, activeThreats, fakeAccounts, leakedPasswords } =
-    useApp();
+  const { user, threats, activeThreats, fakeAccounts, leakedPasswords } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -70,48 +70,25 @@ export default function Dashboard() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View
-        style={[
-          styles.header,
-          { paddingTop: topPad + 12, borderBottomColor: colors.border },
-        ]}
+        style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}
       >
         <View style={styles.headerLeft}>
           <View
-            style={[
-              styles.logoMark,
-              {
-                backgroundColor: colors.primary + "22",
-                borderColor: colors.primary + "44",
-              },
-            ]}
+            style={[styles.logoMark, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "44" }]}
           >
-            <Ionicons
-              name="shield-checkmark"
-              size={18}
-              color={colors.primary}
-            />
+            <Ionicons name="shield-checkmark" size={18} color={colors.primary} />
           </View>
-          <Text
-            style={[
-              styles.logoText,
-              { color: colors.foreground, fontFamily: "Inter_700Bold" },
-            ]}
-          >
+          <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
             ShieldID
           </Text>
         </View>
         <TouchableOpacity
-          style={[
-            styles.notifBtn,
-            { backgroundColor: colors.secondary, borderColor: colors.border },
-          ]}
+          style={[styles.notifBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
           onPress={() => router.push("/(tabs)/alerts")}
         >
           <Ionicons name="notifications" size={20} color={colors.foreground} />
           {activeThreats > 0 && (
-            <View
-              style={[styles.notifBadge, { backgroundColor: colors.danger }]}
-            >
+            <View style={[styles.notifBadge, { backgroundColor: colors.danger }]}>
               <Text style={styles.notifBadgeText}>{activeThreats}</Text>
             </View>
           )}
@@ -120,52 +97,22 @@ export default function Dashboard() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: bottomPad + 100 },
-        ]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
       >
         {/* Status Banner */}
         <GlassCard style={styles.statusBanner}>
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: colors.success + "22" },
-            ]}
-          >
-            <View
-              style={[styles.statusDotInner, { backgroundColor: colors.success }]}
-            />
+          <View style={[styles.statusDot, { backgroundColor: colors.success + "22" }]}>
+            <View style={[styles.statusDotInner, { backgroundColor: colors.success }]} />
           </View>
           <View style={styles.statusText}>
-            <Text
-              style={[
-                styles.statusTitle,
-                {
-                  color: colors.foreground,
-                  fontFamily: "Inter_600SemiBold",
-                },
-              ]}
-            >
-              Your Identity Shield is Active
+            <Text style={[styles.statusTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Identity Shield Active
             </Text>
-            <Text
-              style={[
-                styles.statusSub,
-                {
-                  color: colors.mutedForeground,
-                  fontFamily: "Inter_400Regular",
-                },
-              ]}
-            >
-              Monitoring {user.monitored} accounts 24/7
+            <Text style={[styles.statusSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Monitoring {user.monitored} verified accounts 24/7
             </Text>
           </View>
-          <Ionicons
-            name="shield-checkmark"
-            size={28}
-            color={colors.success}
-          />
+          <Ionicons name="shield-checkmark" size={28} color={colors.success} />
         </GlassCard>
 
         {/* Security Score */}
@@ -175,62 +122,60 @@ export default function Dashboard() {
             style={StyleSheet.absoluteFill}
           />
           <Text
-            style={[
-              styles.scoreCardTitle,
-              { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-            ]}
+            style={[styles.scoreCardTitle, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
           >
             Identity Risk Score
           </Text>
           <View style={styles.scoreRow}>
             <SecurityScoreRing score={user.securityScore} size={160} />
             <View style={styles.scoreMeta}>
-              <View
-                style={[
-                  styles.trendBadge,
-                  { backgroundColor: colors.success + "22" },
-                ]}
-              >
-                <Ionicons
-                  name="trending-up"
-                  size={14}
-                  color={colors.success}
-                />
-                <Text
-                  style={[
-                    styles.trendText,
-                    {
-                      color: colors.success,
-                      fontFamily: "Inter_600SemiBold",
-                    },
-                  ]}
-                >
-                  +{user.scoreTrend} from last week
+              <View style={[styles.trendBadge, { backgroundColor: colors.success + "22" }]}>
+                <Ionicons name="trending-up" size={14} color={colors.success} />
+                <Text style={[styles.trendText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
+                  +{user.scoreTrend} this week
                 </Text>
               </View>
-              <Text
-                style={[
-                  styles.lastScan,
-                  {
-                    color: colors.mutedForeground,
-                    fontFamily: "Inter_400Regular",
-                  },
-                ]}
-              >
+              <Text style={[styles.lastScan, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                 Last scan: {user.lastScan}
               </Text>
             </View>
           </View>
         </GlassCard>
 
+        {/* Identity Fingerprint */}
+        <GlassCard style={[styles.fingerprintCard, { borderColor: colors.primary + "44" }]}>
+          <LinearGradient
+            colors={["#3B82F60D", "transparent"]}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.fingerprintHeader}>
+            <View style={[styles.fpIcon, { backgroundColor: colors.primary + "22" }]}>
+              <MaterialCommunityIcons name="fingerprint" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.fpTextCol}>
+              <Text style={[styles.fpTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Identity Fingerprint Active
+              </Text>
+              <Text style={[styles.fpUpdated, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Updated {user.fingerprintUpdated}
+              </Text>
+            </View>
+            <View style={[styles.fpActiveDot, { backgroundColor: colors.success }]} />
+          </View>
+          <View style={styles.fpStats}>
+            <FingerprintStat label="Photos" value={String(user.totalPhotosIndexed)} />
+            <View style={[styles.fpDivider, { backgroundColor: colors.border }]} />
+            <FingerprintStat label="Captions" value={String(user.totalCaptionsIndexed)} />
+            <View style={[styles.fpDivider, { backgroundColor: colors.border }]} />
+            <FingerprintStat label="Reels" value={String(user.reelsIndexed)} />
+            <View style={[styles.fpDivider, { backgroundColor: colors.border }]} />
+            <FingerprintStat label="Platforms" value={String(user.monitored)} />
+          </View>
+        </GlassCard>
+
         {/* Overview Stats */}
         <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
-            ]}
-          >
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
             Overview
           </Text>
         </View>
@@ -260,7 +205,7 @@ export default function Dashboard() {
             }
           />
           <StatCard
-            label="Leaked Passwords"
+            label="Leaked Credentials"
             value={String(leakedPasswords)}
             valueColor={leakedPasswords > 0 ? colors.warning : colors.success}
             icon={
@@ -276,32 +221,18 @@ export default function Dashboard() {
             value="1 Found"
             valueColor={colors.warning}
             icon={
-              <MaterialCommunityIcons
-                name="eye-off"
-                size={22}
-                color={colors.warning}
-              />
+              <MaterialCommunityIcons name="eye-off" size={22} color={colors.warning} />
             }
           />
         </View>
 
         {/* Connected Accounts */}
         <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
-            ]}
-          >
-            Connected Accounts
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Verified Accounts
           </Text>
           <TouchableOpacity onPress={() => router.push("/(tabs)/profile" as any)}>
-            <Text
-              style={[
-                styles.seeAll,
-                { color: colors.primary, fontFamily: "Inter_500Medium" },
-              ]}
-            >
+            <Text style={[styles.seeAll, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
               Manage
             </Text>
           </TouchableOpacity>
@@ -310,26 +241,22 @@ export default function Dashboard() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.accountsRow}>
               {user.connectedAccounts.map((acc) => (
-                <PlatformIcon
-                  key={acc.platform}
-                  platform={acc.platform!}
-                  size={46}
-                />
+                <View key={acc.platform} style={styles.accountItem}>
+                  <View style={styles.accountIconWrap}>
+                    <PlatformIcon platform={acc.platform!} size={46} />
+                    <View style={[styles.verifiedDot, { backgroundColor: colors.success, borderColor: colors.card }]}>
+                      <Ionicons name="checkmark" size={8} color="#FFFFFF" />
+                    </View>
+                  </View>
+                  <Text style={[styles.accountPhotos, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {acc.photosIndexed}
+                  </Text>
+                </View>
               ))}
               <TouchableOpacity
-                style={[
-                  styles.addAccount,
-                  {
-                    backgroundColor: colors.secondary,
-                    borderColor: colors.border,
-                  },
-                ]}
+                style={[styles.addAccount, { backgroundColor: colors.secondary, borderColor: colors.border }]}
               >
-                <Ionicons
-                  name="add"
-                  size={22}
-                  color={colors.mutedForeground}
-                />
+                <Ionicons name="add" size={22} color={colors.mutedForeground} />
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -337,21 +264,11 @@ export default function Dashboard() {
 
         {/* Recent Alerts */}
         <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
-            ]}
-          >
-            Recent Alerts
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Recent Threats
           </Text>
           <TouchableOpacity onPress={() => router.push("/(tabs)/alerts")}>
-            <Text
-              style={[
-                styles.seeAll,
-                { color: colors.primary, fontFamily: "Inter_500Medium" },
-              ]}
-            >
+            <Text style={[styles.seeAll, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
               View All
             </Text>
           </TouchableOpacity>
@@ -402,17 +319,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  notifBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 9,
-    fontWeight: "700",
-  },
+  notifBadgeText: { color: "#FFFFFF", fontSize: 9, fontWeight: "700" },
   content: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
-  statusBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
+
+  statusBanner: { flexDirection: "row", alignItems: "center", gap: 12 },
   statusDot: {
     width: 32,
     height: 32,
@@ -421,21 +331,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  statusDotInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
+  statusDotInner: { width: 10, height: 10, borderRadius: 5 },
   statusText: { flex: 1, gap: 2 },
   statusTitle: { fontSize: 14 },
   statusSub: { fontSize: 12 },
+
   scoreCard: { overflow: "hidden", gap: 12 },
-  scoreCardTitle: { fontSize: 14, letterSpacing: 0.2 },
-  scoreRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 20,
-  },
+  scoreCardTitle: { fontSize: 14 },
+  scoreRow: { flexDirection: "row", alignItems: "center", gap: 20 },
   scoreMeta: { flex: 1, gap: 12 },
   trendBadge: {
     flexDirection: "row",
@@ -448,6 +351,26 @@ const styles = StyleSheet.create({
   },
   trendText: { fontSize: 12 },
   lastScan: { fontSize: 12 },
+
+  fingerprintCard: { overflow: "hidden", gap: 14 },
+  fingerprintHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  fpIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fpTextCol: { flex: 1 },
+  fpTitle: { fontSize: 14 },
+  fpUpdated: { fontSize: 11 },
+  fpActiveDot: { width: 8, height: 8, borderRadius: 4 },
+  fpStats: { flexDirection: "row", alignItems: "center" },
+  fpStat: { flex: 1, alignItems: "center", gap: 2 },
+  fpStatValue: { fontSize: 18 },
+  fpStatLabel: { fontSize: 11 },
+  fpDivider: { width: 1, height: 32 },
+
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -456,25 +379,28 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 16 },
   seeAll: { fontSize: 14 },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  statCard: {
-    width: "47.5%",
-    alignItems: "flex-start",
-    gap: 8,
-  },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  statCard: { width: "47.5%", alignItems: "flex-start", gap: 8 },
   statIcon: { marginBottom: 2 },
   statValue: { fontSize: 22 },
   statLabel: { fontSize: 12 },
+
   accountsCard: { paddingVertical: 12 },
-  accountsRow: {
-    flexDirection: "row",
+  accountsRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  accountItem: { alignItems: "center", gap: 4 },
+  accountIconWrap: { position: "relative" },
+  verifiedDot: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
     alignItems: "center",
-    gap: 12,
+    justifyContent: "center",
   },
+  accountPhotos: { fontSize: 10 },
   addAccount: {
     width: 46,
     height: 46,
