@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -15,27 +16,38 @@ import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 
+const TIER_LABELS: Record<string, string> = {
+  free: "Free Plan",
+  pro: "Pro",
+  premium: "Premium",
+};
+
 function SettingsItem({
   icon,
   label,
   value,
   onPress,
   danger,
+  last,
 }: {
   icon: React.ReactNode;
   label: string;
   value?: string;
   onPress: () => void;
   danger?: boolean;
+  last?: boolean;
 }) {
   const colors = useColors();
   return (
     <TouchableOpacity
-      style={[styles.settingsItem, { borderBottomColor: colors.border }]}
+      style={[
+        styles.settingsItem,
+        !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+      ]}
       activeOpacity={0.7}
       onPress={onPress}
     >
-      <View style={[styles.settingsIcon, { backgroundColor: colors.secondary }]}>
+      <View style={[styles.settingsIcon, { backgroundColor: danger ? colors.danger + "18" : colors.secondary }]}>
         {icon}
       </View>
       <Text
@@ -78,9 +90,22 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  const tier = user.tier ?? (user.isPremium ? "premium" : "free");
+  const tierLabel = TIER_LABELS[tier] ?? "Free Plan";
+  const isPaid = tier === "pro" || tier === "premium";
+
   const handleLogout = () => {
-    logout();
-    router.replace("/auth");
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: () => {
+          logout();
+          router.replace("/auth" as any);
+        },
+      },
+    ]);
   };
 
   return (
@@ -110,21 +135,29 @@ export default function ProfileScreen() {
       >
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <View
-            style={[
-              styles.avatar,
-              { backgroundColor: colors.primary + "33", borderColor: colors.primary + "66" },
-            ]}
+          <TouchableOpacity
+            onPress={() => router.push("/edit-profile" as any)}
+            activeOpacity={0.85}
           >
-            <Text
+            <View
               style={[
-                styles.avatarText,
-                { color: colors.primary, fontFamily: "Inter_700Bold" },
+                styles.avatar,
+                { backgroundColor: colors.primary + "33", borderColor: colors.primary + "66" },
               ]}
             >
-              {user.avatarInitials}
-            </Text>
-          </View>
+              <Text
+                style={[
+                  styles.avatarText,
+                  { color: colors.primary, fontFamily: "Inter_700Bold" },
+                ]}
+              >
+                {user.avatarInitials}
+              </Text>
+            </View>
+            <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
+              <Ionicons name="pencil" size={10} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
           <Text
             style={[
               styles.userName,
@@ -141,40 +174,46 @@ export default function ProfileScreen() {
           >
             {user.username}
           </Text>
-          <View
-            style={[
-              styles.tierBadge,
-              {
-                backgroundColor: user.isPremium
-                  ? colors.warning + "22"
-                  : colors.secondary,
-                borderColor: user.isPremium
-                  ? colors.warning + "44"
-                  : colors.border,
-              },
-            ]}
+          <TouchableOpacity
+            onPress={() => router.push("/subscription" as any)}
+            activeOpacity={0.8}
           >
-            {user.isPremium ? (
-              <MaterialCommunityIcons name="crown" size={14} color={colors.warning} />
-            ) : (
-              <Ionicons name="shield-outline" size={14} color={colors.mutedForeground} />
-            )}
-            <Text
+            <View
               style={[
-                styles.tierText,
+                styles.tierBadge,
                 {
-                  color: user.isPremium ? colors.warning : colors.mutedForeground,
-                  fontFamily: "Inter_600SemiBold",
+                  backgroundColor: isPaid
+                    ? colors.warning + "22"
+                    : colors.secondary,
+                  borderColor: isPaid
+                    ? colors.warning + "44"
+                    : colors.border,
                 },
               ]}
             >
-              {user.isPremium ? "Premium" : "Free Plan"}
-            </Text>
-          </View>
+              {isPaid ? (
+                <MaterialCommunityIcons name="crown" size={14} color={colors.warning} />
+              ) : (
+                <Ionicons name="shield-outline" size={14} color={colors.mutedForeground} />
+              )}
+              <Text
+                style={[
+                  styles.tierText,
+                  {
+                    color: isPaid ? colors.warning : colors.mutedForeground,
+                    fontFamily: "Inter_600SemiBold",
+                  },
+                ]}
+              >
+                {tierLabel}
+              </Text>
+              <Ionicons name="chevron-forward" size={12} color={isPaid ? colors.warning : colors.mutedForeground} />
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Subscription CTA */}
-        {!user.isPremium && (
+        {/* Subscription CTA for free users */}
+        {!isPaid && (
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => router.push("/subscription" as any)}
@@ -188,7 +227,7 @@ export default function ProfileScreen() {
                     { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
                   ]}
                 >
-                  Upgrade to Premium
+                  Upgrade to Pro or Premium
                 </Text>
                 <Text
                   style={[
@@ -214,9 +253,7 @@ export default function ProfileScreen() {
           >
             Connected Accounts
           </Text>
-          <TouchableOpacity
-            onPress={() => router.push("/manage-accounts" as any)}
-          >
+          <TouchableOpacity onPress={() => router.push("/manage-accounts" as any)}>
             <Text style={[styles.manageLink, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
               Manage
             </Text>
@@ -261,20 +298,24 @@ export default function ProfileScreen() {
                   ))}
                 </View>
                 {user.connectedAccounts.length < 7 && (
-                  <View style={[styles.addAccountRow, { borderTopColor: colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.addAccountRow, { borderTopColor: colors.border }]}
+                    onPress={() => router.push("/connect-account" as any)}
+                    activeOpacity={0.7}
+                  >
                     <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
                     <Text style={[styles.addAccountText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
                       Add another account
                     </Text>
                     <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-                  </View>
+                  </TouchableOpacity>
                 )}
               </>
             )}
           </GlassCard>
         </TouchableOpacity>
 
-        {/* Settings Sections */}
+        {/* Notifications */}
         <Text
           style={[
             styles.sectionLabel,
@@ -287,17 +328,19 @@ export default function ProfileScreen() {
           <SettingsItem
             icon={<Ionicons name="notifications" size={18} color={colors.primary} />}
             label="Push Alerts"
-            value="Enabled"
-            onPress={() => {}}
+            value="On"
+            onPress={() => router.push("/notification-settings" as any)}
           />
           <SettingsItem
             icon={<Ionicons name="mail" size={18} color={colors.primary} />}
             label="Email Alerts"
-            value="Premium"
-            onPress={() => router.push("/subscription" as any)}
+            value={isPaid ? "On" : "Pro+"}
+            onPress={() => router.push("/notification-settings" as any)}
+            last
           />
         </GlassCard>
 
+        {/* Security */}
         <Text
           style={[
             styles.sectionLabel,
@@ -310,17 +353,19 @@ export default function ProfileScreen() {
           <SettingsItem
             icon={<Ionicons name="lock-closed" size={18} color={colors.success} />}
             label="Two-Factor Auth"
-            value="Off"
-            onPress={() => {}}
+            value="Set Up"
+            onPress={() => router.push("/security-settings" as any)}
           />
           <SettingsItem
             icon={<Ionicons name="finger-print" size={18} color={colors.success} />}
             label="Biometric Login"
-            value="Enabled"
-            onPress={() => {}}
+            value="Configure"
+            onPress={() => router.push("/security-settings" as any)}
+            last
           />
         </GlassCard>
 
+        {/* Account */}
         <Text
           style={[
             styles.sectionLabel,
@@ -333,24 +378,25 @@ export default function ProfileScreen() {
           <SettingsItem
             icon={<Ionicons name="person" size={18} color={colors.primary} />}
             label="Edit Profile"
-            onPress={() => {}}
+            onPress={() => router.push("/edit-profile" as any)}
           />
           <SettingsItem
             icon={<MaterialCommunityIcons name="crown" size={18} color={colors.warning} />}
             label="Subscription"
-            value={user.isPremium ? "Premium" : "Free"}
+            value={tierLabel}
             onPress={() => router.push("/subscription" as any)}
           />
           <SettingsItem
             icon={<Ionicons name="help-circle" size={18} color={colors.mutedForeground} />}
-            label="Support"
-            onPress={() => {}}
+            label="Help & Support"
+            onPress={() => router.push("/support" as any)}
           />
           <SettingsItem
             icon={<Ionicons name="log-out" size={18} color={colors.danger} />}
             label="Sign Out"
             onPress={handleLogout}
             danger
+            last
           />
         </GlassCard>
 
@@ -386,6 +432,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   avatarText: { fontSize: 28 },
+  editBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   userName: { fontSize: 22 },
   userHandle: { fontSize: 15 },
   tierBadge: {
@@ -423,7 +479,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   connectedUsername: { fontSize: 11 },
-  addAccountRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 12, marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
+  addAccountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 12,
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   addAccountText: { flex: 1, fontSize: 13 },
   settingsItem: {
     flexDirection: "row",
@@ -431,7 +494,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   settingsIcon: {
     width: 34,

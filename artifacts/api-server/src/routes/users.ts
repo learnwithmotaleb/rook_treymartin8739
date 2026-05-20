@@ -69,6 +69,49 @@ router.get("/me", async (req, res): Promise<void> => {
   });
 });
 
+router.patch("/me", async (req, res): Promise<void> => {
+  const userId = await resolveUserId(req.headers["x-user-id"]);
+
+  const { name, username, email } = req.body as {
+    name?: string;
+    username?: string;
+    email?: string;
+  };
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (name !== undefined) {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      res.status(400).json({ error: "Name cannot be empty" });
+      return;
+    }
+    updates.name = trimmed;
+    const initials = trimmed
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("");
+    updates.avatarInitials = initials;
+  }
+
+  if (username !== undefined) updates.username = username.trim();
+  if (email !== undefined) updates.email = email.trim() || null;
+
+  await db
+    .update(usersTable)
+    .set(updates as Parameters<typeof db.update>[0] extends infer T ? any : never)
+    .where(eq(usersTable.id, userId));
+
+  const [updated] = await db
+    .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, username: usersTable.username, avatarInitials: usersTable.avatarInitials })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  res.json(updated);
+});
+
 function formatRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
