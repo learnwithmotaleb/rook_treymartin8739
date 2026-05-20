@@ -1,0 +1,322 @@
+# 🧠 REPLIT SYSTEM PROMPT — SIMPLE HIGH-CONVERTING 3-TIER SUBSCRIPTION MODEL
+
+## SYSTEM ROLE: Subscription & Feature Access System
+
+You are building a clean, modern, high-converting subscription system for an AI-powered Social Identity Protection app that detects impersonator accounts and stolen content across social media platforms.
+
+The subscription system must feel:
+
+* simple
+* premium
+* easy to understand
+* psychologically optimized for upgrades
+
+Avoid overwhelming users with too many features.
+
+The platform should have ONLY 3 tiers:
+
+1. Free
+2. Pro
+3. Premium
+
+The difference between tiers should focus mainly on:
+
+* scan frequency
+* monitoring depth
+* AI intelligence level
+* number of protected accounts
+* speed of alerts
+
+NOT dozens of random feature checklists.
+
+---
+
+# 🧠 CORE PRODUCT POSITIONING
+
+The app helps users:
+
+* detect fake accounts
+* discover impersonators automatically
+* monitor stolen photos/videos
+* protect their online identity
+
+The product’s core value is:
+
+> “AI continuously watching the internet for accounts pretending to be you.”
+
+---
+
+# 💰 SUBSCRIPTION STRUCTURE
+
+---
+
+# 🆓 FREE TIER
+
+## Purpose:
+
+User acquisition + viral growth
+
+## Included:
+
+### Protection
+
+* Protect 1 identity
+* Connect up to 2 social accounts
+
+### AI Monitoring
+
+* Manual scans only
+* 1 scan every 14 days
+
+### Detection
+
+* Basic impersonator detection
+* Limited visual matching
+
+### Alerts
+
+* Delayed notifications
+
+### Results
+
+* Limited threat visibility
+* Partial results blurred
+
+---
+
+## FREE TIER EXPERIENCE
+
+The free tier should feel useful enough to trust the product, but limited enough that serious users naturally upgrade after finding threats.
+
+When threats are detected:
+
+* partially blur results
+* hide detailed evidence
+* show locked premium analysis
+
+Example message:
+
+> “We found possible impersonator accounts. Upgrade to unlock full threat intelligence.”
+
+---
+
+# 🚀 PRO TIER
+
+## Purpose:
+
+Main paid consumer plan
+
+## Suggested Price:
+
+$12.99–$19.99/month
+
+---
+
+## Included:
+
+### Protection
+
+* Protect up to 5 identities
+* Connect up to 10 accounts
+
+### AI Monitoring
+
+* Automatic weekly scans
+* Continuous monitoring
+
+### Detection
+
+* Full photo + video matching
+* Cross-platform impersonator detection
+* Stolen content detection
+
+### Alerts
+
+* Real-time alerts
+
+### Results
+
+* Full impersonator visibility
+* AI confidence scores
+* Detailed evidence
+
+---
+
+## PRO EXPERIENCE
+
+This tier should feel like:
+
+> “Your AI identity bodyguard.”
+
+The majority of serious users should land here.
+
+---
+
+# 👑 PREMIUM TIER
+
+## Purpose:
+
+Creators, influencers, professionals, businesses
+
+## Suggested Price:
+
+$39.99–$79.99/month
+
+---
+
+## Included:
+
+Everything in Pro PLUS:
+
+### Advanced AI Intelligence
+
+* Daily deep scans
+* Advanced visual fingerprinting
+* Coordinated fake account detection
+
+### Monitoring Power
+
+* Unlimited protected identities
+* Priority AI processing
+* Faster detection speeds
+
+### Intelligence Dashboard
+
+* Threat history timeline
+* Risk trend analytics
+* Downloadable reports
+
+### Priority Support
+
+* Faster support response times
+
+---
+
+## PREMIUM EXPERIENCE
+
+This tier should feel like:
+
+> “Enterprise-grade identity protection powered by advanced AI.”
+
+Premium users should feel continuously protected without needing manual action.
+
+---
+
+# 🧠 UPGRADE PSYCHOLOGY
+
+The app should naturally encourage upgrades through:
+
+* detected threats
+* locked scan results
+* faster monitoring
+* real-time alerts
+* deeper AI analysis
+
+Do NOT use aggressive spammy upsells.
+
+Use:
+
+* intelligent urgency
+* protection-focused messaging
+* premium security positioning
+
+---
+
+# ⚙️ BILLING SYSTEM REQUIREMENTS
+
+Implement:
+
+* Stripe subscriptions
+* monthly and yearly billing
+* free trial support
+* subscription upgrades/downgrades
+* webhook handling
+
+---
+
+# 🗄️ DATABASE TABLES
+
+## subscriptions
+
+```json id="subsimple"
+{
+  "user_id": "",
+  "tier": "free | pro | premium",
+  "status": "active | canceled | trialing",
+  "billing_cycle": "monthly | yearly",
+  "renewal_date": ""
+}
+```
+
+---
+
+## usage_tracking
+
+Track:
+
+* scans used
+* identities protected
+* AI processing usage
+* alerts sent
+
+---
+
+# 🔒 FEATURE GATING SYSTEM
+
+Implement middleware:
+
+```id="gatesimple"
+requirePlan("pro")
+requirePlan("premium")
+```
+
+Gate:
+
+* automatic scans
+* deep AI analysis
+* full results
+* advanced monitoring
+
+---
+
+# 📈 CONVERSION LOGIC
+
+## Trigger upgrade prompts when:
+
+* threats are detected
+* scan limits reached
+* locked evidence clicked
+* continuous monitoring requested
+
+---
+
+# 🧠 DESIGN PHILOSOPHY
+
+This subscription system should feel:
+
+* clean
+* premium
+* security-focused
+* AI-powered
+* not cluttered
+
+The product should resemble:
+
+> “The Norton/McAfee of social identity protection — but modern, AI-driven, and visually intelligent.”
+
+---
+
+# ⚠️ FINAL OUTPUT REQUIREMENTS
+
+Generate:
+
+* Stripe integration
+* subscription middleware
+* plan configuration system
+* usage tracking
+* billing routes
+* upgrade/downgrade flows
+* webhook handlers
+* clean scalable backend structure
+
+The implementation must be modular and production-ready.

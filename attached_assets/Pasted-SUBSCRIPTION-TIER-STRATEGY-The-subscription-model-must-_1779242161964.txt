@@ -1,0 +1,286 @@
+SUBSCRIPTION TIER STRATEGY
+
+The subscription model must:
+
+make free tier useful but limited
+make Pro feel like essential protection
+make Premium feel powerful and automated
+make Business feel enterprise-grade
+
+The system should psychologically encourage:
+
+upgrading after first impersonator detection
+upgrading after scan limits reached
+upgrading for faster alerts and monitoring
+🆓 TIER 1 — FREE
+Purpose:
+
+User acquisition + virality
+
+Included Features:
+Account Protection
+Protect 1 social identity
+Connect up to 2 social accounts
+AI Scanning
+1 full impersonation scan every 14 days
+Limited scan depth
+Basic visual matching only
+Detection
+Detect likely impersonators
+View limited threat previews
+Alerts
+Delayed alerts (24–72h)
+Dashboard
+Basic risk score
+Limited scan history
+FREE TIER LIMITATIONS
+
+Users CANNOT:
+
+continuously monitor
+access full evidence
+see advanced AI explanations
+monitor all media history
+export reports
+
+When threats are detected:
+
+blur detailed evidence
+partially hide impersonator accounts
+show “Upgrade to unlock full threat analysis”
+🚀 TIER 2 — PRO
+Purpose:
+
+Mainstream paid consumer plan
+
+Suggested Price:
+
+$9.99–$19.99/month
+
+Included Features:
+Protection
+Protect up to 5 identities
+Connect up to 10 accounts
+AI Scanning
+Weekly automated scans
+Full media analysis
+Cross-platform matching
+Detection Features
+Visual impersonation detection
+Username similarity analysis
+Bio similarity detection
+Stolen content detection
+Alerts
+Real-time notifications
+Dashboard
+Full scan history
+Threat timelines
+Detailed impersonator evidence
+AI Features
+AI confidence scores
+Threat severity scoring
+👑 TIER 3 — PREMIUM
+Purpose:
+
+Power users / creators / influencers
+
+Suggested Price:
+
+$29.99–$59.99/month
+
+Included Features:
+
+Everything in Pro PLUS:
+
+Advanced AI Monitoring
+Continuous background scanning
+Daily scans
+Deep visual fingerprinting
+Media Protection
+Full image + video analysis
+Video frame matching
+Style clone detection
+Intelligence Features
+Coordinated fake network detection
+Cross-platform impersonation mapping
+Threat clustering
+AI Automation
+Auto-priority threat ranking
+Smart escalation system
+Predictive impersonation risk
+Reporting
+Downloadable reports
+Evidence packages
+Fraud documentation exports
+Priority System
+Faster scans
+Higher AI compute allocation
+🏢 TIER 4 — BUSINESS
+Purpose:
+
+Brands, agencies, celebrities, organizations
+
+Suggested Price:
+
+$99–$499+/month
+
+Included Features:
+
+Everything in Premium PLUS:
+
+Team Features
+Multiple team members
+Admin dashboard
+Role permissions
+Enterprise Monitoring
+Unlimited identities
+Brand-wide monitoring
+High-scale scanning
+AI Intelligence
+Advanced threat graph visualization
+Coordinated attack detection
+Fake network intelligence
+Reporting & Compliance
+Enterprise reporting
+Legal evidence exports
+API access
+Automation
+Custom alert rules
+Webhook integrations
+Slack/email integrations
+Support
+Priority support
+Dedicated onboarding
+🧠 CONVERSION & PAYWALL LOGIC
+
+The app must aggressively encourage upgrades WITHOUT feeling spammy.
+
+Upgrade Triggers
+Trigger upgrade when:
+impersonator found
+scan limit reached
+advanced evidence requested
+continuous monitoring requested
+real-time alerts requested
+Smart Paywall Messaging
+
+Examples:
+
+FREE USER
+
+“We found 3 possible impersonator accounts. Upgrade to reveal full evidence and risk analysis.”
+
+PRO USER
+
+“Deep media analysis detected additional hidden threats. Upgrade to Premium to unlock full visual intelligence.”
+
+⚙️ BACKEND BILLING SYSTEM
+
+Implement:
+
+Subscription Provider
+Stripe integration preferred
+Core Tables
+subscriptions
+{
+  "user_id": "",
+  "tier": "free | pro | premium | business",
+  "status": "active | canceled | trialing",
+  "billing_cycle": "monthly | yearly",
+  "renewal_date": ""
+}
+usage_tracking
+
+Track:
+
+scans used
+accounts monitored
+AI compute usage
+alerts sent
+🔒 FEATURE GATING SYSTEM
+
+Implement middleware:
+
+requireTier("pro")
+requireTier("premium")
+requireTier("business")
+
+Used to protect:
+
+advanced scans
+exports
+continuous monitoring
+AI deep analysis
+🧠 AI RESOURCE ALLOCATION SYSTEM
+
+Different tiers receive different AI power allocation:
+
+FREE
+lightweight models
+lower scan depth
+PRO
+medium-depth analysis
+PREMIUM
+advanced multimodal analysis
+deeper embedding comparison
+BUSINESS
+highest priority compute
+continuous graph intelligence
+📈 GROWTH FEATURES
+
+Implement:
+
+Referral System
+free scan bonuses
+temporary upgrades
+invite rewards
+Trial System
+7-day Premium trial
+limited Business demo
+🧠 ADMIN DASHBOARD
+
+Admins can:
+
+manage plans
+adjust limits
+view subscription analytics
+monitor AI usage costs
+⚙️ REQUIRED BACKEND STRUCTURE
+/src
+  /billing
+    stripeService.js
+    subscriptionService.js
+    usageTrackingService.js
+  /middleware
+    requireTier.js
+  /plans
+    planConfig.js
+  /routes
+    billingRoutes.js
+🧠 FINAL PRODUCT GOAL
+
+This subscription system should feel like:
+
+“A premium AI-powered identity protection platform with escalating intelligence and monitoring capabilities at each tier.”
+
+The monetization strategy should:
+
+maximize monthly recurring revenue
+maintain strong free user growth
+encourage upgrades through detected threats
+scale from consumers to enterprise clients
+⚠️ FINAL OUTPUT REQUIREMENTS
+
+Generate:
+
+complete subscription architecture
+Stripe billing integration
+plan configuration system
+feature gating middleware
+usage tracking system
+upgrade logic
+subscription database schema
+admin billing controls
+webhook handlers for Stripe events
+
+The codebase must be modular, scalable, and production-ready
