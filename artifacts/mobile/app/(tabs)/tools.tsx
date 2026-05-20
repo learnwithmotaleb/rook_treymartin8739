@@ -159,41 +159,6 @@ export default function ToolsScreen() {
           alertCount={darkWebThreats}
           onPress={() => router.push("/dark-web" as any)}
         />
-
-        {/* Premium Upsell */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => router.push("/subscription" as any)}
-        >
-          <View
-            style={[
-              styles.premiumCard,
-              { backgroundColor: colors.primary, borderRadius: colors.radius },
-            ]}
-          >
-            <LinearGradient
-              colors={["#1D4ED8", "#3B82F6"]}
-              style={[StyleSheet.absoluteFill, { borderRadius: colors.radius }]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            <View style={styles.premiumContent}>
-              <MaterialCommunityIcons name="crown" size={28} color="#F59E0B" />
-              <View style={styles.premiumText}>
-                <Text style={[styles.premiumTitle, { fontFamily: "Inter_700Bold" }]}>
-                  Upgrade to Premium
-                </Text>
-                <Text style={[styles.premiumSub, { fontFamily: "Inter_400Regular" }]}>
-                  Real-time alerts, unlimited monitoring, and advanced AI analysis
-                </Text>
-              </View>
-            </View>
-            <View style={styles.premiumPricing}>
-              <Text style={[styles.price, { fontFamily: "Inter_700Bold" }]}>$9.99</Text>
-              <Text style={[styles.pricePer, { fontFamily: "Inter_400Regular" }]}>/month</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -242,20 +207,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   toolBtnText: { color: "#FFFFFF", fontSize: 14 },
-  premiumCard: {
-    padding: 20,
-    overflow: "hidden",
-    gap: 12,
-  },
-  premiumContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  premiumText: { flex: 1, gap: 4 },
-  premiumTitle: { color: "#FFFFFF", fontSize: 17 },
-  premiumSub: { color: "#FFFFFF99", fontSize: 13, lineHeight: 18 },
-  premiumPricing: { flexDirection: "row", alignItems: "baseline", gap: 2 },
-  price: { color: "#FFFFFF", fontSize: 28 },
-  pricePer: { color: "#FFFFFF99", fontSize: 14 },
 });
