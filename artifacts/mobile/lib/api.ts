@@ -44,6 +44,7 @@ export interface UserProfile {
   username: string;
   avatarInitials: string;
   isPremium: boolean;
+  tier: Tier;
   securityScore: number;
   scoreTrend: number;
   monitored: number;
@@ -224,4 +225,53 @@ export async function updateAccount(
     method: "PATCH",
     body: JSON.stringify(updates),
   });
+}
+
+export type Tier = "free" | "pro" | "premium";
+
+export interface PlanLimits {
+  maxAccounts: number;
+  scanIntervalDays: number;
+  autoScan: boolean;
+  realTimeAlerts: boolean;
+  fullEvidence: boolean;
+  dailyScans: boolean;
+  downloadableReports: boolean;
+  label: string;
+}
+
+export interface SubscriptionInfo {
+  id: string;
+  userId: string;
+  tier: Tier;
+  status: "active" | "trialing" | "canceled" | "past_due";
+  billingCycle: "monthly" | "yearly";
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  trialEndsAt: string | null;
+  limits: PlanLimits;
+}
+
+export async function getSubscription(): Promise<SubscriptionInfo> {
+  return apiFetch<SubscriptionInfo>("/billing/subscription");
+}
+
+export async function createCheckoutSession(
+  tier: "pro" | "premium",
+  billingCycle: "monthly" | "yearly"
+): Promise<{ url: string | null; sessionId: string }> {
+  return apiFetch("/billing/checkout", {
+    method: "POST",
+    body: JSON.stringify({ tier, billingCycle }),
+  });
+}
+
+export async function createPortalSession(): Promise<{ url: string }> {
+  return apiFetch("/billing/portal", { method: "POST" });
+}
+
+export async function cancelSubscription(): Promise<{ cancelAtPeriodEnd: boolean }> {
+  return apiFetch("/billing/cancel", { method: "POST" });
 }

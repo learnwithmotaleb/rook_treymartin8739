@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable } from "@workspace/db";
 import { resolveUserId } from "../lib/demoUser";
+import { getSubscription } from "../services/subscriptionService";
+import { PLAN_CONFIG } from "../lib/planConfig";
 
 const router: IRouter = Router();
 
@@ -64,6 +66,23 @@ router.post("/accounts", async (req, res): Promise<void> => {
 
   if (existing.length > 0) {
     res.status(400).json({ error: `${platform} account is already connected` });
+    return;
+  }
+
+  const sub = await getSubscription(userId);
+  const limits = PLAN_CONFIG[sub.tier as keyof typeof PLAN_CONFIG] ?? PLAN_CONFIG.free;
+  const allAccounts = await db
+    .select({ id: connectedAccountsTable.id })
+    .from(connectedAccountsTable)
+    .where(eq(connectedAccountsTable.userId, userId));
+
+  if (limits.maxAccounts !== -1 && allAccounts.length >= limits.maxAccounts) {
+    res.status(403).json({
+      error: "account_limit_reached",
+      message: `Your ${limits.label} plan supports up to ${limits.maxAccounts} connected account${limits.maxAccounts === 1 ? "" : "s"}. Upgrade to add more.`,
+      currentTier: sub.tier,
+      limit: limits.maxAccounts,
+    });
     return;
   }
 

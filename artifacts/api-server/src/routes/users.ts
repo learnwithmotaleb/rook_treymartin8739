@@ -9,6 +9,7 @@ import { resolveUserId } from "../lib/demoUser";
 import { getFingerprintForUser } from "../services/fingerprintService";
 import { scanJobsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
+import { getSubscription } from "../services/subscriptionService";
 
 const router: IRouter = Router();
 
@@ -47,6 +48,8 @@ router.get("/me", async (req, res): Promise<void> => {
     ? formatRelativeTime(new Date(fingerprint.lastUpdated))
     : "Never";
 
+  const sub = await getSubscription(userId);
+
   res.json({
     id: user.id,
     name: user.name,
@@ -54,6 +57,7 @@ router.get("/me", async (req, res): Promise<void> => {
     username: user.username,
     avatarInitials: user.avatarInitials,
     isPremium: user.isPremium,
+    tier: sub.tier,
     securityScore: user.securityScore,
     scoreTrend: user.scoreTrend,
     monitored: accounts.length,

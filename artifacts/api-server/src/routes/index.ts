@@ -7,6 +7,7 @@ import threatsRouter from "./threats";
 import fingerprintRouter from "./fingerprint";
 import aiAnalysisRouter from "./aiAnalysis";
 import darkWebRouter from "./darkweb";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(threatsRouter);
 router.use(fingerprintRouter);
 router.use(aiAnalysisRouter);
 router.use(darkWebRouter);
+router.use(billingRouter);
 
 export default router;
