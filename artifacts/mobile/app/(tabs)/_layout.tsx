@@ -151,7 +151,7 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
-  const { login, logout } = useApp();
+  const { login, logout, hasSeenOnboarding } = useApp();
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -165,6 +165,10 @@ export default function TabLayout() {
 
   if (!isSignedIn) {
     return <Redirect href="/auth" />;
+  }
+
+  if (!hasSeenOnboarding) {
+    return <Redirect href="/onboarding" />;
   }
 
   if (isLiquidGlassAvailable()) {

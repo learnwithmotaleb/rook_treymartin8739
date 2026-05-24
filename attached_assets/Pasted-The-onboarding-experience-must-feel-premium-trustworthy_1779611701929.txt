@@ -1,0 +1,204 @@
+The onboarding experience must feel:
+
+premium
+trustworthy
+security-focused
+modern
+simple
+high-converting
+
+The user should clearly understand the value of the app before reaching the paywall.
+
+The onboarding flow should maximize subscription conversions without feeling deceptive or spammy.
+
+🎯 PRIMARY GOAL
+
+By the end of onboarding the user should believe:
+
+"I need this app protecting me because I have no idea who may be impersonating me online."
+
+SCREEN 1 — WELCOME
+
+Headline:
+
+Protect Your Identity Across Social Media
+
+Subheadline:
+
+AI continuously monitors social platforms for fake accounts, stolen photos, and impersonators pretending to be you.
+
+Visual:
+
+shield animation
+social platform icons
+identity protection imagery
+
+CTA:
+
+Get Started
+
+SCREEN 2 — IMPERSONATION EDUCATION
+
+Headline:
+
+Fake Accounts Are More Common Than Most People Think
+
+Show statistics cards:
+
+Fake profiles created daily
+Account impersonation reports
+Social scams and identity fraud
+
+Visual:
+
+fake profile examples
+warning indicators
+
+CTA:
+
+Continue
+
+SCREEN 3 — HOW THE APP WORKS
+
+Headline:
+
+Our AI Creates Your Digital Identity Fingerprint
+
+Illustration showing:
+
+User Photos →
+AI Analysis →
+Identity Fingerprint →
+Threat Detection →
+Real-Time Alerts
+
+Explain:
+
+The AI analyzes visual patterns from your social media content and continuously searches for unauthorized use of your identity.
+
+CTA:
+
+Continue
+
+SCREEN 4 — FEATURES OVERVIEW
+
+Display 4 cards:
+
+Impersonator Detection
+
+Find accounts pretending to be you.
+
+Photo Monitoring
+
+Detect stolen photos across social platforms.
+
+Video Monitoring
+
+Identify reused video content.
+
+Real-Time Alerts
+
+Get notified when new threats appear.
+
+CTA:
+
+Continue
+
+SCREEN 5 — CONNECT SOCIAL ACCOUNTS
+
+Headline:
+
+Connect Your Social Profiles
+
+Explain:
+
+Connecting your accounts allows AI to build a more accurate identity fingerprint.
+
+Supported platforms:
+
+Instagram
+Facebook
+TikTok
+X
+
+Allow:
+
+Skip for now
+Connect now
+
+Primary CTA:
+
+Connect Accounts
+
+Secondary CTA:
+
+Skip
+
+SCREEN 6 — INITIAL SCAN SETUP
+
+Headline:
+
+Preparing Your Identity Scan
+
+Show loading/progress animation.
+
+Display steps:
+
+✓ Building visual fingerprint
+
+✓ Analyzing media
+
+✓ Creating protection profile
+
+✓ Preparing threat monitoring
+
+This should feel like real AI work is occurring.
+
+Minimum display time:
+3–5 seconds.
+
+SCREEN 7 — VALUE REVEAL
+
+Headline:
+
+Your Identity Is Ready To Be Protected
+
+Show example dashboard preview:
+
+Threat score
+Monitoring status
+Active protection indicators
+Scan activity
+
+Do NOT show fake scan results.
+
+Show realistic placeholders.
+
+CTA:
+
+View Protection Options
+
+💰 PAYWALL SCREEN
+
+This should be the first subscription screen.
+
+The design must feel premium.
+
+Not pushy.
+
+Not scammy.
+
+Similar quality to:
+
+Aura
+Norton
+LifeLock
+Headspace
+Duolingo Premium
+PAYWALL HEADLINE
+
+Stay Protected 24/7
+
+Subheadline:
+
+AI continuously monitors for impersonators, stolen content, and identity threats so you don't have to.

@@ -233,7 +233,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(DEFAULT_USER);
   const [threats, setThreats] = useState<Threat[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(true);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(true);

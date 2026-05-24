@@ -17,6 +17,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { useLocalSearchParams } from "expo-router";
 import { GlassCard } from "@/components/GlassCard";
 import {
   createCheckoutSession,
@@ -105,7 +106,9 @@ const YEARLY_SAVINGS: Record<string, string> = {
 export default function Subscription() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user } = useApp();
+  const { user, completeOnboarding } = useApp();
+  const { fromOnboarding } = useLocalSearchParams<{ fromOnboarding?: string }>();
+  const isFromOnboarding = fromOnboarding === "1";
 
   const [billingCycle, setBillingCycle] = useState<Cycle>("monthly");
   const [loading, setLoading] = useState<Tier | null>(null);
@@ -189,7 +192,14 @@ export default function Subscription() {
       />
 
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => {
+          if (isFromOnboarding) {
+            completeOnboarding();
+            router.replace("/(tabs)" as any);
+          } else {
+            router.back();
+          }
+        }}>
           <Ionicons name="close" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
