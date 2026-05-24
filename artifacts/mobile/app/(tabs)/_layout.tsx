@@ -150,11 +150,18 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  const { isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { login, logout } = useApp();
 
   useEffect(() => {
-    setApiAuthToken(() => getToken());
-  }, [getToken]);
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      setApiAuthToken(() => getToken());
+      login("", "");
+    } else {
+      logout();
+    }
+  }, [isLoaded, isSignedIn, getToken, login, logout]);
 
   if (!isSignedIn) {
     return <Redirect href="/auth" />;

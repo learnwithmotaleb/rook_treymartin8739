@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, connectedAccountsTable } from "@workspace/db";
+import { db, connectedAccountsTable, usersTable } from "@workspace/db";
+import { verifyToken } from "@clerk/express";
 
 const router: IRouter = Router();
 
@@ -8,11 +9,34 @@ const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? process.env["REPLIT_DEV_DOMAIN"]
   ?? "localhost";
 
+// Resolve the real DB userId from the Clerk JWT passed as `state`.
+// Falls back to demo user if the state is missing or invalid.
+async function resolveUserFromState(state: string | undefined): Promise<string> {
+  if (state) {
+    try {
+      const payload = await verifyToken(state, {
+        secretKey: process.env["CLERK_SECRET_KEY"] ?? "",
+      });
+      const clerkUserId = payload.sub;
+      const [dbUser] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.clerkId, clerkUserId));
+      if (dbUser) return dbUser.id;
+    } catch {
+      // invalid / expired token — fall through to demo
+    }
+  }
+  const { getOrCreateDemoUser } = await import("../lib/demoUser");
+  const demo = await getOrCreateDemoUser();
+  return demo.id;
+}
+
 // ─── Instagram OAuth callback ────────────────────────────────────────────────
 // Meta redirects here after the user approves the app.
 // URL: GET /api/oauth/instagram/callback?code=...&state=...
 router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
-  const { code, error, error_reason } = req.query as Record<string, string>;
+  const { code, error, error_reason, state } = req.query as Record<string, string>;
 
   if (error || !code) {
     const msg = error_reason ?? error ?? "Unknown error";
@@ -70,10 +94,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
     );
     const { access_token: longToken } = await longLivedRes.json() as { access_token: string };
 
-    // Upsert account — use demo user for now (replace with real auth userId)
-    const { getOrCreateDemoUser } = await import("../lib/demoUser");
-    const demoUser = await getOrCreateDemoUser();
-    const userId = demoUser.id;
+    const userId = await resolveUserFromState(state);
 
     const existing = await db
       .select({ id: connectedAccountsTable.id })
@@ -129,7 +150,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
 
 // ─── Facebook OAuth callback ──────────────────────────────────────────────────
 router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
-  const { code, error } = req.query as Record<string, string>;
+  const { code, error, state } = req.query as Record<string, string>;
 
   if (error || !code) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -161,9 +182,7 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     );
     const profile = await profileRes.json() as { id: string; name: string };
 
-    const { getOrCreateDemoUser } = await import("../lib/demoUser");
-    const demoUser = await getOrCreateDemoUser();
-    const userId = demoUser.id;
+    const userId = await resolveUserFromState(state);
 
     const existing = await db
       .select({ id: connectedAccountsTable.id })

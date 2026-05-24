@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
+import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
@@ -113,7 +114,7 @@ function getClientId(platform: string): string | undefined {
   return (process.env as Record<string, string | undefined>)[key];
 }
 
-function buildAuthUrl(platform: string, clientId: string): string {
+function buildAuthUrl(platform: string, clientId: string, state: string): string {
   const config = PLATFORM_CONFIGS[platform]!;
   const redirectUri = `https://${DOMAIN}${config.callbackPath}`;
   const params = new URLSearchParams({
@@ -121,6 +122,7 @@ function buildAuthUrl(platform: string, clientId: string): string {
     redirect_uri: redirectUri,
     scope: config.scopes.join(","),
     response_type: "code",
+    state,
   });
   return `${config.authUrl}?${params.toString()}`;
 }
@@ -137,13 +139,15 @@ function OAuthButton({
   disabled: boolean;
 }) {
   const colors = useColors();
+  const { getToken } = useAuth();
   const config = PLATFORM_CONFIGS[platform]!;
   const [loading, setLoading] = useState(false);
 
   const handlePress = useCallback(async () => {
     setLoading(true);
     try {
-      const authUrl = buildAuthUrl(platform, clientId);
+      const token = (await getToken()) ?? "";
+      const authUrl = buildAuthUrl(platform, clientId, token);
       const redirectUrl = `https://${DOMAIN}${config.callbackPath}`;
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
@@ -191,7 +195,7 @@ export default function ConnectAccount() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ platform?: string; existingId?: string }>();
-  const { addAccount, updateAccount, user } = useApp();
+  const { addAccount, updateAccount, user, refreshData } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -214,14 +218,15 @@ export default function ConnectAccount() {
   const clientId = selectedPlatform ? getClientId(selectedPlatform) : undefined;
   const isExistingAccount = !!params.existingId;
 
-  const handleOAuthDone = useCallback(() => {
+  const handleOAuthDone = useCallback(async () => {
     setOauthDone(true);
+    await refreshData();
     Alert.alert(
       "Connected!",
       "Your account was verified via OAuth. Return to the app to see it listed as connected.",
       [{ text: "Done", onPress: () => router.back() }]
     );
-  }, []);
+  }, [refreshData]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedPlatform) return;
