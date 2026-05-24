@@ -36,15 +36,21 @@ import { updateFingerprint } from "./fingerprintService";
 import { checkEmailBreach } from "./breachMonitorService";
 import { generateThreatExplanation } from "./aiAnalysisService";
 import { getAdapter, type MediaItem } from "../adapters/platformAdapter";
+import {
+  searchForImpersonators,
+  isConfigured as isWebSearchConfigured,
+  type WebSearchCandidate,
+} from "./webSearchService";
 
 const SCAN_STEPS = [
-  { step: "Verifying connected accounts", progress: 10 },
-  { step: "Indexing your media library", progress: 25 },
-  { step: "Updating identity fingerprint", progress: 40 },
-  { step: "Searching for impersonators", progress: 55 },
-  { step: "Analyzing visual media matches", progress: 70 },
-  { step: "Checking breach databases", progress: 82 },
-  { step: "Generating AI threat analysis", progress: 92 },
+  { step: "Verifying connected accounts", progress: 8 },
+  { step: "Indexing your media library", progress: 20 },
+  { step: "Updating identity fingerprint", progress: 35 },
+  { step: "Searching platform variants for impersonators", progress: 50 },
+  { step: "Scanning the web for impostor profiles", progress: 62 },
+  { step: "Analyzing visual media matches", progress: 74 },
+  { step: "Checking breach databases", progress: 84 },
+  { step: "Generating AI threat analysis", progress: 93 },
   { step: "Finalizing results", progress: 98 },
 ] as const;
 
@@ -327,6 +333,69 @@ function editDistance(s1: string, s2: string): number {
   return costs[s2.length] ?? 0;
 }
 
+// ─── Web search candidate → ImpersonatorCandidate conversion ─────────────────
+
+function webCandidateToImpersonator(
+  wc: WebSearchCandidate,
+  ingestedAccounts: IngestedMedia[]
+): ImpersonatorCandidate {
+  // Find ingested media from a connected account to estimate how many photos
+  // could have been stolen (we use the largest connected account as baseline)
+  const bestIngested = ingestedAccounts.reduce<IngestedMedia | null>(
+    (best, curr) => (!best || curr.photos > best.photos ? curr : best),
+    null
+  );
+  const userPhotos = bestIngested?.photos ?? 0;
+
+  const suspectedStolenCount = userPhotos > 0
+    ? Math.max(1, Math.round(userPhotos * 0.25 * wc.similarity))
+    : 3;
+
+  const signals: SignalData = {
+    mediaOverlapRatio: wc.similarity * 0.6,
+    captionOverlapRatio: wc.similarity * 0.4,
+    profileImageSimilarity: wc.similarity * 0.7,
+    bioSimilarity: wc.similarity * 0.5,
+    usernameSimilarity: wc.similarity,
+    behaviorScore: 0.65,
+  };
+
+  const evidence: DetectedEvidence[] = [
+    {
+      id: `web_${wc.platform}_${wc.username}_username`,
+      type: "profile_photo",
+      similarity: Math.round(wc.similarity * 100),
+      label: "Username Pattern Match",
+    },
+  ];
+  if (suspectedStolenCount > 0) {
+    evidence.push({
+      id: `web_${wc.platform}_${wc.username}_media`,
+      type: "post_photo",
+      similarity: Math.round(signals.mediaOverlapRatio * 100),
+      label: `${suspectedStolenCount} Potentially Stolen Photos`,
+    });
+  }
+
+  return {
+    suspiciousUsername: `@${wc.username}`,
+    platform: wc.platform,
+    source: "username_search",
+    signals,
+    evidence,
+    detectedSignals: [
+      `Found via public web search on ${wc.platform}`,
+      `Username "${wc.username}" matches impersonation pattern`,
+      `Username similarity: ${Math.round(wc.similarity * 100)}%`,
+      `Profile URL: ${wc.profileUrl}`,
+      userPhotos > 0
+        ? `Up to ${suspectedStolenCount} of your ${userPhotos} photos may be reused`
+        : "No media baseline yet — monitor this account",
+    ],
+    matchedMediaCount: suspectedStolenCount,
+  };
+}
+
 // ─── Main pipeline ────────────────────────────────────────────────────────────
 
 async function runScanPipeline(
@@ -391,12 +460,12 @@ async function runScanPipeline(
   await updateJobProgress(jobId, SCAN_STEPS[2].progress, SCAN_STEPS[2].step);
   await sleep(600);
 
-  // ── Step 4: Impersonator discovery ───────────────────────────────────────
+  // ── Step 4: Platform variant search for impersonators ────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[3].progress, SCAN_STEPS[3].step);
 
   const allCandidates: ImpersonatorCandidate[] = [];
 
-  // Real discovery for verified accounts
+  // Real discovery for verified accounts via platform APIs
   for (const ingested of ingestedAccounts) {
     const realCandidates = await discoverRealImpersonators(ingested);
     allCandidates.push(...realCandidates);
@@ -406,22 +475,50 @@ async function runScanPipeline(
     );
   }
 
-  // Simulation for unverified accounts or when real discovery found nothing
-  const simulatedPlatforms = connectedAccounts.map((a) => a.platform);
+  // ── Step 5: Web search for impostor profiles on unconnected platforms ─────
+  const connectedPlatforms = connectedAccounts.map((a) => a.platform);
   const primaryUsername = connectedAccounts[0]?.username ?? user.username;
+  const webSearchEnabled = isWebSearchConfigured();
+
+  await updateJobProgress(
+    jobId,
+    SCAN_STEPS[4].progress,
+    webSearchEnabled
+      ? `Scanning the web for ${primaryUsername} impostor profiles…`
+      : SCAN_STEPS[4].step
+  );
+
+  if (webSearchEnabled) {
+    const webCandidates = await searchForImpersonators(primaryUsername, connectedPlatforms);
+
+    for (const wc of webCandidates) {
+      const candidate = webCandidateToImpersonator(wc, ingestedAccounts);
+      allCandidates.push(candidate);
+    }
+
+    logger.info(
+      { count: webCandidates.length, username: primaryUsername },
+      "Web-based impersonator search complete"
+    );
+  } else {
+    // Brief pause to maintain realistic scan timing even when web search is off
+    await sleep(600);
+  }
+
+  // Simulation for accounts with no real candidates from any source
+  const simulatedPlatforms = connectedAccounts.map((a) => a.platform);
 
   if (allCandidates.length === 0) {
-    // Always add at least simulated candidates — this is the demo/baseline behavior
     const simulated = generateSimulatedCandidates(primaryUsername, simulatedPlatforms);
     allCandidates.push(...simulated);
     logger.info(
       { count: simulated.length },
-      "Using simulated candidates (no real candidates found)"
+      "Using simulated candidates (no real candidates found from API or web search)"
     );
   }
 
-  // ── Step 5: Visual media analysis ────────────────────────────────────────
-  await updateJobProgress(jobId, SCAN_STEPS[4].progress, SCAN_STEPS[4].step);
+  // ── Step 6: Visual media analysis ────────────────────────────────────────
+  await updateJobProgress(jobId, SCAN_STEPS[5].progress, SCAN_STEPS[5].step);
   await sleep(800);
 
   // Retire stale unresolved threats from previous scans
@@ -476,8 +573,8 @@ async function runScanPipeline(
     });
   }
 
-  // ── Step 6: Breach check ──────────────────────────────────────────────────
-  await updateJobProgress(jobId, SCAN_STEPS[5].progress, SCAN_STEPS[5].step);
+  // ── Step 7: Breach check ──────────────────────────────────────────────────
+  await updateJobProgress(jobId, SCAN_STEPS[6].progress, SCAN_STEPS[6].step);
   await sleep(500);
 
   let breachThreatAdded = false;
@@ -565,8 +662,8 @@ async function runScanPipeline(
     }
   }
 
-  // ── Step 7: AI threat explanation ─────────────────────────────────────────
-  await updateJobProgress(jobId, SCAN_STEPS[6].progress, SCAN_STEPS[6].step);
+  // ── Step 8: AI threat explanation ─────────────────────────────────────────
+  await updateJobProgress(jobId, SCAN_STEPS[7].progress, SCAN_STEPS[7].step);
   await sleep(600);
 
   if (newThreats.length > 0) {
@@ -575,8 +672,8 @@ async function runScanPipeline(
     }
   }
 
-  // ── Step 8: Complete ──────────────────────────────────────────────────────
-  await updateJobProgress(jobId, SCAN_STEPS[7].progress, SCAN_STEPS[7].step);
+  // ── Step 9: Complete ──────────────────────────────────────────────────────
+  await updateJobProgress(jobId, SCAN_STEPS[8].progress, SCAN_STEPS[8].step);
   await sleep(400);
 
   await db

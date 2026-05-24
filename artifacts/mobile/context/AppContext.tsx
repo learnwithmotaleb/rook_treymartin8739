@@ -13,6 +13,7 @@ import {
   listThreats,
   startScan as apiStartScan,
   getScanStatus,
+  getLatestScan,
   resolveThreat as apiResolveThreat,
   addAccount as apiAddAccount,
   removeAccount as apiRemoveAccount,
@@ -132,6 +133,7 @@ interface AppContextType {
   hasSeenOnboarding: boolean;
   isScanning: boolean;
   scanProgress: number;
+  scanCurrentStep: string | null;
   isLoading: boolean;
   activeThreats: number;
   fakeAccounts: number;
@@ -236,6 +238,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const [scanCurrentStep, setScanCurrentStep] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -303,6 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           const status = await getScanStatus(job.id);
           setScanProgress(status.progress);
+          if (status.currentStep) setScanCurrentStep(status.currentStep);
 
           if (status.status === "completed" || status.status === "failed") {
             if (pollTimerRef.current) {
@@ -311,6 +315,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             setIsScanning(false);
             setScanProgress(100);
+            setScanCurrentStep(null);
             await loadThreats();
             const profile = await getMe();
             const accounts = await getAccounts();
@@ -322,6 +327,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             pollTimerRef.current = null;
           }
           setIsScanning(false);
+          setScanCurrentStep(null);
         }
       }, 1200);
     } catch {
@@ -407,6 +413,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         hasSeenOnboarding,
         isScanning,
         scanProgress,
+        scanCurrentStep,
         isLoading,
         activeThreats,
         fakeAccounts,

@@ -17,38 +17,30 @@ import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
 
-const SCAN_STEPS = [
-  "Indexing connected accounts…",
-  "Comparing visual fingerprints…",
-  "Scanning Instagram…",
-  "Scanning TikTok…",
-  "Scanning X & Facebook…",
-  "Checking breach databases…",
-  "Running AI threat analysis…",
-  "Finalizing report…",
-];
-
 export default function ScanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, isScanning, scanProgress, startScan, activeThreats, fakeAccounts, threats } = useApp();
+  const {
+    user,
+    isScanning,
+    scanProgress,
+    scanCurrentStep,
+    startScan,
+    activeThreats,
+    fakeAccounts,
+    threats,
+  } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const [lastResult, setLastResult] = useState<{ threatsFound: number; time: string } | null>(null);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const resultOpacity = useRef(new Animated.Value(0)).current;
   const prevScanning = useRef(false);
 
   useEffect(() => {
     if (isScanning) {
       prevScanning.current = true;
-      const stepIdx = Math.min(
-        Math.floor((scanProgress / 100) * SCAN_STEPS.length),
-        SCAN_STEPS.length - 1
-      );
-      setCurrentStepIndex(stepIdx);
     } else if (prevScanning.current) {
       prevScanning.current = false;
       const activeCount = threats.filter((t) => !t.resolved).length;
@@ -63,7 +55,7 @@ export default function ScanScreen() {
         useNativeDriver: true,
       }).start();
     }
-  }, [isScanning, scanProgress, threats, resultOpacity]);
+  }, [isScanning, threats, resultOpacity]);
 
   const handleScan = () => {
     if (isScanning) return;
@@ -72,7 +64,7 @@ export default function ScanScreen() {
     startScan();
   };
 
-  const currentStep = isScanning ? SCAN_STEPS[currentStepIndex] : null;
+  const currentStep = isScanning ? (scanCurrentStep ?? "Initializing scan…") : null;
   const statusText = isScanning ? `${scanProgress}% complete` : "All systems active";
   const statusColor = isScanning ? colors.primary : colors.success;
 

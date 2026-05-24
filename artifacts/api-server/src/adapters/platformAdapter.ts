@@ -318,10 +318,73 @@ export class TikTokAdapter implements PlatformAdapter {
   }
 }
 
+export class FacebookAdapter implements PlatformAdapter {
+  platform = "facebook";
+
+  isConfigured(): boolean {
+    return !!(
+      (process.env["FACEBOOK_APP_ID"] ?? process.env["INSTAGRAM_CLIENT_ID"]) &&
+      (process.env["FACEBOOK_APP_SECRET"] ?? process.env["INSTAGRAM_CLIENT_SECRET"])
+    );
+  }
+
+  async getProfile(accessToken: string): Promise<ProfileData> {
+    const response = await fetch(
+      `https://graph.facebook.com/me?fields=id,name,picture.type(large)&access_token=${accessToken}`
+    );
+    if (!response.ok) throw new Error(`Facebook API error: ${response.status}`);
+    const data = (await response.json()) as {
+      id: string;
+      name?: string;
+      picture?: { data?: { url?: string } };
+    };
+    return {
+      platformUserId: data.id,
+      username: data.name ?? data.id,
+      displayName: data.name,
+      followers: 0,
+      profileImageUrl: data.picture?.data?.url,
+    };
+  }
+
+  async getMediaItems(
+    accessToken: string,
+    _platformUserId: string,
+    limit = 50
+  ): Promise<MediaItem[]> {
+    const response = await fetch(
+      `https://graph.facebook.com/me/photos?type=uploaded&fields=id,picture,name,created_time&limit=${limit}&access_token=${accessToken}`
+    );
+    if (!response.ok) throw new Error(`Facebook API error: ${response.status}`);
+    const data = (await response.json()) as {
+      data?: Array<{
+        id: string;
+        picture?: string;
+        name?: string;
+        created_time?: string;
+      }>;
+    };
+    return (data.data ?? []).map((item) => ({
+      platformMediaId: item.id,
+      type: "image" as const,
+      url: item.picture ?? "",
+      caption: item.name,
+      postedAt: item.created_time ? new Date(item.created_time) : undefined,
+    }));
+  }
+
+  async searchByUsername(): Promise<CandidateAccount[]> {
+    // Facebook Graph API does not expose public profile search for third-party apps.
+    // Discovery relies on web search (webSearchService) and media similarity signals.
+    return [];
+  }
+}
+
 const adapters: Record<string, PlatformAdapter> = {
   instagram: new InstagramAdapter(),
   x: new TwitterAdapter(),
   tiktok: new TikTokAdapter(),
+  facebook: new FacebookAdapter(),
 };
 
 export function getAdapter(platform: string): PlatformAdapter | null {

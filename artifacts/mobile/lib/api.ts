@@ -156,6 +156,10 @@ export async function getScanStatus(jobId: string): Promise<ScanJob> {
   return apiFetch<ScanJob>(`/scan/${jobId}`);
 }
 
+export async function getLatestScan(): Promise<ScanJob> {
+  return apiFetch<ScanJob>("/scan/latest");
+}
+
 export async function listThreats(params?: {
   severity?: string;
   resolved?: boolean;
