@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,38 +17,32 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
-import {
-  makeRedirectUri,
-  useAuthRequest,
-  type AuthRequestConfig,
-  type DiscoveryDocument,
-} from "expo-auth-session";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 
-WebBrowser.maybeCompleteAuthSession();
-
 interface PlatformConfig {
   label: string;
   color: string;
   authUrl: string;
-  tokenUrl: string;
   scopes: string[];
   clientIdEnvKey: string;
+  callbackPath: string;
   usernameHint: string;
   usernamePrefix?: string;
 }
+
+const DOMAIN = process.env["EXPO_PUBLIC_DOMAIN"] ?? "";
 
 const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
   instagram: {
     label: "Instagram",
     color: "#E1306C",
     authUrl: "https://api.instagram.com/oauth/authorize",
-    tokenUrl: "https://api.instagram.com/oauth/access_token",
     scopes: ["user_profile", "user_media"],
     clientIdEnvKey: "EXPO_PUBLIC_INSTAGRAM_CLIENT_ID",
+    callbackPath: "/api/oauth/instagram/callback",
     usernameHint: "yourhandle",
     usernamePrefix: "@",
   },
@@ -56,9 +50,9 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     label: "X (Twitter)",
     color: "#000000",
     authUrl: "https://twitter.com/i/oauth2/authorize",
-    tokenUrl: "https://api.twitter.com/2/oauth2/token",
     scopes: ["tweet.read", "users.read", "offline.access"],
     clientIdEnvKey: "EXPO_PUBLIC_TWITTER_CLIENT_ID",
+    callbackPath: "/api/oauth/x/callback",
     usernameHint: "yourhandle",
     usernamePrefix: "@",
   },
@@ -66,9 +60,9 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     label: "TikTok",
     color: "#010101",
     authUrl: "https://www.tiktok.com/v2/auth/authorize/",
-    tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
     scopes: ["user.info.basic"],
     clientIdEnvKey: "EXPO_PUBLIC_TIKTOK_CLIENT_ID",
+    callbackPath: "/api/oauth/tiktok/callback",
     usernameHint: "yourhandle",
     usernamePrefix: "@",
   },
@@ -76,40 +70,36 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     label: "YouTube",
     color: "#FF0000",
     authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-    tokenUrl: "https://oauth2.googleapis.com/token",
-    scopes: [
-      "https://www.googleapis.com/auth/youtube.readonly",
-      "profile",
-      "email",
-    ],
+    scopes: ["https://www.googleapis.com/auth/youtube.readonly", "profile", "email"],
     clientIdEnvKey: "EXPO_PUBLIC_GOOGLE_CLIENT_ID",
+    callbackPath: "/api/oauth/youtube/callback",
     usernameHint: "channel name or @handle",
   },
   facebook: {
     label: "Facebook",
     color: "#1877F2",
-    authUrl: "https://www.facebook.com/v18.0/dialog/oauth",
-    tokenUrl: "https://graph.facebook.com/v18.0/oauth/access_token",
+    authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
     scopes: ["public_profile"],
     clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID",
+    callbackPath: "/api/oauth/facebook/callback",
     usernameHint: "your.profile.name",
   },
   linkedin: {
     label: "LinkedIn",
     color: "#0A66C2",
     authUrl: "https://www.linkedin.com/oauth/v2/authorization",
-    tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
     scopes: ["r_liteprofile", "r_emailaddress"],
     clientIdEnvKey: "EXPO_PUBLIC_LINKEDIN_CLIENT_ID",
+    callbackPath: "/api/oauth/linkedin/callback",
     usernameHint: "your-name",
   },
   snapchat: {
     label: "Snapchat",
     color: "#FFFC00",
     authUrl: "https://accounts.snapchat.com/login/oauth2/authorize",
-    tokenUrl: "https://accounts.snapchat.com/login/oauth2/access_token",
     scopes: ["https://auth.snapchat.com/oauth2/api/user.display_name"],
     clientIdEnvKey: "EXPO_PUBLIC_SNAPCHAT_CLIENT_ID",
+    callbackPath: "/api/oauth/snapchat/callback",
     usernameHint: "yourhandle",
     usernamePrefix: "@",
   },
@@ -123,6 +113,18 @@ function getClientId(platform: string): string | undefined {
   return (process.env as Record<string, string | undefined>)[key];
 }
 
+function buildAuthUrl(platform: string, clientId: string): string {
+  const config = PLATFORM_CONFIGS[platform]!;
+  const redirectUri = `https://${DOMAIN}${config.callbackPath}`;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope: config.scopes.join(","),
+    response_type: "code",
+  });
+  return `${config.authUrl}?${params.toString()}`;
+}
+
 function OAuthButton({
   platform,
   clientId,
@@ -131,55 +133,56 @@ function OAuthButton({
 }: {
   platform: string;
   clientId: string;
-  onSuccess: (token: string) => void;
+  onSuccess: () => void;
   disabled: boolean;
 }) {
   const colors = useColors();
   const config = PLATFORM_CONFIGS[platform]!;
+  const [loading, setLoading] = useState(false);
 
-  const redirectUri = makeRedirectUri({ scheme: "mobile" });
+  const handlePress = useCallback(async () => {
+    setLoading(true);
+    try {
+      const authUrl = buildAuthUrl(platform, clientId);
+      const redirectUrl = `https://${DOMAIN}${config.callbackPath}`;
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
-  const discovery: DiscoveryDocument = {
-    authorizationEndpoint: config.authUrl,
-    tokenEndpoint: config.tokenUrl,
-  };
-
-  const authConfig: AuthRequestConfig = {
-    clientId,
-    scopes: config.scopes,
-    redirectUri,
-    usePKCE: true,
-  };
-
-  const [request, response, promptAsync] = useAuthRequest(authConfig, discovery);
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      const token = response.params.access_token ?? response.params.code ?? "";
-      onSuccess(token);
-    } else if (response?.type === "error") {
-      Alert.alert(
-        "Authentication Failed",
-        response.error?.message ?? "The login was cancelled or failed. You can still add the account by entering your username manually.",
-        [{ text: "OK" }]
-      );
+      if (result.type === "success" || result.type === "dismiss") {
+        onSuccess();
+      } else if (result.type === "cancel") {
+        Alert.alert(
+          "Cancelled",
+          "Authentication was cancelled. You can still add the account by entering your username manually.",
+          [{ text: "OK" }]
+        );
+      }
+    } catch {
+      Alert.alert("Error", "Could not open the authentication page. Please try again.");
+    } finally {
+      setLoading(false);
     }
-  }, [response, onSuccess]);
+  }, [platform, clientId, config.callbackPath, onSuccess]);
 
   return (
     <TouchableOpacity
       style={[
         styles.oauthBtn,
-        { backgroundColor: config.color, opacity: disabled || !request ? 0.6 : 1 },
+        { backgroundColor: config.color, opacity: disabled || loading ? 0.6 : 1 },
       ]}
-      disabled={disabled || !request}
+      disabled={disabled || loading}
       activeOpacity={0.8}
-      onPress={() => promptAsync()}
+      onPress={handlePress}
     >
-      <PlatformIcon platform={platform} size={20} />
-      <Text style={[styles.oauthBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-        Sign in with {config.label}
-      </Text>
+      {loading ? (
+        <ActivityIndicator color="#FFFFFF" size="small" />
+      ) : (
+        <>
+          <PlatformIcon platform={platform} size={20} />
+          <Text style={[styles.oauthBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+            Sign in with {config.label}
+          </Text>
+        </>
+      )}
     </TouchableOpacity>
   );
 }
@@ -202,7 +205,7 @@ export default function ConnectAccount() {
   );
   const [username, setUsername] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [oauthToken, setOauthToken] = useState<string | null>(null);
+  const [oauthDone, setOauthDone] = useState(false);
   const [step, setStep] = useState<"pick" | "connect">(
     params.platform ? "connect" : "pick"
   );
@@ -211,12 +214,12 @@ export default function ConnectAccount() {
   const clientId = selectedPlatform ? getClientId(selectedPlatform) : undefined;
   const isExistingAccount = !!params.existingId;
 
-  const handleOAuthSuccess = useCallback((token: string) => {
-    setOauthToken(token);
+  const handleOAuthDone = useCallback(() => {
+    setOauthDone(true);
     Alert.alert(
-      "Authentication Successful",
-      "Enter your username below to complete connecting this account.",
-      [{ text: "OK" }]
+      "Connected!",
+      "Your account was verified via OAuth. Return to the app to see it listed as connected.",
+      [{ text: "Done", onPress: () => router.back() }]
     );
   }, []);
 
@@ -233,23 +236,15 @@ export default function ConnectAccount() {
 
     try {
       if (isExistingAccount && params.existingId) {
-        await updateAccount(params.existingId, {
-          accessToken: oauthToken ?? undefined,
-        });
-        Alert.alert(
-          "Account Updated",
-          oauthToken
-            ? "Your account is now verified with OAuth authentication."
-            : "Account updated.",
-          [{ text: "OK", onPress: () => router.back() }]
-        );
+        await updateAccount(params.existingId, {});
+        Alert.alert("Account Updated", "Account updated.", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
       } else {
-        await addAccount(selectedPlatform, trimmed, oauthToken ?? undefined);
+        await addAccount(selectedPlatform, trimmed, undefined);
         Alert.alert(
-          "Account Connected",
-          oauthToken
-            ? `${config?.label} account @${trimmed} connected and verified.`
-            : `${config?.label} account @${trimmed} added. Authenticate to verify ownership.`,
+          "Account Added",
+          `${config?.label} account @${trimmed} added for monitoring. Tap "Sign in with ${config?.label}" to verify ownership.`,
           [{ text: "Done", onPress: () => router.back() }]
         );
       }
@@ -258,13 +253,13 @@ export default function ConnectAccount() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedPlatform, username, oauthToken, isExistingAccount, params.existingId, addAccount, updateAccount, config]);
+  }, [selectedPlatform, username, isExistingAccount, params.existingId, addAccount, updateAccount, config]);
 
   const selectPlatform = (platform: string) => {
     setSelectedPlatform(platform);
     setStep("connect");
     setUsername("");
-    setOauthToken(null);
+    setOauthDone(false);
   };
 
   return (
@@ -377,7 +372,7 @@ export default function ConnectAccount() {
                   </View>
                 </View>
 
-                {oauthToken ? (
+                {oauthDone ? (
                   <View style={[styles.oauthSuccess, { backgroundColor: colors.success + "18", borderColor: colors.success + "44" }]}>
                     <Ionicons name="checkmark-circle" size={18} color={colors.success} />
                     <Text style={[styles.oauthSuccessText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
@@ -388,7 +383,7 @@ export default function ConnectAccount() {
                   <OAuthButton
                     platform={selectedPlatform}
                     clientId={clientId}
-                    onSuccess={handleOAuthSuccess}
+                    onSuccess={handleOAuthDone}
                     disabled={submitting}
                   />
                 ) : (
@@ -444,9 +439,7 @@ export default function ConnectAccount() {
                     )}
                   </View>
                   <Text style={[styles.usernameSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    {oauthToken
-                      ? "Confirm your username to complete connection"
-                      : "Manual accounts are monitored but not ownership-verified"}
+                    Manual accounts are monitored but not ownership-verified
                   </Text>
                 </GlassCard>
               )}
@@ -458,10 +451,10 @@ export default function ConnectAccount() {
                     styles.submitBtn,
                     {
                       backgroundColor: colors.primary,
-                      opacity: submitting || (!username.trim() && !oauthToken) ? 0.5 : 1,
+                      opacity: submitting || !username.trim() ? 0.5 : 1,
                     },
                   ]}
-                  disabled={submitting || (!username.trim() && !oauthToken)}
+                  disabled={submitting || !username.trim()}
                   activeOpacity={0.8}
                   onPress={handleSubmit}
                 >
@@ -469,13 +462,9 @@ export default function ConnectAccount() {
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
                     <>
-                      <Ionicons
-                        name={oauthToken ? "shield-checkmark" : "person-add"}
-                        size={18}
-                        color="#FFFFFF"
-                      />
+                      <Ionicons name="person-add" size={18} color="#FFFFFF" />
                       <Text style={[styles.submitBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                        {oauthToken ? "Connect Verified Account" : "Add Account"}
+                        Add Account
                       </Text>
                     </>
                   )}
@@ -483,29 +472,10 @@ export default function ConnectAccount() {
               )}
 
               {/* Verify CTA for existing accounts */}
-              {isExistingAccount && !oauthToken && (
+              {isExistingAccount && !oauthDone && (
                 <Text style={[styles.skipHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                   Sign in above to verify ownership of this account.
                 </Text>
-              )}
-              {isExistingAccount && oauthToken && (
-                <TouchableOpacity
-                  style={[styles.submitBtn, { backgroundColor: colors.success, opacity: submitting ? 0.5 : 1 }]}
-                  disabled={submitting}
-                  activeOpacity={0.8}
-                  onPress={handleSubmit}
-                >
-                  {submitting ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
-                      <Text style={[styles.submitBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                        Save Verified Account
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
               )}
 
               {/* Privacy note */}
