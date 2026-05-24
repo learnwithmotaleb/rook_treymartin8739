@@ -80,14 +80,12 @@ export class InstagramAdapter implements PlatformAdapter {
 
   isConfigured(): boolean {
     return !!(
-      process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET
+      (process.env["INSTAGRAM_CLIENT_ID"] ?? process.env["INSTAGRAM_APP_ID"]) &&
+      (process.env["INSTAGRAM_CLIENT_SECRET"] ?? process.env["INSTAGRAM_APP_SECRET"])
     );
   }
 
   async getProfile(accessToken: string): Promise<ProfileData> {
-    if (!this.isConfigured()) {
-      throw new Error("Instagram adapter not configured. Set INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET.");
-    }
     const response = await fetch(
       `https://graph.instagram.com/me?fields=id,username,name,followers_count,profile_picture_url,biography&access_token=${accessToken}`
     );
@@ -115,9 +113,6 @@ export class InstagramAdapter implements PlatformAdapter {
     platformUserId: string,
     limit = 50
   ): Promise<MediaItem[]> {
-    if (!this.isConfigured()) {
-      throw new Error("Instagram adapter not configured.");
-    }
     const response = await fetch(
       `https://graph.instagram.com/${platformUserId}/media?fields=id,media_type,media_url,thumbnail_url,caption,timestamp&limit=${limit}&access_token=${accessToken}`
     );
