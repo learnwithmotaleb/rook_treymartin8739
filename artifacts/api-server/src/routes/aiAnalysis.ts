@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { analyzeScamText, generateThreatExplanation } from "../services/aiAnalysisService";
-import { resolveUserId } from "../lib/demoUser";
+
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -25,8 +25,6 @@ router.post("/ai/analyze-scam", async (req, res): Promise<void> => {
 });
 
 router.post("/ai/generate-explanation", async (req, res): Promise<void> => {
-  await resolveUserId(req.headers["x-user-id"]);
-
   const { threatType, signals, matchedMediaCount, platform, suspiciousUsername } =
     req.body as {
       threatType?: string;

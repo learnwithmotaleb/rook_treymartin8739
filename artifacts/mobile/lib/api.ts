@@ -11,18 +11,27 @@ const BASE_URL = (() => {
   return "/api";
 })();
 
-const DEMO_USER_ID = "demo";
+let _authTokenGetter: (() => Promise<string | null>) | null = null;
+
+export function setApiAuthToken(getter: () => Promise<string | null>) {
+  _authTokenGetter = getter;
+}
 
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${BASE_URL}${path}`;
+  const authHeaders: Record<string, string> = {};
+  if (_authTokenGetter) {
+    const token = await _authTokenGetter();
+    if (token) authHeaders["Authorization"] = `Bearer ${token}`;
+  }
   const response = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "x-user-id": DEMO_USER_ID,
+      ...authHeaders,
       ...(options.headers ?? {}),
     },
   });

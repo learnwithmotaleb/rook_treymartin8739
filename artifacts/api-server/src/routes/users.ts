@@ -5,7 +5,7 @@ import {
   usersTable,
   connectedAccountsTable,
 } from "@workspace/db";
-import { resolveUserId } from "../lib/demoUser";
+
 import { getFingerprintForUser } from "../services/fingerprintService";
 import { scanJobsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -14,7 +14,7 @@ import { getSubscription } from "../services/subscriptionService";
 const router: IRouter = Router();
 
 router.get("/me", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
 
   const [user] = await db
     .select()
@@ -70,7 +70,7 @@ router.get("/me", async (req, res): Promise<void> => {
 });
 
 router.patch("/me", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
 
   const { name, username, email } = req.body as {
     name?: string;

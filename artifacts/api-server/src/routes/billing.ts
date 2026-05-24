@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, subscriptionsTable } from "@workspace/db";
-import { resolveUserId } from "../lib/demoUser";
+
 import { PLAN_CONFIG } from "../lib/planConfig";
 import {
   getSubscription,
@@ -42,14 +42,14 @@ function cycleFromPriceId(priceId: string): "monthly" | "yearly" {
 }
 
 router.get("/billing/subscription", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const sub = await getSubscription(userId);
   const limits = PLAN_CONFIG[sub.tier];
   res.json({ ...sub, limits });
 });
 
 router.post("/billing/checkout", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const { tier, billingCycle } = req.body as {
     tier?: string;
     billingCycle?: string;
@@ -113,7 +113,7 @@ router.post("/billing/checkout", async (req, res): Promise<void> => {
 });
 
 router.post("/billing/portal", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const sub = await getSubscription(userId);
 
   if (!sub.stripeCustomerId) {
@@ -138,7 +138,7 @@ router.post("/billing/portal", async (req, res): Promise<void> => {
 });
 
 router.post("/billing/cancel", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const sub = await getSubscription(userId);
 
   if (!sub.stripeSubscriptionId) {

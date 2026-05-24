@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
-import { resolveUserId } from "../lib/demoUser";
+
 import { getFingerprintForUser } from "../services/fingerprintService";
 
 const router: IRouter = Router();
 
 router.get("/fingerprint", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const fingerprint = await getFingerprintForUser(userId);
 
   res.json({

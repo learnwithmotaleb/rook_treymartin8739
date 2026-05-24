@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable } from "@workspace/db";
-import { resolveUserId } from "../lib/demoUser";
 
 const router: IRouter = Router();
 
@@ -72,7 +71,9 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
     const { access_token: longToken } = await longLivedRes.json() as { access_token: string };
 
     // Upsert account — use demo user for now (replace with real auth userId)
-    const userId = await resolveUserId("demo");
+    const { getOrCreateDemoUser } = await import("../lib/demoUser");
+    const demoUser = await getOrCreateDemoUser();
+    const userId = demoUser.id;
 
     const existing = await db
       .select({ id: connectedAccountsTable.id })
@@ -160,7 +161,9 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     );
     const profile = await profileRes.json() as { id: string; name: string };
 
-    const userId = await resolveUserId("demo");
+    const { getOrCreateDemoUser } = await import("../lib/demoUser");
+    const demoUser = await getOrCreateDemoUser();
+    const userId = demoUser.id;
 
     const existing = await db
       .select({ id: connectedAccountsTable.id })

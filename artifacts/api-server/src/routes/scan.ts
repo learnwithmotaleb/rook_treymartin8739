@@ -1,13 +1,13 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, scanJobsTable } from "@workspace/db";
-import { resolveUserId } from "../lib/demoUser";
+
 import { startScan } from "../services/scanOrchestrator";
 
 const router: IRouter = Router();
 
 router.post("/scan", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
 
   const runningJobs = await db
     .select({ id: scanJobsTable.id })
@@ -38,7 +38,7 @@ router.post("/scan", async (req, res): Promise<void> => {
 });
 
 router.get("/scan/:jobId", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const jobId = Array.isArray(req.params.jobId)
     ? req.params.jobId[0]
     : req.params.jobId;

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable } from "@workspace/db";
-import { resolveUserId } from "../lib/demoUser";
+
 import { getSubscription } from "../services/subscriptionService";
 import { PLAN_CONFIG } from "../lib/planConfig";
 
@@ -12,7 +12,7 @@ const VALID_PLATFORMS = [
 ];
 
 router.get("/accounts", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
 
   const accounts = await db
     .select()
@@ -36,7 +36,7 @@ router.get("/accounts", async (req, res): Promise<void> => {
 });
 
 router.post("/accounts", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
 
   const { platform, username, accessToken } = req.body as {
     platform?: string;
@@ -122,7 +122,7 @@ router.post("/accounts", async (req, res): Promise<void> => {
 });
 
 router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const accountId = Array.isArray(req.params.accountId)
     ? req.params.accountId[0]
     : req.params.accountId;
@@ -172,7 +172,7 @@ router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
 });
 
 router.delete("/accounts/:accountId", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const accountId = Array.isArray(req.params.accountId)
     ? req.params.accountId[0]
     : req.params.accountId;

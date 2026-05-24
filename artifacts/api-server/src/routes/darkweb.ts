@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, threatsTable, usersTable } from "@workspace/db";
-import { resolveUserId } from "../lib/demoUser";
+
 
 const router: IRouter = Router();
 
 router.get("/dark-web", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
 
   const [user] = await db
     .select({ email: usersTable.email, username: usersTable.username })

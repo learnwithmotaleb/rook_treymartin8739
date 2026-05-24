@@ -40,7 +40,7 @@ export async function getOrCreateDemoUser(): Promise<User> {
   const [user] = await db
     .insert(usersTable)
     .values({
-      email: DEMO_EMAIL,
+      email: DEMO_EMAIL as string,
       name: "Alex Johnson",
       username: "@alexjohnson",
       avatarInitials: "AJ",

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, threatsTable } from "@workspace/db";
-import { resolveUserId } from "../lib/demoUser";
+
 
 const router: IRouter = Router();
 
@@ -60,7 +60,7 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 }
 
 router.get("/threats", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
 
   const { severity, resolved, limit = "50", offset = "0" } = req.query as {
     severity?: string;
@@ -91,7 +91,7 @@ router.get("/threats", async (req, res): Promise<void> => {
 });
 
 router.get("/threats/:threatId", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const threatId = Array.isArray(req.params.threatId)
     ? req.params.threatId[0]
     : req.params.threatId;
@@ -112,7 +112,7 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
 });
 
 router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
-  const userId = await resolveUserId(req.headers["x-user-id"]);
+  const userId = req.userId;
   const threatId = Array.isArray(req.params.threatId)
     ? req.params.threatId[0]
     : req.params.threatId;
