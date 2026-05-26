@@ -364,15 +364,14 @@ function AboutYouScreen({
 }
 
 // ─── Step 5: Platforms ────────────────────────────────────────────────────────
-const ALL_PLATFORMS: Array<{ id: string; label: string; color: string }> = [
+const ALL_PLATFORMS: Array<{ id: NonNullable<SocialPlatform>; label: string; color: string }> = [
   { id: "instagram", label: "Instagram", color: "#E1306C" },
-  { id: "tiktok", label: "TikTok", color: "#010101" },
-  { id: "x", label: "X / Twitter", color: "#000000" },
+  { id: "tiktok", label: "TikTok", color: "#FE2C55" },
+  { id: "x", label: "X / Twitter", color: "#14171A" },
   { id: "facebook", label: "Facebook", color: "#1877F2" },
   { id: "youtube", label: "YouTube", color: "#FF0000" },
   { id: "snapchat", label: "Snapchat", color: "#FFFC00" },
-  { id: "linkedin", label: "LinkedIn", color: "#0077B5" },
-  { id: "pinterest", label: "Pinterest", color: "#E60023" },
+  { id: "linkedin", label: "LinkedIn", color: "#0A66C2" },
 ];
 
 function PlatformsScreen({
@@ -427,7 +426,7 @@ function PlatformsScreen({
                 }]}
               >
                 <View style={styles.platCardRow}>
-                  <PlatformIcon platform={p.id as NonNullable<SocialPlatform>} size={26} />
+                  <PlatformIcon platform={p.id} size={26} />
                   <View style={[styles.platCheckbox, {
                     backgroundColor: isSelected ? p.color : "transparent",
                     borderColor: isSelected ? p.color : colors.border,
