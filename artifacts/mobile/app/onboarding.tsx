@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -47,7 +47,7 @@ function WelcomeScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   }, [pulseAnim]);
 
   return (
-    <View style={styles.screenPad}>
+    <View style={[styles.screenPad, { flex: 1 }]}>
       <LinearGradient colors={["#3B82F622", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={styles.welcomeCenter}>
         <View style={styles.shieldWrap}>
@@ -876,6 +876,7 @@ export default function Onboarding() {
   const { completeOnboarding } = useApp();
   const [step, setStep] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [hasAttemptedConnect, setHasAttemptedConnect] = useState(false);
 
   const [answers, setAnswers] = useState<OnboardingAnswers>({
     primaryConcern: null,
@@ -894,6 +895,15 @@ export default function Onboarding() {
       Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
     });
   }, [fadeAnim]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasAttemptedConnect) {
+        setHasAttemptedConnect(false);
+        animateToStep(7);
+      }
+    }, [hasAttemptedConnect, animateToStep])
+  );
 
   const handleNext = useCallback(() => {
     if (step < TOTAL_STEPS - 1) animateToStep(step + 1);
@@ -956,7 +966,10 @@ export default function Onboarding() {
           colors={colors}
           activePlatforms={answers.activePlatforms}
           onSkip={() => animateToStep(7)}
-          onConnect={() => animateToStep(7)}
+          onConnect={() => {
+            setHasAttemptedConnect(true);
+            router.push("/connect-account" as any);
+          }}
         />
       );
       case 7: return (

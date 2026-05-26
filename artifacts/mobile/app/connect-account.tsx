@@ -40,8 +40,8 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
   instagram: {
     label: "Instagram",
     color: "#E1306C",
-    authUrl: "https://api.instagram.com/oauth/authorize",
-    scopes: ["user_profile", "user_media"],
+    authUrl: "https://www.instagram.com/oauth/authorize",
+    scopes: ["instagram_graph_user_profile", "instagram_graph_user_media"],
     clientIdEnvKey: "EXPO_PUBLIC_INSTAGRAM_CLIENT_ID",
     callbackPath: "/api/oauth/instagram/callback",
     usernameHint: "yourhandle",
@@ -151,9 +151,9 @@ function OAuthButton({
       const redirectUrl = `https://${DOMAIN}${config.callbackPath}`;
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
-      if (result.type === "success" || result.type === "dismiss") {
+      if (result.type === "success") {
         onSuccess();
-      } else if (result.type === "cancel") {
+      } else if (result.type === "cancel" || result.type === "dismiss") {
         Alert.alert(
           "Cancelled",
           "Authentication was cancelled. You can still add the account by entering your username manually.",

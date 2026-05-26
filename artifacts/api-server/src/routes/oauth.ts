@@ -394,8 +394,8 @@ function setupPage(): string {
     <div class="platform-header">
       <span class="platform-icon">📸</span>
       <div>
-        <div class="platform-name">Instagram Basic Display API <span class="badge-needed">Needs Setup</span></div>
-        <div class="platform-sub">Via Meta for Developers — same app as Facebook</div>
+        <div class="platform-name">Instagram Login <span class="badge-needed">Needs Setup</span></div>
+        <div class="platform-sub">Via Meta for Developers — add the Instagram Login product to your app</div>
       </div>
     </div>
 
@@ -403,31 +403,31 @@ function setupPage(): string {
     <div class="step"><div class="step-num">1</div><div class="step-text">Go to <a href="https://developers.facebook.com/apps" target="_blank">developers.facebook.com/apps</a> and click <strong>Create App</strong>.</div></div>
     <div class="step"><div class="step-num">2</div><div class="step-text">Choose <strong>Consumer</strong> as the app type. Name it "ShieldID" (or any name).</div></div>
     <div class="step"><div class="step-num">3</div><div class="step-text">In <strong>Basic Settings</strong>, paste your Privacy Policy URL and Terms of Service URL from the section above.</div></div>
-    <div class="step"><div class="step-num">4</div><div class="step-text">Add the <strong>Instagram Basic Display</strong> product from the left panel → Add Product.</div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-text">Add the <strong>Instagram Login</strong> product from the Products panel → Add Product.</div></div>
 
     <h3>Step 2 — Configure the OAuth Redirect URI</h3>
     <div class="url-block">
-      <div class="url-label">Instagram Basic Display → Settings → Valid OAuth Redirect URIs — Add this URL:</div>
+      <div class="url-label">Instagram Login → Settings → Valid OAuth Redirect URIs — Add this URL:</div>
       <button class="copy-btn" onclick="copy('ig-redirect')">Copy</button>
       <div class="url-value" id="ig-redirect">${igCallback}</div>
     </div>
     <div class="url-block">
-      <div class="url-label">Also add to: Instagram Basic Display → Settings → Deauthorize Callback URL</div>
+      <div class="url-label">Also add to: Instagram Login → Settings → Deauthorize Callback URL</div>
       <button class="copy-btn" onclick="copy('ig-deauth')">Copy</button>
       <div class="url-value" id="ig-deauth">https://${DOMAIN}/api/oauth/instagram/deauthorize</div>
     </div>
 
     <h3>Step 3 — Add Environment Secrets</h3>
-    <p style="color:#64748b;font-size:13px;margin-bottom:10px;">After creating the app, go to Instagram Basic Display → Basic Display and copy these values:</p>
+    <p style="color:#64748b;font-size:13px;margin-bottom:10px;">After creating the app, go to Instagram Login → Settings and copy these values:</p>
     <div class="secrets-block">
-      <div class="secret-row"><span class="secret-key">INSTAGRAM_CLIENT_ID</span><span class="secret-desc">Instagram App ID (from Basic Display settings)</span></div>
-      <div class="secret-row"><span class="secret-key">INSTAGRAM_CLIENT_SECRET</span><span class="secret-desc">Instagram App Secret (from Basic Display settings)</span></div>
+      <div class="secret-row"><span class="secret-key">INSTAGRAM_CLIENT_ID</span><span class="secret-desc">Instagram App ID (from Instagram Login → Settings)</span></div>
+      <div class="secret-row"><span class="secret-key">INSTAGRAM_CLIENT_SECRET</span><span class="secret-desc">Instagram App Secret (from Instagram Login → Settings)</span></div>
       <div class="secret-row"><span class="secret-key">EXPO_PUBLIC_INSTAGRAM_CLIENT_ID</span><span class="secret-desc">Same value as INSTAGRAM_CLIENT_ID (used by the mobile app)</span></div>
     </div>
     <p style="color:#64748b;font-size:12px;">Add these in Replit → Secrets (the padlock icon in the left panel).</p>
 
     <h3>Step 4 — Add Test Users</h3>
-    <div class="step"><div class="step-num">1</div><div class="step-text">In Instagram Basic Display → Roles → Instagram Testers, add your Instagram account.</div></div>
+    <div class="step"><div class="step-num">1</div><div class="step-text">In your Meta App → Roles → Instagram Testers, add your Instagram account.</div></div>
     <div class="step"><div class="step-num">2</div><div class="step-text">Accept the tester invite from your Instagram account (Settings → Apps and Websites → Tester Invites).</div></div>
     <div class="step"><div class="step-num">3</div><div class="step-text">You're ready to test OAuth! The app works in sandbox mode without App Review for your test accounts.</div></div>
   </div>
