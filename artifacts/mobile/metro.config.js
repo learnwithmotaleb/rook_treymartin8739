@@ -8,10 +8,4 @@ config.resolver.blockList = [
   /@clerk\/shared_tmp_/,
 ];
 
-// Speed up module resolution
-config.resolver.unstable_enablePackageExports = true;
-
-// Reduce transform concurrency noise on Replit
-config.maxWorkers = 2;
-
 module.exports = config;
