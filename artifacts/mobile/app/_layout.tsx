@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { ClerkProvider, ClerkLoaded } from "@clerk/expo";
-import { tokenCache } from "@clerk/expo/token-cache";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -23,6 +23,26 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+
+const tokenCache = {
+  async getToken(key: string) {
+    try {
+      return await AsyncStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  async saveToken(key: string, value: string) {
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch {}
+  },
+  async clearToken(key: string) {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch {}
+  },
+};
 
 function RootLayoutNav() {
   return (

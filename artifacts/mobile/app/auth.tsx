@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
-import { useSignIn, useSignUp, useSSO, useAuth } from "@clerk/expo";
+import { useSignIn, useSignUp, useSSO, useAuth, useClerk } from "@clerk/expo";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useColors } from "@/hooks/useColors";
 
@@ -24,9 +24,10 @@ export default function Auth() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
+  const { loaded: clerkReady } = useClerk();
 
-  const { signIn, setActive: signInSetActive, isLoaded: signInLoaded } = useSignIn();
-  const { signUp, setActive: signUpSetActive, isLoaded: signUpLoaded } = useSignUp();
+  const { signIn, setActive: signInSetActive } = useSignIn();
+  const { signUp, setActive: signUpSetActive } = useSignUp();
   const { startSSOFlow } = useSSO();
 
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -73,7 +74,7 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-  }, [signIn, signInLoaded, signInSetActive, email, password]);
+  }, [signIn, signInSetActive, email, password]);
 
   const handleSignUp = useCallback(async () => {
     if (!email || !password || !name) { setError("Please fill in all fields"); return; }
@@ -94,7 +95,7 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-  }, [signUp, signUpLoaded, email, password, name]);
+  }, [signUp, email, password, name]);
 
   const handleVerify = useCallback(async () => {
     if (!code) { setError("Enter the verification code"); return; }
@@ -114,7 +115,7 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-  }, [signUp, signUpLoaded, signUpSetActive, code]);
+  }, [signUp, signUpSetActive, code]);
 
   const handleGoogleSSO = useCallback(async () => {
     setError("");
@@ -278,24 +279,19 @@ export default function Auth() {
               </View>
             </View>
 
-            {!signInLoaded && mode === "login" && (
-              <Text style={[styles.error, { color: colors.warning ?? colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Auth initializing…
-              </Text>
-            )}
 
             {error !== "" && (
               <Text style={[styles.error, { color: colors.danger, fontFamily: "Inter_400Regular" }]}>{error}</Text>
             )}
 
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: (loading || !signInLoaded || !signUpLoaded) ? 0.6 : 1 }]}
+              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: (loading || !clerkReady) ? 0.6 : 1 }]}
               activeOpacity={0.8}
               onPress={handleSubmit}
-              disabled={loading || !signInLoaded || !signUpLoaded}
+              disabled={loading || !clerkReady}
             >
               <Text style={[styles.submitText, { fontFamily: "Inter_600SemiBold" }]}>
-                {(!signInLoaded || !signUpLoaded)
+                {!clerkReady
                   ? "Initializing…"
                   : loading
                     ? (mode === "login" ? "Signing in…" : "Creating account…")
