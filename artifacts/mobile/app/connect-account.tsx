@@ -32,6 +32,7 @@ interface PlatformConfig {
   callbackPath: string;
   usernameHint: string;
   usernamePrefix?: string;
+  businessAccountNote?: string;
 }
 
 const DOMAIN = process.env["EXPO_PUBLIC_DOMAIN"] ?? "";
@@ -46,6 +47,8 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     callbackPath: "/api/oauth/instagram/callback",
     usernameHint: "yourhandle",
     usernamePrefix: "@",
+    businessAccountNote:
+      "Instagram's API requires a Business or Creator account to sign in. Go to Instagram Settings → Account → Switch to Professional Account to enable this. It's free and reversible.",
   },
   x: {
     label: "X (Twitter)",
@@ -377,6 +380,15 @@ export default function ConnectAccount() {
                   </View>
                 </View>
 
+                {config.businessAccountNote && (
+                  <View style={[styles.businessNoteCard, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
+                    <Ionicons name="information-circle" size={16} color="#F59E0B" style={{ marginTop: 1 }} />
+                    <Text style={[styles.businessNoteText, { color: "#D97706", fontFamily: "Inter_400Regular" }]}>
+                      {config.businessAccountNote}
+                    </Text>
+                  </View>
+                )}
+
                 {oauthDone ? (
                   <View style={[styles.oauthSuccess, { backgroundColor: colors.success + "18", borderColor: colors.success + "44" }]}>
                     <Ionicons name="checkmark-circle" size={18} color={colors.success} />
@@ -444,7 +456,9 @@ export default function ConnectAccount() {
                     )}
                   </View>
                   <Text style={[styles.usernameSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    Manual accounts are monitored but not ownership-verified
+                    {config.businessAccountNote
+                      ? "Works with any account type — no switch to Business or Creator needed"
+                      : "Manual accounts are monitored but not ownership-verified"}
                   </Text>
                 </GlassCard>
               )}
@@ -568,6 +582,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   noCredText: { flex: 1, fontSize: 12, lineHeight: 18 },
+
+  businessNoteCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  businessNoteText: { flex: 1, fontSize: 12, lineHeight: 18 },
 
   dividerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
