@@ -54,8 +54,6 @@ function RootLayoutNav() {
       <Stack.Screen name="setup" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="threat/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="subscription" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "modal" }} />
-      <Stack.Screen name="photo-monitor" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="dark-web-monitor" options={{ headerShown: false, animation: "slide_from_right" }} />
     </Stack>
   );
 }
