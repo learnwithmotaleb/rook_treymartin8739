@@ -506,19 +506,6 @@ export default function ThreatDetail() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={[styles.recoveryLink, { borderColor: colors.border }]}
-          activeOpacity={0.7}
-          onPress={() => router.push("/recovery" as any)}
-        >
-          <Ionicons name="shield" size={16} color={colors.primary} />
-          <Text
-            style={[styles.recoveryLinkText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}
-          >
-            View Recovery Guide for this Threat
-          </Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );

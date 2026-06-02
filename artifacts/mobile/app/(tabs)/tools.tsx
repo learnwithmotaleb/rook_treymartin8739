@@ -9,73 +9,11 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
-
-interface ToolCardProps {
-  icon: React.ReactNode;
-  accentColor: string;
-  title: string;
-  description: string;
-  buttonLabel: string;
-  onPress: () => void;
-  badge?: string;
-  alertCount?: number;
-}
-
-function ToolCard({
-  icon,
-  accentColor,
-  title,
-  description,
-  buttonLabel,
-  onPress,
-  badge,
-  alertCount,
-}: ToolCardProps) {
-  const colors = useColors();
-  return (
-    <GlassCard style={styles.toolCard}>
-      <View style={styles.toolCardTop}>
-        <View style={[styles.toolIcon, { backgroundColor: accentColor + "22" }]}>
-          {icon}
-        </View>
-        <View style={styles.toolBadges}>
-          {badge && (
-            <View style={[styles.badge, { backgroundColor: colors.primary + "22" }]}>
-              <Text style={[styles.badgeText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                {badge}
-              </Text>
-            </View>
-          )}
-          {alertCount !== undefined && alertCount > 0 && (
-            <View style={[styles.alertBadge, { backgroundColor: colors.danger }]}>
-              <Text style={styles.alertBadgeText}>{alertCount}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-      <Text style={[styles.toolTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-        {title}
-      </Text>
-      <Text style={[styles.toolDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        {description}
-      </Text>
-      <TouchableOpacity
-        style={[styles.toolBtn, { backgroundColor: accentColor }]}
-        activeOpacity={0.8}
-        onPress={onPress}
-      >
-        <Text style={[styles.toolBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-          {buttonLabel}
-        </Text>
-      </TouchableOpacity>
-    </GlassCard>
-  );
-}
 
 export default function ToolsScreen() {
   const colors = useColors();
@@ -86,79 +24,79 @@ export default function ToolsScreen() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const mediaThreats = threats.filter(
-    (t) => !t.resolved && ["stolen_photo", "impersonator", "fake_account", "scam"].includes(t.type)
-  ).length;
-  const darkWebThreats = threats.filter(
-    (t) => !t.resolved && ["dark_web", "leaked_password"].includes(t.type)
+    (t) => !t.resolved && ["stolen_photo", "impersonator", "fake_account"].includes(t.type)
   ).length;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={["#3B82F611", "transparent"]}
-        style={styles.topGradient}
-      />
-      <View
-        style={[
-          styles.header,
-          { paddingTop: topPad + 12, borderBottomColor: colors.border },
-        ]}
-      >
-        <Text
-          style={[
-            styles.headerTitle,
-            { color: colors.foreground, fontFamily: "Inter_700Bold" },
-          ]}
-        >
+      <LinearGradient colors={["#3B82F611", "transparent"]} style={styles.topGradient} />
+
+      <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           Protection Tools
         </Text>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: bottomPad + 100 },
-        ]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
       >
-        <ToolCard
-          accentColor={colors.primary}
-          icon={<MaterialCommunityIcons name="brain" size={28} color={colors.primary} />}
-          title="AI Scam Analyzer"
-          description="Paste a suspicious message, link, or screenshot. Our AI will analyze it and explain the threat in plain English."
-          buttonLabel="Analyze Now"
-          badge="AI"
-          onPress={() => router.push("/scam-analyzer" as any)}
-        />
+        {/* Photo Monitor — primary tool */}
+        <GlassCard style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={[styles.heroIcon, { backgroundColor: "#8B5CF622" }]}>
+              <MaterialCommunityIcons name="image-search" size={36} color="#8B5CF6" />
+            </View>
+            {mediaThreats > 0 && (
+              <View style={[styles.alertPill, { backgroundColor: colors.danger }]}>
+                <Text style={styles.alertPillText}>{mediaThreats} alert{mediaThreats !== 1 ? "s" : ""}</Text>
+              </View>
+            )}
+          </View>
 
-        <ToolCard
-          accentColor="#8B5CF6"
-          icon={<MaterialCommunityIcons name="image-search" size={28} color="#8B5CF6" />}
-          title="Photo Monitor"
-          description="We scan the web to find where your photos are being used without permission across all major platforms."
-          buttonLabel="View Results"
-          alertCount={mediaThreats}
-          onPress={() => router.push("/photo-monitor" as any)}
-        />
+          <Text style={[styles.heroTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Photo Monitor
+          </Text>
+          <Text style={[styles.heroDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            We scan the web to find where your photos are being used without permission across all major platforms. Powered by perceptual image fingerprinting.
+          </Text>
 
-        <ToolCard
-          accentColor={colors.success}
-          icon={<Ionicons name="shield" size={28} color={colors.success} />}
-          title="Recovery Hub"
-          description="Step-by-step guides and one-tap tools to secure and recover compromised accounts quickly."
-          buttonLabel="Open Hub"
-          onPress={() => router.push("/recovery" as any)}
-        />
+          <View style={styles.heroFeatures}>
+            {[
+              "Detects stolen profile pictures",
+              "Finds impersonator accounts",
+              "Compares across Instagram, TikTok & more",
+            ].map((f) => (
+              <View key={f} style={styles.featureRow}>
+                <View style={[styles.featureDot, { backgroundColor: "#8B5CF6" }]} />
+                <Text style={[styles.featureText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {f}
+                </Text>
+              </View>
+            ))}
+          </View>
 
-        <ToolCard
-          accentColor={colors.warning}
-          icon={<MaterialCommunityIcons name="eye-off" size={28} color={colors.warning} />}
-          title="Dark Web Monitor"
-          description="Continuously monitors dark web databases, forums, and breach databases for your personal information."
-          buttonLabel="View Report"
-          alertCount={darkWebThreats}
-          onPress={() => router.push("/dark-web" as any)}
-        />
+          <TouchableOpacity
+            style={[styles.heroBtn, { backgroundColor: "#8B5CF6" }]}
+            activeOpacity={0.8}
+            onPress={() => router.push("/photo-monitor" as any)}
+          >
+            <MaterialCommunityIcons name="image-search" size={18} color="#FFFFFF" />
+            <Text style={[styles.heroBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+              View Photo Scan Results
+            </Text>
+          </TouchableOpacity>
+        </GlassCard>
+
+        {/* Coming soon placeholder */}
+        <GlassCard style={[styles.comingSoonCard, { borderColor: colors.border }]}>
+          <Text style={[styles.comingSoonLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            More tools coming soon
+          </Text>
+          <Text style={[styles.comingSoonSub, { color: colors.mutedForeground + "99", fontFamily: "Inter_400Regular" }]}>
+            AI Scam Analyzer · Dark Web Monitor · Recovery Hub
+          </Text>
+        </GlassCard>
       </ScrollView>
     </View>
   );
@@ -173,38 +111,46 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 24 },
-  content: { padding: 16, gap: 12 },
-  toolCard: { gap: 12 },
-  toolCardTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  toolIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+  content: { padding: 16, gap: 14 },
+
+  heroCard: { gap: 14 },
+  heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  heroIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  toolBadges: { flexDirection: "row", alignItems: "center", gap: 6 },
-  badge: {
+  alertPill: {
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 20,
   },
-  badgeText: { fontSize: 11 },
-  alertBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  alertPillText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  heroTitle: { fontSize: 22 },
+  heroDesc: { fontSize: 14, lineHeight: 22 },
+  heroFeatures: { gap: 8 },
+  featureRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  featureDot: { width: 6, height: 6, borderRadius: 3 },
+  featureText: { fontSize: 13 },
+  heroBtn: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    height: 48,
+    borderRadius: 24,
   },
-  alertBadgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
-  toolTitle: { fontSize: 17 },
-  toolDesc: { fontSize: 14, lineHeight: 21 },
-  toolBtn: {
-    height: 44,
-    borderRadius: 22,
+  heroBtnText: { color: "#FFFFFF", fontSize: 15 },
+
+  comingSoonCard: {
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 20,
+    borderStyle: "dashed",
+    borderWidth: 1,
   },
-  toolBtnText: { color: "#FFFFFF", fontSize: 14 },
+  comingSoonLabel: { fontSize: 13 },
+  comingSoonSub: { fontSize: 12, textAlign: "center" },
 });
