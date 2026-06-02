@@ -47,12 +47,6 @@ export default function Auth() {
   }, [isSignedIn]);
 
   const handleSignIn = useCallback(async () => {
-    console.log("[Auth] handleSignIn called — isLoaded:", signInLoaded, "email:", !!email, "password:", !!password);
-
-    if (!signInLoaded) {
-      setError("Auth not ready yet — please wait a moment");
-      return;
-    }
     if (!email || !password) {
       setError("Please fill in all fields");
       return;
@@ -61,12 +55,10 @@ export default function Auth() {
     setError("");
     setLoading(true);
     try {
-      console.log("[Auth] Calling signIn.create...");
       const result = await signIn!.create({
         identifier: email.trim(),
         password,
       });
-      console.log("[Auth] signIn.create result status:", result.status);
       if (result.status === "complete") {
         await signInSetActive!({ session: result.createdSessionId });
         router.replace("/(tabs)/" as any);
@@ -84,7 +76,6 @@ export default function Auth() {
   }, [signIn, signInLoaded, signInSetActive, email, password]);
 
   const handleSignUp = useCallback(async () => {
-    if (!signUpLoaded) { setError("Auth not ready yet"); return; }
     if (!email || !password || !name) { setError("Please fill in all fields"); return; }
     setError("");
     setLoading(true);
@@ -106,7 +97,6 @@ export default function Auth() {
   }, [signUp, signUpLoaded, email, password, name]);
 
   const handleVerify = useCallback(async () => {
-    if (!signUpLoaded) { setError("Auth not ready yet"); return; }
     if (!code) { setError("Enter the verification code"); return; }
     setError("");
     setLoading(true);
@@ -299,15 +289,17 @@ export default function Auth() {
             )}
 
             <TouchableOpacity
-              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: loading ? 0.6 : 1 }]}
+              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: (loading || !signInLoaded || !signUpLoaded) ? 0.6 : 1 }]}
               activeOpacity={0.8}
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={loading || !signInLoaded || !signUpLoaded}
             >
               <Text style={[styles.submitText, { fontFamily: "Inter_600SemiBold" }]}>
-                {loading
-                  ? (mode === "login" ? "Signing in…" : "Creating account…")
-                  : (mode === "login" ? "Sign In" : "Create Account")}
+                {(!signInLoaded || !signUpLoaded)
+                  ? "Initializing…"
+                  : loading
+                    ? (mode === "login" ? "Signing in…" : "Creating account…")
+                    : (mode === "login" ? "Sign In" : "Create Account")}
               </Text>
             </TouchableOpacity>
 
