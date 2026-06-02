@@ -284,25 +284,52 @@ export default function Dashboard() {
           </ScrollView>
         </GlassCard>
 
-        {/* Photo Monitor quick action */}
-        <TouchableOpacity
-          style={[styles.photoMonitorBanner, { backgroundColor: "#8B5CF611", borderColor: "#8B5CF633" }]}
-          activeOpacity={0.8}
-          onPress={() => router.push("/photo-monitor" as any)}
-        >
-          <View style={[styles.photoMonitorIconWrap, { backgroundColor: "#8B5CF622" }]}>
-            <MaterialCommunityIcons name="image-search" size={20} color="#8B5CF6" />
-          </View>
-          <View style={styles.photoMonitorInfo}>
-            <Text style={[styles.photoMonitorTitle, { color: "#8B5CF6", fontFamily: "Inter_600SemiBold" }]}>
-              Photo Monitor
-            </Text>
-            <Text style={[styles.photoMonitorSub, { color: "#8B5CF6AA", fontFamily: "Inter_400Regular" }]}>
-              Scan for stolen profile photos
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
-        </TouchableOpacity>
+        {/* Quick action banners */}
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={[styles.quickBanner, { backgroundColor: "#8B5CF611", borderColor: "#8B5CF633", flex: 1 }]}
+            activeOpacity={0.8}
+            onPress={() => router.push("/photo-monitor" as any)}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: "#8B5CF622" }]}>
+              <MaterialCommunityIcons name="image-search" size={18} color="#8B5CF6" />
+            </View>
+            <View style={styles.quickInfo}>
+              <Text style={[styles.quickTitle, { color: "#8B5CF6", fontFamily: "Inter_600SemiBold" }]}>
+                Photo Monitor
+              </Text>
+              <Text style={[styles.quickSub, { color: "#8B5CF6AA", fontFamily: "Inter_400Regular" }]}>
+                Stolen photos
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color="#8B5CF6" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.quickBanner, { backgroundColor: "#7C3AED11", borderColor: "#7C3AED33", flex: 1 }]}
+            activeOpacity={0.8}
+            onPress={() => router.push("/dark-web-monitor" as any)}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: "#7C3AED22" }]}>
+              <MaterialCommunityIcons name="shield-alert" size={18} color="#7C3AED" />
+            </View>
+            <View style={styles.quickInfo}>
+              <Text style={[styles.quickTitle, { color: "#7C3AED", fontFamily: "Inter_600SemiBold" }]}>
+                Dark Web
+              </Text>
+              <Text style={[styles.quickSub, { color: "#7C3AED99", fontFamily: "Inter_400Regular" }]}>
+                {darkWebCount > 0 ? `${darkWebCount} exposure${darkWebCount !== 1 ? "s" : ""}` : "Breach check"}
+              </Text>
+            </View>
+            {darkWebCount > 0 ? (
+              <View style={[styles.quickBadge, { backgroundColor: "#7C3AED" }]}>
+                <Text style={styles.quickBadgeText}>{darkWebCount}</Text>
+              </View>
+            ) : (
+              <Ionicons name="chevron-forward" size={14} color="#7C3AED" />
+            )}
+          </TouchableOpacity>
+        </View>
 
         {/* Recent Alerts */}
         <View style={styles.sectionHeader}>
@@ -465,22 +492,25 @@ const styles = StyleSheet.create({
   noThreats: { alignItems: "center", gap: 10, paddingVertical: 8 },
   noThreatsText: { fontSize: 14 },
 
-  photoMonitorBanner: {
+  quickActions: { flexDirection: "row", gap: 10 },
+  quickBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 14,
+    gap: 8,
+    padding: 12,
     borderRadius: 14,
     borderWidth: 1,
   },
-  photoMonitorIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+  quickIconWrap: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
   },
-  photoMonitorInfo: { flex: 1 },
-  photoMonitorTitle: { fontSize: 14 },
-  photoMonitorSub: { fontSize: 12, marginTop: 1 },
+  quickInfo: { flex: 1, gap: 1 },
+  quickTitle: { fontSize: 13 },
+  quickSub: { fontSize: 11 },
+  quickBadge: {
+    width: 18, height: 18, borderRadius: 9,
+    alignItems: "center", justifyContent: "center",
+  },
+  quickBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
 });
