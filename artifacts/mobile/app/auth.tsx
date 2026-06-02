@@ -56,15 +56,22 @@ export default function Auth() {
     setError("");
     setLoading(true);
     try {
-      const result = await signIn!.create({
+      await signIn!.create({
         identifier: email.trim(),
         password,
       });
-      if (result.status === "complete") {
-        await signInSetActive!({ session: result.createdSessionId });
+      // In Clerk v6, create() mutates signIn in place — read status from the singleton
+      const status = signIn!.status;
+      const sessionId = signIn!.createdSessionId;
+      if (status === "complete" && sessionId) {
+        await signInSetActive!({ session: sessionId });
+        router.replace("/(tabs)/" as any);
+      } else if (sessionId) {
+        // Session created even if status unclear — proceed
+        await signInSetActive!({ session: sessionId });
         router.replace("/(tabs)/" as any);
       } else {
-        setError("Sign in incomplete. Status: " + result.status);
+        setError(`Status: ${status ?? "null"} — sessionId: ${sessionId ?? "none"}`);
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
