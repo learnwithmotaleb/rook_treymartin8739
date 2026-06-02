@@ -55,6 +55,7 @@ export interface ImpersonatorCandidate {
   evidence: DetectedEvidence[];
   detectedSignals: string[];
   matchedMediaCount: number;
+  suspiciousProfileImageUrl?: string;
 }
 
 export interface ScoredThreat {

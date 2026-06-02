@@ -22,6 +22,7 @@ import {
   connectedAccountsTable,
   threatsTable,
   usersTable,
+  visualFingerprintsTable,
   type ScanJob,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -41,6 +42,7 @@ import {
   isConfigured as isWebSearchConfigured,
   type WebSearchCandidate,
 } from "./webSearchService";
+import { computeHashesForUrls, compareImageToHashes } from "./photoHashService";
 
 const SCAN_STEPS = [
   { step: "Verifying connected accounts", progress: 8 },
@@ -120,6 +122,7 @@ interface IngestedMedia {
   captions: number;
   reels: number;
   mediaItems: MediaItem[];
+  profileImageUrl?: string;
 }
 
 async function ingestPlatformMedia(
@@ -133,9 +136,11 @@ async function ingestPlatformMedia(
   try {
     // Refresh profile data (follower count, display name)
     let platformUserId = account.platformUserId;
+    let profileImageUrl: string | undefined;
     try {
       const profile = await adapter.getProfile(account.accessToken);
       platformUserId = profile.platformUserId;
+      profileImageUrl = profile.profileImageUrl;
       await db
         .update(connectedAccountsTable)
         .set({
@@ -188,6 +193,7 @@ async function ingestPlatformMedia(
       captions,
       reels,
       mediaItems,
+      profileImageUrl,
     };
   } catch (err) {
     logger.error({ err, accountId: account.id, platform: account.platform }, "Media ingestion failed");
@@ -278,6 +284,7 @@ async function discoverRealImpersonators(
           evidence,
           detectedSignals,
           matchedMediaCount: suspectedStolenCount,
+          suspiciousProfileImageUrl: candidate.profileImageUrl,
         });
 
         logger.info(
@@ -458,7 +465,37 @@ async function runScanPipeline(
   });
 
   await updateJobProgress(jobId, SCAN_STEPS[2].progress, SCAN_STEPS[2].step);
-  await sleep(600);
+
+  // Compute pHash fingerprints for all ingested user photos
+  // These are used in Step 6 to compare against suspected impersonator profile pictures
+  const allUserHashes: string[] = [];
+  for (const ingested of ingestedAccounts) {
+    const photoUrls: string[] = [
+      ...(ingested.profileImageUrl ? [ingested.profileImageUrl] : []),
+      ...ingested.mediaItems
+        .filter((m) => m.type === "image" && m.url)
+        .map((m) => m.url),
+    ];
+    if (photoUrls.length > 0) {
+      logger.info(
+        { platform: ingested.platform, photoCount: photoUrls.length },
+        "Computing pHash fingerprints for user photos"
+      );
+      const hashes = await computeHashesForUrls(photoUrls, 50);
+      allUserHashes.push(...hashes);
+    }
+  }
+
+  // Persist hashes to visual fingerprint so they survive between scans
+  if (allUserHashes.length > 0) {
+    await db
+      .update(visualFingerprintsTable)
+      .set({ styleEmbeddingJson: JSON.stringify(allUserHashes) })
+      .where(eq(visualFingerprintsTable.userId, userId));
+    logger.info({ userId, hashCount: allUserHashes.length }, "Stored photo pHash fingerprints");
+  }
+
+  await sleep(300);
 
   // ── Step 4: Platform variant search for impersonators ────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[3].progress, SCAN_STEPS[3].step);
@@ -517,9 +554,72 @@ async function runScanPipeline(
     );
   }
 
-  // ── Step 6: Visual media analysis ────────────────────────────────────────
+  // ── Step 6: Visual media analysis — pHash profile picture comparison ─────
   await updateJobProgress(jobId, SCAN_STEPS[5].progress, SCAN_STEPS[5].step);
-  await sleep(800);
+
+  // Load user hashes: prefer freshly computed ones, fall back to DB-persisted from prior scan
+  let userHashes = [...allUserHashes];
+  if (userHashes.length === 0) {
+    const [fingerprint] = await db
+      .select()
+      .from(visualFingerprintsTable)
+      .where(eq(visualFingerprintsTable.userId, userId));
+    if (fingerprint?.styleEmbeddingJson) {
+      try {
+        const stored = JSON.parse(fingerprint.styleEmbeddingJson) as unknown;
+        if (Array.isArray(stored)) userHashes = stored as string[];
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+  }
+
+  if (userHashes.length > 0) {
+    const candidatesWithImages = allCandidates.filter((c) => c.suspiciousProfileImageUrl);
+    logger.info(
+      { userHashes: userHashes.length, candidatesWithImages: candidatesWithImages.length },
+      "Running pHash comparison for candidate profile pictures"
+    );
+
+    for (const candidate of candidatesWithImages) {
+      if (!candidate.suspiciousProfileImageUrl) continue;
+
+      const hashResult = await compareImageToHashes(
+        candidate.suspiciousProfileImageUrl,
+        userHashes
+      );
+
+      if (hashResult.similarity > candidate.signals.profileImageSimilarity) {
+        candidate.signals.profileImageSimilarity = hashResult.similarity;
+      }
+
+      if (hashResult.matched) {
+        candidate.signals.mediaOverlapRatio = Math.max(
+          candidate.signals.mediaOverlapRatio,
+          hashResult.similarity * 0.9
+        );
+        candidate.detectedSignals.push(
+          `Profile photo pHash match: ${Math.round(hashResult.similarity * 100)}% identical (Hamming distance: ${hashResult.hammingDistance}/64)`
+        );
+        const profileEvidence = candidate.evidence.find((e) => e.type === "profile_photo");
+        if (profileEvidence) {
+          profileEvidence.similarity = Math.round(hashResult.similarity * 100);
+          profileEvidence.label = `Profile Photo — ${Math.round(hashResult.similarity * 100)}% Match (pHash verified)`;
+        }
+        logger.info(
+          {
+            username: candidate.suspiciousUsername,
+            similarity: Math.round(hashResult.similarity * 100),
+            distance: hashResult.hammingDistance,
+          },
+          "pHash profile picture match confirmed"
+        );
+      }
+    }
+  } else {
+    logger.info({ userId }, "No user photo hashes available — pHash comparison skipped");
+    await sleep(400);
+  }
 
   // Retire stale unresolved threats from previous scans
   await db
