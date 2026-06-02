@@ -30,3 +30,8 @@ externalPort = 80
 [[ports]]
 localPort = 18115
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_DOMAIN = "6c2161a6-7017-4ec4-988f-83e568e76224-00-1qirill5i8g8e.janeway.replit.dev"

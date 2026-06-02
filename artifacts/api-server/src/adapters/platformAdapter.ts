@@ -86,25 +86,28 @@ export class InstagramAdapter implements PlatformAdapter {
   }
 
   async getProfile(accessToken: string): Promise<ProfileData> {
+    // instagram_basic scope gives: id, username, name, account_type, media_count
+    // followers_count / profile_picture_url / biography require additional permissions
     const response = await fetch(
-      `https://graph.instagram.com/me?fields=id,username,name,followers_count,profile_picture_url,biography&access_token=${accessToken}`
+      `https://graph.instagram.com/me?fields=id,username,name,account_type,media_count&access_token=${accessToken}`
     );
-    if (!response.ok) throw new Error(`Instagram API error: ${response.status}`);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Instagram API error: ${response.status} — ${text}`);
+    }
     const data = await response.json() as {
       id: string;
       username: string;
       name?: string;
-      followers_count?: number;
-      profile_picture_url?: string;
-      biography?: string;
+      account_type?: string;
+      media_count?: number;
     };
     return {
       platformUserId: data.id,
       username: data.username,
       displayName: data.name,
-      followers: data.followers_count ?? 0,
-      profileImageUrl: data.profile_picture_url,
-      bio: data.biography,
+      followers: 0,
+      bio: data.account_type ? `${data.account_type} account` : undefined,
     };
   }
 
@@ -116,8 +119,11 @@ export class InstagramAdapter implements PlatformAdapter {
     const response = await fetch(
       `https://graph.instagram.com/${platformUserId}/media?fields=id,media_type,media_url,thumbnail_url,caption,timestamp&limit=${limit}&access_token=${accessToken}`
     );
-    if (!response.ok) throw new Error(`Instagram API error: ${response.status}`);
-    const data = await response.json() as { data: Array<{
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Instagram media API error: ${response.status} — ${text}`);
+    }
+    const data = await response.json() as { data?: Array<{
       id: string;
       media_type: string;
       media_url?: string;
@@ -352,10 +358,11 @@ export class FacebookAdapter implements PlatformAdapter {
     _platformUserId: string,
     limit = 50
   ): Promise<MediaItem[]> {
+    // user_photos permission requires App Review — gracefully return empty if not granted
     const response = await fetch(
       `https://graph.facebook.com/me/photos?type=uploaded&fields=id,picture,name,created_time&limit=${limit}&access_token=${accessToken}`
     );
-    if (!response.ok) throw new Error(`Facebook API error: ${response.status}`);
+    if (!response.ok) return [];
     const data = (await response.json()) as {
       data?: Array<{
         id: string;
@@ -363,7 +370,10 @@ export class FacebookAdapter implements PlatformAdapter {
         name?: string;
         created_time?: string;
       }>;
+      error?: { code: number; message: string };
     };
+    // Permission denied (code 200) — not an error, just not granted yet
+    if (data.error) return [];
     return (data.data ?? []).map((item) => ({
       platformMediaId: item.id,
       type: "image" as const,

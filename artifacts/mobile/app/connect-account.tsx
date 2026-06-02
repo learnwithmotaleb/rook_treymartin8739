@@ -42,7 +42,7 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     label: "Instagram",
     color: "#E1306C",
     authUrl: "https://www.instagram.com/oauth/authorize",
-    scopes: ["instagram_graph_user_profile", "instagram_graph_user_media"],
+    scopes: ["instagram_basic"],
     clientIdEnvKey: "EXPO_PUBLIC_INSTAGRAM_CLIENT_ID",
     callbackPath: "/api/oauth/instagram/callback",
     usernameHint: "yourhandle",
