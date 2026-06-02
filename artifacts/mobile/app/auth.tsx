@@ -74,9 +74,10 @@ export default function Auth() {
         setError("Sign in incomplete. Status: " + result.status);
       }
     } catch (e: any) {
-      console.log("[Auth] signIn error:", JSON.stringify(e));
-      const msg = e?.errors?.[0]?.longMessage ?? e?.errors?.[0]?.message ?? e?.message ?? "Sign in failed";
-      setError(msg);
+      const clerkErr = e?.errors?.[0];
+      const msg = clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Sign in failed";
+      const code = clerkErr?.code ? ` [${clerkErr.code}]` : "";
+      setError(msg + code);
     } finally {
       setLoading(false);
     }
