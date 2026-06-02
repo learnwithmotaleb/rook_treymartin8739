@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -54,6 +55,7 @@ function RootLayoutNav() {
       <Stack.Screen name="threat/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="subscription" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "modal" }} />
       <Stack.Screen name="photo-monitor" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="dark-web-monitor" options={{ headerShown: false, animation: "slide_from_right" }} />
     </Stack>
   );
 }
@@ -81,7 +83,10 @@ export default function RootLayout() {
           <ErrorBoundary>
             <QueryClientProvider client={queryClient}>
               <AppProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
+                <GestureHandlerRootView style={Platform.OS === "web"
+          ? { flex: 1, maxWidth: 430, width: "100%", alignSelf: "center" as const, overflow: "hidden" }
+          : { flex: 1 }
+        }>
                   <KeyboardProvider>
                     <RootLayoutNav />
                   </KeyboardProvider>
