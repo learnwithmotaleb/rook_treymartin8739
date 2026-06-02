@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
-  ActivityIndicator,
   Platform,
   StyleSheet,
   Text,
@@ -25,107 +24,121 @@ export default function Auth() {
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
 
-  const { signIn, setActive: signInSetActive, isLoaded: signInLoaded } = useSignIn();
-  const { signUp, setActive: signUpSetActive, isLoaded: signUpLoaded } = useSignUp();
+  const { signIn, errors: signInErrors, fetchStatus: signInFetch } = useSignIn();
+  const { signUp, errors: signUpErrors, fetchStatus: signUpFetch } = useSignUp();
   const { startSSOFlow } = useSSO();
 
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [step, setStep] = useState<"form" | "verify">("form");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   useEffect(() => {
-    if (isSignedIn) router.replace("/(tabs)/");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (isSignedIn) router.replace("/(tabs)/" as any);
   }, [isSignedIn]);
 
+  const signInLoading = signInFetch === "fetching";
+  const signUpLoading = signUpFetch === "fetching";
+  const loading = mode === "login" ? signInLoading : signUpLoading;
+
+  const showVerify =
+    mode === "register" &&
+    signUp?.status === "missing_requirements" &&
+    (signUp?.unverifiedFields ?? []).includes("email_address") &&
+    (signUp?.missingFields ?? []).length === 0;
+
   const handleSignIn = useCallback(async () => {
-    if (!signInLoaded || !signIn) return;
     if (!email || !password) { setError("Please fill in all fields"); return; }
     setError("");
-    setLoading(true);
     try {
-      const result = await signIn.create({
-        identifier: email.trim(),
+      const { error: signInError } = await signIn.password({
+        emailAddress: email.trim(),
         password,
       });
-      if (result.status === "complete") {
-        await signInSetActive({ session: result.createdSessionId });
-        router.replace("/(tabs)/");
-      } else {
-        setError("Sign in incomplete. Please try again.");
+      if (signInError) {
+        setError(signInError.message ?? "Sign in failed");
+        return;
+      }
+      if (signIn.status === "complete") {
+        await signIn.finalize({
+          navigate: ({ session }) => {
+            if (session?.currentTask) return;
+            router.replace("/(tabs)/" as any);
+          },
+        });
       }
     } catch (e: any) {
       setError(e?.errors?.[0]?.message ?? e?.message ?? "Sign in failed");
-    } finally {
-      setLoading(false);
     }
-  }, [signIn, signInLoaded, signInSetActive, email, password]);
+  }, [signIn, email, password]);
 
   const handleSignUp = useCallback(async () => {
-    if (!signUpLoaded || !signUp) return;
     if (!email || !password || !name) { setError("Please fill in all fields"); return; }
     setError("");
-    setLoading(true);
     try {
-      await signUp.create({
+      const { error: signUpError } = await signUp.password({
         emailAddress: email.trim(),
         password,
-        firstName: name.trim().split(" ")[0],
-        lastName: name.trim().split(" ").slice(1).join(" ") || undefined,
       });
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-      setStep("verify");
+      if (signUpError) {
+        setError(signUpError.message ?? "Sign up failed");
+        return;
+      }
+      await signUp.verifications.sendEmailCode();
     } catch (e: any) {
       setError(e?.errors?.[0]?.message ?? e?.message ?? "Sign up failed");
-    } finally {
-      setLoading(false);
     }
-  }, [signUp, signUpLoaded, email, password, name]);
+  }, [signUp, email, password, name]);
 
   const handleVerify = useCallback(async () => {
-    if (!signUpLoaded || !signUp) return;
     if (!code) { setError("Enter the verification code"); return; }
     setError("");
-    setLoading(true);
     try {
-      const result = await signUp.attemptEmailAddressVerification({ code });
-      if (result.status === "complete") {
-        await signUpSetActive({ session: result.createdSessionId });
-        router.replace("/(tabs)/");
+      await signUp.verifications.verifyEmailCode({ code });
+      if (signUp.status === "complete") {
+        await signUp.finalize({
+          navigate: ({ session }) => {
+            if (session?.currentTask) return;
+            router.replace("/(tabs)/" as any);
+          },
+        });
       } else {
         setError("Verification incomplete. Please try again.");
       }
     } catch (e: any) {
       setError(e?.errors?.[0]?.message ?? e?.message ?? "Verification failed");
-    } finally {
-      setLoading(false);
     }
-  }, [signUp, signUpLoaded, signUpSetActive, code]);
+  }, [signUp, code]);
 
   const handleGoogleSSO = useCallback(async () => {
     setError("");
-    setLoading(true);
+    setSsoLoading(true);
     try {
       const { createdSessionId, setActive } = await startSSOFlow({
         strategy: "oauth_google",
         redirectUrl: AuthSession.makeRedirectUri(),
       });
       if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId });
-        router.replace("/(tabs)/");
+        await setActive({
+          session: createdSessionId,
+          navigate: async ({ session }) => {
+            if (session?.currentTask) return;
+            router.replace("/(tabs)/" as any);
+          },
+        });
       }
     } catch (e: any) {
       setError(e?.errors?.[0]?.message ?? e?.message ?? "Google sign in failed");
     } finally {
-      setLoading(false);
+      setSsoLoading(false);
     }
   }, [startSSOFlow]);
 
@@ -133,6 +146,13 @@ export default function Auth() {
     if (mode === "login") handleSignIn();
     else handleSignUp();
   };
+
+  const clerkError =
+    mode === "login"
+      ? (signInErrors?.fields?.identifier?.message ?? signInErrors?.fields?.password?.message ?? "")
+      : (signUpErrors?.fields?.emailAddress?.message ?? signUpErrors?.fields?.password?.message ?? "");
+
+  const displayError = error || clerkError;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -150,7 +170,7 @@ export default function Auth() {
           <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>ShieldID</Text>
         </View>
 
-        {step === "verify" ? (
+        {showVerify ? (
           <>
             <Text style={[styles.headline, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Verify your email</Text>
             <Text style={[styles.subheadline, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>We sent a code to {email}</Text>
@@ -171,15 +191,29 @@ export default function Auth() {
               </View>
             </View>
 
-            {error !== "" && <Text style={[styles.error, { color: colors.danger, fontFamily: "Inter_400Regular" }]}>{error}</Text>}
+            {signUpErrors?.fields?.code?.message ? (
+              <Text style={[styles.error, { color: colors.danger, fontFamily: "Inter_400Regular" }]}>{signUpErrors.fields.code.message}</Text>
+            ) : displayError !== "" ? (
+              <Text style={[styles.error, { color: colors.danger, fontFamily: "Inter_400Regular" }]}>{displayError}</Text>
+            ) : null}
 
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]} activeOpacity={0.8} onPress={handleVerify} disabled={loading}>
-              {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={[styles.submitText, { fontFamily: "Inter_600SemiBold" }]}>Verify Email</Text>}
+            <TouchableOpacity
+              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: signUpLoading ? 0.7 : 1 }]}
+              activeOpacity={0.8}
+              onPress={handleVerify}
+              disabled={signUpLoading}
+            >
+              {signUpLoading ? (
+                <Ionicons name="refresh" size={20} color="#fff" />
+              ) : (
+                <Text style={[styles.submitText, { fontFamily: "Inter_600SemiBold" }]}>Verify Email</Text>
+              )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => { setStep("form"); setError(""); }} style={styles.switchRow}>
-              <Text style={[styles.switchLink, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>← Back</Text>
+            <TouchableOpacity onPress={() => { setError(""); }} style={styles.switchRow}>
+              <Text style={[styles.switchLink, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>Resend code</Text>
             </TouchableOpacity>
+
             <View nativeID="clerk-captcha" />
           </>
         ) : (
@@ -191,8 +225,15 @@ export default function Auth() {
               {mode === "login" ? "Sign in to your identity shield" : "Start protecting your digital identity"}
             </Text>
 
-            <TouchableOpacity style={[styles.googleBtn, { backgroundColor: colors.secondary, borderColor: colors.border, opacity: loading ? 0.7 : 1 }]} activeOpacity={0.8} onPress={handleGoogleSSO} disabled={loading}>
-              {loading ? <ActivityIndicator color={colors.foreground} size="small" /> : (
+            <TouchableOpacity
+              style={[styles.googleBtn, { backgroundColor: colors.secondary, borderColor: colors.border, opacity: ssoLoading ? 0.7 : 1 }]}
+              activeOpacity={0.8}
+              onPress={handleGoogleSSO}
+              disabled={ssoLoading}
+            >
+              {ssoLoading ? (
+                <Ionicons name="refresh" size={18} color={colors.foreground} />
+              ) : (
                 <>
                   <Ionicons name="logo-google" size={18} color={colors.foreground} />
                   <Text style={[styles.googleText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>Continue with Google</Text>
@@ -211,7 +252,14 @@ export default function Auth() {
                 <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Full Name</Text>
                 <View style={[styles.input, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                   <Ionicons name="person-outline" size={18} color={colors.mutedForeground} />
-                  <TextInput style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]} placeholder="Your full name" placeholderTextColor={colors.mutedForeground} value={name} onChangeText={setName} autoCapitalize="words" />
+                  <TextInput
+                    style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                    placeholder="Your full name"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                  />
                 </View>
               </View>
             )}
@@ -220,7 +268,16 @@ export default function Auth() {
               <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Email</Text>
               <View style={[styles.input, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                 <Ionicons name="mail-outline" size={18} color={colors.mutedForeground} />
-                <TextInput style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]} placeholder="your@email.com" placeholderTextColor={colors.mutedForeground} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+                <TextInput
+                  style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                  placeholder="your@email.com"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
               </View>
             </View>
 
@@ -228,17 +285,40 @@ export default function Auth() {
               <Text style={[styles.label, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Password</Text>
               <View style={[styles.input, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                 <Ionicons name="lock-closed-outline" size={18} color={colors.mutedForeground} />
-                <TextInput style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]} placeholder="••••••••" placeholderTextColor={colors.mutedForeground} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} autoCapitalize="none" returnKeyType="go" onSubmitEditing={handleSubmit} />
+                <TextInput
+                  style={[styles.textInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  returnKeyType="go"
+                  onSubmitEditing={handleSubmit}
+                />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={18} color={colors.mutedForeground} />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {error !== "" && <Text style={[styles.error, { color: colors.danger, fontFamily: "Inter_400Regular" }]}>{error}</Text>}
+            {displayError !== "" && (
+              <Text style={[styles.error, { color: colors.danger, fontFamily: "Inter_400Regular" }]}>{displayError}</Text>
+            )}
 
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]} activeOpacity={0.8} onPress={handleSubmit} disabled={loading}>
-              {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={[styles.submitText, { fontFamily: "Inter_600SemiBold" }]}>{mode === "login" ? "Sign In" : "Create Account"}</Text>}
+            <TouchableOpacity
+              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
+              activeOpacity={0.8}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <Ionicons name="refresh" size={20} color="#fff" />
+              ) : (
+                <Text style={[styles.submitText, { fontFamily: "Inter_600SemiBold" }]}>
+                  {mode === "login" ? "Sign In" : "Create Account"}
+                </Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.switchRow}>
@@ -246,7 +326,9 @@ export default function Auth() {
                 {mode === "login" ? "Don't have an account?" : "Already have an account?"}
               </Text>
               <TouchableOpacity onPress={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}>
-                <Text style={[styles.switchLink, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>{mode === "login" ? "Sign Up" : "Sign In"}</Text>
+                <Text style={[styles.switchLink, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                  {mode === "login" ? "Sign Up" : "Sign In"}
+                </Text>
               </TouchableOpacity>
             </View>
             <View nativeID="clerk-captcha" />
