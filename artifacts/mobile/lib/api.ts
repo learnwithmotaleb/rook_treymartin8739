@@ -77,15 +77,6 @@ export interface AccountProfile {
   lastSynced: string | null;
 }
 
-export interface ScamAnalysisResult {
-  riskScore: number;
-  riskLevel: "low" | "medium" | "high";
-  detectedPatterns: string[];
-  explanation: string;
-  recommendation: string;
-  analyzedAt: string;
-}
-
 export interface ScanJob {
   id: string;
   status: "queued" | "running" | "completed" | "failed";
@@ -137,15 +128,19 @@ export async function getMe(): Promise<UserProfile> {
   return apiFetch<UserProfile>("/me");
 }
 
-export async function getAccounts(): Promise<AccountProfile[]> {
-  return apiFetch<AccountProfile[]>("/accounts");
+export async function updateMe(updates: {
+  name?: string;
+  username?: string;
+  email?: string;
+}): Promise<UserProfile> {
+  return apiFetch<UserProfile>("/me", {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
 }
 
-export async function analyzeScam(text: string): Promise<ScamAnalysisResult> {
-  return apiFetch<ScamAnalysisResult>("/ai/analyze-scam", {
-    method: "POST",
-    body: JSON.stringify({ text }),
-  });
+export async function getAccounts(): Promise<AccountProfile[]> {
+  return apiFetch<AccountProfile[]>("/accounts");
 }
 
 export async function startScan(): Promise<ScanJob> {
@@ -178,36 +173,6 @@ export async function getThreat(id: string): Promise<ThreatDetail> {
 
 export async function resolveThreat(id: string): Promise<void> {
   await apiFetch(`/threats/${id}/resolve`, { method: "PATCH" });
-}
-
-export interface DarkWebMonitorEntry {
-  type: string;
-  value: string;
-  status: "clean" | "exposed" | "mentioned";
-}
-
-export interface DarkWebItem {
-  id: string;
-  title: string;
-  description: string;
-  severity: "high" | "medium" | "low";
-  threatScore: number;
-  resolved: boolean;
-  detectedAt: string;
-}
-
-export interface DarkWebReport {
-  monitoredEmail: string;
-  monitoredUsername: string;
-  mentions: DarkWebItem[];
-  breaches: DarkWebItem[];
-  totalExposures: number;
-  lastChecked: string;
-  monitored: DarkWebMonitorEntry[];
-}
-
-export async function getDarkWebReport(): Promise<DarkWebReport> {
-  return apiFetch<DarkWebReport>("/dark-web");
 }
 
 export async function addAccount(

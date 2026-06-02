@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
+import { updateMe } from "@/lib/api";
 
 interface FieldProps {
   icon: string;
@@ -139,21 +140,11 @@ export default function EditProfile() {
     }
     setSaving(true);
     try {
-      const domain = process.env["EXPO_PUBLIC_DOMAIN"];
-      const base = domain ? `https://${domain}/api` : "/api";
-      const resp = await fetch(`${base}/me`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": "demo",
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          username: username.trim() ? `@${username.trim().replace(/^@/, "")}` : undefined,
-          email: email.trim() || undefined,
-        }),
+      await updateMe({
+        name: name.trim(),
+        username: username.trim() ? `@${username.trim().replace(/^@/, "")}` : undefined,
+        email: email.trim() || undefined,
       });
-      if (!resp.ok) throw new Error("Server error");
       await refreshData();
       Alert.alert("Profile Updated", "Your changes have been saved.", [
         { text: "OK", onPress: () => router.back() },

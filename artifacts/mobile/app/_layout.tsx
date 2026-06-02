@@ -25,7 +25,6 @@ const queryClient = new QueryClient();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
-
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>

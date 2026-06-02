@@ -24,7 +24,7 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="alerts">
         <Icon sf={{ default: "bell", selected: "bell.fill" }} />
         <Label>Alerts</Label>
-        {activeThreats > 0 && <Badge>{activeThreats}</Badge>}
+        {activeThreats > 0 && <Badge>{String(activeThreats)}</Badge>}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="scan">
         <Icon sf={{ default: "dot.radiowaves.left.and.right", selected: "dot.radiowaves.left.and.right" }} />
@@ -116,10 +116,6 @@ function ClassicTabLayout() {
               <MaterialCommunityIcons name="radar" size={22} color={color} />
             ),
         }}
-      />
-      <Tabs.Screen
-        name="tools"
-        options={{ href: null }}
       />
       <Tabs.Screen
         name="profile"

@@ -22,7 +22,6 @@ function threatIcon(type: ThreatType): { name: string; lib: "ionicons" | "mci" }
     case "suspicious_login": return { name: "warning", lib: "ionicons" };
     case "stolen_photo": return { name: "image-remove", lib: "mci" };
     case "scam": return { name: "shield-remove", lib: "mci" };
-    case "dark_web": return { name: "eye-off", lib: "ionicons" };
   }
 }
 

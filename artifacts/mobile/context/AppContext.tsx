@@ -31,7 +31,7 @@ export type ThreatType =
   | "suspicious_login"
   | "stolen_photo"
   | "scam"
-  | "dark_web";
+;
 export type Platform =
   | "instagram"
   | "x"

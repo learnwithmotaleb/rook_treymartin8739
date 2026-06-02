@@ -19,7 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
-import { useApp } from "@/context/AppContext";
+import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 
@@ -109,7 +109,7 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
   },
 };
 
-const ALL_PLATFORMS = Object.keys(PLATFORM_CONFIGS);
+const ALL_PLATFORMS = Object.keys(PLATFORM_CONFIGS) as NonNullable<AppPlatform>[];
 
 function getClientId(platform: string): string | undefined {
   const key = PLATFORM_CONFIGS[platform]?.clientIdEnvKey;
@@ -136,7 +136,7 @@ function OAuthButton({
   onSuccess,
   disabled,
 }: {
-  platform: string;
+  platform: NonNullable<AppPlatform>;
   clientId: string;
   onSuccess: () => void;
   disabled: boolean;
@@ -207,8 +207,8 @@ export default function ConnectAccount() {
     user.connectedAccounts.map((a) => a.platform).filter(Boolean)
   );
 
-  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(
-    params.platform ?? null
+  const [selectedPlatform, setSelectedPlatform] = useState<NonNullable<AppPlatform> | null>(
+    (params.platform as NonNullable<AppPlatform>) ?? null
   );
   const [username, setUsername] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -263,7 +263,7 @@ export default function ConnectAccount() {
     }
   }, [selectedPlatform, username, isExistingAccount, params.existingId, addAccount, updateAccount, config]);
 
-  const selectPlatform = (platform: string) => {
+  const selectPlatform = (platform: NonNullable<AppPlatform>) => {
     setSelectedPlatform(platform);
     setStep("connect");
     setUsername("");
