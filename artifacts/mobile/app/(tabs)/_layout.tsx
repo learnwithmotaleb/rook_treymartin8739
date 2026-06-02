@@ -3,7 +3,7 @@ import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs, Badge } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect } from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,10 +29,6 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="scan">
         <Icon sf={{ default: "dot.radiowaves.left.and.right", selected: "dot.radiowaves.left.and.right" }} />
         <Label>Scan</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="tools">
-        <Icon sf={{ default: "wrench.and.screwdriver", selected: "wrench.and.screwdriver.fill" }} />
-        <Label>Tools</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
@@ -123,15 +119,7 @@ function ClassicTabLayout() {
       />
       <Tabs.Screen
         name="tools"
-        options={{
-          title: "Tools",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="wrench.and.screwdriver.fill" tintColor={color} size={24} />
-            ) : (
-              <Feather name="tool" size={22} color={color} />
-            ),
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="profile"

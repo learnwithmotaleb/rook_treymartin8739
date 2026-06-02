@@ -506,6 +506,20 @@ export default function ThreatDetail() {
           </TouchableOpacity>
         </View>
 
+        {threat && ["stolen_photo", "impersonator", "fake_account"].includes(threat.type) && (
+          <TouchableOpacity
+            style={[styles.photoMonitorLink, { backgroundColor: "#8B5CF611", borderColor: "#8B5CF644" }]}
+            activeOpacity={0.7}
+            onPress={() => router.push("/photo-monitor" as any)}
+          >
+            <MaterialCommunityIcons name="image-search" size={18} color="#8B5CF6" />
+            <Text style={[styles.photoMonitorText, { color: "#8B5CF6", fontFamily: "Inter_500Medium" }]}>
+              Run Photo Monitor scan
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color="#8B5CF6" />
+          </TouchableOpacity>
+        )}
+
       </ScrollView>
     </View>
   );
@@ -664,7 +678,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   secondaryBtnText: { fontSize: 15 },
-  recoveryLink: {
+  photoMonitorLink: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -672,5 +686,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  recoveryLinkText: { flex: 1, fontSize: 14 },
+  photoMonitorText: { flex: 1, fontSize: 14 },
 });

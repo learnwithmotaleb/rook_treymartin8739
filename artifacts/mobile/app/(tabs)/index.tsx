@@ -284,6 +284,26 @@ export default function Dashboard() {
           </ScrollView>
         </GlassCard>
 
+        {/* Photo Monitor quick action */}
+        <TouchableOpacity
+          style={[styles.photoMonitorBanner, { backgroundColor: "#8B5CF611", borderColor: "#8B5CF633" }]}
+          activeOpacity={0.8}
+          onPress={() => router.push("/photo-monitor" as any)}
+        >
+          <View style={[styles.photoMonitorIconWrap, { backgroundColor: "#8B5CF622" }]}>
+            <MaterialCommunityIcons name="image-search" size={20} color="#8B5CF6" />
+          </View>
+          <View style={styles.photoMonitorInfo}>
+            <Text style={[styles.photoMonitorTitle, { color: "#8B5CF6", fontFamily: "Inter_600SemiBold" }]}>
+              Photo Monitor
+            </Text>
+            <Text style={[styles.photoMonitorSub, { color: "#8B5CF6AA", fontFamily: "Inter_400Regular" }]}>
+              Scan for stolen profile photos
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
+        </TouchableOpacity>
+
         {/* Recent Alerts */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
@@ -444,4 +464,23 @@ const styles = StyleSheet.create({
 
   noThreats: { alignItems: "center", gap: 10, paddingVertical: 8 },
   noThreatsText: { fontSize: 14 },
+
+  photoMonitorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  photoMonitorIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoMonitorInfo: { flex: 1 },
+  photoMonitorTitle: { fontSize: 14 },
+  photoMonitorSub: { fontSize: 12, marginTop: 1 },
 });
