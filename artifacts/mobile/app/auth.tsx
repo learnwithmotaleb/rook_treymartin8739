@@ -62,8 +62,8 @@ export default function Auth() {
     setError("");
     setLoading(true);
     try {
-      await signIn!.create({ identifier: email.trim(), password });
-      const si = signIn!;
+      const si = await signIn!.create({ identifier: email.trim(), strategy: "password", password });
+      console.log("[ShieldID] signIn.create status:", si.status, "| factors:", JSON.stringify(si.supportedSecondFactors?.map((f: any) => f.strategy)));
       if (si.status === "complete" && si.createdSessionId) {
         await completeSignIn(si.createdSessionId);
       } else if (si.status === "needs_second_factor") {
