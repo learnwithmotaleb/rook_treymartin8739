@@ -33,7 +33,12 @@ import {
   type SignalData,
   type DetectedEvidence,
 } from "./impersonatorDetectionService";
-import { updateFingerprint } from "./fingerprintService";
+import {
+  updateFingerprint,
+  buildUserPhotoEmbeddings,
+  loadUserEmbeddings,
+  comparePhotoWithEmbeddings,
+} from "./fingerprintService";
 import { checkEmailBreach } from "./breachMonitorService";
 import { generateThreatExplanation } from "./aiAnalysisService";
 import { getAdapter, type MediaItem } from "../adapters/platformAdapter";
@@ -543,6 +548,7 @@ async function runScanPipeline(
   // Compute pHash fingerprints for all ingested user photos
   // These are used in Step 6 to compare against suspected impersonator profile pictures
   const allUserHashes: string[] = [];
+  const allUserPhotoUrls: string[] = [];
   for (const ingested of ingestedAccounts) {
     const photoUrls: string[] = [
       ...(ingested.profileImageUrl ? [ingested.profileImageUrl] : []),
@@ -557,10 +563,11 @@ async function runScanPipeline(
       );
       const hashes = await computeHashesForUrls(photoUrls, 50);
       allUserHashes.push(...hashes);
+      allUserPhotoUrls.push(...photoUrls);
     }
   }
 
-  // Persist hashes to visual fingerprint so they survive between scans
+  // Persist pHash fingerprints so they survive between scans
   if (allUserHashes.length > 0) {
     await db
       .update(visualFingerprintsTable)
@@ -568,6 +575,21 @@ async function runScanPipeline(
       .where(eq(visualFingerprintsTable.userId, userId));
     logger.info({ userId, hashCount: allUserHashes.length }, "Stored photo pHash fingerprints");
   }
+
+  // Build AI embedding vectors for user photos (up to 20, profile photos first)
+  // These catch cropped/filtered/re-uploaded copies that dHash misses.
+  // Runs in parallel with discovery steps — errors are non-fatal.
+  const profilePhotoUrls = ingestedAccounts
+    .map((a) => a.profileImageUrl)
+    .filter((u): u is string => Boolean(u));
+  const embeddingTargetUrls = [
+    ...profilePhotoUrls,
+    ...allUserPhotoUrls.filter((u) => !profilePhotoUrls.includes(u)),
+  ].slice(0, 20);
+
+  buildUserPhotoEmbeddings(userId, embeddingTargetUrls, 20).catch((err) =>
+    logger.warn({ err }, "Background AI embedding generation failed (non-fatal)")
+  );
 
   await sleep(300);
 
@@ -675,50 +697,93 @@ async function runScanPipeline(
     }
   }
 
-  if (userHashes.length > 0) {
-    const candidatesWithImages = allCandidates.filter((c) => c.suspiciousProfileImageUrl);
-    logger.info(
-      { userHashes: userHashes.length, candidatesWithImages: candidatesWithImages.length },
-      "Running pHash comparison for candidate profile pictures"
-    );
+  // Load AI embedding vectors (built in background above, or from a prior scan)
+  const userEmbeddings = await loadUserEmbeddings(userId);
 
+  const candidatesWithImages = allCandidates.filter((c) => c.suspiciousProfileImageUrl);
+  logger.info(
+    {
+      userHashes: userHashes.length,
+      userEmbeddings: userEmbeddings.length,
+      candidatesWithImages: candidatesWithImages.length,
+    },
+    "Running photo comparison (pHash + AI embeddings) for candidate profile pictures"
+  );
+
+  if (candidatesWithImages.length > 0 && (userHashes.length > 0 || userEmbeddings.length > 0)) {
     for (const candidate of candidatesWithImages) {
       if (!candidate.suspiciousProfileImageUrl) continue;
 
-      const hashResult = await compareImageToHashes(
-        candidate.suspiciousProfileImageUrl,
-        userHashes
-      );
+      // Layer 1: dHash — fast, catches exact/near-exact copies
+      if (userHashes.length > 0) {
+        const hashResult = await compareImageToHashes(
+          candidate.suspiciousProfileImageUrl,
+          userHashes
+        );
 
-      if (hashResult.similarity > candidate.signals.profileImageSimilarity) {
-        candidate.signals.profileImageSimilarity = hashResult.similarity;
+        if (hashResult.similarity > candidate.signals.profileImageSimilarity) {
+          candidate.signals.profileImageSimilarity = hashResult.similarity;
+        }
+
+        if (hashResult.matched) {
+          candidate.signals.mediaOverlapRatio = Math.max(
+            candidate.signals.mediaOverlapRatio,
+            hashResult.similarity * 0.9
+          );
+          candidate.detectedSignals.push(
+            `Profile photo pHash match: ${Math.round(hashResult.similarity * 100)}% identical (Hamming distance: ${hashResult.hammingDistance}/64)`
+          );
+          const profileEvidence = candidate.evidence.find((e) => e.type === "profile_photo");
+          if (profileEvidence) {
+            profileEvidence.similarity = Math.round(hashResult.similarity * 100);
+            profileEvidence.label = `Profile Photo — ${Math.round(hashResult.similarity * 100)}% Match (pHash verified)`;
+          }
+          logger.info(
+            { username: candidate.suspiciousUsername, similarity: Math.round(hashResult.similarity * 100), distance: hashResult.hammingDistance },
+            "pHash profile picture match confirmed"
+          );
+        }
       }
 
-      if (hashResult.matched) {
-        candidate.signals.mediaOverlapRatio = Math.max(
-          candidate.signals.mediaOverlapRatio,
-          hashResult.similarity * 0.9
-        );
-        candidate.detectedSignals.push(
-          `Profile photo pHash match: ${Math.round(hashResult.similarity * 100)}% identical (Hamming distance: ${hashResult.hammingDistance}/64)`
-        );
-        const profileEvidence = candidate.evidence.find((e) => e.type === "profile_photo");
-        if (profileEvidence) {
-          profileEvidence.similarity = Math.round(hashResult.similarity * 100);
-          profileEvidence.label = `Profile Photo — ${Math.round(hashResult.similarity * 100)}% Match (pHash verified)`;
+      // Layer 2: AI embedding similarity — catches cropped/filtered/re-uploaded versions
+      // Only run if we have stored embeddings and dHash didn't already give a strong match
+      const currentSim = candidate.signals.profileImageSimilarity;
+      if (userEmbeddings.length > 0 && currentSim < 0.85) {
+        try {
+          const embResult = await comparePhotoWithEmbeddings(
+            candidate.suspiciousProfileImageUrl,
+            userEmbeddings
+          );
+          if (embResult) {
+            logger.info(
+              { username: candidate.suspiciousUsername, embeddingSimilarity: Math.round(embResult.similarity * 100) },
+              "AI embedding photo comparison complete"
+            );
+            if (embResult.similarity > candidate.signals.profileImageSimilarity) {
+              candidate.signals.profileImageSimilarity = embResult.similarity;
+            }
+            if (embResult.matched) {
+              candidate.signals.mediaOverlapRatio = Math.max(
+                candidate.signals.mediaOverlapRatio,
+                embResult.similarity * 0.85
+              );
+              candidate.detectedSignals.push(
+                `AI visual match: ${Math.round(embResult.similarity * 100)}% similarity (style/composition embedding)`
+              );
+              const profileEvidence = candidate.evidence.find((e) => e.type === "profile_photo");
+              if (profileEvidence && embResult.similarity > profileEvidence.similarity / 100) {
+                profileEvidence.similarity = Math.round(embResult.similarity * 100);
+                profileEvidence.label = `Profile Photo — ${Math.round(embResult.similarity * 100)}% AI Match (visual embedding)`;
+              }
+            }
+          }
+        } catch (err) {
+          logger.warn({ err, username: candidate.suspiciousUsername }, "AI embedding comparison failed (non-fatal)");
         }
-        logger.info(
-          {
-            username: candidate.suspiciousUsername,
-            similarity: Math.round(hashResult.similarity * 100),
-            distance: hashResult.hammingDistance,
-          },
-          "pHash profile picture match confirmed"
-        );
       }
     }
   } else {
-    logger.info({ userId }, "No user photo hashes available — pHash comparison skipped");
+    logger.info({ userId }, "No user photo fingerprints available — comparison skipped");
     await sleep(400);
   }
 

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Platform,
@@ -11,10 +11,42 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+
+const NOTIF_KEY = "shieldid:notification_prefs";
+const SECURITY_KEY = "shieldid:security_prefs";
+
+function useStoredPrefs() {
+  const [pushOn, setPushOn] = useState(true);
+  const [emailOn, setEmailOn] = useState(false);
+  const [biometric, setBiometric] = useState(false);
+  const [twoFactor, setTwoFactor] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.multiGet([NOTIF_KEY, SECURITY_KEY]).then((pairs) => {
+      for (const [key, val] of pairs) {
+        if (!val) continue;
+        try {
+          const parsed = JSON.parse(val) as Record<string, unknown>;
+          if (key === NOTIF_KEY) {
+            if (typeof parsed.pushAlerts === "boolean") setPushOn(parsed.pushAlerts);
+            if (typeof parsed.emailAlerts === "boolean") setEmailOn(parsed.emailAlerts);
+          }
+          if (key === SECURITY_KEY) {
+            if (typeof parsed.biometricLogin === "boolean") setBiometric(parsed.biometricLogin);
+            if (typeof parsed.twoFactorEnabled === "boolean") setTwoFactor(parsed.twoFactorEnabled);
+          }
+        } catch {}
+      }
+    });
+  }, []);
+
+  return { pushOn, emailOn, biometric, twoFactor };
+}
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free Plan",
@@ -86,6 +118,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, logout } = useApp();
+  const { pushOn, emailOn, biometric, twoFactor } = useStoredPrefs();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -326,15 +359,15 @@ export default function ProfileScreen() {
         </Text>
         <GlassCard noPadding>
           <SettingsItem
-            icon={<Ionicons name="notifications" size={18} color={colors.primary} />}
+            icon={<Ionicons name="notifications" size={18} color={pushOn ? colors.primary : colors.mutedForeground} />}
             label="Push Alerts"
-            value="On"
+            value={pushOn ? "On" : "Off"}
             onPress={() => router.push("/notification-settings" as any)}
           />
           <SettingsItem
             icon={<Ionicons name="mail" size={18} color={colors.primary} />}
             label="Email Alerts"
-            value={isPaid ? "On" : "Pro+"}
+            value={!isPaid ? "Pro+" : emailOn ? "On" : "Off"}
             onPress={() => router.push("/notification-settings" as any)}
             last
           />
@@ -351,16 +384,40 @@ export default function ProfileScreen() {
         </Text>
         <GlassCard noPadding>
           <SettingsItem
-            icon={<Ionicons name="lock-closed" size={18} color={colors.success} />}
+            icon={<Ionicons name="lock-closed" size={18} color={twoFactor ? colors.success : colors.mutedForeground} />}
             label="Two-Factor Auth"
-            value="Set Up"
+            value={twoFactor ? "On" : "Off"}
             onPress={() => router.push("/security-settings" as any)}
           />
           <SettingsItem
-            icon={<Ionicons name="finger-print" size={18} color={colors.success} />}
+            icon={<Ionicons name="finger-print" size={18} color={biometric ? colors.success : colors.mutedForeground} />}
             label="Biometric Login"
-            value="Configure"
+            value={biometric ? "On" : "Off"}
             onPress={() => router.push("/security-settings" as any)}
+            last
+          />
+        </GlassCard>
+
+        {/* Privacy & Data */}
+        <Text
+          style={[
+            styles.sectionLabel,
+            { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
+          ]}
+        >
+          Privacy & Data
+        </Text>
+        <GlassCard noPadding>
+          <SettingsItem
+            icon={<Ionicons name="shield-checkmark" size={18} color={colors.primary} />}
+            label="Identity Fingerprint"
+            value="Active"
+            onPress={() => router.push("/manage-accounts" as any)}
+          />
+          <SettingsItem
+            icon={<Ionicons name="eye-off" size={18} color={colors.mutedForeground} />}
+            label="Privacy Policy"
+            onPress={() => router.push("/support" as any)}
             last
           />
         </GlassCard>
@@ -406,7 +463,7 @@ export default function ProfileScreen() {
             { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
           ]}
         >
-          ShieldID v1.0.0
+          ShieldID v1.0.0 · All data encrypted end-to-end
         </Text>
       </ScrollView>
     </View>

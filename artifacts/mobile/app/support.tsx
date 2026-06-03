@@ -42,7 +42,7 @@ const FAQ = [
   },
   {
     q: "What is the Photo Monitor?",
-    a: "Photo Monitor uses perceptual hashing to index your profile photos and detect when they appear on other accounts or websites — even if cropped or filtered.",
+    a: "Photo Monitor uses a two-layer system: perceptual hashing (dHash) catches exact or near-exact copies instantly, while AI vision embeddings catch cropped, filtered, or re-uploaded versions that hashing alone would miss.",
   },
   {
     q: "Why am I seeing false positives?",
