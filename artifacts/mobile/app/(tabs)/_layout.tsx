@@ -4,7 +4,7 @@ import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs, Badge } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/expo";
@@ -137,15 +137,30 @@ export default function TabLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { login, logout, hasSeenOnboarding } = useApp();
 
+  // Keep a stable ref to getToken so the effect below doesn't need it as a
+  // dependency. Clerk sometimes returns a new function reference on every
+  // render, which would cause the effect to re-fire and spam refreshData().
+  const getTokenRef = useRef(getToken);
+  useEffect(() => { getTokenRef.current = getToken; });
+
   useEffect(() => {
     if (!isLoaded) return;
-    if (isSignedIn) {
-      setApiAuthToken(() => getToken());
-      login("", "");
-    } else {
+    if (!isSignedIn) {
       logout();
+      return;
     }
-  }, [isLoaded, isSignedIn, getToken, login, logout]);
+    // Only set the auth token and trigger a real data load AFTER onboarding is
+    // complete. During onboarding the Clerk session token may not be available
+    // yet (getToken() returns null), which would cause the API to fall back to
+    // the demo user. By waiting until hasSeenOnboarding is true we guarantee
+    // the token is ready and the user sees their own real account data.
+    if (hasSeenOnboarding) {
+      setApiAuthToken(() => getTokenRef.current());
+      login("", "");
+    }
+  // getToken intentionally omitted — accessed via ref to keep this effect stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, hasSeenOnboarding, login, logout]);
 
   if (!isSignedIn) {
     return <Redirect href="/auth" />;

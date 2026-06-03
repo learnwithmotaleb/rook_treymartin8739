@@ -873,10 +873,11 @@ function RevealScreen({
 export default function Onboarding() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { completeOnboarding } = useApp();
+  const { completeOnboarding, user } = useApp();
   const [step, setStep] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const [hasAttemptedConnect, setHasAttemptedConnect] = useState(false);
+  const hasConnectedAccounts = user.connectedAccounts.length > 0;
 
   const [answers, setAnswers] = useState<OnboardingAnswers>({
     primaryConcern: null,
@@ -900,15 +901,21 @@ export default function Onboarding() {
     useCallback(() => {
       if (hasAttemptedConnect) {
         setHasAttemptedConnect(false);
-        animateToStep(7);
+        // Only show the scan-setup step when accounts were actually connected
+        animateToStep(hasConnectedAccounts ? 7 : 8);
       }
-    }, [hasAttemptedConnect, animateToStep])
+    }, [hasAttemptedConnect, animateToStep, hasConnectedAccounts])
   );
 
   const handleNext = useCallback(() => {
+    // After the Connect step, skip the scan-setup animation if no accounts connected
+    if (step === 6 && !hasConnectedAccounts) {
+      animateToStep(8);
+      return;
+    }
     if (step < TOTAL_STEPS - 1) animateToStep(step + 1);
     else router.replace("/subscription" as any);
-  }, [step, animateToStep]);
+  }, [step, animateToStep, hasConnectedAccounts]);
 
   const handleSkip = useCallback(() => {
     completeOnboarding();
@@ -965,7 +972,7 @@ export default function Onboarding() {
         <ConnectScreen
           colors={colors}
           activePlatforms={answers.activePlatforms}
-          onSkip={() => animateToStep(7)}
+          onSkip={() => animateToStep(hasConnectedAccounts ? 7 : 8)}
           onConnect={() => {
             setHasAttemptedConnect(true);
             router.push("/connect-account" as any);
