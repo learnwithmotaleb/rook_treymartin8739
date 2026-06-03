@@ -283,8 +283,14 @@ function successPage(title: string, message: string, username: string): string {
     <h1>${title}</h1>
     <p>${message}</p>
     <p style="margin-top:16px;color:#64748b;font-size:13px;">
-      You can close this tab and return to the ShieldID app.
+      Returning to ShieldID…
     </p>
+    <script>
+      // Auto-close for Android Chrome Custom Tabs / mobile browsers.
+      // On iOS, ASWebAuthenticationSession already intercepted the redirect
+      // before this page loads, so window.close() is a no-op there.
+      setTimeout(function() { window.close(); }, 800);
+    </script>
   `);
 }
 

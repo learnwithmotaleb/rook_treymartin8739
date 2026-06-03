@@ -22,6 +22,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { getAccounts } from "@/lib/api";
 
 interface PlatformConfig {
   label: string;
@@ -149,19 +150,45 @@ function OAuthButton({
   const handlePress = useCallback(async () => {
     setLoading(true);
     try {
+      // Snapshot current state so we can detect a newly connected account after the browser closes
+      const accountsBefore = await getAccounts().catch(() => [] as Awaited<ReturnType<typeof getAccounts>>);
+      const existingAccount = accountsBefore.find((a) => a.platform === platform);
+      const prevLastSynced = existingAccount?.lastSynced ?? null;
+
       const token = (await getToken()) ?? "";
       const authUrl = buildAuthUrl(platform, clientId, token);
       const redirectUrl = `https://${DOMAIN}${config.callbackPath}`;
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
+      // Always poll after the browser closes — the server may have processed the
+      // OAuth callback successfully even if the browser returned "dismiss" (common
+      // on Android where Chrome Custom Tabs don't auto-close on redirect).
+      await new Promise((r) => setTimeout(r, 600));
+      const accountsAfter = await getAccounts().catch(() => null);
+
+      if (accountsAfter) {
+        const updated = accountsAfter.find((a) => a.platform === platform);
+        const isNewlyConnected = updated && (
+          !existingAccount ||
+          (updated.lastSynced !== null && updated.lastSynced !== prevLastSynced)
+        );
+        if (isNewlyConnected) {
+          onSuccess();
+          return;
+        }
+      }
+
       if (result.type === "success") {
         onSuccess();
       } else if (result.type === "cancel" || result.type === "dismiss") {
-        Alert.alert(
-          "Cancelled",
-          "Authentication was cancelled. You can still add the account by entering your username manually.",
-          [{ text: "OK" }]
-        );
+        const isInstagram = platform === "instagram";
+        const isFacebook = platform === "facebook";
+        const hint = isInstagram
+          ? "Instagram requires a Business or Creator account. If yours is personal, go to Instagram Settings → Account → Switch to Professional Account (free and reversible)."
+          : isFacebook
+          ? "Make sure you approved all permissions on the Facebook login screen."
+          : "You can still add the account by entering your username manually below.";
+        Alert.alert("Authentication Closed", hint, [{ text: "OK" }]);
       }
     } catch {
       Alert.alert("Error", "Could not open the authentication page. Please try again.");
