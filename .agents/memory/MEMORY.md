@@ -4,3 +4,4 @@
 - [tabs layout null return](tabs-layout-null.md) — returning null from a layout component in expo-router breaks component trees on web; always return a View instead.
 - [Photo fingerprinting architecture](photo-fingerprinting.md) — two-layer: dHash (fast, exact copies) + GPT-4o vision embeddings (cropped/filtered); embeddings stored in color_palette_json column (not styleEmbeddingJson).
 - [Profile tab settings state](profile-settings-state.md) — notification/security values shown on profile tab are read live from AsyncStorage at mount via useStoredPrefs() hook.
+- [RevenueCat proxy client bridge](revenuecat-proxy-bridge.md) — RC SDK passes a Request object (not init) to fetch; proxy must read method/body from the Request, not init.

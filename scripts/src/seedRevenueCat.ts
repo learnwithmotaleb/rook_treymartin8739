@@ -116,9 +116,13 @@ async function seedRevenueCat() {
   });
   if (listProjectsError) throw new Error("Failed to list projects");
 
-  const existingProject = existingProjects.items?.find((p) => p.name === PROJECT_NAME);
+  // Reuse any existing project (RC Replit accounts typically have one project)
+  const existingProject =
+    existingProjects.items?.find((p) => p.name === PROJECT_NAME) ??
+    existingProjects.items?.[0];
+
   if (existingProject) {
-    console.log("Project already exists:", existingProject.id);
+    console.log("Using existing project:", existingProject.id, `"${existingProject.name}"`);
     project = existingProject;
   } else {
     const { data: newProject, error } = await createProject({ client, body: { name: PROJECT_NAME } });
