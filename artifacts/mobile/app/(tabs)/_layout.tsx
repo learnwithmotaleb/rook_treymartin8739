@@ -135,7 +135,7 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
-  const { login, logout, hasSeenOnboarding } = useApp();
+  const { login, logout, hasSeenOnboarding, isInitializing } = useApp();
 
   // Keep a stable ref to getToken so the effect below doesn't need it as a
   // dependency. Clerk sometimes returns a new function reference on every
@@ -144,23 +144,30 @@ export default function TabLayout() {
   useEffect(() => { getTokenRef.current = getToken; });
 
   useEffect(() => {
-    if (!isLoaded) return;
+    // Wait for both Clerk AND AsyncStorage to finish loading before doing anything.
+    // If we act before isLoaded/isInitializing resolve, isSignedIn and
+    // hasSeenOnboarding are wrong defaults and we'd set a null token.
+    if (!isLoaded || isInitializing) return;
     if (!isSignedIn) {
       logout();
       return;
     }
-    // Only set the auth token and trigger a real data load AFTER onboarding is
-    // complete. During onboarding the Clerk session token may not be available
-    // yet (getToken() returns null), which would cause the API to fall back to
-    // the demo user. By waiting until hasSeenOnboarding is true we guarantee
-    // the token is ready and the user sees their own real account data.
     if (hasSeenOnboarding) {
+      // setApiAuthToken must be called BEFORE login() so that the getter is
+      // ready when refreshData() fires inside login().
       setApiAuthToken(() => getTokenRef.current());
       login("", "");
     }
   // getToken intentionally omitted — accessed via ref to keep this effect stable
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, hasSeenOnboarding, login, logout]);
+  }, [isLoaded, isInitializing, isSignedIn, hasSeenOnboarding, login, logout]);
+
+  // Show nothing while Clerk or AsyncStorage are still loading.
+  // This prevents flash-redirects to /auth or /onboarding for returning users
+  // whose stored state hasn't been read from AsyncStorage yet.
+  if (!isLoaded || isInitializing) {
+    return null;
+  }
 
   if (!isSignedIn) {
     return <Redirect href="/auth" />;

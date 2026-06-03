@@ -131,6 +131,8 @@ interface AppContextType {
   threats: Threat[];
   isLoggedIn: boolean;
   hasSeenOnboarding: boolean;
+  /** true while AsyncStorage is being read on first mount — gates all route redirects */
+  isInitializing: boolean;
   isScanning: boolean;
   scanProgress: number;
   scanCurrentStep: string | null;
@@ -236,6 +238,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [threats, setThreats] = useState<Threat[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
+  // isInitializing stays true until AsyncStorage has been read.
+  // The tabs layout must not render any <Redirect> until this is false,
+  // otherwise a returning user gets flash-redirected to /auth or /onboarding
+  // before the stored values are loaded.
+  const [isInitializing, setIsInitializing] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanCurrentStep, setScanCurrentStep] = useState<string | null>(null);
@@ -243,11 +250,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem("isLoggedIn").then((val) => {
-      if (val !== null) setIsLoggedIn(val === "true");
-    });
-    AsyncStorage.getItem("hasSeenOnboarding").then((val) => {
-      if (val !== null) setHasSeenOnboarding(val === "true");
+    Promise.all([
+      AsyncStorage.getItem("isLoggedIn"),
+      AsyncStorage.getItem("hasSeenOnboarding"),
+    ]).then(([loggedIn, seenOnboarding]) => {
+      if (loggedIn !== null) setIsLoggedIn(loggedIn === "true");
+      if (seenOnboarding !== null) setHasSeenOnboarding(seenOnboarding === "true");
+      setIsInitializing(false);
     });
   }, []);
 
@@ -414,6 +423,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         threats,
         isLoggedIn,
         hasSeenOnboarding,
+        isInitializing,
         isScanning,
         scanProgress,
         scanCurrentStep,

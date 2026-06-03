@@ -1,0 +1,1 @@
+- [Auth timing race](auth-timing-race.md) — tabs layout must gate redirects on both `isLoaded` (Clerk) AND `isInitializing` (AsyncStorage) or returning users get flash-redirected to demo data.
