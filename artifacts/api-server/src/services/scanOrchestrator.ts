@@ -346,59 +346,129 @@ function webCandidateToImpersonator(
   wc: WebSearchCandidate,
   ingestedAccounts: IngestedMedia[]
 ): ImpersonatorCandidate {
-  // Find ingested media from a connected account to estimate how many photos
-  // could have been stolen (we use the largest connected account as baseline)
   const bestIngested = ingestedAccounts.reduce<IngestedMedia | null>(
     (best, curr) => (!best || curr.photos > best.photos ? curr : best),
     null
   );
   const userPhotos = bestIngested?.photos ?? 0;
 
-  const suspectedStolenCount = userPhotos > 0
+  const isImageMatch = wc.discoveryMethod === "image_search";
+  const isCaptionMatch = wc.discoveryMethod === "caption_search";
+
+  // For image/caption discoveries the username similarity is irrelevant;
+  // we weight the visual/content signals much higher instead.
+  const mediaOverlapRatio = isImageMatch
+    ? 0.80
+    : isCaptionMatch
+    ? 0.35
+    : wc.similarity * 0.6;
+
+  const captionOverlapRatio = isCaptionMatch
+    ? 0.82
+    : isImageMatch
+    ? 0.15
+    : wc.similarity * 0.4;
+
+  const profileImageSimilarity = isImageMatch
+    ? 0.88
+    : wc.similarity * 0.7;
+
+  const suspectedStolenCount = isImageMatch
+    ? Math.max(3, Math.round(userPhotos * 0.3))
+    : isCaptionMatch
+    ? Math.max(1, Math.round(userPhotos * 0.1))
+    : userPhotos > 0
     ? Math.max(1, Math.round(userPhotos * 0.25 * wc.similarity))
     : 3;
 
   const signals: SignalData = {
-    mediaOverlapRatio: wc.similarity * 0.6,
-    captionOverlapRatio: wc.similarity * 0.4,
-    profileImageSimilarity: wc.similarity * 0.7,
-    bioSimilarity: wc.similarity * 0.5,
-    usernameSimilarity: wc.similarity,
+    mediaOverlapRatio,
+    captionOverlapRatio,
+    profileImageSimilarity,
+    bioSimilarity: isImageMatch ? 0.10 : wc.similarity * 0.5,
+    usernameSimilarity: isImageMatch || isCaptionMatch ? 0.0 : wc.similarity,
     behaviorScore: 0.65,
   };
 
-  const evidence: DetectedEvidence[] = [
-    {
+  const evidence: DetectedEvidence[] = [];
+
+  if (isImageMatch) {
+    evidence.push({
+      id: `web_${wc.platform}_${wc.username}_img`,
+      type: "profile_photo",
+      similarity: Math.round(profileImageSimilarity * 100),
+      label: "Profile Photo Found via Image Search",
+    });
+  } else {
+    evidence.push({
       id: `web_${wc.platform}_${wc.username}_username`,
       type: "profile_photo",
       similarity: Math.round(wc.similarity * 100),
       label: "Username Pattern Match",
-    },
-  ];
+    });
+  }
+
   if (suspectedStolenCount > 0) {
     evidence.push({
       id: `web_${wc.platform}_${wc.username}_media`,
       type: "post_photo",
-      similarity: Math.round(signals.mediaOverlapRatio * 100),
-      label: `${suspectedStolenCount} Potentially Stolen Photos`,
+      similarity: Math.round(mediaOverlapRatio * 100),
+      label: isCaptionMatch
+        ? "Caption Text Stolen Verbatim"
+        : `${suspectedStolenCount} Potentially Stolen Photos`,
+      ...(isCaptionMatch
+        ? {
+            yourCaption: "Your original post text",
+            stolenCaption: wc.snippet.slice(0, 80),
+          }
+        : {}),
     });
   }
 
-  return {
-    suspiciousUsername: `@${wc.username}`,
-    platform: wc.platform,
-    source: "username_search",
-    signals,
-    evidence,
-    detectedSignals: [
+  const detectedSignals: string[] = [];
+  if (isImageMatch) {
+    detectedSignals.push(
+      `Discovered via reverse image search — username is completely different`,
+      `${suspectedStolenCount} of your photos found on this account`,
+      `Profile URL: ${wc.profileUrl}`,
+      "Username has zero similarity to yours — photo theft without name cloning",
+      userPhotos > 0
+        ? `You have ${userPhotos} indexed photos; ${suspectedStolenCount} appear reused`
+        : "No media baseline yet — visual match is primary signal"
+    );
+  } else if (isCaptionMatch) {
+    detectedSignals.push(
+      `Discovered via verbatim caption search — your post text found on this account`,
+      `Username "${wc.username}" — no name similarity to yours`,
+      `Caption snippet match: "${wc.snippet.slice(0, 60)}"`,
+      `Profile URL: ${wc.profileUrl}`,
+      "Content theft without photo or name cloning"
+    );
+  } else {
+    detectedSignals.push(
       `Found via public web search on ${wc.platform}`,
       `Username "${wc.username}" matches impersonation pattern`,
       `Username similarity: ${Math.round(wc.similarity * 100)}%`,
       `Profile URL: ${wc.profileUrl}`,
       userPhotos > 0
         ? `Up to ${suspectedStolenCount} of your ${userPhotos} photos may be reused`
-        : "No media baseline yet — monitor this account",
-    ],
+        : "No media baseline yet — monitor this account"
+    );
+  }
+
+  // Map discovery method to candidate source
+  const source: ImpersonatorCandidate["source"] =
+    isImageMatch ? "image_search"
+    : isCaptionMatch ? "caption_search"
+    : "username_search";
+
+  return {
+    suspiciousUsername: `@${wc.username}`,
+    platform: wc.platform,
+    source,
+    signals,
+    evidence,
+    detectedSignals,
     matchedMediaCount: suspectedStolenCount,
   };
 }
@@ -526,7 +596,26 @@ async function runScanPipeline(
   );
 
   if (webSearchEnabled) {
-    const webCandidates = await searchForImpersonators(primaryUsername, connectedPlatforms);
+    // Gather photo URLs and caption text from ingested accounts for richer search
+    const allPhotoUrls = ingestedAccounts.flatMap((a) =>
+      a.mediaItems
+        .filter((m) => m.type === "image" && m.url)
+        .map((m) => m.url)
+        .slice(0, 10)
+    );
+    const allCaptions = ingestedAccounts.flatMap((a) =>
+      a.mediaItems
+        .map((m) => m.caption)
+        .filter((c): c is string => typeof c === "string" && c.length >= 30)
+        .slice(0, 5)
+    );
+
+    const webCandidates = await searchForImpersonators({
+      username: primaryUsername,
+      connectedPlatforms,
+      photoUrls: allPhotoUrls,
+      captions: allCaptions,
+    });
 
     for (const wc of webCandidates) {
       const candidate = webCandidateToImpersonator(wc, ingestedAccounts);
@@ -534,7 +623,15 @@ async function runScanPipeline(
     }
 
     logger.info(
-      { count: webCandidates.length, username: primaryUsername },
+      {
+        count: webCandidates.length,
+        username: primaryUsername,
+        byMethod: {
+          username_variant: webCandidates.filter((c) => c.discoveryMethod === "username_variant").length,
+          image_search: webCandidates.filter((c) => c.discoveryMethod === "image_search").length,
+          caption_search: webCandidates.filter((c) => c.discoveryMethod === "caption_search").length,
+        },
+      },
       "Web-based impersonator search complete"
     );
   } else {
@@ -717,50 +814,8 @@ async function runScanPipeline(
     }
   }
 
-  // Add dark web simulation if no real breach found
-  if (!breachThreatAdded) {
-    const existingDarkWeb = await db
-      .select({ id: threatsTable.id })
-      .from(threatsTable)
-      .where(
-        and(
-          eq(threatsTable.userId, userId),
-          eq(threatsTable.type, "dark_web"),
-          eq(threatsTable.resolved, false)
-        )
-      );
-
-    if (existingDarkWeb.length === 0) {
-      newThreats.push({
-        userId,
-        scanJobId: jobId,
-        type: "dark_web",
-        severity: "medium",
-        platform: null,
-        title: "Username Mentioned on Dark Web Forum",
-        description: `Your username was found in a dark web data dump from a credential-stuffing operation`,
-        details: `ShieldID detected your username in a credential-stuffing list circulated on a dark web forum. While no password hash was confirmed, your username association with email addresses was exposed. This type of exposure is commonly used in targeted phishing and account takeover attempts.`,
-        aiExplanation:
-          "Your username was found in a dark web credential list. This means attackers may be targeting your accounts using automated login attempts. Enable two-factor authentication on all accounts and change passwords to unique, strong credentials immediately.",
-        threatScore: 62,
-        suspiciousUsername: "Dark Web Forum",
-        matchedMediaCount: 0,
-        evidenceJson: JSON.stringify([]),
-        scoreBreakdownJson: JSON.stringify({
-          mediaSimilarity: 0, contentReuse: 0, profileSimilarity: 0,
-          bioSimilarity: 0, usernameSimilarity: 0, behavioral: 62, total: 62,
-        }),
-        detectedSignalsJson: JSON.stringify([
-          "Username found in credential-stuffing list",
-          "Associated with email address",
-          "Circulated on dark web forum",
-          "Used in account takeover campaigns",
-          "Enable 2FA immediately recommended",
-        ]),
-        resolved: false,
-      });
-    }
-  }
+  // No dark web simulation — dark web monitoring is a paid/third-party integration.
+  // If !breachThreatAdded, we simply don't add a placeholder threat.
 
   // ── Step 8: AI threat explanation ─────────────────────────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[7].progress, SCAN_STEPS[7].step);

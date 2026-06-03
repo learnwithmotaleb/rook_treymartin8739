@@ -50,7 +50,9 @@ export interface ImpersonatorCandidate {
     | "username_search"
     | "media_similarity"
     | "api_discovery"
-    | "graph_match";
+    | "graph_match"
+    | "image_search"
+    | "caption_search";
   signals: SignalData;
   evidence: DetectedEvidence[];
   detectedSignals: string[];
@@ -66,8 +68,7 @@ export interface ScoredThreat {
     | "impersonator"
     | "fake_account"
     | "stolen_photo"
-    | "scam"
-    | "dark_web";
+    | "scam";
   title: string;
   description: string;
   details: string;
@@ -121,91 +122,133 @@ export function scoreThreatSeverity(
 
 /**
  * Simulation mode: generates synthetic impersonator candidates when no
- * real platform API credentials are available. Returns realistic scenarios
- * based on common impersonation patterns.
+ * real platform API credentials are available.
  *
- * Replace this with real platform adapter calls when credentials are ready.
+ * Produces TWO distinct candidate types to accurately reflect real-world
+ * detection patterns:
+ *
+ * 1. USERNAME VARIANT — an account with a slight username modification
+ *    (e.g. @user.official). Discovered via username_search.
+ *
+ * 2. VISUAL MATCH — an account with a COMPLETELY DIFFERENT username that
+ *    was found via image search or pHash comparison. This is the most
+ *    important case the user highlighted: real impersonators often pick
+ *    random handles and rely entirely on stolen photos, not name similarity.
+ *
+ * Replace with real platform adapter + web search calls when credentials
+ * are available.
  */
 export function generateSimulatedCandidates(
   username: string,
   platforms: string[]
 ): ImpersonatorCandidate[] {
   const candidates: ImpersonatorCandidate[] = [];
-  const cleanUsername = username.replace("@", "");
-
-  const impersonationPatterns = [
-    { suffix: ".official", mediaRatio: 0.95, captionRatio: 0.82 },
-    { suffix: "_real", mediaRatio: 0.87, captionRatio: 0.45 },
-    { suffix: ".creator", mediaRatio: 0.92, captionRatio: 0.65 },
-    { suffix: "0fficial", mediaRatio: 0.78, captionRatio: 0.38 },
-    { suffix: "_backup", mediaRatio: 0.71, captionRatio: 0.29 },
-  ];
+  const cleanUsername = username.replace(/^@/, "");
 
   const platformPool = ["instagram", "tiktok", "x", "facebook"].filter(
     (p) => !platforms.includes(p)
   );
+  const platform0 = platformPool[0] ?? "instagram";
+  const platform1 = platformPool[1] ?? "tiktok";
 
-  impersonationPatterns.slice(0, 2).forEach((pattern, i) => {
-    const targetPlatform =
-      platformPool[i % platformPool.length] ?? "instagram";
-    const suspiciousUsername = `@${cleanUsername}${pattern.suffix}`;
-
-    const signals: SignalData = {
-      mediaOverlapRatio: pattern.mediaRatio,
-      captionOverlapRatio: pattern.captionRatio,
-      profileImageSimilarity: 0.88 - i * 0.08,
-      bioSimilarity: 0.72 - i * 0.12,
-      usernameSimilarity: 0.85 - i * 0.1,
-      behaviorScore: 0.75 - i * 0.05,
-    };
-
-    const mediaCount = Math.round(8 + i * 4);
-
-    const evidence: DetectedEvidence[] = [
+  // ── Candidate 1: Username variant (classic impersonator pattern) ───────────
+  const variantSuffix = ".official";
+  const variantSignals: SignalData = {
+    mediaOverlapRatio: 0.91,
+    captionOverlapRatio: 0.78,
+    profileImageSimilarity: 0.86,
+    bioSimilarity: 0.70,
+    usernameSimilarity: 0.88,
+    behaviorScore: 0.74,
+  };
+  candidates.push({
+    suspiciousUsername: `@${cleanUsername}${variantSuffix}`,
+    platform: platform0,
+    source: "username_search",
+    signals: variantSignals,
+    evidence: [
       {
-        id: `ev_${i}_1`,
+        id: "sim_v_1",
         type: "profile_photo",
-        similarity: Math.round(signals.profileImageSimilarity * 100),
+        similarity: 86,
         label: "Profile Photo Match",
       },
       {
-        id: `ev_${i}_2`,
+        id: "sim_v_2",
         type: "post_photo",
-        similarity: Math.round(signals.mediaOverlapRatio * 100 - 5),
+        similarity: 89,
         label: "Post Photo Reuse",
-        yourCaption: "Content from my verified account",
-        stolenCaption: "Reposted without permission",
+        yourCaption: "Content from your verified account",
+        stolenCaption: "Reposted without credit",
       },
-      ...(i === 0
-        ? [
-            {
-              id: `ev_${i}_3`,
-              type: "reel_thumbnail" as const,
-              similarity: Math.round(signals.mediaOverlapRatio * 100 - 12),
-              label: "Reel Thumbnail Stolen",
-            },
-          ]
-        : []),
-    ];
+      {
+        id: "sim_v_3",
+        type: "reel_thumbnail",
+        similarity: 82,
+        label: "Reel Thumbnail Stolen",
+      },
+    ],
+    matchedMediaCount: 11,
+    detectedSignals: [
+      "11 public photos reused across posts",
+      `Username pattern: added '${variantSuffix.replace(".", "")}' suffix`,
+      `Bio similarity: ${Math.round(variantSignals.bioSimilarity * 100)}%`,
+      "Fake giveaway language detected in bio",
+      "Account created within the last 30 days",
+      "7 captions duplicated verbatim",
+    ],
+  });
 
-    candidates.push({
-      suspiciousUsername,
-      platform: targetPlatform,
-      source: i === 0 ? "media_similarity" : "username_search",
-      signals,
-      evidence,
-      matchedMediaCount: mediaCount,
-      detectedSignals: [
-        `${mediaCount} public photos reused`,
-        `Username pattern: added '${pattern.suffix.replace(".", "")}'`,
-        `Bio similarity: ${Math.round(signals.bioSimilarity * 100)}%`,
-        "Fake giveaway language detected",
-        "Recently created account",
-        pattern.captionRatio > 0.5
-          ? `${Math.round(pattern.captionRatio * 10)} captions duplicated`
-          : "Partial caption reuse detected",
-      ],
-    });
+  // ── Candidate 2: Visual-only match — completely different username ──────────
+  // This simulates what the image_search / pHash strategy catches:
+  // an account that stole photos but chose a totally unrelated handle.
+  const randomHandles = [
+    "lifestyle_collective_",
+    "dailyvibes_hq",
+    "glowup.central",
+    "trending.moments_",
+    "creator.spotlight24",
+  ];
+  // Seed deterministically from username so it's stable across rescans
+  const seedIndex = cleanUsername.charCodeAt(0) % randomHandles.length;
+  const randomHandle = randomHandles[seedIndex] ?? "lifestyle_collective_";
+
+  const visualSignals: SignalData = {
+    mediaOverlapRatio: 0.82,
+    captionOverlapRatio: 0.18,
+    profileImageSimilarity: 0.91,
+    bioSimilarity: 0.12,
+    usernameSimilarity: 0.0,  // completely different — that's the point
+    behaviorScore: 0.68,
+  };
+  candidates.push({
+    suspiciousUsername: `@${randomHandle}`,
+    platform: platform1,
+    source: "image_search",
+    signals: visualSignals,
+    evidence: [
+      {
+        id: "sim_i_1",
+        type: "profile_photo",
+        similarity: 91,
+        label: "Profile Photo — 91% pHash Match",
+      },
+      {
+        id: "sim_i_2",
+        type: "post_photo",
+        similarity: 85,
+        label: "8 Photos Reused (Image Search)",
+      },
+    ],
+    matchedMediaCount: 8,
+    detectedSignals: [
+      "Detected via reverse image search — username has NO similarity",
+      "Profile photo pHash match: 91% identical (Hamming distance: 6/64)",
+      "8 of your photos found on this account's grid",
+      "Account bio is unrelated — no name overlap",
+      "Monetizing your content via third-party link in bio",
+      "Recently created account with rapid follower growth",
+    ],
   });
 
   return candidates;
@@ -217,7 +260,7 @@ export function buildThreatFromCandidate(
   const breakdown = calculateThreatScore(candidate.signals);
   const severity = scoreThreatSeverity(breakdown.total);
 
-  const isStolen = candidate.source === "media_similarity";
+  const isStolen = candidate.source === "media_similarity" || candidate.source === "image_search";
   const type = isStolen ? "stolen_photo" : "impersonator";
 
   const title = isStolen
@@ -229,8 +272,12 @@ export function buildThreatFromCandidate(
     : `${candidate.suspiciousUsername} is impersonating you on ${capitalize(candidate.platform)}`;
 
   const details = isStolen
-    ? `A ${capitalize(candidate.platform)} account was found using ${candidate.matchedMediaCount} of your publicly posted photos. This account appears to be operating a fake creator page using your content.`
-    : `An account was found on ${capitalize(candidate.platform)} using a similar username and your profile media. They have been flagged by ShieldID's visual fingerprint system.`;
+    ? candidate.source === "image_search"
+      ? `A ${capitalize(candidate.platform)} account (${candidate.suspiciousUsername}) was discovered via reverse image search — their username has NO similarity to yours, but ${candidate.matchedMediaCount} of your photos were found on their profile. This is the hardest class of impersonator to detect without visual scanning.`
+      : `A ${capitalize(candidate.platform)} account was found using ${candidate.matchedMediaCount} of your publicly posted photos. This account appears to be operating a fake creator page using your content.`
+    : candidate.source === "caption_search"
+      ? `A ${capitalize(candidate.platform)} account (${candidate.suspiciousUsername}) was found reusing your caption text verbatim. Their username may not resemble yours, but the duplicated text content is a strong signal of content theft.`
+      : `An account was found on ${capitalize(candidate.platform)} using a similar username and your profile media. They have been flagged by ShieldID's visual fingerprint system.`;
 
   return {
     candidate,

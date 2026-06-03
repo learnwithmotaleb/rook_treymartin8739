@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
@@ -53,7 +54,15 @@ export default function ScanScreen() {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
-      }).start();
+      }).start(() => {
+        if (activeCount > 0) {
+          // Pause briefly so the user sees the result card, then navigate to Alerts
+          setTimeout(() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            router.push("/(tabs)/alerts");
+          }, 1800);
+        }
+      });
     }
   }, [isScanning, threats, resultOpacity]);
 
