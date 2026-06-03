@@ -12,6 +12,7 @@ import { router } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { SecurityScoreRing } from "@/components/SecurityScoreRing";
@@ -33,7 +34,7 @@ function StatCard({
   const colors = useColors();
   return (
     <GlassCard style={styles.statCard}>
-      <View style={styles.statIcon}>{icon}</View>
+      {icon}
       <Text style={[styles.statValue, { color: valueColor ?? colors.foreground, fontFamily: "Inter_700Bold" }]}>
         {value}
       </Text>
@@ -86,17 +87,17 @@ export default function Dashboard() {
           <View
             style={[styles.logoMark, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "44" }]}
           >
-            <Ionicons name="shield-checkmark" size={18} color={colors.primary} />
+            <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
           </View>
           <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
             ShieldID
           </Text>
         </View>
         <TouchableOpacity
-          style={[styles.notifBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+          style={styles.notifBtn}
           onPress={() => router.push("/(tabs)/alerts")}
         >
-          <Ionicons name="notifications" size={20} color={colors.foreground} />
+          <Ionicons name="notifications" size={24} color={colors.foreground} />
           {activeThreats > 0 && (
             <View style={[styles.notifBadge, { backgroundColor: colors.danger }]}>
               <Text style={styles.notifBadgeText}>{activeThreats}</Text>
@@ -118,195 +119,184 @@ export default function Dashboard() {
         }
       >
         {/* Status Banner */}
-        <GlassCard style={styles.statusBanner}>
-          <View style={[styles.statusDot, { backgroundColor: colors.success + "22" }]}>
-            <View style={[styles.statusDotInner, { backgroundColor: colors.success }]} />
-          </View>
-          <View style={styles.statusText}>
-            <Text style={[styles.statusTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              Identity Shield Active
-            </Text>
-            <Text style={[styles.statusSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Monitoring {user.monitored} verified accounts 24/7
-            </Text>
-          </View>
-          <Ionicons name="shield-checkmark" size={28} color={colors.success} />
-        </GlassCard>
+        <Animated.View entering={FadeInDown.delay(0).springify()}>
+          <GlassCard accent style={styles.statusBanner}>
+            <View style={styles.statusText}>
+              <Text style={[styles.statusTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Identity Shield Active
+              </Text>
+              <Text style={[styles.statusSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Monitoring {user.monitored} verified accounts
+              </Text>
+            </View>
+          </GlassCard>
+        </Animated.View>
 
         {/* Security Score */}
-        <GlassCard style={styles.scoreCard}>
-          <LinearGradient
-            colors={["#3B82F611", "transparent"]}
-            style={StyleSheet.absoluteFill}
-          />
-          <Text
-            style={[styles.scoreCardTitle, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
-          >
-            Identity Risk Score
-          </Text>
-          <View style={styles.scoreRow}>
-            <SecurityScoreRing score={user.securityScore} size={160} />
-            <View style={styles.scoreMeta}>
-              <View style={[styles.trendBadge, { backgroundColor: colors.success + "22" }]}>
-                <Ionicons name="trending-up" size={14} color={colors.success} />
-                <Text style={[styles.trendText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
-                  +{user.scoreTrend} this week
-                </Text>
-              </View>
-              <Text style={[styles.lastScan, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Last scan: {user.lastScan}
-              </Text>
-            </View>
-          </View>
-        </GlassCard>
-
-        {/* Identity Fingerprint */}
-        <GlassCard style={[styles.fingerprintCard, { borderColor: colors.primary + "44" }]}>
-          <LinearGradient
-            colors={["#3B82F60D", "transparent"]}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.fingerprintHeader}>
-            <View style={[styles.fpIcon, { backgroundColor: colors.primary + "22" }]}>
-              <MaterialCommunityIcons name="fingerprint" size={20} color={colors.primary} />
-            </View>
-            <View style={styles.fpTextCol}>
-              <Text style={[styles.fpTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Identity Fingerprint Active
-              </Text>
-              <Text style={[styles.fpUpdated, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Updated {user.fingerprintUpdated}
-              </Text>
-            </View>
-            <View style={[styles.fpActiveDot, { backgroundColor: colors.success }]} />
-          </View>
-          <View style={styles.fpStats}>
-            <FingerprintStat label="Photos" value={String(user.totalPhotosIndexed)} />
-            <View style={[styles.fpDivider, { backgroundColor: colors.border }]} />
-            <FingerprintStat label="Captions" value={String(user.totalCaptionsIndexed)} />
-            <View style={[styles.fpDivider, { backgroundColor: colors.border }]} />
-            <FingerprintStat label="Reels" value={String(user.reelsIndexed)} />
-            <View style={[styles.fpDivider, { backgroundColor: colors.border }]} />
-            <FingerprintStat label="Platforms" value={String(user.monitored)} />
-          </View>
-        </GlassCard>
-
-        {/* Overview Stats */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            Overview
-          </Text>
-        </View>
-        <View style={styles.statsGrid}>
-          <StatCard
-            label="Active Threats"
-            value={String(activeThreats)}
-            valueColor={activeThreats > 0 ? colors.danger : colors.success}
-            icon={
-              <MaterialCommunityIcons
-                name="alert-circle"
-                size={22}
-                color={activeThreats > 0 ? colors.danger : colors.success}
-              />
-            }
-          />
-          <StatCard
-            label="Fake Accounts"
-            value={String(fakeAccounts)}
-            valueColor={fakeAccounts > 0 ? colors.warning : colors.success}
-            icon={
-              <Ionicons
-                name="search"
-                size={22}
-                color={fakeAccounts > 0 ? colors.warning : colors.success}
-              />
-            }
-          />
-          <StatCard
-            label="Leaked Credentials"
-            value={String(leakedPasswords)}
-            valueColor={leakedPasswords > 0 ? colors.warning : colors.success}
-            icon={
-              <Ionicons
-                name="lock-open"
-                size={22}
-                color={leakedPasswords > 0 ? colors.warning : colors.success}
-              />
-            }
-          />
-          <StatCard
-            label="Monitored"
-            value={monitoredCount > 0 ? `${monitoredCount} Accts` : "None"}
-            valueColor={monitoredCount > 0 ? colors.success : colors.mutedForeground}
-            icon={
-              <MaterialCommunityIcons
-                name="shield-check"
-                size={22}
-                color={monitoredCount > 0 ? colors.success : colors.mutedForeground}
-              />
-            }
-          />
-        </View>
-
-        {/* Connected Accounts */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            Verified Accounts
-          </Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/profile" as any)}>
-            <Text style={[styles.seeAll, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
-              Manage
+        <Animated.View entering={FadeInDown.delay(80).springify()}>
+          <GlassCard style={styles.scoreCard}>
+            <LinearGradient
+              colors={["#3B82F611", "transparent"]}
+              style={StyleSheet.absoluteFill}
+            />
+            <Text
+              style={[styles.scoreCardTitle, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
+            >
+              Identity Risk Score
             </Text>
-          </TouchableOpacity>
-        </View>
-        <GlassCard style={styles.accountsCard}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.accountsRow}>
-              {user.connectedAccounts.map((acc) => (
-                <View key={acc.platform} style={styles.accountItem}>
-                  <View style={styles.accountIconWrap}>
-                    <PlatformIcon platform={acc.platform!} size={46} />
-                    <View style={[styles.verifiedDot, { backgroundColor: colors.success, borderColor: colors.card }]}>
-                      <Ionicons name="checkmark" size={8} color="#FFFFFF" />
-                    </View>
-                  </View>
-                  <Text style={[styles.accountPhotos, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    {acc.photosIndexed} photos
-                  </Text>
-                </View>
-              ))}
-              <TouchableOpacity
-                style={[styles.addAccount, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-              >
-                <Ionicons name="add" size={22} color={colors.mutedForeground} />
-              </TouchableOpacity>
+            <View style={styles.scoreRow}>
+              <SecurityScoreRing score={user.securityScore} size={180} />
             </View>
-          </ScrollView>
-        </GlassCard>
-
-        {/* Recent Alerts */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            Recent Threats
-          </Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/alerts")}>
-            <Text style={[styles.seeAll, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
-              View All
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {recentThreats.length === 0 ? (
-          <GlassCard style={styles.noThreats}>
-            <Ionicons name="shield-checkmark" size={32} color={colors.success} />
-            <Text style={[styles.noThreatsText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              No active threats detected
+            <Text style={[styles.lastScan, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Last scan: {user.lastScan}
             </Text>
           </GlassCard>
-        ) : (
-          recentThreats.map((t) => (
-            <ThreatCard key={t.id} threat={t} compact />
-          ))
-        )}
+        </Animated.View>
+
+        {/* Identity Fingerprint */}
+        <Animated.View entering={FadeInDown.delay(160).springify()}>
+          <GlassCard style={styles.fingerprintCard}>
+            <LinearGradient
+              colors={["#3B82F60D", "transparent"]}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.fingerprintHeader}>
+              <MaterialCommunityIcons name="fingerprint" size={24} color={colors.primary} />
+              <View style={styles.fpTextCol}>
+                <Text style={[styles.fpTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  Identity Fingerprint
+                </Text>
+              </View>
+              <View style={[styles.fpActiveDot, { backgroundColor: colors.success }]} />
+            </View>
+            <View style={styles.fpStats}>
+              <FingerprintStat label="Photos" value={String(user.totalPhotosIndexed)} />
+              <FingerprintStat label="Captions" value={String(user.totalCaptionsIndexed)} />
+              <FingerprintStat label="Reels" value={String(user.reelsIndexed)} />
+              <FingerprintStat label="Platforms" value={String(user.monitored)} />
+            </View>
+          </GlassCard>
+        </Animated.View>
+
+        {/* Overview Stats */}
+        <Animated.View entering={FadeInDown.delay(240).springify()}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Overview
+            </Text>
+          </View>
+          <View style={styles.statsGrid}>
+            <StatCard
+              label="Active Threats"
+              value={String(activeThreats)}
+              valueColor={activeThreats > 0 ? colors.danger : colors.success}
+              icon={
+                <MaterialCommunityIcons
+                  name="alert-circle"
+                  size={24}
+                  color={activeThreats > 0 ? colors.danger : colors.success}
+                />
+              }
+            />
+            <StatCard
+              label="Fake Accounts"
+              value={String(fakeAccounts)}
+              valueColor={fakeAccounts > 0 ? colors.warning : colors.success}
+              icon={
+                <Ionicons
+                  name="search"
+                  size={24}
+                  color={fakeAccounts > 0 ? colors.warning : colors.success}
+                />
+              }
+            />
+            <StatCard
+              label="Leaked Credentials"
+              value={String(leakedPasswords)}
+              valueColor={leakedPasswords > 0 ? colors.warning : colors.success}
+              icon={
+                <Ionicons
+                  name="lock-open"
+                  size={24}
+                  color={leakedPasswords > 0 ? colors.warning : colors.success}
+                />
+              }
+            />
+            <StatCard
+              label="Monitored"
+              value={monitoredCount > 0 ? `${monitoredCount}` : "None"}
+              valueColor={monitoredCount > 0 ? colors.success : colors.mutedForeground}
+              icon={
+                <MaterialCommunityIcons
+                  name="shield-check"
+                  size={24}
+                  color={monitoredCount > 0 ? colors.success : colors.mutedForeground}
+                />
+              }
+            />
+          </View>
+        </Animated.View>
+
+        {/* Connected Accounts */}
+        <Animated.View entering={FadeInDown.delay(320).springify()}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Verified Accounts
+            </Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/profile" as any)}>
+              <Text style={[styles.seeAll, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+                Manage
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <GlassCard style={styles.accountsCard}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.accountsRow}>
+                {user.connectedAccounts.map((acc) => (
+                  <View key={acc.platform} style={styles.accountItem}>
+                    <View style={styles.accountIconWrap}>
+                      <PlatformIcon platform={acc.platform!} size={46} />
+                      <View style={[styles.verifiedDot, { backgroundColor: colors.success, borderColor: colors.card }]}>
+                        <Ionicons name="checkmark" size={8} color="#FFFFFF" />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={[styles.addAccount, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                >
+                  <Ionicons name="add" size={24} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </GlassCard>
+        </Animated.View>
+
+        {/* Recent Alerts */}
+        <Animated.View entering={FadeInDown.delay(400).springify()}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Recent Threats
+            </Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/alerts")}>
+              <Text style={[styles.seeAll, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+                View All
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {recentThreats.length === 0 ? (
+            <GlassCard style={styles.noThreats}>
+              <Ionicons name="shield-checkmark" size={32} color={colors.success} />
+              <Text style={[styles.noThreatsText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                No active threats detected
+              </Text>
+            </GlassCard>
+          ) : (
+            recentThreats.map((t) => (
+              <ThreatCard key={t.id} threat={t} compact />
+            ))
+          )}
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -322,10 +312,10 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderBottomWidth: 1,
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoMark: {
-    width: 34,
-    height: 34,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -333,17 +323,13 @@ const styles = StyleSheet.create({
   },
   logoText: { fontSize: 20 },
   notifBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
+    position: "relative",
+    padding: 4,
   },
   notifBadge: {
     position: "absolute",
-    top: -2,
-    right: -2,
+    top: 0,
+    right: 0,
     width: 16,
     height: 16,
     borderRadius: 8,
@@ -351,74 +337,44 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   notifBadgeText: { color: "#FFFFFF", fontSize: 9, fontWeight: "700" },
-  content: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
+  content: { paddingHorizontal: 20, paddingTop: 16, gap: 16 },
 
-  statusBanner: { flexDirection: "row", alignItems: "center", gap: 12 },
-  statusDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  statusDotInner: { width: 10, height: 10, borderRadius: 5 },
+  statusBanner: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
   statusText: { flex: 1, gap: 2 },
-  statusTitle: { fontSize: 14 },
-  statusSub: { fontSize: 12 },
+  statusTitle: { fontSize: 15 },
+  statusSub: { fontSize: 13 },
 
-  scoreCard: { overflow: "hidden", gap: 12 },
-  scoreCardTitle: { fontSize: 14 },
-  scoreRow: { flexDirection: "row", alignItems: "center", gap: 20 },
-  scoreMeta: { flex: 1, gap: 12 },
-  trendBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: "flex-start",
-  },
-  trendText: { fontSize: 12 },
-  lastScan: { fontSize: 12 },
+  scoreCard: { alignItems: "center", gap: 16, paddingVertical: 24 },
+  scoreCardTitle: { fontSize: 15 },
+  scoreRow: { alignItems: "center", justifyContent: "center" },
+  lastScan: { fontSize: 13, marginTop: 4 },
 
-  fingerprintCard: { overflow: "hidden", gap: 14 },
+  fingerprintCard: { gap: 16 },
   fingerprintHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  fpIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   fpTextCol: { flex: 1 },
-  fpTitle: { fontSize: 14 },
-  fpUpdated: { fontSize: 11 },
+  fpTitle: { fontSize: 15 },
   fpActiveDot: { width: 8, height: 8, borderRadius: 4 },
-  fpStats: { flexDirection: "row", alignItems: "center" },
-  fpStat: { flex: 1, alignItems: "center", gap: 2 },
+  fpStats: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8 },
+  fpStat: { alignItems: "center", gap: 4 },
   fpStatValue: { fontSize: 18 },
-  fpStatLabel: { fontSize: 11 },
-  fpDivider: { width: 1, height: 32 },
+  fpStatLabel: { fontSize: 12 },
 
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 4,
+    marginTop: 8,
   },
   sectionTitle: { fontSize: 16 },
   seeAll: { fontSize: 14 },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  statCard: { width: "47.5%", alignItems: "flex-start", gap: 8 },
-  statIcon: { marginBottom: 2 },
-  statValue: { fontSize: 22 },
-  statLabel: { fontSize: 12 },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  statCard: { width: "48%", alignItems: "flex-start", gap: 12, padding: 18 },
+  statValue: { fontSize: 24 },
+  statLabel: { fontSize: 13 },
 
-  accountsCard: { paddingVertical: 12 },
-  accountsRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  accountItem: { alignItems: "center", gap: 4 },
+  accountsCard: { paddingVertical: 16 },
+  accountsRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  accountItem: { alignItems: "center" },
   accountIconWrap: { position: "relative" },
   verifiedDot: {
     position: "absolute",
@@ -431,7 +387,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  accountPhotos: { fontSize: 10 },
   addAccount: {
     width: 46,
     height: 46,
@@ -442,7 +397,6 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
 
-  noThreats: { alignItems: "center", gap: 10, paddingVertical: 8 },
+  noThreats: { alignItems: "center", gap: 10, paddingVertical: 12 },
   noThreatsText: { fontSize: 14 },
-
 });

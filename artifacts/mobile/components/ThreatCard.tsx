@@ -5,14 +5,7 @@ import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { Threat, ThreatType, Severity } from "@/context/AppContext";
 import { GlassCard } from "./GlassCard";
-
-function severityColor(severity: Severity, colors: ReturnType<typeof useColors>) {
-  switch (severity) {
-    case "high": return colors.danger;
-    case "medium": return colors.warning;
-    case "low": return colors.success;
-  }
-}
+import { severityColor } from "@/lib/severity";
 
 function threatIcon(type: ThreatType): { name: string; lib: "ionicons" | "mci" } {
   switch (type) {

@@ -13,6 +13,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
@@ -38,6 +39,20 @@ export default function ScanScreen() {
   const [lastResult, setLastResult] = useState<{ threatsFound: number; time: string } | null>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
   const prevScanning = useRef(false);
+
+  const btnScale = useSharedValue(1);
+
+  const animatedProgressStyle = useAnimatedStyle(() => {
+    return {
+      width: withTiming(`${scanProgress}%`, { duration: 300 }),
+    };
+  });
+
+  const animatedBtnStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: btnScale.value }],
+    };
+  });
 
   useEffect(() => {
     if (isScanning) {
@@ -82,8 +97,8 @@ export default function ScanScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={["#3B82F611", "transparent"]}
-        style={[styles.topGradient, { height: 300 }]}
+        colors={[colors.primary + "1A", "transparent"]}
+        style={[styles.topGradient, { height: 400 }]}
       />
 
       {/* Header */}
@@ -126,7 +141,7 @@ export default function ScanScreen() {
               ) : (
                 <Ionicons
                   name="shield-checkmark"
-                  size={52}
+                  size={60}
                   color={colors.success}
                 />
               )}
@@ -164,7 +179,7 @@ export default function ScanScreen() {
           <GlassCard style={styles.statItem}>
             <MaterialCommunityIcons
               name="radar"
-              size={22}
+              size={24}
               color={colors.primary}
             />
             <Text
@@ -187,7 +202,7 @@ export default function ScanScreen() {
           <GlassCard style={styles.statItem}>
             <Ionicons
               name="alert-circle"
-              size={22}
+              size={24}
               color={activeThreats > 0 ? colors.danger : colors.success}
             />
             <Text
@@ -214,7 +229,7 @@ export default function ScanScreen() {
           <GlassCard style={styles.statItem}>
             <MaterialCommunityIcons
               name="account-multiple-remove"
-              size={22}
+              size={24}
               color={fakeAccounts > 0 ? colors.warning : colors.success}
             />
             <Text
@@ -255,13 +270,11 @@ export default function ScanScreen() {
         {/* Progress bar when scanning */}
         {isScanning && (
           <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-            <View
+            <Reanimated.View
               style={[
                 styles.progressFill,
-                {
-                  backgroundColor: colors.primary,
-                  width: `${scanProgress}%`,
-                },
+                { backgroundColor: colors.primary },
+                animatedProgressStyle,
               ]}
             />
           </View>
@@ -271,6 +284,7 @@ export default function ScanScreen() {
         {lastResult && !isScanning && (
           <Animated.View style={{ opacity: resultOpacity, width: "100%" }}>
             <GlassCard
+              accent
               style={[
                 styles.resultCard,
                 {
@@ -294,7 +308,7 @@ export default function ScanScreen() {
               >
                 <Ionicons
                   name={lastResult.threatsFound > 0 ? "alert-circle" : "shield-checkmark"}
-                  size={22}
+                  size={48}
                   color={lastResult.threatsFound > 0 ? colors.danger : colors.success}
                 />
               </View>
@@ -350,42 +364,57 @@ export default function ScanScreen() {
           <>
             {/* Scan button */}
             <TouchableOpacity
-              style={[
-                styles.scanBtn,
-                {
-                  backgroundColor: isScanning ? colors.secondary : colors.primary,
-                  borderColor: isScanning ? colors.border : colors.primary,
-                },
-              ]}
-              activeOpacity={0.8}
+              activeOpacity={1}
+              onPressIn={() => btnScale.value = withSpring(0.97)}
+              onPressOut={() => btnScale.value = withSpring(1)}
               onPress={handleScan}
               disabled={isScanning}
+              style={{ width: "100%" }}
             >
-              {isScanning ? (
-                <>
-                  <ActivityIndicator color={colors.mutedForeground} size="small" />
-                  <Text
-                    style={[
-                      styles.scanBtnText,
-                      { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-                    ]}
-                  >
-                    Scanning…
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="radar" size={20} color="#FFFFFF" />
-                  <Text
-                    style={[
-                      styles.scanBtnText,
-                      { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" },
-                    ]}
-                  >
-                    Start Full Scan
-                  </Text>
-                </>
-              )}
+              <Reanimated.View
+                style={[
+                  styles.scanBtn,
+                  {
+                    backgroundColor: isScanning ? colors.secondary : colors.primary,
+                    borderColor: isScanning ? colors.border : colors.primary,
+                  },
+                  animatedBtnStyle,
+                ]}
+              >
+                {!isScanning && (
+                  <LinearGradient
+                    colors={[colors.primaryForeground + "11", "transparent"]}
+                    style={StyleSheet.absoluteFill}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                  />
+                )}
+                {isScanning ? (
+                  <>
+                    <ActivityIndicator color={colors.mutedForeground} size="small" />
+                    <Text
+                      style={[
+                        styles.scanBtnText,
+                        { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+                      ]}
+                    >
+                      Scanning…
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="radar" size={24} color="#FFFFFF" />
+                    <Text
+                      style={[
+                        styles.scanBtnText,
+                        { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" },
+                      ]}
+                    >
+                      Start Full Scan
+                    </Text>
+                  </>
+                )}
+              </Reanimated.View>
             </TouchableOpacity>
 
             <Text
@@ -395,7 +424,7 @@ export default function ScanScreen() {
               ]}
             >
               Scans all {user.monitored} connected account{user.monitored !== 1 ? "s" : ""} for impersonators,
-              stolen photos, and data breaches
+              stolen photos, and data breaches.
             </Text>
           </>
         )}
@@ -427,9 +456,9 @@ const styles = StyleSheet.create({
   },
   scanCore: {
     position: "absolute",
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -438,55 +467,57 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
     borderWidth: 1,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 14 },
   stepText: { fontSize: 13, textAlign: "center" },
   statsRow: { flexDirection: "row", gap: 10, width: "100%" },
-  statItem: { flex: 1, alignItems: "center", gap: 6 },
+  statItem: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 14 },
   statValue: { fontSize: 20 },
   statLabel: { fontSize: 11, textAlign: "center" },
   lastScanRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   lastScan: { fontSize: 13 },
   progressTrack: {
     width: "100%",
-    height: 4,
-    borderRadius: 2,
+    height: 6,
+    borderRadius: 3,
     overflow: "hidden",
   },
-  progressFill: { height: "100%", borderRadius: 2 },
+  progressFill: { height: "100%", borderRadius: 3 },
   resultCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 16,
     width: "100%",
+    padding: 20,
   },
   resultIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
   },
   resultText: { flex: 1, gap: 2 },
-  resultTitle: { fontSize: 13 },
-  resultSub: { fontSize: 12 },
+  resultTitle: { fontSize: 15 },
+  resultSub: { fontSize: 13 },
   scanBtn: {
     width: "100%",
-    height: 56,
-    borderRadius: 28,
+    height: 60,
+    borderRadius: 32,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
     borderWidth: 1,
+    overflow: "hidden",
   },
-  scanBtnText: { fontSize: 16 },
-  scanHint: { fontSize: 13, textAlign: "center", lineHeight: 20, opacity: 0.8 },
+  scanBtnText: { fontSize: 18 },
+  scanHint: { fontSize: 14, textAlign: "center", lineHeight: 22, opacity: 0.8 },
   noAccountsCard: {
     width: "100%",
     alignItems: "center",

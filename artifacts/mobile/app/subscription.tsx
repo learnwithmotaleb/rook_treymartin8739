@@ -69,7 +69,7 @@ const PLAN_META: PlanMeta[] = [
     tagline: "Enterprise-grade identity protection",
     highlight: false,
     badge: "Best Value",
-    ctaColor: "#7C3AED",
+    ctaColor: undefined,
     differentiators: [
       { icon: "infinite", text: "Unlimited accounts" },
       { icon: "pulse", text: "Daily deep AI scans" },
@@ -253,7 +253,7 @@ export default function Subscription() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={["#1D4ED822", "#7C3AED11", "transparent"]}
+        colors={[colors.primaryDark + "22", colors.premium + "11", "transparent"]}
         style={styles.topGradient}
       />
 
@@ -384,7 +384,7 @@ export default function Subscription() {
 
           let borderColor = colors.border;
           if (isCurrent) borderColor = colors.primary;
-          if (isPremium) borderColor = "#7C3AED44";
+          if (isPremium) borderColor = colors.premium + "44";
 
           return (
             <GlassCard
@@ -395,7 +395,7 @@ export default function Subscription() {
                 {meta.badge ? (
                   <View style={[
                     styles.planBadge,
-                    { backgroundColor: isPremium ? "#7C3AED" : colors.primary },
+                    { backgroundColor: isPremium ? colors.premium : colors.primary },
                   ]}>
                     <Text style={[styles.planBadgeText, { fontFamily: "Inter_700Bold" }]}>{meta.badge}</Text>
                   </View>
@@ -413,12 +413,12 @@ export default function Subscription() {
               <View style={styles.planHeader}>
                 <View style={[
                   styles.planIconBg,
-                  { backgroundColor: isPremium ? "#7C3AED22" : colors.primary + "18" },
+                  { backgroundColor: isPremium ? colors.premium + "22" : colors.primary + "18" },
                 ]}>
                   <Ionicons
                     name={meta.icon as any}
                     size={22}
-                    color={isPremium ? "#7C3AED" : colors.primary}
+                    color={isPremium ? colors.premium : colors.primary}
                   />
                 </View>
                 <View style={styles.planNameBlock}>
@@ -431,12 +431,12 @@ export default function Subscription() {
                 </View>
                 <View style={styles.planPriceBlock}>
                   {price === "—" ? (
-                    <ActivityIndicator size="small" color={isPremium ? "#7C3AED" : colors.primary} />
+                    <ActivityIndicator size="small" color={isPremium ? colors.premium : colors.primary} />
                   ) : (
                     <>
                       <Text style={[
                         styles.planPrice,
-                        { color: isPremium ? "#7C3AED" : colors.primary, fontFamily: "Inter_700Bold" },
+                        { color: isPremium ? colors.premium : colors.primary, fontFamily: "Inter_700Bold" },
                       ]}>
                         {price}
                       </Text>
@@ -459,9 +459,9 @@ export default function Subscription() {
                   <View key={i} style={styles.diffRow}>
                     <View style={[
                       styles.diffIcon,
-                      { backgroundColor: isPremium ? "#7C3AED18" : colors.primary + "14" },
+                      { backgroundColor: isPremium ? colors.premium + "18" : colors.primary + "14" },
                     ]}>
-                      <Ionicons name={d.icon as any} size={13} color={isPremium ? "#7C3AED" : colors.primary} />
+                      <Ionicons name={d.icon as any} size={13} color={isPremium ? colors.premium : colors.primary} />
                     </View>
                     <Text style={[styles.diffText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
                       {d.text}
@@ -474,7 +474,7 @@ export default function Subscription() {
                 <TouchableOpacity
                   style={[
                     styles.planCta,
-                    { backgroundColor: meta.ctaColor ?? colors.primary, opacity: isLoading ? 0.7 : 1 },
+                    { backgroundColor: isPremium ? colors.premium : colors.primary, opacity: isLoading ? 0.7 : 1 },
                   ]}
                   disabled={isLoading}
                   activeOpacity={0.8}

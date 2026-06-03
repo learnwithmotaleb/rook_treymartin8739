@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Image,
   Platform,
   ScrollView,
@@ -18,13 +17,9 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, Severity, type MatchedEvidence, type ThreatScoreBreakdown } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { Skeleton } from "@/components/Skeleton";
+import { severityColor } from "@/lib/severity";
 import { getThreat, resolveThreat as apiResolveThreat, type ThreatDetail } from "@/lib/api";
-
-function severityColor(severity: Severity, colors: ReturnType<typeof useColors>) {
-  if (severity === "high") return colors.danger;
-  if (severity === "medium") return colors.warning;
-  return colors.success;
-}
 
 function ScoreGauge({ score }: { score: number }) {
   const colors = useColors();
@@ -265,7 +260,7 @@ export default function ThreatDetail() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={colors.foreground} />
@@ -275,12 +270,19 @@ export default function ThreatDetail() {
           </Text>
           <View style={{ width: 30 }} />
         </View>
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={[styles.loadingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Loading threat details…
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 24 }]}>
+          <View style={styles.topRow}>
+            <View style={[styles.topRowLeft, { gap: 10 }]}>
+              <Skeleton height={22} width="50%" borderRadius={20} />
+              <Skeleton height={28} width="90%" borderRadius={8} />
+              <Skeleton height={14} width="55%" borderRadius={6} />
+            </View>
+            <Skeleton width={100} height={100} borderRadius={50} />
+          </View>
+          <Skeleton height={170} borderRadius={14} />
+          <Skeleton height={190} borderRadius={14} />
+          <Skeleton height={130} borderRadius={14} />
+        </ScrollView>
       </View>
     );
   }
@@ -577,15 +579,15 @@ const styles = StyleSheet.create({
 
   gaugeContainer: { alignItems: "center", gap: 6 },
   gaugeOuter: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
-  gaugeScore: { fontSize: 22 },
+  gaugeScore: { fontSize: 26 },
   gaugeLabel: { fontSize: 11 },
   gaugeRisk: { fontSize: 11 },
 
