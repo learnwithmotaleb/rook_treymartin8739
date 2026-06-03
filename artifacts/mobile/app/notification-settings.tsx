@@ -17,7 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
-import { requestPushPermission } from "@/hooks/useNotifications";
+import { requestPushPermission, applyNotificationPreferences } from "@/hooks/useNotifications";
 import { registerPushToken, deregisterPushToken } from "@/lib/api";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
@@ -180,7 +180,9 @@ export default function NotificationSettings() {
 
   const save = useCallback((next: NotifPrefs) => {
     setPrefs(next);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).then(() => {
+      applyNotificationPreferences().catch(() => {});
+    });
   }, []);
 
   const toggle = (key: keyof NotifPrefs, value: boolean) => {

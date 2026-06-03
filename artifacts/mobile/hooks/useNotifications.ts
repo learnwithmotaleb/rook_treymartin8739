@@ -170,6 +170,41 @@ async function scheduleWeeklyReminder(): Promise<void> {
   });
 }
 
+export async function applyNotificationPreferences(): Promise<void> {
+  if (Platform.OS === "web") return;
+  const prefs = await getPrefs();
+  const pushOn = prefs.pushAlerts !== false;
+  const weeklyOn = pushOn && prefs.weeklyDigest !== false;
+
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const weeklyNotif = scheduled.find(
+    (n) => (n.content.data as any)?.screen === "dashboard"
+  );
+
+  if (!weeklyOn) {
+    if (weeklyNotif) {
+      await Notifications.cancelScheduledNotificationAsync(weeklyNotif.identifier);
+    }
+  } else {
+    if (!weeklyNotif) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "🛡️ Your Identity is Protected",
+          body: "ShieldID has been monitoring your accounts. Tap to see your security status.",
+          data: { screen: "dashboard" },
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+          weekday: 2,
+          hour: 10,
+          minute: 0,
+        },
+      });
+    }
+  }
+}
+
 export function useNotifications(isLoggedIn: boolean): {
   registerPush: () => Promise<void>;
   deregisterPush: () => Promise<void>;
