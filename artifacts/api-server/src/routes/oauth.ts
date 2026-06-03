@@ -242,6 +242,15 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
   }
 });
 
+// ─── OAuth config — returns the current redirect URIs for this deployment ────
+// Used by the mobile app to keep its redirect_uri in sync with the server.
+router.get("/oauth/redirect-uris", (_req, res) => {
+  res.json({
+    instagram: `https://${DOMAIN}/api/oauth/instagram/callback`,
+    facebook:  `https://${DOMAIN}/api/oauth/facebook/callback`,
+  });
+});
+
 // ─── Developer Setup Guide ────────────────────────────────────────────────────
 router.get("/oauth/setup", (_req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");

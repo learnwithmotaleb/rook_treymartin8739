@@ -273,3 +273,7 @@ export async function deregisterPushToken(
     method: "DELETE",
   });
 }
+
+export async function getOAuthRedirectUris(): Promise<Record<string, string>> {
+  return apiFetch<Record<string, string>>("/oauth/redirect-uris");
+}

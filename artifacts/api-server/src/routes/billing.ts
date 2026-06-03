@@ -16,7 +16,7 @@ const router: IRouter = Router();
 function getStripe(): Stripe {
   const key = process.env["STRIPE_SECRET_KEY"];
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
-  return new Stripe(key, { apiVersion: "2024-06-20" });
+  return new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
 }
 
 function getPriceId(tier: "pro" | "premium", cycle: "monthly" | "yearly"): string {
@@ -209,7 +209,7 @@ router.post("/billing/webhook", async (req, res): Promise<void> => {
           tier,
           status: stripeSub.status === "trialing" ? "trialing" : "active",
           billingCycle,
-          currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+          currentPeriodEnd: new Date(((stripeSub as any)["current_period_end"] as number) * 1000),
           cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
           trialEnd: stripeSub.trial_end
             ? new Date(stripeSub.trial_end * 1000)
@@ -230,7 +230,7 @@ router.post("/billing/webhook", async (req, res): Promise<void> => {
           ? "canceled"
           : (stripeSub.status as "active" | "trialing" | "past_due"),
         billingCycle,
-        currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+        currentPeriodEnd: new Date(((stripeSub as any)["current_period_end"] as number) * 1000),
         cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
         trialEnd: stripeSub.trial_end
           ? new Date(stripeSub.trial_end * 1000)
@@ -245,7 +245,7 @@ router.post("/billing/webhook", async (req, res): Promise<void> => {
         tier: "free",
         status: "canceled",
         billingCycle: "monthly",
-        currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+        currentPeriodEnd: new Date(((stripeSub as any)["current_period_end"] as number) * 1000),
         cancelAtPeriodEnd: false,
       };
       await upsertSubscriptionFromStripe(data);

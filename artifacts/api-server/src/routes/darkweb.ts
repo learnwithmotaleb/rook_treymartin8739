@@ -61,15 +61,15 @@ router.get("/dark-web", async (req, res): Promise<void> => {
   }));
 
   res.json({
-    monitoredEmail: maskEmail(user.email),
-    monitoredUsername: user.username,
+    monitoredEmail: maskEmail(user.email ?? ""),
+    monitoredUsername: user.username ?? "",
     mentions,
     breaches,
     totalExposures: mentions.length + breaches.length,
     lastChecked: new Date().toISOString(),
     monitored: [
-      { type: "Email Address", value: maskEmail(user.email), status: mentions.length + breaches.length > 0 ? "exposed" : "clean" },
-      { type: "Username", value: user.username, status: darkWebThreats.some((t) => !t.resolved) ? "mentioned" : "clean" },
+      { type: "Email Address", value: maskEmail(user.email ?? ""), status: mentions.length + breaches.length > 0 ? "exposed" : "clean" },
+      { type: "Username", value: user.username ?? "", status: darkWebThreats.some((t) => !t.resolved) ? "mentioned" : "clean" },
       { type: "Passwords", value: "Hashed credentials", status: breachThreats.some((t) => !t.resolved) ? "exposed" : "clean" },
     ],
   });

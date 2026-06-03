@@ -280,7 +280,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ]);
       setUser(mapProfileToUser(profile, accounts));
       setThreats(summaries.map(mapSummaryToThreat));
-    } catch {
+    } catch (err) {
+      // Retry once after a short delay — the auth token getter may not be
+      // ready on the very first call (race between Clerk token hydration and
+      // the initial login() call).
+      setTimeout(async () => {
+        try {
+          const [profile, accounts, summaries] = await Promise.all([
+            getMe(),
+            getAccounts(),
+            listThreats(),
+          ]);
+          setUser(mapProfileToUser(profile, accounts));
+          setThreats(summaries.map(mapSummaryToThreat));
+        } catch {
+          // Silently fail on retry — user stays on the empty default state
+        }
+      }, 1500);
     }
   }, []);
 

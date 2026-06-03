@@ -22,7 +22,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { getAccounts } from "@/lib/api";
+import { getAccounts, getOAuthRedirectUris } from "@/lib/api";
 
 interface PlatformConfig {
   label: string;
@@ -35,8 +35,6 @@ interface PlatformConfig {
   usernamePrefix?: string;
   businessAccountNote?: string;
 }
-
-const DOMAIN = process.env["EXPO_PUBLIC_DOMAIN"] ?? "";
 
 const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
   instagram: {
@@ -118,9 +116,13 @@ function getClientId(platform: string): string | undefined {
   return (process.env as Record<string, string | undefined>)[key];
 }
 
-function buildAuthUrl(platform: string, clientId: string, state: string): string {
+function buildAuthUrl(
+  platform: string,
+  clientId: string,
+  state: string,
+  redirectUri: string
+): string {
   const config = PLATFORM_CONFIGS[platform]!;
-  const redirectUri = `https://${DOMAIN}${config.callbackPath}`;
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -155,9 +157,14 @@ function OAuthButton({
       const existingAccount = accountsBefore.find((a) => a.platform === platform);
       const prevLastSynced = existingAccount?.lastSynced ?? null;
 
+      // Fetch the redirect URI from the server so both sides always agree on
+      // the exact URL — avoids mismatch between EXPO_PUBLIC_DOMAIN and the
+      // domain registered in the Meta Developer Console.
+      const redirectUris = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
+      const redirectUrl = redirectUris[platform] ?? `${process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : ""}${config.callbackPath}`;
+
       const token = (await getToken()) ?? "";
-      const authUrl = buildAuthUrl(platform, clientId, token);
-      const redirectUrl = `https://${DOMAIN}${config.callbackPath}`;
+      const authUrl = buildAuthUrl(platform, clientId, token, redirectUrl);
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
       // Always poll after the browser closes — the server may have processed the

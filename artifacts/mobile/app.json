@@ -9,22 +9,29 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
+      "image": "./assets/images/splash.png",
+      "resizeMode": "cover",
       "backgroundColor": "#070B12"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.shieldid.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "ShieldID uses your camera to scan photos for your identity fingerprint.",
         "NSPhotoLibraryUsageDescription": "ShieldID accesses your photos to build your identity fingerprint and detect stolen images.",
         "NSUserNotificationsUsageDescription": "ShieldID sends real-time alerts when threats to your identity are detected.",
+        "NSFaceIDUsageDescription": "ShieldID uses Face ID to protect access to your identity data.",
         "UIBackgroundModes": ["fetch", "remote-notification"]
       }
     },
     "android": {
       "package": "com.shieldid.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#070B12"
+      },
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
