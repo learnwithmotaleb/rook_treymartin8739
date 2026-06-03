@@ -12,15 +12,31 @@ interface GlassCardProps {
   onPress?: () => void;
 }
 
+function PressableCard({
+  children,
+  onPress,
+}: {
+  children: React.ReactNode;
+  onPress?: () => void;
+}) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  return (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPressIn={() => (scale.value = withSpring(0.98))}
+      onPressOut={() => (scale.value = withSpring(1))}
+      onPress={onPress}
+    >
+      <Animated.View style={animatedStyle}>{children}</Animated.View>
+    </TouchableOpacity>
+  );
+}
+
 export function GlassCard({ children, style, noPadding, accent, pressable, onPress }: GlassCardProps) {
   const colors = useColors();
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scale.value }],
-    };
-  });
 
   const cardStyle = [
     styles.card,
@@ -34,25 +50,10 @@ export function GlassCard({ children, style, noPadding, accent, pressable, onPre
     style,
   ];
 
-  const content = (
-    <View style={cardStyle}>
-      {children}
-    </View>
-  );
+  const content = <View style={cardStyle}>{children}</View>;
 
   if (pressable || onPress) {
-    return (
-      <TouchableOpacity
-        activeOpacity={1}
-        onPressIn={() => (scale.value = withSpring(0.98))}
-        onPressOut={() => (scale.value = withSpring(1))}
-        onPress={onPress}
-      >
-        <Animated.View style={animatedStyle}>
-          {content}
-        </Animated.View>
-      </TouchableOpacity>
-    );
+    return <PressableCard onPress={onPress}>{content}</PressableCard>;
   }
 
   return content;

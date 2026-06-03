@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
@@ -121,6 +122,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, logout } = useApp();
+  const { signOut } = useAuth();
   const { pushOn, emailOn, biometric, twoFactor } = useStoredPrefs();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -136,9 +138,9 @@ export default function ProfileScreen() {
       {
         text: "Sign Out",
         style: "destructive",
-        onPress: () => {
+        onPress: async () => {
+          await signOut();
           logout();
-          router.replace("/auth" as any);
         },
       },
     ]);

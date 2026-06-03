@@ -21,11 +21,19 @@ export async function requireAuth(
   try {
     const auth = getAuth(req);
     const clerkUserId = auth?.userId;
+    const hasAuthHeader = !!req.headers["authorization"];
 
     if (clerkUserId) {
       const dbUser = await getOrCreateUserByClerkId(clerkUserId, auth);
       req.userId = dbUser.id;
+      req.log.info({ clerkUserId, userId: dbUser.id }, "requireAuth: clerk user");
       return next();
+    }
+
+    if (hasAuthHeader) {
+      req.log.warn({ authHeader: req.headers["authorization"]?.slice(0, 20) }, "requireAuth: auth header present but Clerk could not verify — falling back to demo");
+    } else {
+      req.log.warn("requireAuth: no auth header — falling back to demo user");
     }
 
     const demo = await getOrCreateDemoUser();
