@@ -7,7 +7,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useRef } from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@clerk/expo";
+import { useAuth, useUser } from "@clerk/expo";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -135,7 +135,9 @@ function ClassicTabLayout() {
 
 export default function TabLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { user: clerkUser } = useUser();
   const { login, logout, hasSeenOnboarding, isInitializing } = useApp();
+  const colors = useColors();
 
   // Keep a stable ref to getToken so the effect below doesn't need it as a
   // dependency. Clerk sometimes returns a new function reference on every
@@ -145,8 +147,6 @@ export default function TabLayout() {
 
   useEffect(() => {
     // Wait for both Clerk AND AsyncStorage to finish loading before doing anything.
-    // If we act before isLoaded/isInitializing resolve, isSignedIn and
-    // hasSeenOnboarding are wrong defaults and we'd set a null token.
     if (!isLoaded || isInitializing) return;
     if (!isSignedIn) {
       logout();
@@ -156,17 +156,21 @@ export default function TabLayout() {
       // setApiAuthToken must be called BEFORE login() so that the getter is
       // ready when refreshData() fires inside login().
       setApiAuthToken(() => getTokenRef.current());
-      login("", "");
+      // Pass real name/email from Clerk so the DB record gets the user's actual
+      // display name instead of the "Shield User" JIT-provisioning fallback.
+      const name = clerkUser?.fullName ?? clerkUser?.firstName ?? "";
+      const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
+      login(name, email);
     }
   // getToken intentionally omitted — accessed via ref to keep this effect stable
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isInitializing, isSignedIn, hasSeenOnboarding, login, logout]);
+  }, [isLoaded, isInitializing, isSignedIn, hasSeenOnboarding, login, logout, clerkUser]);
 
-  // Show nothing while Clerk or AsyncStorage are still loading.
-  // This prevents flash-redirects to /auth or /onboarding for returning users
-  // whose stored state hasn't been read from AsyncStorage yet.
+  // Render a blank screen (not null) while loading — returning null from a
+  // layout component breaks expo-router's component tree on web and causes
+  // "Invalid hook call" errors in child screens.
   if (!isLoaded || isInitializing) {
-    return null;
+    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 
   if (!isSignedIn) {

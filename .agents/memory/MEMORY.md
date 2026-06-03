@@ -1,1 +1,4 @@
 - [Auth timing race](auth-timing-race.md) — tabs layout must gate redirects on both `isLoaded` (Clerk) AND `isInitializing` (AsyncStorage) or returning users get flash-redirected to demo data.
+- [useColors web fix](useColors-web-fix.md) — never call useColorScheme() from react-native in this app; it causes Invalid hook call on Expo web.
+- [Clerk name sync](clerk-name-sync.md) — JIT-provisioned users get "Shield User" fallback; tabs layout syncs real name via useUser() + updateMe() on every login.
+- [tabs layout null return](tabs-layout-null.md) — returning null from a layout component in expo-router breaks component trees on web; always return a View instead.
