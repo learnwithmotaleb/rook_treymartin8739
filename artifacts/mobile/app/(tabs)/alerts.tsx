@@ -27,7 +27,7 @@ const FILTERS: { label: string; value: Filter }[] = [
   { label: "Low", value: "low" },
 ];
 
-const FREE_VISIBLE_THREATS = 1;
+const FREE_VISIBLE_THREATS = 5;
 
 function LockedThreatCard({ threat, colors }: { threat: Threat; colors: ReturnType<typeof useColors> }) {
   const severityColor =

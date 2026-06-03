@@ -665,10 +665,12 @@ async function runScanPipeline(
     await sleep(600);
   }
 
-  // Simulation for accounts with no real candidates from any source
+  // Simulation for accounts with no real candidates from any source.
+  // Only runs when the user has at least one connected account — otherwise
+  // a real user with no accounts would see fabricated threats after every scan.
   const simulatedPlatforms = connectedAccounts.map((a) => a.platform);
 
-  if (allCandidates.length === 0) {
+  if (allCandidates.length === 0 && connectedAccounts.length > 0) {
     const simulated = generateSimulatedCandidates(primaryUsername, simulatedPlatforms);
     allCandidates.push(...simulated);
     logger.info(
