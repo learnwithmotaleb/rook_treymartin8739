@@ -235,16 +235,21 @@ export function useNotifications(isLoggedIn: boolean): {
     if (!isLoggedIn || Platform.OS === "web") return;
 
     (async () => {
+      const pushEnabled = await isPushEnabled();
       const { status } = await Notifications.getPermissionsAsync();
 
       if (status === "granted") {
-        await upsertToken();
-        await scheduleWeeklyReminder();
+        if (pushEnabled) {
+          await upsertToken();
+          await scheduleWeeklyReminder();
+        }
         return;
       }
 
       const alreadyAsked = await AsyncStorage.getItem(PERMISSION_ASKED_KEY);
       if (alreadyAsked) return;
+
+      if (!pushEnabled) return;
 
       const userWants = await showPrePrompt();
       if (!userWants) {
