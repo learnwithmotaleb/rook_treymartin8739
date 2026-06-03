@@ -82,11 +82,16 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
       user_id: number;
     };
 
-    // Fetch basic profile
+    // Fetch profile — instagram_business_basic scope provides followers_count + profile_picture_url
     const profileRes = await fetch(
-      `https://graph.instagram.com/${user_id}?fields=id,username&access_token=${access_token}`
+      `https://graph.instagram.com/${user_id}?fields=id,username,followers_count,profile_picture_url&access_token=${access_token}`
     );
-    const profile = await profileRes.json() as { id: string; username: string };
+    const profile = await profileRes.json() as {
+      id: string;
+      username: string;
+      followers_count?: number;
+      profile_picture_url?: string;
+    };
 
     // Exchange for long-lived token (60 days)
     const longLivedRes = await fetch(
@@ -113,6 +118,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
           accessToken: longToken,
           platformUserId: String(profile.id),
           username: profile.username,
+          followers: profile.followers_count ?? 0,
           verified: true,
           lastSynced: new Date(),
         })
@@ -127,7 +133,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
           platformUserId: String(profile.id),
           accessToken: longToken,
           verified: true,
-          followers: 0,
+          followers: profile.followers_count ?? 0,
           photosIndexed: 0,
           captionsIndexed: 0,
           reelsIndexed: 0,

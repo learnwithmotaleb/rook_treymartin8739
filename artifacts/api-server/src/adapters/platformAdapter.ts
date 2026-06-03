@@ -86,10 +86,11 @@ export class InstagramAdapter implements PlatformAdapter {
   }
 
   async getProfile(accessToken: string): Promise<ProfileData> {
-    // instagram_basic scope gives: id, username, name, account_type, media_count
-    // followers_count / profile_picture_url / biography require additional permissions
+    // instagram_business_basic scope (replaces deprecated instagram_basic since Jan 2025)
+    // provides: id, username, name, account_type, media_count,
+    //           profile_picture_url, followers_count, biography
     const response = await fetch(
-      `https://graph.instagram.com/me?fields=id,username,name,account_type,media_count&access_token=${accessToken}`
+      `https://graph.instagram.com/me?fields=id,username,name,account_type,media_count,profile_picture_url,followers_count,biography&access_token=${accessToken}`
     );
     if (!response.ok) {
       const text = await response.text();
@@ -101,13 +102,17 @@ export class InstagramAdapter implements PlatformAdapter {
       name?: string;
       account_type?: string;
       media_count?: number;
+      profile_picture_url?: string;
+      followers_count?: number;
+      biography?: string;
     };
     return {
       platformUserId: data.id,
       username: data.username,
       displayName: data.name,
-      followers: 0,
-      bio: data.account_type ? `${data.account_type} account` : undefined,
+      followers: data.followers_count ?? 0,
+      profileImageUrl: data.profile_picture_url,
+      bio: data.biography ?? (data.account_type ? `${data.account_type} account` : undefined),
     };
   }
 
