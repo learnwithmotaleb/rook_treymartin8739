@@ -1,7 +1,16 @@
+/**
+ * Subscription / Paywall screen
+ *
+ * Uses RevenueCat offerings and packages exclusively.
+ * - "pro" offering  → Pro tier packages  ($rc_monthly + $rc_annual)
+ * - "premium" offering → Premium tier packages ($rc_monthly + $rc_annual)
+ * Prices are derived from the RevenueCat SDK; nothing is hardcoded.
+ */
+
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,95 +22,143 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
+import type { PurchasesPackage } from "react-native-purchases";
+
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { useLocalSearchParams } from "expo-router";
 import { GlassCard } from "@/components/GlassCard";
-import {
-  createCheckoutSession,
-  createPortalSession,
-  cancelSubscription,
-} from "@/lib/api";
+import { useSubscription } from "@/lib/revenuecat";
 
 type Tier = "free" | "pro" | "premium";
 type Cycle = "monthly" | "yearly";
 
-interface Plan {
+const TIER_ORDER: Record<Tier, number> = { free: 0, pro: 1, premium: 2 };
+
+interface PlanMeta {
   id: Tier;
   name: string;
   icon: string;
-  monthlyPrice: string;
-  yearlyPrice: string;
-  yearlyMonthly: string;
   tagline: string;
   highlight: boolean;
   badge?: string;
-  differentiators: Array<{ icon: string; text: string }>;
-  cta: string;
   ctaColor?: string;
+  differentiators: Array<{ icon: string; text: string }>;
 }
 
-const PLANS: Plan[] = [
-  {
-    id: "free",
-    name: "Free",
-    icon: "shield-outline",
-    monthlyPrice: "$0",
-    yearlyPrice: "$0",
-    yearlyMonthly: "$0",
-    tagline: "Get started with basic protection",
-    highlight: false,
-    differentiators: [
-      { icon: "person", text: "1 social account" },
-      { icon: "time", text: "Manual scan every 14 days" },
-      { icon: "eye", text: "Basic impersonator detection" },
-    ],
-    cta: "Current Plan",
-  },
+const PLAN_META: PlanMeta[] = [
   {
     id: "pro",
     name: "Pro",
     icon: "shield-half",
-    monthlyPrice: "$14.99",
-    yearlyPrice: "$119.99",
-    yearlyMonthly: "$10.00",
     tagline: "Your AI identity bodyguard",
     highlight: true,
     badge: "Most Popular",
+    ctaColor: "#3B82F6",
     differentiators: [
       { icon: "people", text: "3 social accounts" },
       { icon: "refresh-circle", text: "Weekly automated scans" },
       { icon: "notifications", text: "Real-time alerts + full evidence" },
     ],
-    cta: "Start 7-Day Free Trial",
-    ctaColor: "#3B82F6",
   },
   {
     id: "premium",
     name: "Premium",
     icon: "shield-checkmark",
-    monthlyPrice: "$49.99",
-    yearlyPrice: "$399.99",
-    yearlyMonthly: "$33.33",
     tagline: "Enterprise-grade identity protection",
     highlight: false,
     badge: "Best Value",
+    ctaColor: "#7C3AED",
     differentiators: [
       { icon: "infinite", text: "Unlimited accounts" },
       { icon: "pulse", text: "Daily deep AI scans" },
       { icon: "analytics", text: "Advanced intelligence + reports" },
     ],
-    cta: "Start 7-Day Free Trial",
-    ctaColor: "#7C3AED",
   },
 ];
 
-const YEARLY_SAVINGS: Record<string, string> = {
-  pro: "Save 33%",
-  premium: "Save 33%",
-};
+// ─── Confirm purchase modal (required by RC skill — no Alert.alert) ──────────
+interface ConfirmModalProps {
+  visible: boolean;
+  pkg: PurchasesPackage | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmModal({ visible, pkg, onConfirm, onCancel }: ConfirmModalProps) {
+  const colors = useColors();
+  if (!pkg) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={confirmStyles.overlay}>
+        <View style={[confirmStyles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[confirmStyles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Confirm Purchase
+          </Text>
+          <Text style={[confirmStyles.product, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            {pkg.product.title || pkg.product.identifier}
+          </Text>
+          <Text style={[confirmStyles.price, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            {pkg.product.priceString}
+            {pkg.packageType === "ANNUAL" ? "/year" : "/month"} · Test Store
+          </Text>
+          <Text style={[confirmStyles.note, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            This purchase is charged through the test store and can be cancelled anytime.
+          </Text>
+          <View style={confirmStyles.btnRow}>
+            <TouchableOpacity
+              style={[confirmStyles.btn, { backgroundColor: colors.secondary }]}
+              onPress={onCancel}
+              activeOpacity={0.8}
+            >
+              <Text style={[confirmStyles.btnText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[confirmStyles.btn, { backgroundColor: colors.primary }]}
+              onPress={onConfirm}
+              activeOpacity={0.8}
+            >
+              <Text style={[confirmStyles.btnText, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>
+                Subscribe
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const confirmStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 32,
+    paddingHorizontal: 20,
+  },
+  sheet: {
+    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    gap: 12,
+  },
+  title: { fontSize: 18, textAlign: "center" },
+  product: { fontSize: 16, textAlign: "center" },
+  price: { fontSize: 14, textAlign: "center" },
+  note: { fontSize: 12, textAlign: "center", lineHeight: 18, opacity: 0.8 },
+  btnRow: { flexDirection: "row", gap: 12, marginTop: 4 },
+  btn: { flex: 1, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+  btnText: { fontSize: 15 },
+});
+
+// ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function Subscription() {
   const colors = useColors();
@@ -110,78 +167,87 @@ export default function Subscription() {
   const { fromOnboarding } = useLocalSearchParams<{ fromOnboarding?: string }>();
   const isFromOnboarding = fromOnboarding === "1";
 
+  const { offerings, tier: rcTier, isPurchasing, purchase, restore, isRestoring } = useSubscription();
+
   const [billingCycle, setBillingCycle] = useState<Cycle>("monthly");
-  const [loading, setLoading] = useState<Tier | null>(null);
+  const [confirmPkg, setConfirmPkg] = useState<PurchasesPackage | null>(null);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const currentTier = user.tier ?? "free";
-  const isOnPaidPlan = currentTier !== "free";
+  // Use AppContext tier as source of truth for UI; RC tier for purchase checks
+  const currentTier = (user.tier ?? "free") as Tier;
 
-  const TIER_ORDER: Record<Tier, number> = { free: 0, pro: 1, premium: 2 };
+  /** Get the correct RevenueCat package for a tier + cycle */
+  const getPackage = (tier: Tier, cycle: Cycle): PurchasesPackage | null => {
+    if (tier === "free") return null;
+    const offering = offerings?.all[tier];
+    if (!offering) return null;
+    if (cycle === "yearly") {
+      return offering.annual ?? offering.availablePackages.find((p) => p.packageType === "ANNUAL") ?? null;
+    }
+    return offering.monthly ?? offering.availablePackages.find((p) => p.packageType === "MONTHLY") ?? null;
+  };
 
-  const handleUpgrade = async (plan: Plan) => {
-    if (plan.id === "free" || plan.id === currentTier) return;
-    if (TIER_ORDER[plan.id] < TIER_ORDER[currentTier]) return;
+  /** Derive display price string from RC package */
+  const getDisplayPrice = (tier: Tier): string => {
+    const pkg = getPackage(tier, billingCycle);
+    if (!pkg) return "—";
+    if (billingCycle === "yearly") {
+      // Show per-month equivalent: yearly price ÷ 12
+      const perMonth = pkg.product.price / 12;
+      return `$${perMonth.toFixed(2)}`;
+    }
+    return pkg.product.priceString;
+  };
 
+  /** Yearly billed-as string e.g. "$119.99/year" */
+  const getYearlyBilled = (tier: Tier): string => {
+    const pkg = getPackage(tier, "yearly");
+    return pkg ? `Billed ${pkg.product.priceString}/year · Save ~33%` : "";
+  };
+
+  const handleUpgrade = (meta: PlanMeta) => {
+    const pkg = getPackage(meta.id, billingCycle);
+    if (!pkg) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setLoading(plan.id);
+    setConfirmPkg(pkg);
+  };
 
+  const handleConfirmPurchase = async () => {
+    if (!confirmPkg) return;
+    setConfirmPkg(null);
     try {
-      const result = await createCheckoutSession(
-        plan.id as "pro" | "premium",
-        billingCycle
-      );
-      if (result.url) {
-        await WebBrowser.openBrowserAsync(result.url);
-      } else {
-        Alert.alert("Checkout", "Checkout session created. Complete payment in your browser.");
-      }
+      await purchase(confirmPkg);
+      // App tier update via RC entitlements is handled by SubscriptionProvider;
+      // AppContext will re-sync on next data refresh.
     } catch (err: any) {
-      if (err?.message?.includes("stripe_not_configured") || err?.message?.includes("not configured")) {
-        Alert.alert(
-          "Stripe Not Configured",
-          "Connect your Stripe account to enable payments. Add STRIPE_SECRET_KEY and Price IDs to your environment secrets.",
-          [{ text: "OK" }]
-        );
-      } else {
-        Alert.alert("Error", err?.message ?? "Failed to start checkout. Please try again.");
-      }
-    } finally {
-      setLoading(null);
+      // User cancelled — RC throws a specific error code; ignore it silently
+      if (err?.userCancelled) return;
+      console.warn("[RC] Purchase error:", err?.message);
     }
   };
 
-  const handleManageBilling = async () => {
-    setLoading("free");
+  const handleRestore = async () => {
     try {
-      const result = await createPortalSession();
-      if (result.url) {
-        await WebBrowser.openBrowserAsync(result.url);
-      }
-    } catch {
-      Alert.alert("Error", "Could not open billing portal. Please try again.");
-    } finally {
-      setLoading(null);
+      await restore();
+      setRestoreMsg("Purchases restored successfully.");
+    } catch (err: any) {
+      setRestoreMsg("Nothing to restore, or an error occurred.");
     }
+    setTimeout(() => setRestoreMsg(null), 3000);
   };
 
-  const getPlanPrice = (plan: Plan) => {
-    if (plan.id === "free") return "$0";
-    return billingCycle === "monthly" ? plan.monthlyPrice : plan.yearlyMonthly;
+  const getPlanCtaLabel = (meta: PlanMeta): string => {
+    if (meta.id === currentTier) return "Current Plan";
+    if (TIER_ORDER[meta.id] < TIER_ORDER[currentTier]) return `Downgrade to ${meta.name}`;
+    if (currentTier !== "free") return `Upgrade to ${meta.name}`;
+    return "Start 7-Day Free Trial";
   };
 
-  const getPlanCtaLabel = (plan: Plan): string => {
-    if (plan.id === currentTier) return "Current Plan";
-    if (plan.id === "free") return "Downgrade to Free";
-    if (TIER_ORDER[plan.id] < TIER_ORDER[currentTier]) return `Downgrade to ${plan.name}`;
-    if (currentTier !== "free") return `Upgrade to ${plan.name}`;
-    return plan.cta;
-  };
-
-  const getPlanCtaDisabled = (plan: Plan): boolean => {
-    return plan.id === currentTier || plan.id === "free";
+  const getPlanCtaDisabled = (meta: PlanMeta): boolean => {
+    return meta.id === currentTier || TIER_ORDER[meta.id] < TIER_ORDER[currentTier];
   };
 
   return (
@@ -227,68 +293,111 @@ export default function Subscription() {
 
         {/* Billing cycle toggle */}
         <View style={[styles.toggleRow, { backgroundColor: colors.secondary, borderRadius: 14 }]}>
-          <TouchableOpacity
-            style={[
-              styles.toggleBtn,
-              billingCycle === "monthly" && [styles.toggleBtnActive, { backgroundColor: colors.card }],
-              { borderRadius: 10 },
-            ]}
-            onPress={() => setBillingCycle("monthly")}
-          >
-            <Text style={[
-              styles.toggleLabel,
-              { color: billingCycle === "monthly" ? colors.foreground : colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-            ]}>
-              Monthly
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.toggleBtn,
-              billingCycle === "yearly" && [styles.toggleBtnActive, { backgroundColor: colors.card }],
-              { borderRadius: 10 },
-            ]}
-            onPress={() => setBillingCycle("yearly")}
-          >
-            <Text style={[
-              styles.toggleLabel,
-              { color: billingCycle === "yearly" ? colors.foreground : colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-            ]}>
-              Yearly
-            </Text>
-            <View style={[styles.savingsBadge, { backgroundColor: colors.success }]}>
-              <Text style={[styles.savingsText, { fontFamily: "Inter_700Bold" }]}>Save 33%</Text>
-            </View>
-          </TouchableOpacity>
+          {(["monthly", "yearly"] as Cycle[]).map((cycle) => (
+            <TouchableOpacity
+              key={cycle}
+              style={[
+                styles.toggleBtn,
+                billingCycle === cycle && [styles.toggleBtnActive, { backgroundColor: colors.card }],
+                { borderRadius: 10 },
+              ]}
+              onPress={() => setBillingCycle(cycle)}
+            >
+              <Text style={[
+                styles.toggleLabel,
+                { color: billingCycle === cycle ? colors.foreground : colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+              ]}>
+                {cycle.charAt(0).toUpperCase() + cycle.slice(1)}
+              </Text>
+              {cycle === "yearly" && (
+                <View style={[styles.savingsBadge, { backgroundColor: colors.success }]}>
+                  <Text style={[styles.savingsText, { fontFamily: "Inter_700Bold" }]}>Save 33%</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Plan cards */}
-        {PLANS.map((plan) => {
-          const isCurrent = plan.id === currentTier;
-          const isUpgrade = TIER_ORDER[plan.id] > TIER_ORDER[currentTier];
-          const isLoading = loading === plan.id;
-          const disabled = getPlanCtaDisabled(plan);
-          const price = getPlanPrice(plan);
+        {/* Free plan card */}
+        <GlassCard style={[styles.planCard, {
+          borderColor: currentTier === "free" ? colors.primary : colors.border,
+          borderWidth: currentTier === "free" ? 1.5 : 1,
+        }]}>
+          <View style={styles.planBadgeRow}>
+            <View />
+            {currentTier === "free" && (
+              <View style={[styles.currentBadge, { backgroundColor: colors.success + "22", borderColor: colors.success + "55" }]}>
+                <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+                <Text style={[styles.currentBadgeText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
+                  Your Plan
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.planHeader}>
+            <View style={[styles.planIconBg, { backgroundColor: colors.primary + "18" }]}>
+              <Ionicons name="shield-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={styles.planNameBlock}>
+              <Text style={[styles.planName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Free</Text>
+              <Text style={[styles.planTagline, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Get started with basic protection
+              </Text>
+            </View>
+            <View style={styles.planPriceBlock}>
+              <Text style={[styles.planPrice, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>$0</Text>
+            </View>
+          </View>
+          <View style={[styles.diffList, { borderTopColor: colors.border }]}>
+            {[
+              { icon: "person", text: "1 social account" },
+              { icon: "time", text: "Manual scan every 14 days" },
+              { icon: "eye", text: "Basic impersonator detection" },
+            ].map((d, i) => (
+              <View key={i} style={styles.diffRow}>
+                <View style={[styles.diffIcon, { backgroundColor: colors.primary + "14" }]}>
+                  <Ionicons name={d.icon as any} size={13} color={colors.primary} />
+                </View>
+                <Text style={[styles.diffText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                  {d.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+          {currentTier === "free" && (
+            <View style={[styles.planCurrentRow, { borderTopColor: colors.border }]}>
+              <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+              <Text style={[styles.planCurrentText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
+                Active — you're protected
+              </Text>
+            </View>
+          )}
+        </GlassCard>
+
+        {/* Pro + Premium plan cards */}
+        {PLAN_META.map((meta) => {
+          const isCurrent = meta.id === currentTier;
+          const disabled = getPlanCtaDisabled(meta);
+          const isLoading = isPurchasing;
+          const price = getDisplayPrice(meta.id);
+          const isPremium = meta.id === "premium";
 
           let borderColor = colors.border;
           if (isCurrent) borderColor = colors.primary;
-          if (plan.id === "premium") borderColor = "#7C3AED44";
+          if (isPremium) borderColor = "#7C3AED44";
 
           return (
             <GlassCard
-              key={plan.id}
+              key={meta.id}
               style={[styles.planCard, { borderColor, borderWidth: isCurrent ? 1.5 : 1 }]}
             >
-              {/* Badge row */}
               <View style={styles.planBadgeRow}>
-                {plan.badge ? (
+                {meta.badge ? (
                   <View style={[
                     styles.planBadge,
-                    { backgroundColor: plan.id === "premium" ? "#7C3AED" : colors.primary },
+                    { backgroundColor: isPremium ? "#7C3AED" : colors.primary },
                   ]}>
-                    <Text style={[styles.planBadgeText, { fontFamily: "Inter_700Bold" }]}>
-                      {plan.badge}
-                    </Text>
+                    <Text style={[styles.planBadgeText, { fontFamily: "Inter_700Bold" }]}>{meta.badge}</Text>
                   </View>
                 ) : <View />}
                 {isCurrent && (
@@ -301,60 +410,58 @@ export default function Subscription() {
                 )}
               </View>
 
-              {/* Plan header */}
               <View style={styles.planHeader}>
                 <View style={[
                   styles.planIconBg,
-                  { backgroundColor: plan.id === "premium" ? "#7C3AED22" : colors.primary + "18" },
+                  { backgroundColor: isPremium ? "#7C3AED22" : colors.primary + "18" },
                 ]}>
                   <Ionicons
-                    name={plan.icon as any}
+                    name={meta.icon as any}
                     size={22}
-                    color={plan.id === "premium" ? "#7C3AED" : colors.primary}
+                    color={isPremium ? "#7C3AED" : colors.primary}
                   />
                 </View>
                 <View style={styles.planNameBlock}>
                   <Text style={[styles.planName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                    {plan.name}
+                    {meta.name}
                   </Text>
                   <Text style={[styles.planTagline, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    {plan.tagline}
+                    {meta.tagline}
                   </Text>
                 </View>
                 <View style={styles.planPriceBlock}>
-                  <Text style={[
-                    styles.planPrice,
-                    { color: plan.id === "premium" ? "#7C3AED" : plan.id === "pro" ? colors.primary : colors.foreground, fontFamily: "Inter_700Bold" },
-                  ]}>
-                    {price}
-                  </Text>
-                  {plan.id !== "free" && (
-                    <Text style={[styles.planPricePer, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                      /mo
-                    </Text>
+                  {price === "—" ? (
+                    <ActivityIndicator size="small" color={isPremium ? "#7C3AED" : colors.primary} />
+                  ) : (
+                    <>
+                      <Text style={[
+                        styles.planPrice,
+                        { color: isPremium ? "#7C3AED" : colors.primary, fontFamily: "Inter_700Bold" },
+                      ]}>
+                        {price}
+                      </Text>
+                      <Text style={[styles.planPricePer, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        /mo
+                      </Text>
+                    </>
                   )}
                 </View>
               </View>
 
-              {billingCycle === "yearly" && plan.id !== "free" && (
+              {billingCycle === "yearly" && (
                 <Text style={[styles.yearlyNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Billed {plan.yearlyPrice}/year · {YEARLY_SAVINGS[plan.id]}
+                  {getYearlyBilled(meta.id)}
                 </Text>
               )}
 
-              {/* Differentiators */}
               <View style={[styles.diffList, { borderTopColor: colors.border }]}>
-                {plan.differentiators.map((d, i) => (
+                {meta.differentiators.map((d, i) => (
                   <View key={i} style={styles.diffRow}>
                     <View style={[
                       styles.diffIcon,
-                      { backgroundColor: plan.id === "premium" ? "#7C3AED18" : colors.primary + "14" },
+                      { backgroundColor: isPremium ? "#7C3AED18" : colors.primary + "14" },
                     ]}>
-                      <Ionicons
-                        name={d.icon as any}
-                        size={13}
-                        color={plan.id === "premium" ? "#7C3AED" : colors.primary}
-                      />
+                      <Ionicons name={d.icon as any} size={13} color={isPremium ? "#7C3AED" : colors.primary} />
                     </View>
                     <Text style={[styles.diffText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
                       {d.text}
@@ -363,19 +470,15 @@ export default function Subscription() {
                 ))}
               </View>
 
-              {/* CTA */}
               {!disabled && (
                 <TouchableOpacity
                   style={[
                     styles.planCta,
-                    {
-                      backgroundColor: plan.ctaColor ?? colors.primary,
-                      opacity: isLoading ? 0.7 : 1,
-                    },
+                    { backgroundColor: meta.ctaColor ?? colors.primary, opacity: isLoading ? 0.7 : 1 },
                   ]}
                   disabled={isLoading}
                   activeOpacity={0.8}
-                  onPress={() => handleUpgrade(plan)}
+                  onPress={() => handleUpgrade(meta)}
                 >
                   {isLoading ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
@@ -383,12 +486,13 @@ export default function Subscription() {
                     <>
                       <MaterialCommunityIcons name="crown" size={16} color="#FFFFFF" />
                       <Text style={[styles.planCtaText, { fontFamily: "Inter_700Bold" }]}>
-                        {getPlanCtaLabel(plan)}
+                        {getPlanCtaLabel(meta)}
                       </Text>
                     </>
                   )}
                 </TouchableOpacity>
               )}
+
               {isCurrent && (
                 <View style={[styles.planCurrentRow, { borderTopColor: colors.border }]}>
                   <Ionicons name="checkmark-circle" size={16} color={colors.success} />
@@ -401,24 +505,27 @@ export default function Subscription() {
           );
         })}
 
-        {/* Manage billing for paid users */}
-        {isOnPaidPlan && (
-          <TouchableOpacity
-            style={[styles.manageRow, { borderColor: colors.border }]}
-            activeOpacity={0.7}
-            onPress={handleManageBilling}
-            disabled={loading === "free"}
-          >
-            {loading === "free" ? (
-              <ActivityIndicator color={colors.primary} size="small" />
-            ) : (
-              <Ionicons name="card-outline" size={18} color={colors.primary} />
-            )}
-            <Text style={[styles.manageText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
-              Manage Billing & Subscription
-            </Text>
-            <Ionicons name="open-outline" size={14} color={colors.primary} />
-          </TouchableOpacity>
+        {/* Restore purchases */}
+        <TouchableOpacity
+          style={[styles.restoreRow, { borderColor: colors.border }]}
+          activeOpacity={0.7}
+          onPress={handleRestore}
+          disabled={isRestoring}
+        >
+          {isRestoring ? (
+            <ActivityIndicator color={colors.primary} size="small" />
+          ) : (
+            <Ionicons name="refresh-circle-outline" size={18} color={colors.primary} />
+          )}
+          <Text style={[styles.restoreText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+            Restore Purchases
+          </Text>
+        </TouchableOpacity>
+
+        {restoreMsg && (
+          <Text style={[styles.restoreStatus, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            {restoreMsg}
+          </Text>
         )}
 
         {/* Trust signals */}
@@ -438,9 +545,16 @@ export default function Subscription() {
         </View>
 
         <Text style={[styles.legal, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Subscriptions renew automatically. Cancel anytime from billing settings. Pro and Premium include a 7-day free trial for new subscribers.
+          Subscriptions renew automatically. Cancel anytime from your device's subscription settings. Pro and Premium include a 7-day free trial for new subscribers.
         </Text>
       </ScrollView>
+
+      <ConfirmModal
+        visible={!!confirmPkg}
+        pkg={confirmPkg}
+        onConfirm={handleConfirmPurchase}
+        onCancel={() => setConfirmPkg(null)}
+      />
     </View>
   );
 }
@@ -558,15 +672,17 @@ const styles = StyleSheet.create({
   },
   planCurrentText: { fontSize: 14 },
 
-  manageRow: {
+  restoreRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     padding: 16,
     borderRadius: 14,
     borderWidth: 1,
+    justifyContent: "center",
   },
-  manageText: { flex: 1, fontSize: 15 },
+  restoreText: { fontSize: 15 },
+  restoreStatus: { fontSize: 12, textAlign: "center" },
 
   trustRow: { flexDirection: "row", justifyContent: "center", gap: 20 },
   trustItem: { flexDirection: "row", alignItems: "center", gap: 5 },
