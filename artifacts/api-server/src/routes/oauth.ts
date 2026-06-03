@@ -181,12 +181,22 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${clientSecret}&code=${code}`;
 
     const tokenRes = await fetch(tokenUrl);
-    const { access_token } = await tokenRes.json() as { access_token: string };
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: { message: string } };
+
+    if (!tokenRes.ok || !tokenData.access_token) {
+      throw new Error(tokenData.error?.message ?? `Token exchange failed (HTTP ${tokenRes.status})`);
+    }
+
+    const { access_token } = tokenData;
 
     const profileRes = await fetch(
       `https://graph.facebook.com/me?fields=id,name&access_token=${access_token}`
     );
-    const profile = await profileRes.json() as { id: string; name: string };
+    const profile = await profileRes.json() as { id: string; name: string; error?: { message: string } };
+
+    if (!profile.id) {
+      throw new Error(profile.error?.message ?? "Failed to fetch Facebook profile");
+    }
 
     const userId = await resolveUserFromState(state);
 
