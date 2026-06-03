@@ -11,6 +11,7 @@ import darkWebRouter from "./darkweb";
 import billingRouter from "./billing";
 import legalRouter from "./legal";
 import oauthRouter from "./oauth";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(fingerprintRouter);
 router.use(aiAnalysisRouter);
 router.use(darkWebRouter);
 router.use(billingRouter);
+router.use(notificationsRouter);
 
 export default router;

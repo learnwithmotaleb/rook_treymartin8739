@@ -15,10 +15,21 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.shieldid.app"
+      "bundleIdentifier": "com.shieldid.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "ShieldID uses your camera to scan photos for your identity fingerprint.",
+        "NSPhotoLibraryUsageDescription": "ShieldID accesses your photos to build your identity fingerprint and detect stolen images.",
+        "NSUserNotificationsUsageDescription": "ShieldID sends real-time alerts when threats to your identity are detected.",
+        "UIBackgroundModes": ["fetch", "remote-notification"]
+      }
     },
     "android": {
-      "package": "com.shieldid.app"
+      "package": "com.shieldid.app",
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -31,7 +42,16 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#3B82F6",
+          "sounds": [],
+          "mode": "production"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

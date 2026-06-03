@@ -255,3 +255,21 @@ export async function createPortalSession(): Promise<{ url: string }> {
 export async function cancelSubscription(): Promise<{ cancelAtPeriodEnd: boolean }> {
   return apiFetch("/billing/cancel", { method: "POST" });
 }
+
+export async function registerPushToken(
+  token: string,
+  platform: "ios" | "android"
+): Promise<void> {
+  await apiFetch("/notifications/token", {
+    method: "PATCH",
+    body: JSON.stringify({ token, platform }),
+  });
+}
+
+export async function deregisterPushToken(
+  platform: "ios" | "android"
+): Promise<void> {
+  await apiFetch(`/notifications/token?platform=${platform}`, {
+    method: "DELETE",
+  });
+}

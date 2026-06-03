@@ -12,6 +12,7 @@ import { useAuth, useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { setApiAuthToken } from "@/lib/api";
+import { useNotifications } from "@/hooks/useNotifications";
 
 function NativeTabLayout() {
   const { activeThreats } = useApp();
@@ -136,8 +137,9 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user: clerkUser } = useUser();
-  const { login, logout, hasSeenOnboarding, isInitializing } = useApp();
+  const { login, logout, hasSeenOnboarding, isInitializing, isLoggedIn } = useApp();
   const colors = useColors();
+  useNotifications(isLoggedIn);
 
   // Keep a stable ref to getToken so the effect below doesn't need it as a
   // dependency. Clerk sometimes returns a new function reference on every

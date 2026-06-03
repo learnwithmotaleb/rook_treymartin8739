@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
+import { requestPushPermission } from "@/hooks/useNotifications";
+import { registerPushToken, deregisterPushToken } from "@/lib/api";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
 const STORAGE_KEY = "shieldid:notification_prefs";
 
@@ -178,17 +183,50 @@ export default function NotificationSettings() {
 
   const handlePushToggle = (v: boolean) => {
     if (v) {
-      Alert.alert(
-        "Enable Push Alerts",
-        "ShieldID will send you real-time alerts when threats are detected.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Enable",
-            onPress: () => toggle("pushAlerts", true),
-          },
-        ]
-      );
+      (async () => {
+        if (Platform.OS === "web") {
+          toggle("pushAlerts", true);
+          return;
+        }
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status === "denied") {
+          Alert.alert(
+            "Notifications Blocked",
+            "Push notifications are disabled in your device settings. Tap 'Open Settings' to enable them.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Open Settings",
+                onPress: () => Linking.openSettings(),
+              },
+            ]
+          );
+          return;
+        }
+        const granted = await requestPushPermission();
+        if (granted) {
+          toggle("pushAlerts", true);
+          try {
+            const projectId =
+              Constants.expoConfig?.extra?.eas?.projectId ??
+              Constants.easConfig?.projectId;
+            const { data: token } = await Notifications.getExpoPushTokenAsync(
+              projectId ? { projectId } : undefined
+            );
+            const platform = Platform.OS === "ios" ? "ios" : "android";
+            await registerPushToken(token, platform);
+          } catch {}
+        } else {
+          Alert.alert(
+            "Permission Required",
+            "Please allow notifications in Settings to receive threat alerts.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open Settings", onPress: () => Linking.openSettings() },
+            ]
+          );
+        }
+      })();
     } else {
       Alert.alert(
         "Disable Push Alerts",
@@ -198,7 +236,13 @@ export default function NotificationSettings() {
           {
             text: "Disable",
             style: "destructive",
-            onPress: () => toggle("pushAlerts", false),
+            onPress: async () => {
+              toggle("pushAlerts", false);
+              try {
+                const platform = Platform.OS === "ios" ? "ios" : "android";
+                await deregisterPushToken(platform);
+              } catch {}
+            },
           },
         ]
       );

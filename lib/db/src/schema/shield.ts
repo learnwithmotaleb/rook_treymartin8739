@@ -171,3 +171,17 @@ export const insertThreatSchema = createInsertSchema(threatsTable).omit({
 });
 export type InsertThreat = z.infer<typeof insertThreatSchema>;
 export type Threat = typeof threatsTable.$inferSelect;
+
+export const devicePushTokensTable = pgTable("device_push_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  platform: text("platform").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type DevicePushToken = typeof devicePushTokensTable.$inferSelect;

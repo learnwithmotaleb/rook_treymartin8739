@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { scheduleScanCompleteNotification } from "@/hooks/useNotifications";
 import {
   getMe,
   getAccounts,
@@ -340,6 +341,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const profile = await getMe();
             const accounts = await getAccounts();
             setUser(mapProfileToUser(profile, accounts));
+            const activeCount = threats.filter((t) => !t.resolved).length;
+            scheduleScanCompleteNotification(activeCount).catch(() => {});
           }
         } catch {
           if (pollTimerRef.current) {
