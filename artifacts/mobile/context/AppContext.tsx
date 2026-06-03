@@ -18,6 +18,7 @@ import {
   addAccount as apiAddAccount,
   removeAccount as apiRemoveAccount,
   updateAccount as apiUpdateAccount,
+  updateMe,
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
@@ -57,6 +58,8 @@ export interface MatchedEvidence {
   similarity: number;
   yourCaption?: string;
   stolenCaption?: string;
+  yourPhotoUrl?: string;
+  stolenPhotoUrl?: string;
   label: string;
 }
 

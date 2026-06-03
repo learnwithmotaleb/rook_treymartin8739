@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -85,74 +86,93 @@ function ScoreBar({
   );
 }
 
-function EvidenceCard({ item }: { item: MatchedEvidence }) {
+function EvidencePhotoBox({
+  side,
+  photoUrl,
+  caption,
+  simColor,
+}: {
+  side: "yours" | "stolen";
+  photoUrl?: string;
+  caption?: string;
+  simColor: string;
+}) {
   const colors = useColors();
-  const isHighSimilarity = item.similarity >= 85;
-  const simColor = isHighSimilarity ? colors.danger : colors.warning;
+  const [imgFailed, setImgFailed] = useState(false);
+  const boxColor = side === "yours" ? colors.success : simColor;
+  const showImage = !!photoUrl && !imgFailed;
 
-  function EvidencePhotoBox({
-    side,
-    caption,
-  }: {
-    side: "yours" | "stolen";
-    caption?: string;
-  }) {
-    const boxColor = side === "yours" ? colors.success : simColor;
-    return (
-      <View style={styles.evidencePhotoCol}>
-        <View
-          style={[
-            styles.evidencePhotoBox,
-            { backgroundColor: boxColor + "18", borderColor: boxColor + "44" },
-          ]}
-        >
+  return (
+    <View style={styles.evidencePhotoCol}>
+      <View
+        style={[
+          styles.evidencePhotoBox,
+          { backgroundColor: boxColor + "18", borderColor: boxColor + "44" },
+        ]}
+      >
+        {showImage ? (
+          <Image
+            source={{ uri: photoUrl }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
           <LinearGradient
             colors={[boxColor + "28", boxColor + "08"]}
             style={StyleSheet.absoluteFill}
           />
-          {side === "yours" ? (
+        )}
+        {!showImage && (
+          side === "yours" ? (
             <Ionicons name="person-circle" size={36} color={boxColor} />
           ) : (
             <Ionicons name="warning" size={28} color={simColor} />
-          )}
-          <View
-            style={[
-              styles.evidencePhotoBadge,
-              { backgroundColor: side === "yours" ? colors.success : simColor },
-            ]}
-          >
-            <Ionicons
-              name={side === "yours" ? "checkmark" : "alert"}
-              size={9}
-              color="#FFFFFF"
-            />
-          </View>
-        </View>
-        <Text
+          )
+        )}
+        <View
           style={[
-            styles.evidencePhotoLabel,
-            {
-              color: side === "yours" ? colors.success : simColor,
-              fontFamily: "Inter_600SemiBold",
-            },
+            styles.evidencePhotoBadge,
+            { backgroundColor: side === "yours" ? colors.success : simColor },
           ]}
         >
-          {side === "yours" ? "Your Content" : "Stolen Copy"}
-        </Text>
-        {caption && (
-          <Text
-            style={[
-              styles.evidenceCaption,
-              { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-            ]}
-            numberOfLines={2}
-          >
-            "{caption}"
-          </Text>
-        )}
+          <Ionicons
+            name={side === "yours" ? "checkmark" : "alert"}
+            size={9}
+            color="#FFFFFF"
+          />
+        </View>
       </View>
-    );
-  }
+      <Text
+        style={[
+          styles.evidencePhotoLabel,
+          {
+            color: side === "yours" ? colors.success : simColor,
+            fontFamily: "Inter_600SemiBold",
+          },
+        ]}
+      >
+        {side === "yours" ? "Your Photo" : "Stolen Copy"}
+      </Text>
+      {caption && (
+        <Text
+          style={[
+            styles.evidenceCaption,
+            { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+          ]}
+          numberOfLines={2}
+        >
+          "{caption}"
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function EvidenceCard({ item }: { item: MatchedEvidence }) {
+  const colors = useColors();
+  const isHighSimilarity = item.similarity >= 85;
+  const simColor = isHighSimilarity ? colors.danger : colors.warning;
 
   return (
     <View
@@ -188,7 +208,12 @@ function EvidenceCard({ item }: { item: MatchedEvidence }) {
       </View>
 
       <View style={styles.evidenceCompare}>
-        <EvidencePhotoBox side="yours" caption={item.yourCaption} />
+        <EvidencePhotoBox
+          side="yours"
+          photoUrl={item.yourPhotoUrl}
+          caption={item.yourCaption}
+          simColor={simColor}
+        />
 
         <View style={styles.evidenceArrow}>
           <View style={[styles.similarityBubble, { backgroundColor: simColor }]}>
@@ -201,7 +226,12 @@ function EvidenceCard({ item }: { item: MatchedEvidence }) {
           </Text>
         </View>
 
-        <EvidencePhotoBox side="stolen" caption={item.stolenCaption} />
+        <EvidencePhotoBox
+          side="stolen"
+          photoUrl={item.stolenPhotoUrl}
+          caption={item.stolenCaption}
+          simColor={simColor}
+        />
       </View>
     </View>
   );
@@ -296,6 +326,8 @@ export default function ThreatDetail() {
     label: e.label,
     yourCaption: e.yourCaption,
     stolenCaption: e.stolenCaption,
+    yourPhotoUrl: e.yourPhotoUrl,
+    stolenPhotoUrl: e.stolenPhotoUrl,
   }));
 
   const detectedSignals = detail?.detectedSignals ?? [];

@@ -41,6 +41,8 @@ export interface DetectedEvidence {
   label: string;
   yourCaption?: string;
   stolenCaption?: string;
+  yourPhotoUrl?: string;
+  stolenPhotoUrl?: string;
 }
 
 export interface ImpersonatorCandidate {

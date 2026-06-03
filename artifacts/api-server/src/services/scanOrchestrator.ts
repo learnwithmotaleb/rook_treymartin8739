@@ -251,6 +251,8 @@ async function discoverRealImpersonators(
             type: "profile_photo",
             similarity: Math.round(signals.profileImageSimilarity * 100),
             label: "Profile Photo Similarity",
+            yourPhotoUrl: ingestedData.profileImageUrl,
+            stolenPhotoUrl: candidate.profileImageUrl,
           },
         ];
 
@@ -260,6 +262,8 @@ async function discoverRealImpersonators(
             type: "post_photo",
             similarity: Math.round(signals.mediaOverlapRatio * 100),
             label: `${suspectedStolenCount} Photos Potentially Reused`,
+            yourPhotoUrl: ingestedData.profileImageUrl,
+            stolenPhotoUrl: candidate.profileImageUrl,
           });
         }
 

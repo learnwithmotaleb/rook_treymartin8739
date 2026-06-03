@@ -111,6 +111,8 @@ export interface ThreatDetail extends ThreatSummary {
     label: string;
     yourCaption?: string;
     stolenCaption?: string;
+    yourPhotoUrl?: string;
+    stolenPhotoUrl?: string;
   }>;
   scoreBreakdown: {
     mediaSimilarity: number;

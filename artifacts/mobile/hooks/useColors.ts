@@ -12,8 +12,5 @@ import colors from "@/constants/colors";
  * on all platforms including web.
  */
 export function useColors() {
-  const palette = "dark" in colors
-    ? (colors as Record<string, typeof colors.light>).dark
-    : colors.light;
-  return { ...palette, radius: colors.radius };
+  return { ...colors.dark, radius: colors.radius };
 }
