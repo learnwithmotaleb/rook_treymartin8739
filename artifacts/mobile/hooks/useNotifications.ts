@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
@@ -19,15 +19,24 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function getPushAlertsPref(): Promise<boolean> {
+async function getPrefs(): Promise<Record<string, boolean>> {
   try {
     const raw = await AsyncStorage.getItem(NOTIF_PREFS_KEY);
-    if (!raw) return true;
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return parsed.pushAlerts !== false;
+    return raw ? JSON.parse(raw) : {};
   } catch {
-    return true;
+    return {};
   }
+}
+
+async function isPushEnabled(): Promise<boolean> {
+  const prefs = await getPrefs();
+  return prefs.pushAlerts !== false;
+}
+
+async function isCategoryEnabled(key: "scanComplete" | "newThreats" | "weeklyDigest"): Promise<boolean> {
+  const prefs = await getPrefs();
+  if (prefs.pushAlerts === false) return false;
+  return prefs[key] !== false;
 }
 
 export async function requestPushPermission(): Promise<boolean> {
@@ -40,6 +49,22 @@ export async function requestPushPermission(): Promise<boolean> {
   });
   await AsyncStorage.setItem(PERMISSION_ASKED_KEY, "true");
   return status === "granted";
+}
+
+function showPrePrompt(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      "Stay Protected in Real-Time",
+      "ShieldID will send you instant alerts when threats to your identity are detected — impersonators, breaches, and stolen photos. You can adjust this anytime in Settings.",
+      [
+        { text: "Not Now", style: "cancel", onPress: () => resolve(false) },
+        {
+          text: "Enable Alerts",
+          onPress: () => resolve(true),
+        },
+      ]
+    );
+  });
 }
 
 async function getExpoPushToken(): Promise<string | null> {
@@ -77,7 +102,7 @@ export async function scheduleScanCompleteNotification(
   threatsFound: number
 ): Promise<void> {
   if (Platform.OS === "web") return;
-  const enabled = await getPushAlertsPref();
+  const enabled = await isCategoryEnabled("scanComplete");
   if (!enabled) return;
 
   const title = threatsFound > 0 ? "⚠️ Threats Detected" : "✅ Scan Complete";
@@ -87,12 +112,7 @@ export async function scheduleScanCompleteNotification(
       : "No new threats found. Your identity is protected.";
 
   await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      data: { screen: "scan", threatsFound },
-      sound: true,
-    },
+    content: { title, body, data: { screen: "scan", threatsFound }, sound: true },
     trigger: null,
   });
 }
@@ -102,7 +122,7 @@ export async function scheduleThreatNotification(
   threatId: string
 ): Promise<void> {
   if (Platform.OS === "web") return;
-  const enabled = await getPushAlertsPref();
+  const enabled = await isCategoryEnabled("newThreats");
   if (!enabled) return;
 
   await Notifications.scheduleNotificationAsync({
@@ -118,8 +138,15 @@ export async function scheduleThreatNotification(
 
 async function scheduleWeeklyReminder(): Promise<void> {
   if (Platform.OS === "web") return;
-  const enabled = await getPushAlertsPref();
-  if (!enabled) return;
+  const enabled = await isCategoryEnabled("weeklyDigest");
+  if (!enabled) {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const weeklyId = scheduled.find(
+      (n) => (n.content.data as any)?.screen === "dashboard"
+    )?.identifier;
+    if (weeklyId) await Notifications.cancelScheduledNotificationAsync(weeklyId);
+    return;
+  }
 
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   const alreadyScheduled = scheduled.some(
@@ -173,17 +200,27 @@ export function useNotifications(isLoggedIn: boolean): {
     if (!isLoggedIn || Platform.OS === "web") return;
 
     (async () => {
-      const alreadyAsked = await AsyncStorage.getItem(PERMISSION_ASKED_KEY);
       const { status } = await Notifications.getPermissionsAsync();
+
       if (status === "granted") {
         await upsertToken();
         await scheduleWeeklyReminder();
-      } else if (!alreadyAsked) {
-        const granted = await requestPushPermission();
-        if (granted) {
-          await upsertToken();
-          await scheduleWeeklyReminder();
-        }
+        return;
+      }
+
+      const alreadyAsked = await AsyncStorage.getItem(PERMISSION_ASKED_KEY);
+      if (alreadyAsked) return;
+
+      const userWants = await showPrePrompt();
+      if (!userWants) {
+        await AsyncStorage.setItem(PERMISSION_ASKED_KEY, "pre-declined");
+        return;
+      }
+
+      const granted = await requestPushPermission();
+      if (granted) {
+        await upsertToken();
+        await scheduleWeeklyReminder();
       }
     })();
 

@@ -62,20 +62,32 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === "web") return;
+
+    function handleNotificationData(data: Record<string, unknown>) {
+      const screen = data?.screen as string | undefined;
+      if (screen === "threat" && data?.threatId) {
+        router.push(`/threat/${data.threatId}` as any);
+      } else if (screen === "scan") {
+        router.push("/(tabs)/scan" as any);
+      } else if (screen === "dashboard") {
+        router.push("/(tabs)" as any);
+      }
+    }
+
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        const data = response.notification.request.content.data as Record<string, unknown>;
+        handleNotificationData(data);
+      }
+    });
+
     const sub = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data = response.notification.request.content.data as Record<
           string,
           unknown
         >;
-        const screen = data?.screen as string | undefined;
-        if (screen === "threat" && data?.threatId) {
-          router.push(`/threat/${data.threatId}` as any);
-        } else if (screen === "scan") {
-          router.push("/(tabs)/scan" as any);
-        } else if (screen === "dashboard") {
-          router.push("/(tabs)" as any);
-        }
+        handleNotificationData(data);
       }
     );
     return () => sub.remove();

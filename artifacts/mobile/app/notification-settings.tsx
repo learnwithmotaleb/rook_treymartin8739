@@ -27,6 +27,9 @@ const STORAGE_KEY = "shieldid:notification_prefs";
 interface NotifPrefs {
   pushAlerts: boolean;
   emailAlerts: boolean;
+  scanComplete: boolean;
+  newThreats: boolean;
+  weeklyDigest: boolean;
   impersonatorAlerts: boolean;
   dataBreachAlerts: boolean;
   photoTheftAlerts: boolean;
@@ -38,6 +41,9 @@ interface NotifPrefs {
 const DEFAULTS: NotifPrefs = {
   pushAlerts: true,
   emailAlerts: false,
+  scanComplete: true,
+  newThreats: true,
+  weeklyDigest: true,
   impersonatorAlerts: true,
   dataBreachAlerts: true,
   photoTheftAlerts: true,
@@ -297,6 +303,38 @@ export default function NotificationSettings() {
             onToggle={(v) => toggle("emailAlerts", v)}
             locked={!isPro}
             lockedLabel="Pro"
+            last
+          />
+        </GlassCard>
+
+        {/* Monitoring */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          Monitoring
+        </Text>
+        <GlassCard noPadding>
+          <ToggleRow
+            icon="shield-checkmark"
+            iconColor={colors.primary}
+            label="Scan Complete"
+            sublabel="Notify when an identity scan finishes"
+            value={prefs.scanComplete}
+            onToggle={(v) => toggle("scanComplete", v)}
+          />
+          <ToggleRow
+            icon="alert-circle"
+            iconColor="#EF4444"
+            label="New Threats Found"
+            sublabel="Alert when high-severity threats are detected"
+            value={prefs.newThreats}
+            onToggle={(v) => toggle("newThreats", v)}
+          />
+          <ToggleRow
+            icon="calendar"
+            iconColor="#8B5CF6"
+            label="Weekly Digest"
+            sublabel="Weekly reminder that your identity is being monitored"
+            value={prefs.weeklyDigest}
+            onToggle={(v) => toggle("weeklyDigest", v)}
             last
           />
         </GlassCard>

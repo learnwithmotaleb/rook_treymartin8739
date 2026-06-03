@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { scheduleScanCompleteNotification } from "@/hooks/useNotifications";
+import { scheduleScanCompleteNotification, scheduleThreatNotification } from "@/hooks/useNotifications";
 import {
   getMe,
   getAccounts,
@@ -266,7 +266,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadThreats = useCallback(async () => {
     const summaries = await listThreats();
-    setThreats(summaries.map(mapSummaryToThreat));
+    const mapped = summaries.map(mapSummaryToThreat);
+    setThreats(mapped);
+    return mapped;
   }, []);
 
   const refreshData = useCallback(async () => {
@@ -337,12 +339,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setIsScanning(false);
             setScanProgress(100);
             setScanCurrentStep(null);
-            await loadThreats();
+            const freshThreats = await loadThreats();
             const profile = await getMe();
             const accounts = await getAccounts();
             setUser(mapProfileToUser(profile, accounts));
-            const activeCount = threats.filter((t) => !t.resolved).length;
+            const activeThreatsFound = freshThreats.filter((t) => !t.resolved);
+            const activeCount = activeThreatsFound.length;
             scheduleScanCompleteNotification(activeCount).catch(() => {});
+            const highSeverity = activeThreatsFound.filter((t) => t.severity === "high");
+            if (highSeverity.length > 0 && highSeverity[0]) {
+              scheduleThreatNotification(highSeverity[0].title, highSeverity[0].id).catch(() => {});
+            }
           }
         } catch {
           if (pollTimerRef.current) {
