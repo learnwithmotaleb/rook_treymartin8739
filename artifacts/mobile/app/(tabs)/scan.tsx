@@ -66,8 +66,10 @@ export default function ScanScreen() {
     }
   }, [isScanning, threats, resultOpacity]);
 
+  const hasAccounts = user.connectedAccounts.length > 0;
+
   const handleScan = () => {
-    if (isScanning) return;
+    if (isScanning || !hasAccounts) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLastResult(null);
     startScan();
@@ -321,55 +323,82 @@ export default function ScanScreen() {
           </Animated.View>
         )}
 
-        {/* Scan button */}
-        <TouchableOpacity
-          style={[
-            styles.scanBtn,
-            {
-              backgroundColor: isScanning ? colors.secondary : colors.primary,
-              borderColor: isScanning ? colors.border : colors.primary,
-            },
-          ]}
-          activeOpacity={0.8}
-          onPress={handleScan}
-          disabled={isScanning}
-        >
-          {isScanning ? (
-            <>
-              <ActivityIndicator color={colors.mutedForeground} size="small" />
-              <Text
-                style={[
-                  styles.scanBtnText,
-                  { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-                ]}
-              >
-                Scanning…
+        {/* No accounts CTA */}
+        {!hasAccounts && !isScanning ? (
+          <GlassCard style={[styles.noAccountsCard, { borderColor: colors.border }]}>
+            <View style={[styles.noAccountsIcon, { backgroundColor: colors.primary + "18" }]}>
+              <Ionicons name="person-add" size={26} color={colors.primary} />
+            </View>
+            <Text style={[styles.noAccountsTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Connect an account first
+            </Text>
+            <Text style={[styles.noAccountsSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Link at least one social account so ShieldID knows who to protect.
+            </Text>
+            <TouchableOpacity
+              style={[styles.connectBtn, { backgroundColor: colors.primary }]}
+              activeOpacity={0.85}
+              onPress={() => router.push("/connect-account" as any)}
+            >
+              <Ionicons name="link" size={16} color="#fff" />
+              <Text style={[styles.connectBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                Connect Account
               </Text>
-            </>
-          ) : (
-            <>
-              <MaterialCommunityIcons name="radar" size={20} color="#FFFFFF" />
-              <Text
-                style={[
-                  styles.scanBtnText,
-                  { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" },
-                ]}
-              >
-                Start Full Scan
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+            </TouchableOpacity>
+          </GlassCard>
+        ) : (
+          <>
+            {/* Scan button */}
+            <TouchableOpacity
+              style={[
+                styles.scanBtn,
+                {
+                  backgroundColor: isScanning ? colors.secondary : colors.primary,
+                  borderColor: isScanning ? colors.border : colors.primary,
+                },
+              ]}
+              activeOpacity={0.8}
+              onPress={handleScan}
+              disabled={isScanning}
+            >
+              {isScanning ? (
+                <>
+                  <ActivityIndicator color={colors.mutedForeground} size="small" />
+                  <Text
+                    style={[
+                      styles.scanBtnText,
+                      { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+                    ]}
+                  >
+                    Scanning…
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="radar" size={20} color="#FFFFFF" />
+                  <Text
+                    style={[
+                      styles.scanBtnText,
+                      { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" },
+                    ]}
+                  >
+                    Start Full Scan
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
 
-        <Text
-          style={[
-            styles.scanHint,
-            { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-          ]}
-        >
-          Scans all {user.monitored} connected accounts for impersonators,
-          stolen photos, and data breaches
-        </Text>
+            <Text
+              style={[
+                styles.scanHint,
+                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+              ]}
+            >
+              Scans all {user.monitored} connected account{user.monitored !== 1 ? "s" : ""} for impersonators,
+              stolen photos, and data breaches
+            </Text>
+          </>
+        )}
       </View>
     </View>
   );
@@ -458,4 +487,31 @@ const styles = StyleSheet.create({
   },
   scanBtnText: { fontSize: 16 },
   scanHint: { fontSize: 13, textAlign: "center", lineHeight: 20, opacity: 0.8 },
+  noAccountsCard: {
+    width: "100%",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+  },
+  noAccountsIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  noAccountsTitle: { fontSize: 16, textAlign: "center" },
+  noAccountsSub: { fontSize: 14, textAlign: "center", lineHeight: 20, opacity: 0.8 },
+  connectBtn: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 28,
+  },
+  connectBtnText: { fontSize: 15, color: "#fff" },
 });

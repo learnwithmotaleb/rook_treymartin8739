@@ -269,16 +269,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    setIsLoading(true);
-    refreshData().finally(() => setIsLoading(false));
-  }, [isLoggedIn, refreshData]);
+  // NOTE: Do NOT trigger refreshData() from the isLoggedIn useEffect.
+  // The AsyncStorage restore of isLoggedIn happens before setApiAuthToken() is called
+  // from _layout.tsx, so any API call made here would have no Bearer token and would
+  // fall back to the demo user. Data loading is triggered explicitly inside login().
 
   const login = useCallback((_name: string, _email: string) => {
     setIsLoggedIn(true);
     AsyncStorage.setItem("isLoggedIn", "true");
-  }, []);
+    // setApiAuthToken() has been called by _layout.tsx before login() is invoked,
+    // so the token getter is ready and refreshData() will include the Bearer header.
+    setIsLoading(true);
+    refreshData().finally(() => setIsLoading(false));
+  }, [refreshData]);
 
   const logout = useCallback(() => {
     setIsLoggedIn(false);
