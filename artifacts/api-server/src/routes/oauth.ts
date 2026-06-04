@@ -727,4 +727,57 @@ function setupPage(): string {
 </html>`;
 }
 
+// ── Vision API smoke test ─────────────────────────────────────────────────────
+// GET /api/oauth/debug/vision
+// Tests Cloud Vision WEB_DETECTION with a known public image.
+// Returns JSON so it's easy to curl or visit in a browser.
+router.get("/oauth/debug/vision", async (_req, res) => {
+  const apiKey = process.env["GOOGLE_SEARCH_API_KEY"];
+  if (!apiKey) {
+    res.status(503).json({ ok: false, error: "GOOGLE_SEARCH_API_KEY not set" });
+    return;
+  }
+
+  // Wikimedia public domain image — stable URL, always fetchable by Vision
+  const testImageUri = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/280px-PNG_transparency_demonstration_1.png";
+
+  try {
+    const visionRes = await fetch(
+      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requests: [{
+            image: { source: { imageUri: testImageUri } },
+            features: [{ type: "WEB_DETECTION", maxResults: 5 }],
+          }],
+        }),
+      }
+    );
+
+    const body = await visionRes.json() as Record<string, unknown>;
+
+    if (!visionRes.ok) {
+      res.status(visionRes.status).json({ ok: false, httpStatus: visionRes.status, body });
+      return;
+    }
+
+    const responses = (body as { responses?: unknown[] }).responses ?? [];
+    const first = responses[0] as Record<string, unknown> | undefined;
+    const webDetection = first?.["webDetection"] as Record<string, unknown> | undefined;
+
+    res.json({
+      ok: true,
+      httpStatus: visionRes.status,
+      visionApiEnabled: true,
+      pagesWithMatchingImages: (webDetection?.["pagesWithMatchingImages"] as unknown[] | undefined)?.length ?? 0,
+      webEntities: (webDetection?.["webEntities"] as unknown[] | undefined)?.slice(0, 3),
+      message: "Cloud Vision WEB_DETECTION is working correctly ✓",
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 export default router;
