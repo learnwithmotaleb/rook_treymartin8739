@@ -164,10 +164,12 @@ function OAuthButton({
       // HMAC-signed state token — survives longer than a 60s Clerk JWT
       const state = await getOAuthState();
 
-      // Use the custom URL scheme as redirect_uri so iOS intercepts it
-      // immediately (ASWebAuthenticationSession matches on scheme, not host).
-      // The server callback also accepts this scheme for token exchange.
-      const redirectUrl = OAUTH_SCHEME;
+      // Use the HTTPS server callback as redirect_uri — Instagram requires HTTPS.
+      // On iOS, openAuthSessionAsync may intercept the redirect before the server
+      // loads the page; if so, result.url will contain the code, which we
+      // forward to the server below.
+      const redirectUriMap = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
+      const redirectUrl = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${config.callbackPath}`;
       const authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
 
       console.log(`[OAuth:${platform}] opening browser`, { authUrl, redirectUrl });
