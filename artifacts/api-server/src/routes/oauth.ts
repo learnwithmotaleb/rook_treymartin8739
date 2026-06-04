@@ -341,6 +341,101 @@ router.get("/oauth/redirect-uris", (_req, res) => {
   });
 });
 
+// ─── Dev diagnostic: shows truncated IDs and a testable auth URL ──────────────
+// Safe to share — never reveals full secrets. Shows enough to verify correctness.
+router.get("/oauth/debug", (_req, res) => {
+  const igClientId  = process.env["INSTAGRAM_CLIENT_ID"] ?? "";
+  const fbAppId     = process.env["FACEBOOK_APP_ID"] ?? "";
+  const igPublicId  = process.env["EXPO_PUBLIC_INSTAGRAM_CLIENT_ID"] ?? "";
+
+  const mask = (s: string) =>
+    s.length > 8 ? `${s.slice(0, 5)}…${s.slice(-4)}` : s.length > 0 ? "****" : "(not set)";
+
+  const igRedirect  = `https://${DOMAIN}/api/oauth/instagram/callback`;
+
+  // Build the exact URL the mobile app would open
+  const testAuthUrl = new URL("https://www.instagram.com/oauth/authorize");
+  testAuthUrl.searchParams.set("client_id", igPublicId);
+  testAuthUrl.searchParams.set("redirect_uri", igRedirect);
+  testAuthUrl.searchParams.set("scope", "instagram_business_basic");
+  testAuthUrl.searchParams.set("response_type", "code");
+  testAuthUrl.searchParams.set("state", "debug_test");
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OAuth Debug — ShieldID</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+       background: #0a0f1e; color: #e2e8f0; padding: 40px 24px; }
+.container { max-width: 720px; margin: 0 auto; }
+h1 { font-size: 24px; font-weight: 800; color: #f8fafc; margin-bottom: 6px; }
+.sub { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+.card { background: #131929; border: 1px solid #1e2d4a; border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+h2 { font-size: 14px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
+.row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0;
+       border-bottom: 1px solid #1e2d4a; font-size: 14px; }
+.row:last-child { border-bottom: none; }
+.label { color: #64748b; font-family: monospace; font-size: 13px; }
+.value { font-family: monospace; font-size: 13px; }
+.ok { color: #10B981; } .warn { color: #F59E0B; } .err { color: #EF4444; }
+.url-block { background: #0d1525; border: 1px solid #1e2d4a; border-radius: 10px;
+             padding: 14px; word-break: break-all; font-family: monospace; font-size: 12px; color: #60a5fa; margin-top: 8px; }
+.btn { display: inline-block; background: #E1306C; color: #fff; padding: 12px 24px;
+       border-radius: 10px; font-weight: 600; text-decoration: none; margin-top: 12px; font-size: 14px; }
+.note { color: #F59E0B; font-size: 13px; background: #F59E0B11; border: 1px solid #F59E0B33;
+        border-radius: 8px; padding: 12px 14px; margin-top: 12px; line-height: 1.6; }
+</style></head><body><div class="container">
+<h1>🔍 Instagram OAuth Debug</h1>
+<p class="sub">Safe diagnostics — secrets are masked. Use this to verify your Meta app configuration.</p>
+
+<div class="card">
+<h2>Client ID Comparison</h2>
+<div class="row">
+  <span class="label">INSTAGRAM_CLIENT_ID (server, token exchange)</span>
+  <span class="value ${igClientId ? "ok" : "err"}">${mask(igClientId)}</span>
+</div>
+<div class="row">
+  <span class="label">EXPO_PUBLIC_INSTAGRAM_CLIENT_ID (mobile, auth URL)</span>
+  <span class="value ${igPublicId ? "ok" : "err"}">${mask(igPublicId)}</span>
+</div>
+<div class="row">
+  <span class="label">FACEBOOK_APP_ID (for reference)</span>
+  <span class="value ${fbAppId ? "ok" : "warn"}">${mask(fbAppId)}</span>
+</div>
+${igClientId && igPublicId && igClientId === igPublicId
+  ? `<div class="row"><span class="label">Match?</span><span class="value ok">✅ Both IDs match — good</span></div>`
+  : igClientId !== igPublicId
+  ? `<div class="row"><span class="label">Match?</span><span class="value err">❌ MISMATCH — these must be identical</span></div>`
+  : ""}
+</div>
+
+<div class="card">
+<h2>Redirect URI (must be registered in Meta portal)</h2>
+<div class="url-block">${igRedirect}</div>
+</div>
+
+<div class="card">
+<h2>Test Auth URL</h2>
+<p style="color:#64748b;font-size:13px;margin-bottom:8px;">
+  Click the button below to open Instagram's OAuth page directly in this browser.
+  If Instagram shows "Invalid request", the client_id or redirect_uri is wrong.<br/>
+  If it shows a login/permission screen, the credentials are correct.
+</p>
+<div class="url-block">${testAuthUrl.toString()}</div>
+<a href="${testAuthUrl.toString()}" class="btn" target="_blank">→ Test Instagram Auth Now</a>
+<div class="note">
+  <strong>Note:</strong> For Instagram Login (new API), the client_id must be your <strong>Facebook App ID</strong> — 
+  not a separate Instagram-specific ID. Both INSTAGRAM_CLIENT_ID and EXPO_PUBLIC_INSTAGRAM_CLIENT_ID 
+  should equal your Facebook App ID.<br/><br/>
+  Also ensure <code>instagram_business_basic</code> is added as a Permission in your Meta App → 
+  Instagram Login → Settings → Permissions.
+</div>
+</div>
+</div></body></html>`);
+});
+
 // ─── Developer Setup Guide ────────────────────────────────────────────────────
 router.get("/oauth/setup", (_req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
