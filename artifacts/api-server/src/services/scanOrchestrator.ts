@@ -497,6 +497,10 @@ async function runScanPipeline(
 
   if (!user) throw new Error(`User not found: ${userId}`);
 
+  // Demo user has no Clerk ID — simulation mode is only allowed for demo users.
+  // Real authenticated users always get genuine scan results (even if empty).
+  const isDemoUser = !user.clerkId;
+
   const connectedAccounts = await db
     .select()
     .from(connectedAccountsTable)
@@ -666,16 +670,21 @@ async function runScanPipeline(
   }
 
   // Simulation for accounts with no real candidates from any source.
-  // Only runs when the user has at least one connected account — otherwise
-  // a real user with no accounts would see fabricated threats after every scan.
+  // ONLY for the demo user (no Clerk ID). Real authenticated users receive
+  // genuine results — even if empty — so they never see fabricated threats.
   const simulatedPlatforms = connectedAccounts.map((a) => a.platform);
 
-  if (allCandidates.length === 0 && connectedAccounts.length > 0) {
+  if (allCandidates.length === 0 && isDemoUser && connectedAccounts.length > 0) {
     const simulated = generateSimulatedCandidates(primaryUsername, simulatedPlatforms);
     allCandidates.push(...simulated);
     logger.info(
       { count: simulated.length },
-      "Using simulated candidates (no real candidates found from API or web search)"
+      "Using simulated candidates (demo user, no real candidates found)"
+    );
+  } else if (allCandidates.length === 0 && !isDemoUser) {
+    logger.info(
+      { userId, connectedAccounts: connectedAccounts.length },
+      "Real user scan complete — no impersonator candidates found (clean result)"
     );
   }
 
@@ -846,7 +855,12 @@ async function runScanPipeline(
   await sleep(500);
 
   let breachThreatAdded = false;
-  if (user.email) {
+  // Skip breach check simulation for real users — only run if HIBP key is configured
+  // (real data) OR it's the demo user (simulation is fine for demos).
+  const hibpConfigured = !!process.env["HIBP_API_KEY"];
+  const runBreachCheck = hibpConfigured || isDemoUser;
+
+  if (user.email && runBreachCheck) {
     try {
       const breachResult = await checkEmailBreach(user.email);
       if (breachResult.breachCount > 0) {

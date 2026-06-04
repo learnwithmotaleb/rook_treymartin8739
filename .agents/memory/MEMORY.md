@@ -1,5 +1,1 @@
-- [Instagram OAuth domain mismatch](instagram-oauth.md) — dev domain changes on restart; mobile app now fetches redirect URI from /api/oauth/redirect-uris before OAuth
-- [Stripe API version in billing.ts](stripe-billing.md) — must use "2026-04-22.dahlia" SDK version string; current_period_end cast via (sub as any)["current_period_end"]
-- [Scan simulation guard](scan-simulation-guard.md) — simulated threats fire for real users with no accounts; guard requires connectedAccounts.length > 0
-- [GlassCard reanimated web crash](glasscard-reanimated.md) — useSharedValue/useAnimatedStyle must be in a sub-component (PressableCard) not in GlassCard directly; web renderer conflicts otherwise
-- [OAuth state token expiry](oauth-state-token.md) — Clerk JWTs expire in ~60s; use HMAC-signed opaque state token via POST /api/oauth/state instead
+- [Scan simulation guard](scan-simulation-guard.md) — simulation only fires for demo user (no clerkId); real users always get honest results even if empty.
