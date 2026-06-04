@@ -111,7 +111,15 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
   }
 
   try {
-    const redirectUri = `https://${DOMAIN}/api/oauth/instagram/callback`;
+    // Accept either the https server callback URI OR the mobile:// custom
+    // scheme URI (used by the Expo app so iOS can intercept the redirect).
+    // The redirect_uri in the token exchange must exactly match what was sent
+    // to Instagram in the authorization request.
+    const serverRedirectUri = `https://${DOMAIN}/api/oauth/instagram/callback`;
+    const mobileRedirectUri = "mobile://oauth";
+    const redirectUri = (req.query["redirect_uri"] as string | undefined) === mobileRedirectUri
+      ? mobileRedirectUri
+      : serverRedirectUri;
 
     // Exchange code for short-lived token
     const tokenParams = new URLSearchParams({
@@ -338,6 +346,9 @@ router.get("/oauth/redirect-uris", (_req, res) => {
   res.json({
     instagram: `https://${DOMAIN}/api/oauth/instagram/callback`,
     facebook:  `https://${DOMAIN}/api/oauth/facebook/callback`,
+    // mobile:// scheme used by the Expo app for in-app browser OAuth
+    instagram_mobile: "mobile://oauth",
+    facebook_mobile:  "mobile://oauth",
   });
 });
 

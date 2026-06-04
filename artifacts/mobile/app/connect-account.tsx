@@ -35,6 +35,12 @@ interface PlatformConfig {
   businessAccountNote?: string;
 }
 
+// Custom URL scheme registered in app.json ("scheme": "mobile").
+// Instagram/Facebook redirect to mobile://oauth — iOS intercepts this
+// immediately, closes the browser, and returns result.url to the app.
+// The app then POSTs the code to the server callback for token exchange.
+const OAUTH_SCHEME = "mobile://oauth";
+
 const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
   instagram: {
     label: "Instagram",
@@ -150,53 +156,51 @@ function OAuthButton({
   const handlePress = useCallback(async () => {
     setLoading(true);
     try {
-      // Snapshot current state so we can detect a newly connected account after the browser closes
+      // Snapshot accounts before so we can detect a change after the flow
       const accountsBefore = await getAccounts().catch(() => [] as Awaited<ReturnType<typeof getAccounts>>);
       const existingAccount = accountsBefore.find((a) => a.platform === platform);
       const prevLastSynced = existingAccount?.lastSynced ?? null;
 
-      // Fetch the redirect URI from the server so both sides always agree on
-      // the exact URL — avoids mismatch between EXPO_PUBLIC_DOMAIN and the
-      // domain registered in the Meta Developer Console.
-      const redirectUris = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
-      const redirectUrl = redirectUris[platform] ?? `${process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : ""}${config.callbackPath}`;
-
-      // Use an HMAC-signed server-issued state token so the OAuth callback can
-      // identify the real user even if the flow takes longer than Clerk JWTs live (~60s).
+      // HMAC-signed state token — survives longer than a 60s Clerk JWT
       const state = await getOAuthState();
-      const authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
-      // Log the full result for diagnostics — visible in Expo console
+      // Use the custom URL scheme as redirect_uri so iOS intercepts it
+      // immediately (ASWebAuthenticationSession matches on scheme, not host).
+      // The server callback also accepts this scheme for token exchange.
+      const redirectUrl = OAUTH_SCHEME;
+      const authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
+
+      console.log(`[OAuth:${platform}] opening browser`, { authUrl, redirectUrl });
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
       console.log(`[OAuth:${platform}] result.type=${result.type}`, "url" in result ? result.url : "(no url)");
 
-      // On iOS, ASWebAuthenticationSession intercepts the redirect BEFORE our
-      // server processes it. The code (or error) lands in result.url, not via
-      // the server callback. Extract and handle it here.
       const resultUrl = "url" in result ? result.url ?? "" : "";
       const resultParams = resultUrl.includes("?")
         ? new URLSearchParams(resultUrl.split("?")[1])
         : null;
       const urlError = resultParams?.get("error") ?? resultParams?.get("error_reason");
       const urlCode  = resultParams?.get("code");
+      const urlState = resultParams?.get("state") ?? state;
 
       if (urlCode) {
-        // Server-side callback was bypassed by the in-app browser — POST the
-        // code directly to the server for exchange.
-        console.log(`[OAuth:${platform}] intercepted code — posting to server for exchange`);
-        const urlState = resultParams?.get("state") ?? "";
-        await fetch(`${redirectUrl}?code=${encodeURIComponent(urlCode)}&state=${encodeURIComponent(urlState)}`, {
-          method: "GET",
-          headers: { "Accept": "text/html" },
-        }).catch(() => null);
-        await new Promise((r) => setTimeout(r, 800));
+        // iOS intercepted the redirect — the server callback was never hit.
+        // Forward the code to the server using the HTTPS callback endpoint.
+        // The server token exchange uses the same redirect_uri we sent to Instagram.
+        console.log(`[OAuth:${platform}] forwarding code to server callback`);
+        const redirectUris = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
+        const serverCallbackUrl = redirectUris[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${config.callbackPath}`;
+
+        await fetch(
+          `${serverCallbackUrl}?code=${encodeURIComponent(urlCode)}&state=${encodeURIComponent(urlState)}&redirect_uri=${encodeURIComponent(redirectUrl)}`,
+          { method: "GET" }
+        ).catch((e) => console.warn(`[OAuth:${platform}] server forward failed:`, e));
+
+        await new Promise((r) => setTimeout(r, 1000));
       } else {
-        // Give the server callback time to process (when browser doesn't intercept)
         await new Promise((r) => setTimeout(r, 600));
       }
 
       const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
-
       if (accountsAfter) {
         const updated = accountsAfter.find((a) => a.platform === platform);
         const isNewlyConnected = updated && (
@@ -210,21 +214,19 @@ function OAuthButton({
       }
 
       if (urlError) {
-        // Instagram/Facebook told us exactly what went wrong — surface it
-        console.log(`[OAuth:${platform}] error from provider: ${urlError}`);
+        console.log(`[OAuth:${platform}] provider error: ${urlError}`);
         const friendlyMsg =
           urlError === "access_denied"
             ? "You declined the permission request. Please try again and tap Allow."
             : urlError === "invalid_request" && platform === "instagram"
-            ? `Instagram rejected the request (${urlError}). Make sure your account is a Business or Creator account connected to a Facebook Page, and that the Instagram Login product is set up in your Meta app.`
+            ? "Instagram rejected the request. Make sure your account is a Business or Creator account connected to a Facebook Page."
             : `Authentication failed: ${urlError}`;
         Alert.alert("Authentication Failed", friendlyMsg, [{ text: "OK" }]);
-      } else if (result.type === "success" && urlCode) {
-        // Code was sent to server — if account still not found, something failed server-side
-        Alert.alert("Almost there", "We processed the sign-in but couldn't confirm the account. Please try again.", [{ text: "OK" }]);
+      } else if (urlCode) {
+        Alert.alert("Almost there", "We received the sign-in but couldn't confirm the account. Please try again.", [{ text: "OK" }]);
       } else if (result.type === "cancel" || result.type === "dismiss") {
         const isInstagram = platform === "instagram";
-        const isFacebook = platform === "facebook";
+        const isFacebook  = platform === "facebook";
         const hint = isInstagram
           ? "Instagram requires a Business or Creator account connected to a Facebook Page. If your account is personal, go to Instagram Settings → Account → Switch to Professional Account (free and reversible)."
           : isFacebook
