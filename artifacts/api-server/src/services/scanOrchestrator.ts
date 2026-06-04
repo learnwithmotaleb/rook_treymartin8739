@@ -626,18 +626,35 @@ async function runScanPipeline(
   );
 
   if (webSearchEnabled) {
-    // Gather photo URLs and caption text from ingested accounts for richer search
-    const allPhotoUrls = ingestedAccounts.flatMap((a) =>
+    // Gather photo URLs — include profile photos first (always available even
+    // when post-photo permissions haven't been granted via App Review).
+    // Profile photos appear as the user's main identity image and are the
+    // most likely to be stolen by impersonators.
+    const profilePhotoUrls = ingestedAccounts
+      .map((a) => a.profileImageUrl)
+      .filter((u): u is string => Boolean(u));
+
+    const postPhotoUrls = ingestedAccounts.flatMap((a) =>
       a.mediaItems
         .filter((m) => m.type === "image" && m.url)
         .map((m) => m.url)
-        .slice(0, 10)
+        .slice(0, 8)
     );
+
+    // Profile photos first so Strategy 2 (reverse image search) always has
+    // at least one URL to work with, even when post photos aren't accessible.
+    const allPhotoUrls = [...profilePhotoUrls, ...postPhotoUrls].slice(0, 10);
+
     const allCaptions = ingestedAccounts.flatMap((a) =>
       a.mediaItems
         .map((m) => m.caption)
         .filter((c): c is string => typeof c === "string" && c.length >= 30)
         .slice(0, 5)
+    );
+
+    logger.info(
+      { profilePhotos: profilePhotoUrls.length, postPhotos: postPhotoUrls.length, captions: allCaptions.length },
+      "Web search inputs prepared"
     );
 
     const webCandidates = await searchForImpersonators({
