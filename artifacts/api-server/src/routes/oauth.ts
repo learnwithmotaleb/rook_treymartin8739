@@ -111,46 +111,83 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
   }
 
   try {
+    const redirectUri = `https://${DOMAIN}/api/oauth/instagram/callback`;
+
     // Exchange code for short-lived token
     const tokenParams = new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
       grant_type: "authorization_code",
-      redirect_uri: `https://${DOMAIN}/api/oauth/instagram/callback`,
+      redirect_uri: redirectUri,
       code,
     });
+
+    req.log?.info({ clientId, redirectUri }, "Exchanging Instagram auth code for token");
 
     const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
       body: tokenParams,
     });
 
+    const tokenBody = await tokenRes.text();
     if (!tokenRes.ok) {
-      const text = await tokenRes.text();
-      throw new Error(`Token exchange failed: ${text}`);
+      req.log?.error({ status: tokenRes.status, body: tokenBody, clientId, redirectUri }, "Instagram token exchange failed");
+      throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${tokenBody}`);
     }
 
-    const { access_token, user_id } = await tokenRes.json() as {
-      access_token: string;
-      user_id: number;
-    };
+    let tokenData: { access_token: string; user_id: number };
+    try {
+      tokenData = JSON.parse(tokenBody) as { access_token: string; user_id: number };
+    } catch {
+      throw new Error(`Token exchange returned invalid JSON: ${tokenBody}`);
+    }
 
-    // Fetch profile — instagram_business_basic scope provides followers_count + profile_picture_url
-    const profileRes = await fetch(
-      `https://graph.instagram.com/${user_id}?fields=id,username,followers_count,profile_picture_url&access_token=${access_token}`
+    if (!tokenData.access_token) {
+      throw new Error(`Token exchange returned no access_token: ${tokenBody}`);
+    }
+
+    const { access_token, user_id } = tokenData;
+
+    req.log?.info({ userId: user_id }, "Instagram short-lived token obtained");
+
+    // Fetch profile — instagram_business_basic provides username + followers_count + profile_picture_url
+    // Try /me first (works with new Instagram Login), fall back to /{user_id}
+    let profile: { id: string; username: string; followers_count?: number; profile_picture_url?: string };
+    const meRes = await fetch(
+      `https://graph.instagram.com/me?fields=id,username,followers_count,profile_picture_url&access_token=${access_token}`
     );
-    const profile = await profileRes.json() as {
-      id: string;
-      username: string;
-      followers_count?: number;
-      profile_picture_url?: string;
-    };
+    if (meRes.ok) {
+      profile = await meRes.json() as typeof profile;
+    } else {
+      const userRes = await fetch(
+        `https://graph.instagram.com/${user_id}?fields=id,username,followers_count,profile_picture_url&access_token=${access_token}`
+      );
+      if (!userRes.ok) {
+        const errText = await userRes.text();
+        req.log?.error({ status: userRes.status, body: errText }, "Instagram profile fetch failed");
+        throw new Error(`Profile fetch failed (HTTP ${userRes.status}): ${errText}`);
+      }
+      profile = await userRes.json() as typeof profile;
+    }
+
+    req.log?.info({ igUsername: profile.username, igId: profile.id }, "Instagram profile fetched");
 
     // Exchange for long-lived token (60 days)
     const longLivedRes = await fetch(
       `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${clientSecret}&access_token=${access_token}`
     );
-    const { access_token: longToken } = await longLivedRes.json() as { access_token: string };
+    const longLivedBody = await longLivedRes.text();
+    if (!longLivedRes.ok) {
+      // Non-fatal: save the short-lived token and warn. The account is still connected.
+      req.log?.warn({ status: longLivedRes.status, body: longLivedBody }, "Long-lived token exchange failed — using short-lived token");
+    }
+    let longToken: string = access_token; // fallback to short-lived
+    try {
+      const longData = JSON.parse(longLivedBody) as { access_token?: string };
+      if (longData.access_token) longToken = longData.access_token;
+    } catch {
+      req.log?.warn({ body: longLivedBody }, "Could not parse long-lived token response — using short-lived token");
+    }
 
     const userId = await resolveUserFromState(state);
 
