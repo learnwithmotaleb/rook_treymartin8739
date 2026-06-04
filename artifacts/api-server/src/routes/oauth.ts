@@ -1,7 +1,8 @@
+import crypto from "node:crypto";
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable, usersTable } from "@workspace/db";
-import { verifyToken } from "@clerk/express";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
@@ -9,28 +10,80 @@ const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? process.env["REPLIT_DEV_DOMAIN"]
   ?? "localhost";
 
-// Resolve the real DB userId from the Clerk JWT passed as `state`.
-// Falls back to demo user if the state is missing or invalid.
+// ── HMAC-signed OAuth state token ────────────────────────────────────────────
+// Solves the Clerk JWT expiry problem: Clerk JWTs live ~60 s, but a user
+// might take several minutes on the Facebook/Instagram consent screen.
+// Instead we generate our own HMAC-signed token with a 15-minute window.
+
+const STATE_SECRET = process.env["SESSION_SECRET"] ?? "dev-fallback-change-in-prod";
+
+function createOAuthState(userId: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({ userId, iat: Math.floor(Date.now() / 1000) })
+  ).toString("base64url");
+  const sig = crypto
+    .createHmac("sha256", STATE_SECRET)
+    .update(payload)
+    .digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+function parseOAuthState(state: string): string | null {
+  try {
+    const dot = state.lastIndexOf(".");
+    if (dot === -1) return null;
+    const payload = state.slice(0, dot);
+    const sig = state.slice(dot + 1);
+    const expected = crypto
+      .createHmac("sha256", STATE_SECRET)
+      .update(payload)
+      .digest("base64url");
+    if (sig !== expected) return null;
+    const { userId, iat } = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8")
+    ) as { userId?: string; iat?: number };
+    if (!userId || typeof iat !== "number") return null;
+    if (Date.now() / 1000 - iat > 900) return null; // 15-min window
+    return userId;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveUserFromState(state: string | undefined): Promise<string> {
   if (state) {
+    // Primary: HMAC-signed opaque state token (doesn't expire in 60s like JWTs)
+    const userId = parseOAuthState(state);
+    if (userId) return userId;
+
+    // Fallback: Clerk JWT (backward compat — try to look up by clerkId)
     try {
+      const { verifyToken } = await import("@clerk/express");
       const payload = await verifyToken(state, {
         secretKey: process.env["CLERK_SECRET_KEY"] ?? "",
       });
-      const clerkUserId = payload.sub;
       const [dbUser] = await db
         .select({ id: usersTable.id })
         .from(usersTable)
-        .where(eq(usersTable.clerkId, clerkUserId));
+        .where(eq(usersTable.clerkId, payload.sub));
       if (dbUser) return dbUser.id;
     } catch {
-      // invalid / expired token — fall through to demo
+      // expired / invalid — fall through to demo
     }
   }
   const { getOrCreateDemoUser } = await import("../lib/demoUser");
   const demo = await getOrCreateDemoUser();
   return demo.id;
 }
+
+// ── POST /api/oauth/state ─────────────────────────────────────────────────────
+// Called by the mobile app (authenticated) before opening the OAuth browser.
+// Returns a short-lived HMAC-signed state token that the callback can verify
+// without depending on the Clerk JWT expiry window.
+router.post("/oauth/state", requireAuth, (req, res): void => {
+  const state = createOAuthState(req.userId);
+  res.json({ state });
+});
 
 // ─── Instagram OAuth callback ────────────────────────────────────────────────
 // Meta redirects here after the user approves the app.

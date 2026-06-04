@@ -141,8 +141,14 @@ export async function updateMe(updates: {
   });
 }
 
-export async function getAccounts(): Promise<AccountProfile[]> {
-  return apiFetch<AccountProfile[]>("/accounts");
+export async function getAccounts(opts?: { bustCache?: boolean }): Promise<AccountProfile[]> {
+  const path = opts?.bustCache ? `/accounts?_t=${Date.now()}` : "/accounts";
+  return apiFetch<AccountProfile[]>(path);
+}
+
+export async function getOAuthState(): Promise<string> {
+  const result = await apiFetch<{ state: string }>("/oauth/state", { method: "POST" });
+  return result.state;
 }
 
 export async function startScan(): Promise<ScanJob> {

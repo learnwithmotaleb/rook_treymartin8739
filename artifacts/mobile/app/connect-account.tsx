@@ -17,12 +17,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
-import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { getAccounts, getOAuthRedirectUris } from "@/lib/api";
+import { getAccounts, getOAuthRedirectUris, getOAuthState } from "@/lib/api";
 
 interface PlatformConfig {
   label: string;
@@ -145,7 +144,6 @@ function OAuthButton({
   disabled: boolean;
 }) {
   const colors = useColors();
-  const { getToken } = useAuth();
   const config = PLATFORM_CONFIGS[platform]!;
   const [loading, setLoading] = useState(false);
 
@@ -163,15 +161,18 @@ function OAuthButton({
       const redirectUris = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
       const redirectUrl = redirectUris[platform] ?? `${process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : ""}${config.callbackPath}`;
 
-      const token = (await getToken()) ?? "";
-      const authUrl = buildAuthUrl(platform, clientId, token, redirectUrl);
+      // Use an HMAC-signed server-issued state token so the OAuth callback can
+      // identify the real user even if the flow takes longer than Clerk JWTs live (~60s).
+      const state = await getOAuthState();
+      const authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
       // Always poll after the browser closes — the server may have processed the
       // OAuth callback successfully even if the browser returned "dismiss" (common
       // on Android where Chrome Custom Tabs don't auto-close on redirect).
+      // Use bustCache so iOS URLCache doesn't serve a stale 304 response.
       await new Promise((r) => setTimeout(r, 600));
-      const accountsAfter = await getAccounts().catch(() => null);
+      const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
 
       if (accountsAfter) {
         const updated = accountsAfter.find((a) => a.platform === platform);
