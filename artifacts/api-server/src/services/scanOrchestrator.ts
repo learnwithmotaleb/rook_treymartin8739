@@ -45,6 +45,7 @@ import { getAdapter, type MediaItem } from "../adapters/platformAdapter";
 import {
   searchForImpersonators,
   isConfigured as isWebSearchConfigured,
+  isVisionConfigured as isVisionSearchConfigured,
   type WebSearchCandidate,
 } from "./webSearchService";
 import { computeHashesForUrls, compareImageToHashes } from "./photoHashService";
@@ -615,7 +616,8 @@ async function runScanPipeline(
   // ── Step 5: Web search for impostor profiles on unconnected platforms ─────
   const connectedPlatforms = connectedAccounts.map((a) => a.platform);
   const primaryUsername = connectedAccounts[0]?.username ?? user.username;
-  const webSearchEnabled = isWebSearchConfigured();
+  // Web search runs if either CSE (text search) OR Vision (image search) is available
+  const webSearchEnabled = isWebSearchConfigured() || isVisionSearchConfigured();
 
   await updateJobProgress(
     jobId,

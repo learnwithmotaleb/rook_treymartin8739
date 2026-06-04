@@ -1,26 +1,27 @@
 /**
- * Web Search Service — Impersonator Discovery via Google Custom Search
+ * Web Search Service — Impersonator Discovery
  *
- * Two discovery strategies that catch impersonators regardless of username:
+ * Three complementary discovery strategies:
  *
- * 1. USERNAME VARIANT SEARCH  — searches for known suffix patterns
+ * 1. USERNAME VARIANT SEARCH  — Google CSE text search for known suffix patterns
  *    (catches: @user.official, @user_real, @user0fficial, etc.)
+ *    Requires: GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX
  *
- * 2. REVERSE IMAGE SEARCH     — searches using your actual photo URLs
+ * 2. REVERSE IMAGE SEARCH     — Google Cloud Vision WEB_DETECTION
+ *    Sends actual photo pixels to Google Vision; returns every public page
+ *    where that image (or a visually similar one) appears.
  *    (catches: completely different usernames that stole your photos)
+ *    Requires: GOOGLE_SEARCH_API_KEY with Cloud Vision API enabled on the project
+ *    Pricing: $1.50 per 1,000 images (first 1,000/mo free)
  *
- * 3. CAPTION TEXT SEARCH      — searches verbatim caption snippets
+ * 3. CAPTION TEXT SEARCH      — Google CSE verbatim text search
  *    (catches: accounts that copy your post text with no username overlap)
- *
- * All three strategies are TOS-compliant: they query only publicly indexed
- * content via Google's official Custom Search API.
+ *    Requires: GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX
  *
  * Setup:
- *   1. console.developers.google.com → enable "Custom Search API"
+ *   1. console.cloud.google.com → enable "Custom Search API" + "Cloud Vision API"
  *   2. programmablesearchengine.google.com → create engine → "Search the entire web"
  *   3. Set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX
- *
- * Pricing: $5 per 1,000 queries after the free 100/day tier.
  */
 
 import { logger } from "../lib/logger";
@@ -109,10 +110,41 @@ const IMPERSONATION_SUFFIXES = [
   ".fanpage",
 ];
 
+/** Username variant + caption search requires CSE (key + cx). */
 export function isConfigured(): boolean {
   return !!(
     process.env["GOOGLE_SEARCH_API_KEY"] && process.env["GOOGLE_SEARCH_CX"]
   );
+}
+
+/** Reverse image search uses Cloud Vision API — same key, Vision API must be enabled on the project. */
+export function isVisionConfigured(): boolean {
+  return !!(process.env["GOOGLE_SEARCH_API_KEY"]);
+}
+
+// ─── Cloud Vision WEB_DETECTION types ────────────────────────────────────────
+
+interface VisionWebPage {
+  url: string;
+  pageTitle?: string;
+  score?: number;
+}
+
+interface VisionWebImage {
+  url: string;
+  score?: number;
+}
+
+interface VisionWebDetection {
+  pagesWithMatchingImages?: VisionWebPage[];
+  fullMatchingImages?: VisionWebImage[];
+  partialMatchingImages?: VisionWebImage[];
+  visuallySimilarImages?: VisionWebImage[];
+}
+
+interface VisionAnnotateResponse {
+  webDetection?: VisionWebDetection;
+  error?: { code: number; message: string };
 }
 
 async function runGoogleSearch(query: string): Promise<GoogleSearchItem[]> {
@@ -212,8 +244,150 @@ async function searchByUsernameVariants(
   return candidates;
 }
 
-// ─── Strategy 2: Reverse image search ────────────────────────────────────────
-// Finds accounts using your actual photos regardless of username.
+// ─── Strategy 2: Reverse image search via Google Cloud Vision WEB_DETECTION ──
+// Sends actual photo content to Google Vision API which returns every public
+// page on the web where that image (or a visually similar copy) appears.
+// This is true visual reverse image search — completely different from text search.
+
+const VISION_ENDPOINT = "https://vision.googleapis.com/v1/images:annotate";
+const VISION_DOWNLOAD_TIMEOUT_MS = 8_000;
+const VISION_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+/**
+ * Try to build a Vision API image object.
+ * - First tries imageUri (Vision fetches the URL directly — fastest, no bandwidth used).
+ * - Falls back to base64 content if the URI fetch fails (needed for short-lived CDN URLs).
+ */
+async function buildVisionImagePayload(
+  photoUrl: string
+): Promise<{ imageUri: string } | { content: string } | null> {
+  // Try URI first — Vision can fetch most public CDN URLs directly
+  // (Instagram scontent CDNs are publicly accessible without auth)
+  return { imageUri: photoUrl };
+}
+
+/** Call Vision API for one image. Returns the webDetection block or null on error. */
+async function runVisionWebDetection(
+  photoUrl: string
+): Promise<VisionWebDetection | null> {
+  const apiKey = process.env["GOOGLE_SEARCH_API_KEY"];
+  if (!apiKey) return null;
+
+  const imagePayload = await buildVisionImagePayload(photoUrl);
+  if (!imagePayload) return null;
+
+  const body = {
+    requests: [
+      {
+        image: "imageUri" in imagePayload
+          ? { source: { imageUri: imagePayload.imageUri } }
+          : { content: imagePayload.content },
+        features: [{ type: "WEB_DETECTION", maxResults: 20 }],
+      },
+    ],
+  };
+
+  try {
+    const res = await fetch(`${VISION_ENDPOINT}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({})) as { error?: { message?: string; code?: number } };
+      const errCode = errBody.error?.code;
+      const errMsg = errBody.error?.message ?? "";
+
+      // 403: Vision API not enabled on this project → fall back silently
+      // 400: Invalid image URL → try base64 fallback
+      if (errCode === 403) {
+        logger.warn(
+          { status: res.status, message: errMsg },
+          "Cloud Vision API not enabled on this Google project. " +
+          "Enable it at console.cloud.google.com to activate reverse image search."
+        );
+        return null;
+      }
+
+      if (errCode === 400 && "imageUri" in imagePayload) {
+        // CDN URL not reachable by Vision — download and retry as base64
+        logger.info({ photoUrl: photoUrl.slice(0, 60) }, "Vision URI fetch failed, retrying with base64");
+        return runVisionWebDetectionBase64(photoUrl, apiKey);
+      }
+
+      logger.warn({ status: res.status, message: errMsg, photoUrl: photoUrl.slice(0, 60) },
+        "Cloud Vision request failed");
+      return null;
+    }
+
+    const data = await res.json() as { responses?: Array<VisionAnnotateResponse> };
+    const response = data.responses?.[0];
+    if (response?.error) {
+      logger.warn({ error: response.error, photoUrl: photoUrl.slice(0, 60) }, "Vision response error");
+      // Error code 7 = permission denied; error code 3 = invalid image URI → try base64
+      if (response.error.code === 3 || response.error.code === 7) {
+        return runVisionWebDetectionBase64(photoUrl, apiKey);
+      }
+      return null;
+    }
+
+    return response?.webDetection ?? null;
+  } catch (err) {
+    logger.warn({ err, photoUrl: photoUrl.slice(0, 60) }, "Cloud Vision request threw");
+    return null;
+  }
+}
+
+/** Base64 fallback: download image locally and send content bytes. */
+async function runVisionWebDetectionBase64(
+  photoUrl: string,
+  apiKey: string
+): Promise<VisionWebDetection | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), VISION_DOWNLOAD_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(photoUrl, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) return null;
+
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > VISION_MAX_BYTES) {
+      logger.info({ photoUrl: photoUrl.slice(0, 60) }, "Image too large for Vision base64 — skipping");
+      return null;
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > VISION_MAX_BYTES) return null;
+    const content = buffer.toString("base64");
+
+    const body = {
+      requests: [
+        {
+          image: { content },
+          features: [{ type: "WEB_DETECTION", maxResults: 20 }],
+        },
+      ],
+    };
+
+    const res = await fetch(`${VISION_ENDPOINT}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json() as { responses?: Array<VisionAnnotateResponse> };
+    return data.responses?.[0]?.webDetection ?? null;
+  } catch (err) {
+    logger.warn({ err, photoUrl: photoUrl.slice(0, 60) }, "Vision base64 fallback failed");
+    return null;
+  }
+}
 
 async function searchByImageUrls(
   photoUrls: string[],
@@ -221,48 +395,92 @@ async function searchByImageUrls(
   targetPlatforms: string[],
   seen: Set<string>
 ): Promise<WebSearchCandidate[]> {
-  if (photoUrls.length === 0) return [];
+  if (photoUrls.length === 0 || !isVisionConfigured()) return [];
 
   const candidates: WebSearchCandidate[] = [];
   const clean = originalUsername.toLowerCase();
-  const siteFilter = targetPlatforms
-    .map((p) => `site:${PLATFORM_PATTERNS[p]!.host}`)
-    .join(" OR ");
 
-  // Sample up to 3 photos to limit API quota
+  // Sample up to 3 photos to stay within Vision API quota
   const sampleUrls = photoUrls.slice(0, 3);
 
   for (const photoUrl of sampleUrls) {
-    // Google CSE image search: search for the image URL itself
-    const query = `"${photoUrl}" (${siteFilter})`;
+    logger.info({ photoUrl: photoUrl.slice(0, 60), username: clean }, "Cloud Vision reverse image search");
 
-    logger.info({ photoUrl: photoUrl.slice(0, 60), username: clean }, "Reverse image search");
-    const results = await runGoogleSearch(query);
+    const webDetection = await runVisionWebDetection(photoUrl);
+    if (!webDetection) {
+      await new Promise<void>((r) => setTimeout(r, 300));
+      continue;
+    }
 
-    for (const item of results) {
-      const extracted = extractUsernameFromUrl(item.link);
+    // Collect all page URLs that have this image (exact + partial matches)
+    const matchingPages: VisionWebPage[] = [
+      ...(webDetection.pagesWithMatchingImages ?? []),
+    ];
+
+    // Also check visuallySimilarImages URLs directly (some point to profile pages)
+    const similarImageUrls: string[] = [
+      ...(webDetection.fullMatchingImages ?? []).map((i) => i.url),
+      ...(webDetection.partialMatchingImages ?? []).map((i) => i.url),
+      ...(webDetection.visuallySimilarImages ?? []).map((i) => i.url),
+    ];
+
+    // Try to extract platform usernames from image URLs themselves
+    // (some platforms embed username in image CDN path)
+    for (const imgUrl of similarImageUrls) {
+      const extracted = extractUsernameFromUrl(imgUrl);
+      if (!extracted) continue;
+      const { username: found, platform } = extracted;
+      if (found === clean || !targetPlatforms.includes(platform)) continue;
+      const key = `${platform}:${found}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push({
+        username: found,
+        platform,
+        profileUrl: `https://www.${PLATFORM_PATTERNS[platform]?.host ?? platform}/${found}`,
+        title: `${found} on ${platform}`,
+        snippet: "Profile photo visually matched via Cloud Vision",
+        similarity: 0.0,
+        discoveryMethod: "image_search",
+      });
+    }
+
+    // Extract usernames from matching page URLs (most reliable — actual profile pages)
+    for (const page of matchingPages) {
+      const extracted = extractUsernameFromUrl(page.url);
       if (!extracted) continue;
 
       const { username: found, platform } = extracted;
       if (found === clean) continue;
+      if (!targetPlatforms.includes(platform)) continue;
 
       const key = `${platform}:${found}`;
       if (seen.has(key)) continue;
       seen.add(key);
 
-      // Include regardless of username similarity — that's the whole point
       candidates.push({
         username: found,
         platform,
-        profileUrl: item.link,
-        title: item.title,
-        snippet: item.snippet,
-        similarity: 0.0, // username similarity is irrelevant here; visual match drives the score
+        profileUrl: page.url,
+        title: page.pageTitle ?? `${found} on ${platform}`,
+        snippet: "Profile photo found via Cloud Vision reverse image search",
+        similarity: 0.0,
         discoveryMethod: "image_search",
       });
     }
 
-    await new Promise<void>((r) => setTimeout(r, 1100));
+    logger.info(
+      {
+        photoUrl: photoUrl.slice(0, 60),
+        pagesWithMatchingImages: webDetection.pagesWithMatchingImages?.length ?? 0,
+        visuallySimilarImages: webDetection.visuallySimilarImages?.length ?? 0,
+        candidatesFound: candidates.length,
+      },
+      "Cloud Vision web detection complete"
+    );
+
+    // Vision API: 1,800ms between requests to stay within 1 req/s rate limit
+    await new Promise<void>((r) => setTimeout(r, 1200));
   }
 
   logger.info(
@@ -360,10 +578,13 @@ export async function searchForImpersonators(
   usernameOrOptions: string | SearchImpersonatorsOptions,
   connectedPlatformsArg?: string[]
 ): Promise<WebSearchCandidate[]> {
-  if (!isConfigured()) {
+  const cseEnabled = isConfigured();
+  const visionEnabled = isVisionConfigured();
+
+  if (!cseEnabled && !visionEnabled) {
     logger.info(
       {},
-      "GOOGLE_SEARCH_API_KEY/CX not configured — skipping web search. Add keys to enable."
+      "No Google API key configured — skipping web search. Set GOOGLE_SEARCH_API_KEY to enable."
     );
     return [];
   }
@@ -397,18 +618,25 @@ export async function searchForImpersonators(
     return [];
   }
 
-  // Strategy 1: Username variants
-  const variantCandidates = await searchByUsernameVariants(clean, targetPlatforms, seen);
-  allCandidates.push(...variantCandidates);
-
-  // Strategy 2: Reverse image search (finds stolen photos with totally different usernames)
-  if (photoUrls.length > 0) {
-    const imageCandidates = await searchByImageUrls(photoUrls, clean, targetPlatforms, seen);
-    allCandidates.push(...imageCandidates);
+  // Strategy 1: Username variants (requires CSE key + CX)
+  if (cseEnabled) {
+    const variantCandidates = await searchByUsernameVariants(clean, targetPlatforms, seen);
+    allCandidates.push(...variantCandidates);
+  } else {
+    logger.info({}, "GOOGLE_SEARCH_CX not set — username variant search skipped");
   }
 
-  // Strategy 3: Caption text fingerprint search
-  if (captions.length > 0) {
+  // Strategy 2: Cloud Vision reverse image search (requires only API key)
+  // Finds stolen photos posted under completely different usernames.
+  if (photoUrls.length > 0 && visionEnabled) {
+    const imageCandidates = await searchByImageUrls(photoUrls, clean, targetPlatforms, seen);
+    allCandidates.push(...imageCandidates);
+  } else if (photoUrls.length === 0) {
+    logger.info({ username: clean }, "No photo URLs provided — reverse image search skipped");
+  }
+
+  // Strategy 3: Caption text fingerprint search (requires CSE key + CX)
+  if (captions.length > 0 && cseEnabled) {
     const captionCandidates = await searchByCaptions(captions, clean, targetPlatforms, seen);
     allCandidates.push(...captionCandidates);
   }
@@ -417,6 +645,8 @@ export async function searchForImpersonators(
     {
       username: clean,
       total: allCandidates.length,
+      cseEnabled,
+      visionEnabled,
       byMethod: {
         username_variant: allCandidates.filter((c) => c.discoveryMethod === "username_variant").length,
         image_search: allCandidates.filter((c) => c.discoveryMethod === "image_search").length,
