@@ -167,11 +167,34 @@ function OAuthButton({
       const authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
-      // Always poll after the browser closes — the server may have processed the
-      // OAuth callback successfully even if the browser returned "dismiss" (common
-      // on Android where Chrome Custom Tabs don't auto-close on redirect).
-      // Use bustCache so iOS URLCache doesn't serve a stale 304 response.
-      await new Promise((r) => setTimeout(r, 600));
+      // Log the full result for diagnostics — visible in Expo console
+      console.log(`[OAuth:${platform}] result.type=${result.type}`, "url" in result ? result.url : "(no url)");
+
+      // On iOS, ASWebAuthenticationSession intercepts the redirect BEFORE our
+      // server processes it. The code (or error) lands in result.url, not via
+      // the server callback. Extract and handle it here.
+      const resultUrl = "url" in result ? result.url ?? "" : "";
+      const resultParams = resultUrl.includes("?")
+        ? new URLSearchParams(resultUrl.split("?")[1])
+        : null;
+      const urlError = resultParams?.get("error") ?? resultParams?.get("error_reason");
+      const urlCode  = resultParams?.get("code");
+
+      if (urlCode) {
+        // Server-side callback was bypassed by the in-app browser — POST the
+        // code directly to the server for exchange.
+        console.log(`[OAuth:${platform}] intercepted code — posting to server for exchange`);
+        const urlState = resultParams?.get("state") ?? "";
+        await fetch(`${redirectUrl}?code=${encodeURIComponent(urlCode)}&state=${encodeURIComponent(urlState)}`, {
+          method: "GET",
+          headers: { "Accept": "text/html" },
+        }).catch(() => null);
+        await new Promise((r) => setTimeout(r, 800));
+      } else {
+        // Give the server callback time to process (when browser doesn't intercept)
+        await new Promise((r) => setTimeout(r, 600));
+      }
+
       const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
 
       if (accountsAfter) {
@@ -186,13 +209,24 @@ function OAuthButton({
         }
       }
 
-      if (result.type === "success") {
-        onSuccess();
+      if (urlError) {
+        // Instagram/Facebook told us exactly what went wrong — surface it
+        console.log(`[OAuth:${platform}] error from provider: ${urlError}`);
+        const friendlyMsg =
+          urlError === "access_denied"
+            ? "You declined the permission request. Please try again and tap Allow."
+            : urlError === "invalid_request" && platform === "instagram"
+            ? `Instagram rejected the request (${urlError}). Make sure your account is a Business or Creator account connected to a Facebook Page, and that the Instagram Login product is set up in your Meta app.`
+            : `Authentication failed: ${urlError}`;
+        Alert.alert("Authentication Failed", friendlyMsg, [{ text: "OK" }]);
+      } else if (result.type === "success" && urlCode) {
+        // Code was sent to server — if account still not found, something failed server-side
+        Alert.alert("Almost there", "We processed the sign-in but couldn't confirm the account. Please try again.", [{ text: "OK" }]);
       } else if (result.type === "cancel" || result.type === "dismiss") {
         const isInstagram = platform === "instagram";
         const isFacebook = platform === "facebook";
         const hint = isInstagram
-          ? "Instagram requires a Business or Creator account. If yours is personal, go to Instagram Settings → Account → Switch to Professional Account (free and reversible)."
+          ? "Instagram requires a Business or Creator account connected to a Facebook Page. If your account is personal, go to Instagram Settings → Account → Switch to Professional Account (free and reversible)."
           : isFacebook
           ? "Make sure you approved all permissions on the Facebook login screen."
           : "You can still add the account by entering your username manually below.";
