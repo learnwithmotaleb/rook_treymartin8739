@@ -23,7 +23,25 @@ function serializeJob(job: typeof scanJobsTable.$inferSelect) {
 router.post("/scan", async (req, res): Promise<void> => {
   const userId = req.userId;
 
-  // ── Quota check ────────────────────────────────────────────────────────────
+  // ── Dedup: return existing running job WITHOUT consuming quota ──────────────
+  // Must happen before quota increment so that retries while a job is active
+  // never burn the user's monthly/daily allowance or trigger abuse detection.
+  const activeJobs = await db
+    .select()
+    .from(scanJobsTable)
+    .where(
+      and(
+        eq(scanJobsTable.userId, userId),
+        eq(scanJobsTable.status, "running")
+      )
+    );
+
+  if (activeJobs.length > 0 && activeJobs[0]) {
+    res.status(200).json(serializeJob(activeJobs[0]));
+    return;
+  }
+
+  // ── Quota check (only reached when no job is already running) ───────────────
   const sub = await getSubscription(userId);
   const planTier = (sub.tier ?? "free") as Tier;
 
@@ -42,27 +60,11 @@ router.post("/scan", async (req, res): Promise<void> => {
       upgradeTo: upgradeTier,
       message:
         quota.reason === "monthly_limit"
-          ? `You've used all ${planTier === "free" ? "3" : "30"} scans for this month. Upgrade to ${upgradeTier} for more.`
+          ? `You've used all ${planTier === "free" ? "3" : "15"} scans for this month. Upgrade to ${upgradeTier} for more.`
           : quota.reason === "daily_deep_scan_limit"
           ? `You've used your ${planTier === "free" ? "1" : "5"} deep scan${planTier === "free" ? "" : "s"} for today. Upgrade for more.`
           : "Your account has been temporarily throttled due to unusual scan activity. Contact support.",
     });
-    return;
-  }
-
-  // ── Dedup: return existing running job ─────────────────────────────────────
-  const activeJobs = await db
-    .select()
-    .from(scanJobsTable)
-    .where(
-      and(
-        eq(scanJobsTable.userId, userId),
-        eq(scanJobsTable.status, "running")
-      )
-    );
-
-  if (activeJobs.length > 0 && activeJobs[0]) {
-    res.status(200).json(serializeJob(activeJobs[0]));
     return;
   }
 
