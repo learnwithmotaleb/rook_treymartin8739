@@ -17,7 +17,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.shieldid.app",
       "buildNumber": "1",
+      "usesAppleSignIn": false,
       "infoPlist": {
+        "LSApplicationCategoryType": "public.app-category.utilities",
         "NSCameraUsageDescription": "ShieldID uses your camera to scan photos for your identity fingerprint.",
         "NSPhotoLibraryUsageDescription": "ShieldID accesses your photos to build your identity fingerprint and detect stolen images.",
         "NSUserNotificationsUsageDescription": "ShieldID sends real-time alerts when threats to your identity are detected.",

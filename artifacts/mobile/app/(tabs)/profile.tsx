@@ -286,8 +286,8 @@ export default function ProfileScreen() {
           />
           <SettingsRow
             icon={<Ionicons name="document-text-outline" size={20} color={colors.mutedForeground} />}
-            label="Privacy Policy"
-            onPress={() => router.push("/support" as any)}
+            label="Legal & Privacy"
+            onPress={() => router.push("/legal" as any)}
             last
           />
         </GlassCard>

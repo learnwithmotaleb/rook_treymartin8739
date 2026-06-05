@@ -8,7 +8,8 @@ const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
 
 const APP_NAME = "ShieldID";
 const CONTACT_EMAIL = "privacy@shieldid.app";
-const LAST_UPDATED = "May 20, 2025";
+const SUPPORT_EMAIL = "support@shieldid.app";
+const LAST_UPDATED = "June 5, 2026";
 
 const html = (title: string, body: string) => `<!DOCTYPE html>
 <html lang="en">
@@ -63,15 +64,16 @@ router.get("/legal/privacy", (_req, res) => {
     <h1>Privacy Policy</h1>
     <p class="meta">Last updated: ${LAST_UPDATED}</p>
 
-    <p>${APP_NAME} ("we", "our", "us") is an AI-powered identity protection service that monitors social platforms for impersonators, stolen photos, and data breaches. This Privacy Policy explains how we collect, use, and protect your information.</p>
+    <p>${APP_NAME} ("we", "our", "us") is an AI-powered identity protection service that monitors social platforms for impersonators and stolen photos. This Privacy Policy explains how we collect, use, and protect your information.</p>
 
     <h2>1. Information We Collect</h2>
     <p>We collect information you provide directly and information we obtain through connected social accounts:</p>
     <ul>
       <li><strong>Account information:</strong> Name, email address, and username when you register.</li>
       <li><strong>Connected platform data:</strong> When you authorize ${APP_NAME} to access a social platform, we receive read-only access to your public profile information including your username, profile photo, follower count, and public posts.</li>
+      <li><strong>Visual fingerprint data:</strong> Perceptual hashes (not raw images) derived from your public photos, used to detect visually similar stolen content.</li>
       <li><strong>Scan results:</strong> Records of monitoring activity, detected threats, and impersonation alerts associated with your account.</li>
-      <li><strong>Payment information:</strong> Billing is handled by Stripe. We store only your subscription tier and Stripe customer ID — we never see or store your full card number.</li>
+      <li><strong>Payment information:</strong> Subscriptions and billing are handled by <strong>RevenueCat</strong> and processed through the Apple App Store or Google Play Store. We store only your subscription tier and entitlement status — we never see or store your full payment card number or billing details.</li>
       <li><strong>Usage data:</strong> App interactions, feature usage, and device information to improve the service.</li>
     </ul>
 
@@ -79,8 +81,8 @@ router.get("/legal/privacy", (_req, res) => {
     <ul>
       <li>To scan connected social platforms for impersonators and identity threats.</li>
       <li>To build and maintain your identity fingerprint for comparison against detected accounts.</li>
-      <li>To send you alerts when threats are detected (push notifications and email, per your preferences).</li>
-      <li>To process subscription payments and manage your account.</li>
+      <li>To send you alerts when threats are detected (push notifications, per your preferences).</li>
+      <li>To manage your subscription tier and feature access.</li>
       <li>To improve our detection algorithms and service quality.</li>
     </ul>
 
@@ -91,15 +93,16 @@ router.get("/legal/privacy", (_req, res) => {
       <li>Never access your private messages or direct messages.</li>
       <li>Only read your public profile data and public media.</li>
       <li>Store OAuth access tokens encrypted at rest to enable ongoing monitoring.</li>
-      <li>Tokens are used solely to fetch your profile data for impersonation comparison.</li>
+      <li>Use tokens solely to fetch your profile data for impersonation comparison.</li>
     </ul>
     <p>You can revoke access at any time from the platform's settings page or by disconnecting the account in ${APP_NAME}.</p>
 
     <h2>4. Data Sharing</h2>
     <p>We do not sell your personal information. We share data only with:</p>
     <ul>
-      <li><strong>Stripe:</strong> For payment processing (subject to <a href="https://stripe.com/privacy" target="_blank">Stripe's Privacy Policy</a>).</li>
-      <li><strong>OpenAI:</strong> Anonymized text snippets may be analyzed to detect scam patterns (subject to <a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI's Privacy Policy</a>).</li>
+      <li><strong>RevenueCat:</strong> For subscription management and entitlement verification (subject to <a href="https://www.revenuecat.com/privacy" target="_blank">RevenueCat's Privacy Policy</a>). Payments are processed directly by Apple or Google — we never handle payment card data.</li>
+      <li><strong>Google Cloud Vision:</strong> Photo URLs from your connected accounts are sent to Google's Web Detection API to find where those images appear on the open web (subject to <a href="https://policies.google.com/privacy" target="_blank">Google's Privacy Policy</a>).</li>
+      <li><strong>OpenAI:</strong> Anonymized text snippets may be analyzed to generate AI threat explanations (subject to <a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI's Privacy Policy</a>).</li>
       <li><strong>Infrastructure providers:</strong> Cloud hosting and database services necessary to operate the app.</li>
       <li><strong>Law enforcement:</strong> Only when required by applicable law.</li>
     </ul>
@@ -111,17 +114,18 @@ router.get("/legal/privacy", (_req, res) => {
     <p>All data is encrypted in transit (TLS 1.2+) and at rest. OAuth tokens are stored encrypted. We follow industry-standard security practices and conduct regular security reviews.</p>
 
     <h2>7. Children's Privacy</h2>
-    <p>${APP_NAME} is not directed to children under 13. We do not knowingly collect personal information from children under 13.</p>
+    <p>${APP_NAME} is not directed to children under 13. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has provided us personal information, contact us immediately at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
 
     <h2>8. Your Rights</h2>
-    <p>Depending on your jurisdiction, you may have the right to access, correct, or delete your personal data. Contact us at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> to exercise these rights.</p>
+    <p>Depending on your jurisdiction, you may have the right to access, correct, or delete your personal data. California residents may have additional rights under CCPA. Contact us at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> to exercise these rights.</p>
 
     <h2>9. Changes to This Policy</h2>
     <p>We may update this Privacy Policy from time to time. We will notify you of material changes via email or in-app notification. Continued use of the service after changes constitutes acceptance.</p>
 
     <h2>10. Contact</h2>
     <div class="card">
-      <p><strong>Email:</strong> <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+      <p><strong>Privacy inquiries:</strong> <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+      <p><strong>Support:</strong> <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
       <p><strong>Website:</strong> <a href="https://${DOMAIN}">https://${DOMAIN}</a></p>
     </div>
   `));
@@ -136,7 +140,7 @@ router.get("/legal/terms", (_req, res) => {
     <p>These Terms of Service ("Terms") govern your use of ${APP_NAME} ("Service"). By using the Service you agree to these Terms.</p>
 
     <h2>1. The Service</h2>
-    <p>${APP_NAME} provides AI-powered identity monitoring services including detection of social media impersonators, stolen photos, and data breaches. The Service is provided on a subscription basis with Free, Pro, and Premium tiers.</p>
+    <p>${APP_NAME} provides AI-powered identity monitoring services including detection of social media impersonators and stolen photos. The Service is provided on a subscription basis with Free, Pro, and Premium tiers.</p>
 
     <h2>2. Account Registration</h2>
     <p>You must provide accurate information when creating an account. You are responsible for maintaining the security of your account credentials. You must be at least 13 years old to use the Service.</p>
@@ -147,10 +151,10 @@ router.get("/legal/terms", (_req, res) => {
     <h2>4. Subscriptions and Payments</h2>
     <ul>
       <li><strong>Free tier:</strong> Limited monitoring for 1 account, manual scans every 14 days.</li>
-      <li><strong>Pro tier:</strong> Up to 3 accounts, weekly automated scans, real-time alerts.</li>
-      <li><strong>Premium tier:</strong> Unlimited accounts, daily deep scans, advanced intelligence.</li>
+      <li><strong>Pro tier ($7.99/month or $59.99/year):</strong> Up to 3 accounts, weekly automated scans, real-time alerts with full evidence trails.</li>
+      <li><strong>Premium tier ($14.99/month or $99.99/year):</strong> Unlimited accounts, daily deep scans, advanced intelligence reports.</li>
     </ul>
-    <p>Paid subscriptions are billed in advance on a recurring basis. All subscriptions include a 7-day free trial for new subscribers. You may cancel at any time; cancellation takes effect at the end of the current billing period. No partial refunds are issued for unused periods.</p>
+    <p>Paid subscriptions are billed in advance on a recurring basis through the Apple App Store or Google Play Store. All paid subscriptions include a 7-day free trial for new subscribers. You may cancel at any time through your device's subscription settings; cancellation takes effect at the end of the current billing period. No partial refunds are issued for unused periods. Subscription management is handled by Apple or Google according to their respective terms.</p>
 
     <h2>5. Acceptable Use</h2>
     <p>You agree not to:</p>
@@ -175,7 +179,8 @@ router.get("/legal/terms", (_req, res) => {
 
     <h2>10. Contact</h2>
     <div class="card">
-      <p><strong>Email:</strong> <a href="mailto:support@shieldid.app">support@shieldid.app</a></p>
+      <p><strong>Support:</strong> <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+      <p><strong>Privacy:</strong> <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
       <p><strong>Website:</strong> <a href="https://${DOMAIN}">https://${DOMAIN}</a></p>
     </div>
   `));

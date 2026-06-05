@@ -1,0 +1,29 @@
+ShieldID is your AI-powered identity bodyguard — actively monitoring the web so impostors can't steal your identity while you sleep.
+
+WHAT SHIELDID DOES
+• Scans Instagram, X (Twitter), TikTok, Facebook, YouTube, LinkedIn, and Snapchat for fake accounts using your name, photos, or bio
+• Uses reverse image search powered by Google Vision AI to find your stolen photos posted by impersonators — even on platforms you haven't connected
+• Detects fake accounts stealing your captions, username variations, and profile details
+• Sends real-time push alerts the moment a threat is found — with full AI-generated evidence and an explanation of why it was flagged
+• Provides step-by-step takedown guides and pre-filled report templates for each platform
+
+YOUR IDENTITY FINGERPRINT
+ShieldID learns what makes you, you — your photos, captions, usernames, and writing style — then continuously compares that fingerprint against millions of accounts across all major platforms. Connected accounts are automatically whitelisted so you never get false alerts about your own profiles.
+
+CONNECTED ACCOUNTS
+Connect your social accounts once using secure OAuth. ShieldID ingests your public photos and content, monitors around the clock, and always knows which accounts are yours.
+
+SUBSCRIPTION PLANS
+• Free: 1 connected account, manual scan every 14 days, basic impersonator detection
+• Pro ($7.99/month or $59.99/year): 3 accounts, weekly automated scans, real-time alerts with full evidence trails, 7-day free trial
+• Premium ($14.99/month or $99.99/year): Unlimited accounts, daily deep AI scans, advanced intelligence reports, priority support, 7-day free trial
+
+YOUR PRIVACY IS PROTECTED
+ShieldID only reads your public profile and media — we never post, comment, like, or send messages on your behalf. All data is encrypted in transit and at rest. OAuth tokens are stored securely. You can revoke access and delete your account at any time.
+
+Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime from your iPhone Settings > Apple ID > Subscriptions.
+
+Privacy Policy: https://shieldid.app/api/legal/privacy
+Terms of Service: https://shieldid.app/api/legal/terms
+
+Questions or support: support@shieldid.app

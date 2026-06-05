@@ -1,0 +1,26 @@
+ShieldID is your AI-powered identity bodyguard — actively monitoring the web so impostors can't steal your identity while you sleep.
+
+WHAT SHIELDID DOES
+• Scans Instagram, X (Twitter), TikTok, Facebook, YouTube, LinkedIn, and Snapchat for fake accounts using your name, photos, or bio
+• Uses reverse image search powered by Google Vision AI to find your stolen photos posted by impersonators — even on platforms you haven't connected
+• Detects fake accounts stealing your captions, username variations, and profile details
+• Sends real-time push alerts the moment a threat is found — with full AI-generated evidence
+• Provides step-by-step takedown guides and pre-filled report templates for each platform
+
+YOUR IDENTITY FINGERPRINT
+ShieldID learns what makes you, you — your photos, captions, usernames, and writing style — then continuously compares that fingerprint against millions of accounts across all major platforms.
+
+CONNECTED ACCOUNTS
+Connect your social accounts once using secure OAuth. ShieldID ingests your public photos and content, monitors around the clock, and always knows which accounts are yours so it never sends false alerts.
+
+SUBSCRIPTION PLANS
+• Free: 1 connected account, manual scan every 14 days
+• Pro ($7.99/month or $59.99/year): 3 accounts, weekly automated scans, real-time alerts
+• Premium ($14.99/month or $99.99/year): Unlimited accounts, daily deep AI scans, advanced reports
+
+YOUR PRIVACY IS PROTECTED
+ShieldID only reads your public profile and media — we never post, comment, or message on your behalf. All data is encrypted. You can delete your account and all data at any time.
+
+Privacy Policy: https://shieldid.app/api/legal/privacy
+Terms of Service: https://shieldid.app/api/legal/terms
+Support: support@shieldid.app

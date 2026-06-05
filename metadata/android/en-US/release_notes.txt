@@ -1,0 +1,7 @@
+Version 1.0 — Initial Release
+
+• AI-powered impersonator detection across 7 major social platforms
+• Reverse image search finds stolen photos anywhere on the web
+• Real-time push alerts with full evidence and AI analysis
+• Secure OAuth connection — read-only, never posts on your behalf
+• Free, Pro ($7.99/mo), and Premium ($14.99/mo) tiers with 7-day free trial
