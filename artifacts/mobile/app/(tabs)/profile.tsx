@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Alert,
   Platform,
@@ -12,43 +12,11 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
-
-const NOTIF_KEY = "shieldid:notification_prefs";
-const SECURITY_KEY = "shieldid:security_prefs";
-
-function useStoredPrefs() {
-  const [pushOn, setPushOn] = useState(true);
-  const [emailOn, setEmailOn] = useState(false);
-  const [biometric, setBiometric] = useState(false);
-  const [twoFactor, setTwoFactor] = useState(false);
-
-  useEffect(() => {
-    AsyncStorage.multiGet([NOTIF_KEY, SECURITY_KEY]).then((pairs) => {
-      for (const [key, val] of pairs) {
-        if (!val) continue;
-        try {
-          const parsed = JSON.parse(val) as Record<string, unknown>;
-          if (key === NOTIF_KEY) {
-            if (typeof parsed.pushAlerts === "boolean") setPushOn(parsed.pushAlerts);
-            if (typeof parsed.emailAlerts === "boolean") setEmailOn(parsed.emailAlerts);
-          }
-          if (key === SECURITY_KEY) {
-            if (typeof parsed.biometricLogin === "boolean") setBiometric(parsed.biometricLogin);
-            if (typeof parsed.twoFactorEnabled === "boolean") setTwoFactor(parsed.twoFactorEnabled);
-          }
-        } catch {}
-      }
-    });
-  }, []);
-
-  return { pushOn, emailOn, biometric, twoFactor };
-}
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free Plan",
@@ -56,7 +24,7 @@ const TIER_LABELS: Record<string, string> = {
   premium: "Premium",
 };
 
-function SettingsItem({
+function SettingsRow({
   icon,
   label,
   value,
@@ -87,31 +55,19 @@ function SettingsItem({
       <Text
         style={[
           styles.settingsLabel,
-          {
-            color: danger ? colors.danger : colors.foreground,
-            fontFamily: "Inter_500Medium",
-          },
+          { color: danger ? colors.danger : colors.foreground, fontFamily: "Inter_500Medium" },
         ]}
       >
         {label}
       </Text>
       <View style={styles.settingsRight}>
-        {value && (
-          <Text
-            style={[
-              styles.settingsValue,
-              { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-            ]}
-          >
+        {value ? (
+          <Text style={[styles.settingsValue, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             {value}
           </Text>
-        )}
+        ) : null}
         {!danger && (
-          <Ionicons
-            name="chevron-forward"
-            size={16}
-            color={colors.mutedForeground}
-          />
+          <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
         )}
       </View>
     </TouchableOpacity>
@@ -123,7 +79,6 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useApp();
   const { signOut } = useAuth();
-  const { pushOn, emailOn, biometric, twoFactor } = useStoredPrefs();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -148,41 +103,20 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          { paddingTop: topPad + 12, borderBottomColor: colors.border },
-        ]}
-      >
-        <Text
-          style={[
-            styles.headerTitle,
-            { color: colors.foreground, fontFamily: "Inter_700Bold" },
-          ]}
-        >
+      <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           Profile
         </Text>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: bottomPad + 100 },
-        ]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
       >
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity
-            onPress={() => router.push("/edit-profile" as any)}
-            activeOpacity={0.85}
-          >
-            <View
-              style={[
-                styles.avatar,
-                { borderColor: colors.primary + "66" },
-              ]}
-            >
+          <TouchableOpacity onPress={() => router.push("/edit-profile" as any)} activeOpacity={0.85}>
+            <View style={[styles.avatar, { borderColor: colors.primary + "66" }]}>
               <LinearGradient
                 colors={[colors.primaryDark, colors.primary, colors.primaryForeground]}
                 style={StyleSheet.absoluteFill}
@@ -190,12 +124,7 @@ export default function ProfileScreen() {
                 end={{ x: 1, y: 1 }}
                 locations={[0, 0.6, 1]}
               />
-              <Text
-                style={[
-                  styles.avatarText,
-                  { color: "#FFFFFF", fontFamily: "Inter_700Bold" },
-                ]}
-              >
+              <Text style={[styles.avatarText, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>
                 {user.avatarInitials}
               </Text>
             </View>
@@ -203,20 +132,10 @@ export default function ProfileScreen() {
               <Ionicons name="pencil" size={12} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
-          <Text
-            style={[
-              styles.userName,
-              { color: colors.foreground, fontFamily: "Inter_700Bold" },
-            ]}
-          >
+          <Text style={[styles.userName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
             {user.name}
           </Text>
-          <Text
-            style={[
-              styles.userHandle,
-              { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-            ]}
-          >
+          <Text style={[styles.userHandle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             {user.username}
           </Text>
           <TouchableOpacity
@@ -228,12 +147,8 @@ export default function ProfileScreen() {
               style={[
                 styles.tierBadge,
                 {
-                  backgroundColor: isPaid
-                    ? colors.warning + "22"
-                    : colors.secondary,
-                  borderColor: isPaid
-                    ? colors.warning + "44"
-                    : colors.border,
+                  backgroundColor: isPaid ? colors.warning + "22" : colors.secondary,
+                  borderColor: isPaid ? colors.warning + "44" : colors.border,
                 },
               ]}
             >
@@ -245,10 +160,7 @@ export default function ProfileScreen() {
               <Text
                 style={[
                   styles.tierText,
-                  {
-                    color: isPaid ? colors.warning : colors.mutedForeground,
-                    fontFamily: "Inter_600SemiBold",
-                  },
+                  { color: isPaid ? colors.warning : colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
                 ]}
               >
                 {tierLabel}
@@ -258,13 +170,9 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Subscription CTA for free users */}
+        {/* Upgrade CTA for free users */}
         {!isPaid && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => router.push("/subscription" as any)}
-            style={{ marginTop: 8 }}
-          >
+          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push("/subscription" as any)}>
             <View style={styles.upgradeBorderWrapper}>
               <LinearGradient
                 colors={[colors.primary, colors.premium]}
@@ -275,20 +183,10 @@ export default function ProfileScreen() {
               <View style={[styles.upgradeInner, { backgroundColor: colors.background }]}>
                 <MaterialCommunityIcons name="crown" size={24} color={colors.premium} />
                 <View style={styles.upgradeText}>
-                  <Text
-                    style={[
-                      styles.upgradeTitle,
-                      { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
-                    ]}
-                  >
+                  <Text style={[styles.upgradeTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
                     Upgrade to Pro or Premium
                   </Text>
-                  <Text
-                    style={[
-                      styles.upgradeSub,
-                      { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-                    ]}
-                  >
+                  <Text style={[styles.upgradeSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                     Real-time alerts, photo monitoring & more
                   </Text>
                 </View>
@@ -300,12 +198,7 @@ export default function ProfileScreen() {
 
         {/* Connected Accounts */}
         <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionLabel,
-              { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-            ]}
-          >
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
             Connected Accounts
           </Text>
           <TouchableOpacity onPress={() => router.push("/manage-accounts" as any)}>
@@ -314,10 +207,7 @@ export default function ProfileScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => router.push("/manage-accounts" as any)}
-        >
+        <TouchableOpacity activeOpacity={0.85} onPress={() => router.push("/manage-accounts" as any)}>
           <GlassCard style={styles.connectedCard}>
             {user.connectedAccounts.length === 0 ? (
               <View style={styles.connectedEmpty}>
@@ -341,10 +231,7 @@ export default function ProfileScreen() {
                         )}
                       </View>
                       <Text
-                        style={[
-                          styles.connectedUsername,
-                          { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-                        ]}
+                        style={[styles.connectedUsername, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
                         numberOfLines={1}
                       >
                         {acc.username}
@@ -353,9 +240,7 @@ export default function ProfileScreen() {
                   ))}
                 </View>
                 {user.connectedAccounts.length < 7 && (
-                  <View
-                    style={[styles.addAccountRow, { borderTopColor: colors.border }]}
-                  >
+                  <View style={[styles.addAccountRow, { borderTopColor: colors.border }]}>
                     <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
                     <Text style={[styles.addAccountText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
                       Add another account
@@ -368,107 +253,48 @@ export default function ProfileScreen() {
           </GlassCard>
         </TouchableOpacity>
 
-        {/* Notifications */}
-        <Text
-          style={[
-            styles.sectionLabel,
-            { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-          ]}
-        >
-          Notifications
+        {/* Settings */}
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+          Settings
         </Text>
         <GlassCard noPadding>
-          <SettingsItem
-            icon={<Ionicons name="notifications" size={20} color={pushOn ? colors.primary : colors.mutedForeground} />}
-            label="Push Alerts"
-            value={pushOn ? "On" : "Off"}
+          <SettingsRow
+            icon={<Ionicons name="person" size={20} color={colors.primary} />}
+            label="Edit Profile"
+            onPress={() => router.push("/edit-profile" as any)}
+          />
+          <SettingsRow
+            icon={<MaterialCommunityIcons name="crown" size={20} color={colors.warning} />}
+            label="Subscription"
+            value={tierLabel}
+            onPress={() => router.push("/subscription" as any)}
+          />
+          <SettingsRow
+            icon={<Ionicons name="notifications" size={20} color={colors.primary} />}
+            label="Notifications"
             onPress={() => router.push("/notification-settings" as any)}
           />
-          <SettingsItem
-            icon={<Ionicons name="mail" size={20} color={colors.primary} />}
-            label="Email Alerts"
-            value={!isPaid ? "Pro+" : emailOn ? "On" : "Off"}
-            onPress={() => router.push("/notification-settings" as any)}
-            last
-          />
-        </GlassCard>
-
-        {/* Security */}
-        <Text
-          style={[
-            styles.sectionLabel,
-            { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-          ]}
-        >
-          Security
-        </Text>
-        <GlassCard noPadding>
-          <SettingsItem
-            icon={<Ionicons name="lock-closed" size={20} color={twoFactor ? colors.success : colors.mutedForeground} />}
-            label="Two-Factor Auth"
-            value={twoFactor ? "On" : "Off"}
+          <SettingsRow
+            icon={<Ionicons name="lock-closed" size={20} color={colors.success} />}
+            label="Security"
             onPress={() => router.push("/security-settings" as any)}
           />
-          <SettingsItem
-            icon={<Ionicons name="finger-print" size={20} color={biometric ? colors.success : colors.mutedForeground} />}
-            label="Biometric Login"
-            value={biometric ? "On" : "Off"}
-            onPress={() => router.push("/security-settings" as any)}
-            last
+          <SettingsRow
+            icon={<Ionicons name="help-circle" size={20} color={colors.mutedForeground} />}
+            label="Help & Support"
+            onPress={() => router.push("/support" as any)}
           />
-        </GlassCard>
-
-        {/* Privacy & Data */}
-        <Text
-          style={[
-            styles.sectionLabel,
-            { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-          ]}
-        >
-          Privacy & Data
-        </Text>
-        <GlassCard noPadding>
-          <SettingsItem
-            icon={<Ionicons name="shield-checkmark" size={20} color={colors.primary} />}
-            label="Identity Fingerprint"
-            value="Active"
-            onPress={() => router.push("/manage-accounts" as any)}
-          />
-          <SettingsItem
-            icon={<Ionicons name="eye-off" size={20} color={colors.mutedForeground} />}
+          <SettingsRow
+            icon={<Ionicons name="document-text-outline" size={20} color={colors.mutedForeground} />}
             label="Privacy Policy"
             onPress={() => router.push("/support" as any)}
             last
           />
         </GlassCard>
 
-        {/* Account */}
-        <Text
-          style={[
-            styles.sectionLabel,
-            { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
-          ]}
-        >
-          Account
-        </Text>
+        {/* Sign Out */}
         <GlassCard noPadding>
-          <SettingsItem
-            icon={<Ionicons name="person" size={20} color={colors.primary} />}
-            label="Edit Profile"
-            onPress={() => router.push("/edit-profile" as any)}
-          />
-          <SettingsItem
-            icon={<MaterialCommunityIcons name="crown" size={20} color={colors.warning} />}
-            label="Subscription"
-            value={tierLabel}
-            onPress={() => router.push("/subscription" as any)}
-          />
-          <SettingsItem
-            icon={<Ionicons name="help-circle" size={20} color={colors.mutedForeground} />}
-            label="Help & Support"
-            onPress={() => router.push("/support" as any)}
-          />
-          <SettingsItem
+          <SettingsRow
             icon={<Ionicons name="log-out" size={20} color={colors.danger} />}
             label="Sign Out"
             onPress={handleLogout}
@@ -477,12 +303,7 @@ export default function ProfileScreen() {
           />
         </GlassCard>
 
-        <Text
-          style={[
-            styles.version,
-            { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-          ]}
-        >
+        <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
           ShieldID v1.0.0 · All data encrypted end-to-end
         </Text>
       </ScrollView>
@@ -499,7 +320,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 24 },
   content: { paddingHorizontal: 20, paddingTop: 20, gap: 12 },
-  avatarSection: { alignItems: "center", gap: 8, marginBottom: 16 },
+
+  avatarSection: { alignItems: "center", gap: 8, marginBottom: 8 },
   avatar: {
     width: 90,
     height: 90,
@@ -534,11 +356,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   tierText: { fontSize: 13 },
-  upgradeBorderWrapper: {
-    borderRadius: 16,
-    padding: 2,
-    marginBottom: 8,
-  },
+
+  upgradeBorderWrapper: { borderRadius: 16, padding: 2 },
   upgradeInner: {
     flexDirection: "row",
     alignItems: "center",
@@ -549,9 +368,21 @@ const styles = StyleSheet.create({
   upgradeText: { flex: 1 },
   upgradeTitle: { fontSize: 16 },
   upgradeSub: { fontSize: 13, marginTop: 2 },
-  sectionLabel: { fontSize: 11, letterSpacing: 1, textTransform: "uppercase", marginTop: 16 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
-  manageLink: { fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5 },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginTop: 8,
+  },
+  manageLink: { fontSize: 14 },
+
   connectedCard: {},
   connectedEmpty: { flexDirection: "row", alignItems: "center", gap: 12 },
   connectedEmptyText: { flex: 1, fontSize: 15 },
@@ -579,6 +410,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   addAccountText: { flex: 1, fontSize: 14 },
+
   settingsItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -596,5 +428,6 @@ const styles = StyleSheet.create({
   settingsLabel: { flex: 1, fontSize: 15 },
   settingsRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   settingsValue: { fontSize: 13 },
-  version: { fontSize: 12, textAlign: "center", marginTop: 24 },
+
+  version: { fontSize: 12, textAlign: "center", marginTop: 12 },
 });

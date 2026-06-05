@@ -62,7 +62,7 @@ function FingerprintStat({ label, value }: { label: string; value: string }) {
 export default function Dashboard() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, threats, activeThreats, fakeAccounts, leakedPasswords, refreshData } = useApp();
+  const { user, threats, activeThreats, fakeAccounts, refreshData } = useApp();
   const [refreshing, setRefreshing] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -118,22 +118,8 @@ export default function Dashboard() {
           />
         }
       >
-        {/* Status Banner */}
-        <Animated.View entering={FadeInDown.delay(0).springify()}>
-          <GlassCard accent style={styles.statusBanner}>
-            <View style={styles.statusText}>
-              <Text style={[styles.statusTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Identity Shield Active
-              </Text>
-              <Text style={[styles.statusSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Monitoring {user.monitored} verified accounts
-              </Text>
-            </View>
-          </GlassCard>
-        </Animated.View>
-
         {/* Security Score */}
-        <Animated.View entering={FadeInDown.delay(80).springify()}>
+        <Animated.View entering={FadeInDown.delay(0).springify()}>
           <GlassCard style={styles.scoreCard}>
             <LinearGradient
               colors={["#3B82F611", "transparent"]}
@@ -153,33 +139,8 @@ export default function Dashboard() {
           </GlassCard>
         </Animated.View>
 
-        {/* Identity Fingerprint */}
-        <Animated.View entering={FadeInDown.delay(160).springify()}>
-          <GlassCard style={styles.fingerprintCard}>
-            <LinearGradient
-              colors={["#3B82F60D", "transparent"]}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.fingerprintHeader}>
-              <MaterialCommunityIcons name="fingerprint" size={24} color={colors.primary} />
-              <View style={styles.fpTextCol}>
-                <Text style={[styles.fpTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                  Identity Fingerprint
-                </Text>
-              </View>
-              <View style={[styles.fpActiveDot, { backgroundColor: colors.success }]} />
-            </View>
-            <View style={styles.fpStats}>
-              <FingerprintStat label="Photos" value={String(user.totalPhotosIndexed)} />
-              <FingerprintStat label="Captions" value={String(user.totalCaptionsIndexed)} />
-              <FingerprintStat label="Reels" value={String(user.reelsIndexed)} />
-              <FingerprintStat label="Platforms" value={String(user.monitored)} />
-            </View>
-          </GlassCard>
-        </Animated.View>
-
         {/* Overview Stats */}
-        <Animated.View entering={FadeInDown.delay(240).springify()}>
+        <Animated.View entering={FadeInDown.delay(80).springify()}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
               Overview
@@ -211,20 +172,8 @@ export default function Dashboard() {
               }
             />
             <StatCard
-              label="Leaked Credentials"
-              value={String(leakedPasswords)}
-              valueColor={leakedPasswords > 0 ? colors.warning : colors.success}
-              icon={
-                <Ionicons
-                  name="lock-open"
-                  size={24}
-                  color={leakedPasswords > 0 ? colors.warning : colors.success}
-                />
-              }
-            />
-            <StatCard
-              label="Monitored"
-              value={monitoredCount > 0 ? `${monitoredCount}` : "None"}
+              label="Platforms Monitored"
+              value={monitoredCount > 0 ? String(monitoredCount) : "None"}
               valueColor={monitoredCount > 0 ? colors.success : colors.mutedForeground}
               icon={
                 <MaterialCommunityIcons
@@ -234,46 +183,101 @@ export default function Dashboard() {
                 />
               }
             />
+            <StatCard
+              label="Photos Indexed"
+              value={user.totalPhotosIndexed > 0 ? String(user.totalPhotosIndexed) : "—"}
+              valueColor={user.totalPhotosIndexed > 0 ? colors.primary : colors.mutedForeground}
+              icon={
+                <Ionicons
+                  name="images"
+                  size={24}
+                  color={user.totalPhotosIndexed > 0 ? colors.primary : colors.mutedForeground}
+                />
+              }
+            />
           </View>
         </Animated.View>
 
+        {/* Identity Fingerprint */}
+        <Animated.View entering={FadeInDown.delay(160).springify()}>
+          <GlassCard style={styles.fingerprintCard}>
+            <LinearGradient
+              colors={["#3B82F60D", "transparent"]}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.fingerprintHeader}>
+              <MaterialCommunityIcons name="fingerprint" size={24} color={colors.primary} />
+              <View style={styles.fpTextCol}>
+                <Text style={[styles.fpTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  Identity Fingerprint
+                </Text>
+                <Text style={[styles.fpSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Your indexed digital footprint
+                </Text>
+              </View>
+              <View style={[styles.fpActiveDot, { backgroundColor: colors.success }]} />
+            </View>
+            <View style={styles.fpStats}>
+              <FingerprintStat label="Photos" value={String(user.totalPhotosIndexed)} />
+              <FingerprintStat label="Captions" value={String(user.totalCaptionsIndexed)} />
+              <FingerprintStat label="Reels" value={String(user.reelsIndexed)} />
+              <FingerprintStat label="Platforms" value={String(user.monitored)} />
+            </View>
+          </GlassCard>
+        </Animated.View>
+
         {/* Connected Accounts */}
-        <Animated.View entering={FadeInDown.delay(320).springify()}>
+        <Animated.View entering={FadeInDown.delay(240).springify()}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
               Verified Accounts
             </Text>
-            <TouchableOpacity onPress={() => router.push("/(tabs)/profile" as any)}>
+            <TouchableOpacity onPress={() => router.push("/manage-accounts" as any)}>
               <Text style={[styles.seeAll, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
                 Manage
               </Text>
             </TouchableOpacity>
           </View>
           <GlassCard style={styles.accountsCard}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.accountsRow}>
-                {user.connectedAccounts.map((acc) => (
-                  <View key={acc.platform} style={styles.accountItem}>
-                    <View style={styles.accountIconWrap}>
-                      <PlatformIcon platform={acc.platform!} size={46} />
-                      <View style={[styles.verifiedDot, { backgroundColor: colors.success, borderColor: colors.card }]}>
-                        <Ionicons name="checkmark" size={8} color="#FFFFFF" />
+            {user.connectedAccounts.length === 0 ? (
+              <TouchableOpacity
+                style={styles.accountsEmpty}
+                onPress={() => router.push("/manage-accounts" as any)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle-outline" size={28} color={colors.primary} />
+                <Text style={[styles.accountsEmptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Connect a social account to start monitoring
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.accountsRow}>
+                  {user.connectedAccounts.map((acc) => (
+                    <View key={acc.platform} style={styles.accountItem}>
+                      <View style={styles.accountIconWrap}>
+                        <PlatformIcon platform={acc.platform!} size={46} />
+                        <View style={[styles.verifiedDot, { backgroundColor: colors.success, borderColor: colors.card }]}>
+                          <Ionicons name="checkmark" size={8} color="#FFFFFF" />
+                        </View>
                       </View>
                     </View>
-                  </View>
-                ))}
-                <TouchableOpacity
-                  style={[styles.addAccount, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-                >
-                  <Ionicons name="add" size={24} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
+                  ))}
+                  <TouchableOpacity
+                    style={[styles.addAccount, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                    onPress={() => router.push("/manage-accounts" as any)}
+                  >
+                    <Ionicons name="add" size={24} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
           </GlassCard>
         </Animated.View>
 
         {/* Recent Alerts */}
-        <Animated.View entering={FadeInDown.delay(400).springify()}>
+        <Animated.View entering={FadeInDown.delay(320).springify()}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
               Recent Threats
@@ -339,11 +343,6 @@ const styles = StyleSheet.create({
   notifBadgeText: { color: "#FFFFFF", fontSize: 9, fontWeight: "700" },
   content: { paddingHorizontal: 20, paddingTop: 16, gap: 16 },
 
-  statusBanner: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
-  statusText: { flex: 1, gap: 2 },
-  statusTitle: { fontSize: 15 },
-  statusSub: { fontSize: 13 },
-
   scoreCard: { alignItems: "center", gap: 16, paddingVertical: 24 },
   scoreCardTitle: { fontSize: 15 },
   scoreRow: { alignItems: "center", justifyContent: "center" },
@@ -353,6 +352,7 @@ const styles = StyleSheet.create({
   fingerprintHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   fpTextCol: { flex: 1 },
   fpTitle: { fontSize: 15 },
+  fpSubtitle: { fontSize: 12, marginTop: 1 },
   fpActiveDot: { width: 8, height: 8, borderRadius: 4 },
   fpStats: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8 },
   fpStat: { alignItems: "center", gap: 4 },
@@ -373,6 +373,8 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 13 },
 
   accountsCard: { paddingVertical: 16 },
+  accountsEmpty: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
+  accountsEmptyText: { flex: 1, fontSize: 14 },
   accountsRow: { flexDirection: "row", alignItems: "center", gap: 16 },
   accountItem: { alignItems: "center" },
   accountIconWrap: { position: "relative" },
