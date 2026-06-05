@@ -185,3 +185,61 @@ export const devicePushTokensTable = pgTable("device_push_tokens", {
 });
 
 export type DevicePushToken = typeof devicePushTokensTable.$inferSelect;
+
+// ─── Cost & Rate-Limiting tables ─────────────────────────────────────────────
+
+/**
+ * Scan result cache — avoids re-running expensive external APIs for the same
+ * set of profiles within the 72-hour TTL window.  The cache key is a SHA-256
+ * hash of the sorted "username:platform" pairs for the user's connected accounts.
+ */
+export const scanCacheTable = pgTable("scan_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  cacheKey: text("cache_key").notNull().unique(),
+  resultJson: text("result_json").notNull(),
+  hitCount: integer("hit_count").notNull().default(0),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ScanCache = typeof scanCacheTable.$inferSelect;
+
+/**
+ * API cost log — one row per external API call (OpenAI, Google Vision, Google CSE).
+ * Used by the monitoring dashboard to compute per-user and per-provider spend.
+ */
+export const apiCostLogTable = pgTable("api_cost_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),   // "openai" | "google_vision" | "google_cse"
+  operation: text("operation").notNull(), // e.g. "threat_explanation", "image_reverse_search"
+  costUsd: text("cost_usd").notNull().default("0"),
+  tokensUsed: integer("tokens_used").notNull().default(0),
+  cacheHit: boolean("cache_hit").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type ApiCostLog = typeof apiCostLogTable.$inferSelect;
+
+/**
+ * Per-user quota tracking for rate limiting.
+ * Month and day keys are string-compared to detect rollovers without cron jobs.
+ */
+export const usageQuotasTable = pgTable("usage_quotas", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" })
+    .unique(),
+  scansThisMonth: integer("scans_this_month").notNull().default(0),
+  deepScansToday: integer("deep_scans_today").notNull().default(0),
+  /** "YYYY-M" — used to detect when the month rolls over and reset the counter. */
+  monthKey: text("month_key").notNull().default(""),
+  /** "YYYY-M-D" — used to detect when the day rolls over and reset deepScansToday. */
+  dayKey: text("day_key").notNull().default(""),
+  flaggedForAbuse: boolean("flagged_for_abuse").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type UsageQuota = typeof usageQuotasTable.$inferSelect;

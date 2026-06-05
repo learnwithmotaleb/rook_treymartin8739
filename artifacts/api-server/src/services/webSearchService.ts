@@ -25,6 +25,7 @@
  */
 
 import { logger } from "../lib/logger";
+import { trackApiCall } from "./costTracker";
 
 export interface WebSearchCandidate {
   username: string;
@@ -588,6 +589,13 @@ export interface SearchImpersonatorsOptions {
   photoUrls?: string[];
   /** Verbatim captions from the user's posts for caption search */
   captions?: string[];
+  /**
+   * Subscription tier — controls how deep the search goes.
+   * free: conservative (low cost); pro: standard; premium: maximum depth.
+   */
+  planTier?: "free" | "pro" | "premium";
+  /** User ID — used for per-call cost logging. */
+  userId?: string;
 }
 
 /**
@@ -598,6 +606,18 @@ export interface SearchImpersonatorsOptions {
  * Returns deduplicated candidates tagged with the discovery method so the
  * scoring engine can weight each appropriately.
  */
+// ─── Tier-based API depth limits ─────────────────────────────────────────────
+// Controls how many photos and captions are sent to external APIs per scan.
+// Lower tiers use fewer API calls to minimize cost while still providing value.
+
+const TIER_IMAGE_LIMIT: Record<string, number> = { free: 1, pro: 3, premium: 5 };
+const TIER_CAPTION_LIMIT: Record<string, number> = { free: 1, pro: 2, premium: 3 };
+
+/** Remove duplicate URLs before sending to Vision API. */
+function deduplicateUrls(urls: string[]): string[] {
+  return [...new Set(urls)];
+}
+
 export async function searchForImpersonators(
   usernameOrOptions: string | SearchImpersonatorsOptions,
   connectedPlatformsArg?: string[]
@@ -618,6 +638,8 @@ export async function searchForImpersonators(
   let connectedPlatforms: string[];
   let photoUrls: string[] = [];
   let captions: string[] = [];
+  let planTier: "free" | "pro" | "premium" = "free";
+  let userId: string | undefined;
 
   if (typeof usernameOrOptions === "string") {
     username = usernameOrOptions;
@@ -627,76 +649,105 @@ export async function searchForImpersonators(
     connectedPlatforms = usernameOrOptions.connectedPlatforms;
     photoUrls = usernameOrOptions.photoUrls ?? [];
     captions = usernameOrOptions.captions ?? [];
+    planTier = usernameOrOptions.planTier ?? "free";
+    userId = usernameOrOptions.userId;
   }
+
+  // Apply tier-based limits — cap images and captions before any API call
+  const imageLimit = TIER_IMAGE_LIMIT[planTier] ?? 1;
+  const captionLimit = TIER_CAPTION_LIMIT[planTier] ?? 1;
+  const cappedPhotoUrls = deduplicateUrls(photoUrls).slice(0, imageLimit);
+  const cappedCaptions = captions.slice(0, captionLimit);
 
   const clean = username.replace(/^@/, "").toLowerCase();
   const seen = new Set<string>();
   const allCandidates: WebSearchCandidate[] = [];
 
   // Username variant search: only check platforms the user is NOT already on.
-  // (There's no point searching instagram.com for "@user.official" if user is verified on IG.)
   const targetPlatforms = Object.keys(PLATFORM_PATTERNS).filter(
     (p) => !connectedPlatforms.includes(p)
   );
 
-  // Image search: always targets ALL platforms, including connected ones.
-  // An impersonator can steal your photos and post them on the SAME platform
-  // under a completely different username — Vision catches this regardless.
+  // Image search: always targets ALL platforms — photo theft can happen on the same platform.
   const allPlatforms = Object.keys(PLATFORM_PATTERNS);
 
-  // Short-circuit only if there are no targets for any strategy
   const hasVariantTargets = targetPlatforms.length > 0 && cseEnabled;
-  const hasImageTargets = photoUrls.length > 0 && visionEnabled;
-  const hasCaptionTargets = captions.length > 0 && cseEnabled;
+  const hasImageTargets = cappedPhotoUrls.length > 0 && visionEnabled;
+  const hasCaptionTargets = cappedCaptions.length > 0 && cseEnabled;
 
   if (!hasVariantTargets && !hasImageTargets && !hasCaptionTargets) {
     logger.info(
-      { username: clean, allPlatformsConnected: targetPlatforms.length === 0, hasPhotos: photoUrls.length > 0, visionEnabled, cseEnabled },
+      { username: clean, planTier, imageLimit, captionLimit, visionEnabled, cseEnabled },
       "No web search strategies available — skipping"
     );
     return [];
   }
 
-  // Strategy 1: Username variants (requires CSE key + CX, unconnected platforms only)
+  logger.info(
+    { username: clean, planTier, imageLimit, captionLimit, photoUrlCount: cappedPhotoUrls.length },
+    "Starting web impersonator search"
+  );
+
+  // ── Strategy 1: Username variants (CSE) ───────────────────────────────────
   if (cseEnabled && targetPlatforms.length > 0) {
     const variantCandidates = await searchByUsernameVariants(clean, targetPlatforms, seen);
     allCandidates.push(...variantCandidates);
+    // Track CSE cost: 5 suffix queries × 1 call each
+    if (userId) {
+      const cseCallCount = Math.min(5, IMPERSONATION_SUFFIXES.length);
+      for (let i = 0; i < cseCallCount; i++) {
+        trackApiCall({ userId, provider: "google_cse", operation: "username_variant_search" });
+      }
+    }
   } else if (!cseEnabled) {
     logger.info({}, "GOOGLE_SEARCH_CX not set — username variant search skipped");
   } else {
     logger.info({ username: clean }, "All platforms connected — username variant search skipped (Vision still runs)");
   }
 
-  // Strategy 2: Cloud Vision reverse image search (requires only API key)
-  // Finds stolen photos posted under completely different usernames on ANY platform.
-  // Runs even when all platforms are connected — photo theft can happen on the same platform.
-  if (photoUrls.length > 0 && visionEnabled) {
-    const imageCandidates = await searchByImageUrls(photoUrls, clean, allPlatforms, seen);
+  // ── Strategy 2: Cloud Vision reverse image search (tier-limited) ──────────
+  if (cappedPhotoUrls.length > 0 && visionEnabled) {
+    logger.info(
+      { imageCount: cappedPhotoUrls.length, planTier },
+      "Running reverse image search (tier-limited)"
+    );
+    const imageCandidates = await searchByImageUrls(cappedPhotoUrls, clean, allPlatforms, seen);
     allCandidates.push(...imageCandidates);
-  } else if (photoUrls.length === 0) {
-    logger.info({ username: clean }, "No photo URLs provided — reverse image search skipped");
+    // Track Vision cost: one call per image
+    if (userId) {
+      for (let i = 0; i < cappedPhotoUrls.length; i++) {
+        trackApiCall({ userId, provider: "google_vision", operation: "image_reverse_search" });
+      }
+    }
+  } else if (cappedPhotoUrls.length === 0) {
+    logger.info({ username: clean }, "No photo URLs — reverse image search skipped");
   } else {
     logger.info({ username: clean }, "Cloud Vision not configured — reverse image search skipped");
   }
 
-  // Strategy 3: Caption text fingerprint search (requires CSE key + CX)
-  if (captions.length > 0 && cseEnabled) {
-    const captionCandidates = await searchByCaptions(captions, clean, targetPlatforms, seen);
+  // ── Strategy 3: Caption text search (tier-limited) ────────────────────────
+  if (cappedCaptions.length > 0 && cseEnabled) {
+    const captionCandidates = await searchByCaptions(cappedCaptions, clean, targetPlatforms, seen);
     allCandidates.push(...captionCandidates);
+    // Track CSE cost: one call per caption query
+    if (userId) {
+      for (let i = 0; i < cappedCaptions.length; i++) {
+        trackApiCall({ userId, provider: "google_cse", operation: "caption_search" });
+      }
+    }
   }
 
   logger.info(
     {
       username: clean,
+      planTier,
+      imageLimit,
       total: allCandidates.length,
-      cseEnabled,
-      visionEnabled,
       byMethod: {
         username_variant: allCandidates.filter((c) => c.discoveryMethod === "username_variant").length,
         image_search: allCandidates.filter((c) => c.discoveryMethod === "image_search").length,
         caption_search: allCandidates.filter((c) => c.discoveryMethod === "caption_search").length,
       },
-      platforms: targetPlatforms,
     },
     "Web impersonator search complete"
   );

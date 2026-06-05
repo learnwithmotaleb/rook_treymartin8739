@@ -26,6 +26,8 @@ import {
   type ScanJob,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { buildScanCacheKey, getCached, setCache } from "./cacheService";
+import type { Tier } from "../lib/planConfig";
 import {
   generateSimulatedCandidates,
   buildThreatFromCandidate,
@@ -74,7 +76,7 @@ const IMPERSONATION_SUFFIXES = [
   ".fanpage",
 ];
 
-export async function startScan(userId: string): Promise<ScanJob> {
+export async function startScan(userId: string, planTier: Tier = "free"): Promise<ScanJob> {
   const [job] = await db
     .insert(scanJobsTable)
     .values({
@@ -91,7 +93,7 @@ export async function startScan(userId: string): Promise<ScanJob> {
 
   logger.info({ jobId: job.id, userId }, "Scan job created, starting pipeline");
 
-  runScanPipeline(job.id, userId).catch((err) => {
+  runScanPipeline(job.id, userId, planTier).catch((err) => {
     logger.error({ err, jobId: job.id }, "Scan pipeline failed");
     db.update(scanJobsTable)
       .set({ status: "failed", completedAt: new Date() })
@@ -487,7 +489,8 @@ function webCandidateToImpersonator(
 
 async function runScanPipeline(
   jobId: string,
-  userId: string
+  userId: string,
+  planTier: Tier = "free"
 ): Promise<void> {
   logger.info({ jobId, userId }, "Starting scan pipeline");
 
@@ -659,12 +662,42 @@ async function runScanPipeline(
       "Web search inputs prepared"
     );
 
-    const webCandidates = await searchForImpersonators({
-      username: primaryUsername,
-      connectedPlatforms,
-      photoUrls: allPhotoUrls,
-      captions: allCaptions,
-    });
+    // ── Cache check: skip expensive APIs if same accounts were scanned within 72h ─
+    const scanCacheKey = buildScanCacheKey(
+      connectedAccounts.map((a) => ({ username: a.username, platform: a.platform }))
+    );
+
+    let webCandidates: WebSearchCandidate[];
+    const cachedResult = isDemoUser
+      ? null
+      : await getCached<WebSearchCandidate[]>(scanCacheKey);
+
+    if (cachedResult) {
+      webCandidates = cachedResult.data;
+      logger.info(
+        {
+          cacheKey: scanCacheKey.slice(0, 16),
+          hitCount: cachedResult.hitCount,
+          candidateCount: webCandidates.length,
+          expiresAt: cachedResult.expiresAt,
+        },
+        "Web search cache HIT — skipping external API calls"
+      );
+    } else {
+      webCandidates = await searchForImpersonators({
+        username: primaryUsername,
+        connectedPlatforms,
+        photoUrls: allPhotoUrls,
+        captions: allCaptions,
+        planTier,
+        userId,
+      });
+
+      // Cache results so subsequent scans within 72h skip the APIs
+      if (!isDemoUser) {
+        setCache(scanCacheKey, webCandidates).catch(() => {});
+      }
+    }
 
     for (const wc of webCandidates) {
       const candidate = webCandidateToImpersonator(wc, ingestedAccounts);
@@ -844,13 +877,16 @@ async function runScanPipeline(
     let aiExplanation: string | null = null;
     if (scored.severity === "high") {
       try {
-        aiExplanation = await generateThreatExplanation({
-          threatType: scored.type,
-          signals: candidate.detectedSignals,
-          matchedMediaCount: candidate.matchedMediaCount,
-          platform: candidate.platform,
-          suspiciousUsername: candidate.suspiciousUsername,
-        });
+        aiExplanation = await generateThreatExplanation(
+          {
+            threatType: scored.type,
+            signals: candidate.detectedSignals,
+            matchedMediaCount: candidate.matchedMediaCount,
+            platform: candidate.platform,
+            suspiciousUsername: candidate.suspiciousUsername,
+          },
+          userId   // pass userId for cost tracking
+        );
       } catch (err) {
         logger.warn({ err }, "AI explanation generation failed, skipping");
       }

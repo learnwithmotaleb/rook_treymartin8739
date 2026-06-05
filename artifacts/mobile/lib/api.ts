@@ -17,6 +17,22 @@ export function setApiAuthToken(getter: () => Promise<string | null>) {
   _authTokenGetter = getter;
 }
 
+/** Thrown when the server returns 429 scan_limit_reached. */
+export class ScanQuotaError extends Error {
+  readonly reason: string;
+  readonly tier: string;
+  readonly upgradeTo: string;
+  readonly userMessage: string;
+  constructor(payload: { reason: string; tier: string; upgradeTo: string; message: string }) {
+    super(payload.message);
+    this.name = "ScanQuotaError";
+    this.reason = payload.reason;
+    this.tier = payload.tier;
+    this.upgradeTo = payload.upgradeTo;
+    this.userMessage = payload.message;
+  }
+}
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -37,10 +53,21 @@ async function apiFetch<T>(
   });
 
   if (!response.ok) {
-    const err = await response
+    const body = await response
       .json()
-      .catch(() => ({ error: "Request failed" })) as { error?: string };
-    throw new Error(err.error ?? `HTTP ${response.status}`);
+      .catch(() => ({ error: "Request failed" })) as Record<string, unknown>;
+
+    // Surface structured quota errors so the UI can show the upgrade prompt
+    if (response.status === 429 && body["error"] === "scan_limit_reached") {
+      throw new ScanQuotaError({
+        reason: String(body["reason"] ?? "monthly_limit"),
+        tier: String(body["tier"] ?? "free"),
+        upgradeTo: String(body["upgradeTo"] ?? "pro"),
+        message: String(body["message"] ?? "Scan limit reached. Upgrade to continue."),
+      });
+    }
+
+    throw new Error(String(body["error"] ?? `HTTP ${response.status}`));
   }
 
   return response.json() as Promise<T>;

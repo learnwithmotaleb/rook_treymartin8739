@@ -1,0 +1,84 @@
+Implement an enterprise-grade API cost management and rate limiting system for the entire application.
+
+OBJECTIVES:
+- Minimize OpenAI costs
+- Minimize Google Vision costs
+- Minimize Google Custom Search costs
+- Prevent abuse
+- Cache expensive results
+- Scale efficiently
+
+REQUIREMENTS:
+
+1. RESULT CACHING
+- Cache completed profile scans for 72 hours.
+- If another user scans the same profile within cache period, serve cached results instead of calling APIs.
+- Store cache hash based on username + platform.
+- Refresh cache only when expired.
+
+2. FREE TIER LIMITS
+- Limit free users to 3 scans per month.
+- Limit free users to 1 deep scan per day.
+- Block repeat scans of the same profile within 24 hours.
+- Display upgrade prompt when limits reached.
+
+3. SMART API ORCHESTRATION
+- Never call all APIs simultaneously.
+- Check cached data first.
+- Run low-cost analysis before expensive analysis.
+- Only invoke OpenAI when sufficient profile data exists.
+- Only invoke Google Vision if images are present.
+- Only invoke Google Search if profile confidence score is below threshold.
+
+4. OPENAI OPTIMIZATION
+- Use shortest possible prompts.
+- Limit response tokens.
+- Request structured JSON output.
+- Reuse previously generated summaries.
+- Prevent duplicate requests.
+
+5. GOOGLE VISION OPTIMIZATION
+- Compress images before submission.
+- Skip duplicate images.
+- Analyze only highest quality images.
+- Limit number of images analyzed per scan.
+
+6. SEARCH API OPTIMIZATION
+- Deduplicate searches.
+- Cache search results.
+- Limit search depth for free users.
+- Only perform advanced searches for paid users.
+
+7. RATE LIMITING
+- User based limits.
+- IP based limits.
+- Device based limits.
+- Progressive cooldowns for suspicious activity.
+
+8. BACKGROUND PROCESSING
+- Queue expensive scans.
+- Process asynchronously.
+- Prevent duplicate jobs.
+- Reuse completed jobs whenever possible.
+
+9. MONITORING DASHBOARD
+- Track API usage by provider.
+- Track cost per user.
+- Track cost per scan.
+- Track cache hit rate.
+- Track top API consumers.
+- Alert if spending spikes.
+
+10. FAIR USE PROTECTION
+- Detect excessive scanning behavior.
+- Flag users exceeding normal usage patterns.
+- Automatically throttle abuse.
+- Preserve service quality for paying customers.
+
+OUTPUT:
+- Clean implementation.
+- Modular architecture.
+- Production-ready code.
+- Detailed comments.
+- Cost-efficient design.
+- Scalable for 100,000+ users.

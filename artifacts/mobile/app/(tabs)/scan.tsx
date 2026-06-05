@@ -27,6 +27,7 @@ export default function ScanScreen() {
     isScanning,
     scanProgress,
     scanCurrentStep,
+    scanQuotaError,
     startScan,
     activeThreats,
     fakeAccounts,
@@ -357,6 +358,29 @@ export default function ScanScreen() {
               <Ionicons name="link" size={16} color="#fff" />
               <Text style={[styles.connectBtnText, { fontFamily: "Inter_600SemiBold" }]}>
                 Connect Account
+              </Text>
+            </TouchableOpacity>
+          </GlassCard>
+        ) : scanQuotaError && !isScanning ? (
+          /* Scan quota reached — show upgrade prompt */
+          <GlassCard style={[styles.noAccountsCard, { borderColor: colors.warning + "44" }]}>
+            <View style={[styles.noAccountsIcon, { backgroundColor: colors.warning + "18" }]}>
+              <Ionicons name="shield-half" size={26} color={colors.warning} />
+            </View>
+            <Text style={[styles.noAccountsTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Scan limit reached
+            </Text>
+            <Text style={[styles.noAccountsSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {scanQuotaError.message}
+            </Text>
+            <TouchableOpacity
+              style={[styles.connectBtn, { backgroundColor: colors.warning }]}
+              activeOpacity={0.85}
+              onPress={() => router.push("/subscription" as any)}
+            >
+              <Ionicons name="arrow-up-circle" size={16} color="#fff" />
+              <Text style={[styles.connectBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                Upgrade to {scanQuotaError.upgradeTo.charAt(0).toUpperCase() + scanQuotaError.upgradeTo.slice(1)}
               </Text>
             </TouchableOpacity>
           </GlassCard>

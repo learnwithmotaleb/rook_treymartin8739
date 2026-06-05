@@ -23,6 +23,7 @@ import {
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
+  ScanQuotaError,
 } from "@/lib/api";
 
 export type Severity = "high" | "medium" | "low";
@@ -140,6 +141,7 @@ interface AppContextType {
   isScanning: boolean;
   scanProgress: number;
   scanCurrentStep: string | null;
+  scanQuotaError: { message: string; upgradeTo: string } | null;
   isLoading: boolean;
   activeThreats: number;
   fakeAccounts: number;
@@ -343,8 +345,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem("hasSeenOnboarding", "true");
   }, []);
 
+  const [scanQuotaError, setScanQuotaError] = useState<{ message: string; upgradeTo: string } | null>(null);
+
   const startScan = useCallback(async () => {
     if (isScanning) return;
+    setScanQuotaError(null);
     setIsScanning(true);
     setScanProgress(0);
 
@@ -388,8 +393,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setScanCurrentStep(null);
         }
       }, 1200);
-    } catch {
+    } catch (err) {
       setIsScanning(false);
+      if (err instanceof ScanQuotaError) {
+        setScanQuotaError({ message: err.userMessage, upgradeTo: err.upgradeTo });
+      }
     }
   }, [isScanning, loadThreats]);
 
@@ -481,6 +489,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         logout,
         completeOnboarding,
         startScan,
+        scanQuotaError,
         resolveThreat,
         refreshData,
         addAccount,
