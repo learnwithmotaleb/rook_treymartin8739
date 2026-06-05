@@ -31,7 +31,7 @@ export async function requireAuth(
     }
 
     if (hasAuthHeader) {
-      req.log.warn({ authHeader: req.headers["authorization"]?.slice(0, 20) }, "requireAuth: auth header present but Clerk could not verify — falling back to demo");
+      req.log.warn("requireAuth: auth header present but Clerk could not verify — falling back to demo");
     } else {
       req.log.warn("requireAuth: no auth header — falling back to demo user");
     }

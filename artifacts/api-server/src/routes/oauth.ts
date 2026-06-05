@@ -15,7 +15,14 @@ const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
 // might take several minutes on the Facebook/Instagram consent screen.
 // Instead we generate our own HMAC-signed token with a 15-minute window.
 
-const STATE_SECRET = process.env["SESSION_SECRET"] ?? "dev-fallback-change-in-prod";
+const _rawSecret = process.env["SESSION_SECRET"];
+if (!_rawSecret) {
+  throw new Error(
+    "SESSION_SECRET environment variable is required. " +
+    "Set it as an environment secret before starting the server."
+  );
+}
+const STATE_SECRET = _rawSecret;
 
 function createOAuthState(userId: string): string {
   const payload = Buffer.from(
@@ -353,8 +360,12 @@ router.get("/oauth/redirect-uris", (_req, res) => {
 });
 
 // ─── Dev diagnostic: shows truncated IDs and a testable auth URL ──────────────
-// Safe to share — never reveals full secrets. Shows enough to verify correctness.
+// Only available in non-production environments.
 router.get("/oauth/debug", (_req, res) => {
+  if (process.env["NODE_ENV"] === "production") {
+    res.status(404).end();
+    return;
+  }
   const igClientId  = process.env["INSTAGRAM_CLIENT_ID"] ?? "";
   const fbAppId     = process.env["FACEBOOK_APP_ID"] ?? "";
   const igPublicId  = process.env["EXPO_PUBLIC_INSTAGRAM_CLIENT_ID"] ?? "";
@@ -728,10 +739,12 @@ function setupPage(): string {
 }
 
 // ── Vision API smoke test ─────────────────────────────────────────────────────
-// GET /api/oauth/debug/vision
-// Tests Cloud Vision WEB_DETECTION with a known public image.
-// Returns JSON so it's easy to curl or visit in a browser.
+// GET /api/oauth/debug/vision — dev-only, not available in production.
 router.get("/oauth/debug/vision", async (_req, res) => {
+  if (process.env["NODE_ENV"] === "production") {
+    res.status(404).end();
+    return;
+  }
   const apiKey = process.env["GOOGLE_SEARCH_API_KEY"];
   if (!apiKey) {
     res.status(503).json({ ok: false, error: "GOOGLE_SEARCH_API_KEY not set" });
