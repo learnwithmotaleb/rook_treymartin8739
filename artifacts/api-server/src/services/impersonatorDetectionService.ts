@@ -55,6 +55,8 @@ export interface ImpersonatorCandidate {
     | "graph_match"
     | "image_search"
     | "caption_search";
+  /** True only for demo-mode placeholders — never for real discovered accounts */
+  simulated?: boolean;
   signals: SignalData;
   evidence: DetectedEvidence[];
   detectedSignals: string[];
@@ -167,6 +169,7 @@ export function generateSimulatedCandidates(
     suspiciousUsername: `@${cleanUsername}${variantSuffix}`,
     platform: platform0,
     source: "username_search",
+    simulated: true,
     signals: variantSignals,
     evidence: [
       {
@@ -227,6 +230,7 @@ export function generateSimulatedCandidates(
     suspiciousUsername: `@${randomHandle}`,
     platform: platform1,
     source: "image_search",
+    simulated: true,
     signals: visualSignals,
     evidence: [
       {

@@ -609,30 +609,50 @@ export async function searchForImpersonators(
   const seen = new Set<string>();
   const allCandidates: WebSearchCandidate[] = [];
 
+  // Username variant search: only check platforms the user is NOT already on.
+  // (There's no point searching instagram.com for "@user.official" if user is verified on IG.)
   const targetPlatforms = Object.keys(PLATFORM_PATTERNS).filter(
     (p) => !connectedPlatforms.includes(p)
   );
 
-  if (targetPlatforms.length === 0) {
-    logger.info({ username: clean }, "All platforms connected — skipping web search");
+  // Image search: always targets ALL platforms, including connected ones.
+  // An impersonator can steal your photos and post them on the SAME platform
+  // under a completely different username — Vision catches this regardless.
+  const allPlatforms = Object.keys(PLATFORM_PATTERNS);
+
+  // Short-circuit only if there are no targets for any strategy
+  const hasVariantTargets = targetPlatforms.length > 0 && cseEnabled;
+  const hasImageTargets = photoUrls.length > 0 && visionEnabled;
+  const hasCaptionTargets = captions.length > 0 && cseEnabled;
+
+  if (!hasVariantTargets && !hasImageTargets && !hasCaptionTargets) {
+    logger.info(
+      { username: clean, allPlatformsConnected: targetPlatforms.length === 0, hasPhotos: photoUrls.length > 0, visionEnabled, cseEnabled },
+      "No web search strategies available — skipping"
+    );
     return [];
   }
 
-  // Strategy 1: Username variants (requires CSE key + CX)
-  if (cseEnabled) {
+  // Strategy 1: Username variants (requires CSE key + CX, unconnected platforms only)
+  if (cseEnabled && targetPlatforms.length > 0) {
     const variantCandidates = await searchByUsernameVariants(clean, targetPlatforms, seen);
     allCandidates.push(...variantCandidates);
-  } else {
+  } else if (!cseEnabled) {
     logger.info({}, "GOOGLE_SEARCH_CX not set — username variant search skipped");
+  } else {
+    logger.info({ username: clean }, "All platforms connected — username variant search skipped (Vision still runs)");
   }
 
   // Strategy 2: Cloud Vision reverse image search (requires only API key)
-  // Finds stolen photos posted under completely different usernames.
+  // Finds stolen photos posted under completely different usernames on ANY platform.
+  // Runs even when all platforms are connected — photo theft can happen on the same platform.
   if (photoUrls.length > 0 && visionEnabled) {
-    const imageCandidates = await searchByImageUrls(photoUrls, clean, targetPlatforms, seen);
+    const imageCandidates = await searchByImageUrls(photoUrls, clean, allPlatforms, seen);
     allCandidates.push(...imageCandidates);
   } else if (photoUrls.length === 0) {
     logger.info({ username: clean }, "No photo URLs provided — reverse image search skipped");
+  } else {
+    logger.info({ username: clean }, "Cloud Vision not configured — reverse image search skipped");
   }
 
   // Strategy 3: Caption text fingerprint search (requires CSE key + CX)

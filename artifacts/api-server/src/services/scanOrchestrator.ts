@@ -813,7 +813,14 @@ async function runScanPipeline(
       }
     }
   } else {
-    logger.info({ userId }, "No user photo fingerprints available — comparison skipped");
+    if (candidatesWithImages.length === 0) {
+      logger.info(
+        { userHashes: userHashes.length, userEmbeddings: userEmbeddings.length },
+        "No candidate profile images to compare — pHash step skipped (Vision may find some next scan)"
+      );
+    } else {
+      logger.info({ userId }, "No user photo fingerprints available — comparison skipped");
+    }
     await sleep(400);
   }
 
@@ -951,8 +958,8 @@ async function runScanPipeline(
       jobId,
       threatsFound: newThreats.length,
       verifiedAccounts: verifiedAccounts.length,
-      realCandidates: allCandidates.filter((c) => c.source === "username_search").length,
-      simulatedCandidates: allCandidates.filter((c) => c.source !== "username_search").length,
+      realCandidates: allCandidates.filter((c) => !c.simulated).length,
+      simulatedCandidates: allCandidates.filter((c) => c.simulated).length,
       breachThreatAdded,
       mediaIndexed: { photos: totalPhotos, captions: totalCaptions, reels: totalReels },
     },

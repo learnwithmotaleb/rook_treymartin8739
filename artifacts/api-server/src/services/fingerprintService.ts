@@ -145,11 +145,17 @@ async function describePhoto(imageUrl: string): Promise<string | null> {
   }
 }
 
+// Track whether the embeddings endpoint is supported by the configured client.
+// Replit's OpenAI proxy only supports chat completions, not embeddings.
+// On first INVALID_ENDPOINT error we flip this to false and skip all future attempts.
+let embeddingEndpointSupported = true;
+
 /**
  * Embed a text description using text-embedding-3-small.
- * Returns null on failure.
+ * Returns null if embeddings aren't supported or on failure.
  */
 async function embedText(text: string): Promise<number[] | null> {
+  if (!embeddingEndpointSupported) return null;
   try {
     const response = await openai.embeddings.create({
       model: "text-embedding-3-small",
@@ -157,7 +163,17 @@ async function embedText(text: string): Promise<number[] | null> {
     });
     return response.data[0]?.embedding ?? null;
   } catch (err) {
-    logger.warn({ err }, "Text embedding failed");
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("INVALID_ENDPOINT") || msg.includes("not supported")) {
+      embeddingEndpointSupported = false;
+      logger.info(
+        {},
+        "Embeddings endpoint not supported by this OpenAI client — AI embedding layer disabled. " +
+        "Set a real OPENAI_API_KEY (not the Replit proxy) to enable this feature."
+      );
+    } else {
+      logger.warn({ err }, "Text embedding failed");
+    }
     return null;
   }
 }
