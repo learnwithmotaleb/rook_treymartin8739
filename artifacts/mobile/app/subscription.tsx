@@ -171,7 +171,7 @@ export default function Subscription() {
   const { fromOnboarding } = useLocalSearchParams<{ fromOnboarding?: string }>();
   const isFromOnboarding = fromOnboarding === "1";
 
-  const { offerings, tier: rcTier, isPurchasing, purchase, restore, isRestoring } = useSubscription();
+  const { offerings, tier: rcTier, isPurchasing, isLoading: rcIsLoading, purchase, restore, isRestoring } = useSubscription();
 
   const [billingCycle, setBillingCycle] = useState<Cycle>("monthly");
   const [confirmPkg, setConfirmPkg] = useState<PurchasesPackage | null>(null);
@@ -247,7 +247,14 @@ export default function Subscription() {
 
   const handleUpgrade = (meta: PlanMeta) => {
     const pkg = getPackage(meta.id, billingCycle);
-    if (!pkg) return;
+    if (!pkg) {
+      Alert.alert(
+        "Store not available",
+        "In-app purchases require the App Store or Google Play. Please open this app from your device's app store to subscribe.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setConfirmPkg(pkg);
   };
@@ -280,7 +287,7 @@ export default function Subscription() {
     if (meta.id === currentTier) return "Current Plan";
     if (TIER_ORDER[meta.id] < TIER_ORDER[currentTier]) return `Downgrade to ${meta.name}`;
     if (currentTier !== "free") return `Upgrade to ${meta.name}`;
-    return "Start 7-Day Free Trial";
+    return "Choose Plan";
   };
 
   const getPlanCtaDisabled = (meta: PlanMeta): boolean => {
@@ -415,7 +422,7 @@ export default function Subscription() {
         {PLAN_META.map((meta) => {
           const isCurrent = meta.id === currentTier;
           const disabled = getPlanCtaDisabled(meta);
-          const isLoading = isPurchasing;
+          const isLoading = isPurchasing || rcIsLoading;
           const price = getDisplayPrice(meta.id);
           const isPremium = meta.id === "premium";
 
@@ -568,7 +575,7 @@ export default function Subscription() {
         <View style={styles.trustRow}>
           {[
             { icon: "lock-closed", text: "Cancel anytime" },
-            { icon: "shield-checkmark", text: "7-day free trial" },
+            { icon: "checkmark-circle", text: "No contracts" },
             { icon: "card", text: "Secure checkout" },
           ].map((item, i) => (
             <View key={i} style={styles.trustItem}>
@@ -581,7 +588,7 @@ export default function Subscription() {
         </View>
 
         <Text style={[styles.legal, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Subscriptions renew automatically. Cancel anytime from your device's subscription settings. Pro and Premium include a 7-day free trial for new subscribers.
+          Subscriptions renew automatically. Cancel anytime from your device's subscription settings.
         </Text>
       </ScrollView>
 
