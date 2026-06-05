@@ -412,46 +412,31 @@ async function searchByImageUrls(
       continue;
     }
 
-    // Collect all page URLs that have this image (exact + partial matches)
-    const matchingPages: VisionWebPage[] = [
-      ...(webDetection.pagesWithMatchingImages ?? []),
-    ];
+    const pagesWithMatch = webDetection.pagesWithMatchingImages ?? [];
+    const fullMatches = webDetection.fullMatchingImages ?? [];
+    const partialMatches = webDetection.partialMatchingImages ?? [];
+    const similarImages = webDetection.visuallySimilarImages ?? [];
 
-    // Also check visuallySimilarImages URLs directly (some point to profile pages)
-    const similarImageUrls: string[] = [
-      ...(webDetection.fullMatchingImages ?? []).map((i) => i.url),
-      ...(webDetection.partialMatchingImages ?? []).map((i) => i.url),
-      ...(webDetection.visuallySimilarImages ?? []).map((i) => i.url),
-    ];
+    logger.info(
+      {
+        photoUrl: photoUrl.slice(0, 60),
+        pagesWithMatchingImages: pagesWithMatch.length,
+        fullMatchingImages: fullMatches.length,
+        partialMatchingImages: partialMatches.length,
+        visuallySimilarImages: similarImages.length,
+      },
+      "Cloud Vision web detection complete"
+    );
 
-    // Try to extract platform usernames from image URLs themselves
-    // (some platforms embed username in image CDN path)
-    for (const imgUrl of similarImageUrls) {
-      const extracted = extractUsernameFromUrl(imgUrl);
-      if (!extracted) continue;
-      const { username: found, platform } = extracted;
-      if (found === clean || !targetPlatforms.includes(platform)) continue;
-      const key = `${platform}:${found}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      candidates.push({
-        username: found,
-        platform,
-        profileUrl: `https://www.${PLATFORM_PATTERNS[platform]?.host ?? platform}/${found}`,
-        title: `${found} on ${platform}`,
-        snippet: "Profile photo visually matched via Cloud Vision",
-        similarity: 0.0,
-        discoveryMethod: "image_search",
-      });
-    }
-
-    // Extract usernames from matching page URLs (most reliable — actual profile pages)
-    for (const page of matchingPages) {
+    // ── Strategy A: Pages where your exact image appears ─────────────────────
+    // pagesWithMatchingImages = Google confirmed your photo appears on this page.
+    // These are the only reliable impersonation signals — the image IS there.
+    for (const page of pagesWithMatch) {
       const extracted = extractUsernameFromUrl(page.url);
       if (!extracted) continue;
 
       const { username: found, platform } = extracted;
-      if (found === clean) continue;
+      if (found.toLowerCase() === clean) continue; // your own profile
       if (!targetPlatforms.includes(platform)) continue;
 
       const key = `${platform}:${found}`;
@@ -463,23 +448,62 @@ async function searchByImageUrls(
         platform,
         profileUrl: page.url,
         title: page.pageTitle ?? `${found} on ${platform}`,
-        snippet: "Profile photo found via Cloud Vision reverse image search",
-        similarity: 0.0,
+        snippet: "Your photo was found on this profile via Google reverse image search",
+        similarity: 0.95,
         discoveryMethod: "image_search",
       });
+
+      logger.info(
+        { username: found, platform, pageUrl: page.url.slice(0, 80) },
+        "Confirmed image match: your photo found on this profile page"
+      );
     }
 
-    logger.info(
-      {
-        photoUrl: photoUrl.slice(0, 60),
-        pagesWithMatchingImages: webDetection.pagesWithMatchingImages?.length ?? 0,
-        visuallySimilarImages: webDetection.visuallySimilarImages?.length ?? 0,
-        candidatesFound: candidates.length,
-      },
-      "Cloud Vision web detection complete"
-    );
+    // ── Strategy B: Exact image copies at CDN/image URLs ─────────────────────
+    // fullMatchingImages = exact same pixel-level image at a different URL.
+    // Some platforms embed the username in their CDN image path.
+    for (const img of fullMatches) {
+      const extracted = extractUsernameFromUrl(img.url);
+      if (!extracted) continue;
 
-    // Vision API: 1,800ms between requests to stay within 1 req/s rate limit
+      const { username: found, platform } = extracted;
+      if (found.toLowerCase() === clean) continue;
+      if (!targetPlatforms.includes(platform)) continue;
+
+      const key = `${platform}:${found}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      candidates.push({
+        username: found,
+        platform,
+        profileUrl: `https://www.${PLATFORM_PATTERNS[platform]?.host ?? platform}/${found}`,
+        title: `${found} on ${platform}`,
+        snippet: "Exact copy of your photo found at a different URL",
+        similarity: 0.98,
+        discoveryMethod: "image_search",
+      });
+
+      logger.info(
+        { username: found, platform, imgUrl: img.url.slice(0, 80) },
+        "Confirmed full image match: exact pixel-level copy found"
+      );
+    }
+
+    // NOTE: partialMatchingImages and visuallySimilarImages are intentionally
+    // excluded — they produce false positives (photos that merely look similar,
+    // not photos that are actually stolen). Only confirmed matches become threats.
+    if (pagesWithMatch.length === 0 && fullMatches.length === 0) {
+      logger.info(
+        {
+          partialMatches: partialMatches.length,
+          similarImages: similarImages.length,
+        },
+        "No confirmed matches — similar images found but not treated as stolen (too many false positives)"
+      );
+    }
+
+    // Vision API: stay within rate limits
     await new Promise<void>((r) => setTimeout(r, 1200));
   }
 
