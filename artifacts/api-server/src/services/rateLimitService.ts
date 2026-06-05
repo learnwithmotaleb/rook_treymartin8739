@@ -6,7 +6,7 @@
  *
  * Tier limits:
  *   Free    — 3 scans / month, 1 deep scan / day, 24h repeat-profile block
- *   Pro     — 30 scans / month, 5 deep scans / day
+ *   Pro     — 15 scans / month, 5 deep scans / day
  *   Premium — unlimited scans and deep scans
  *
  * A "deep scan" triggers the full Vision + CSE pipeline.  A lightweight scan
@@ -35,7 +35,7 @@ const TIER_LIMITS: Record<string, TierLimits> = {
     abuseThresholdPerDay: 8,
   },
   pro: {
-    scansPerMonth: 30,
+    scansPerMonth: 15,
     deepScansPerDay: 5,
     abuseThresholdPerDay: 20,
   },

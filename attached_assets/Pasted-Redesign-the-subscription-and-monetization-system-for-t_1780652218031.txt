@@ -1,0 +1,69 @@
+Redesign the subscription and monetization system for this application to maximize revenue, improve conversion from free users, and align pricing with high-value AI-powered identity/social analysis features.
+
+GOALS:
+- Increase ARPU (average revenue per user)
+- Encourage upgrades from free → paid tiers
+- Properly gate expensive API usage behind paid plans
+- Keep free tier viral but limited
+- Ensure Premium feels significantly more valuable than Pro
+- Prepare system for scale (100k+ users)
+
+------------------------------------
+NEW SUBSCRIPTION TIERS
+------------------------------------
+
+1. FREE PLAN (VIRAL GROWTH TIER)
+- 3 scans per month total
+- image analysis (or max 1 image scan per month) 
+- No history storage beyond 24 hours
+- Watermarked/basic reports
+
+- Must show upgrade prompts after every scan
+- Cannot access advanced insights (risk scoring, deep identity linking)
+
+Purpose: acquisition + viral sharing only
+
+------------------------------------
+
+2. PRO PLAN – $9.99/month
+- 15 scans per month 
+- Full AI identity analysis
+ 
+- Limited image analysis (up to 5 images per scan)
+- 7-day history storage
+- Cached results included
+
+Purpose: core paying user base
+
+------------------------------------
+
+3. PREMIUM PLAN – $19.99/month
+- Unlimited (or “fair use unlimited” with throttling) 
+- Full deep AI analysis  
+- Unlimited image analysis within fair use limits
+- Real-time alerts / monitoring (if applicable)
+- 30-day history storage
+- Priority processing queue
+- Advanced risk intelligence scoring
+- unlimited platform connections 
+- Early access to new features
+
+Purpose: power users, professionals, heavy users
+
+
+
+
+MONETIZATION RULES
+------------------------------------
+
+1. HARD USAGE LIMIT ENFORCEMENT
+- Enforce scan limits server-side (not client-side)
+- Block API calls when limits exceeded
+- Show upgrade modal when limit reached
+
+2. FEATURE GATING
+- Free users cannot access: pro and premium features 
+
+
+
+5. PRICING PSYCHOLOGY

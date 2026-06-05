@@ -59,8 +59,9 @@ const PLAN_META: PlanMeta[] = [
     badge: "Most Popular",
     ctaColor: "#3B82F6",
     differentiators: [
-      { icon: "people", text: "3 social accounts" },
-      { icon: "refresh-circle", text: "Weekly automated scans" },
+      { icon: "scan", text: "15 scans / month" },
+      { icon: "images", text: "5 images per scan" },
+      { icon: "time", text: "7-day threat history" },
       { icon: "notifications", text: "Real-time alerts + full evidence" },
     ],
   },
@@ -73,9 +74,10 @@ const PLAN_META: PlanMeta[] = [
     badge: "Best Value",
     ctaColor: undefined,
     differentiators: [
-      { icon: "infinite", text: "Unlimited accounts" },
-      { icon: "pulse", text: "Daily deep AI scans" },
-      { icon: "analytics", text: "Advanced intelligence + reports" },
+      { icon: "infinite", text: "Unlimited scans & accounts" },
+      { icon: "calendar", text: "30-day threat history" },
+      { icon: "flash", text: "Priority processing + risk intelligence" },
+      { icon: "analytics", text: "Downloadable reports + early access" },
     ],
   },
 ];
@@ -195,8 +197,8 @@ export default function Subscription() {
   // Fallback prices shown while RC offerings are loading (or in Expo Go test mode)
   const FALLBACK_PRICES: Record<Tier, { monthly: string; yearlyPerMonth: string; yearlyTotal: string }> = {
     free: { monthly: "$0", yearlyPerMonth: "$0", yearlyTotal: "$0" },
-    pro: { monthly: "$7.99", yearlyPerMonth: "$4.99", yearlyTotal: "$59.99" },
-    premium: { monthly: "$14.99", yearlyPerMonth: "$9.99", yearlyTotal: "$99.99" },
+    pro: { monthly: "$9.99", yearlyPerMonth: "$6.99", yearlyTotal: "$83.99" },
+    premium: { monthly: "$19.99", yearlyPerMonth: "$13.99", yearlyTotal: "$167.99" },
   };
 
   /** Derive display price string from RC package, with fallback */
@@ -385,9 +387,9 @@ export default function Subscription() {
           </View>
           <View style={[styles.diffList, { borderTopColor: colors.border }]}>
             {[
+              { icon: "scan", text: "3 scans / month" },
               { icon: "person", text: "1 social account" },
-              { icon: "time", text: "Manual scan every 14 days" },
-              { icon: "eye", text: "Basic impersonator detection" },
+              { icon: "time", text: "24h threat history" },
             ].map((d, i) => (
               <View key={i} style={styles.diffRow}>
                 <View style={[styles.diffIcon, { backgroundColor: colors.primary + "14" }]}>
