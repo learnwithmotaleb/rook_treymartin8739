@@ -24,7 +24,7 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
   // ── Shared values ──────────────────────────────────────────────────────────
   const containerOpacity = useSharedValue(1);
   const logoScale        = useSharedValue(0.8);
-  const logoRotationX    = useSharedValue(0);   // X-axis flip (coin-flip style)
+  const logoRotationX    = useSharedValue(0);   // Y-axis spin (globe style)
   const glowScale        = useSharedValue(1);
   const glowOpacity      = useSharedValue(0.4);
 
@@ -82,7 +82,7 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
     transform: [
       { perspective: 900 },
       { scale: logoScale.value },
-      { rotateX: `${logoRotationX.value}deg` },
+      { rotateY: `${logoRotationX.value}deg` },
     ],
   }));
 
