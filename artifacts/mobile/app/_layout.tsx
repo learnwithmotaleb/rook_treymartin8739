@@ -59,11 +59,18 @@ export default function RootLayout() {
   // Controls whether the AnimatedSplash is still mounted
   const [splashDone, setSplashDone] = useState(false);
 
-  // Fonts done = signal the animated splash to start its fade-out
-  const isReady = fontsLoaded || !!fontError;
+  // Enforce a minimum visible splash duration of 1.8 s so the animation
+  // always gets to play — fonts often load in <200 ms on device.
+  const [minTimeReached, setMinTimeReached] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMinTimeReached(true), 1800);
+    return () => clearTimeout(t);
+  }, []);
 
-  // Hide the native Expo splash as soon as JS is running so our animated
-  // splash takes over seamlessly
+  // Signal fade-out only when BOTH fonts are ready AND minimum time has passed
+  const isReady = (fontsLoaded || !!fontError) && minTimeReached;
+
+  // Hide the native Expo splash immediately so our animated one takes over
   useEffect(() => {
     SplashScreen.hideAsync();
   }, []);

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Image,
   Platform,
   RefreshControl,
   ScrollView,
@@ -95,12 +96,11 @@ export default function Dashboard() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
-          <View style={[styles.logoMark, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "44" }]}>
-            <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
-          </View>
-          <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            ShieldID
-          </Text>
+          <Image
+            source={require("../../assets/images/logo.png")}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
         </View>
         <TouchableOpacity style={styles.notifBtn} onPress={() => router.push("/(tabs)/alerts")}>
           <Ionicons name="notifications" size={24} color={colors.foreground} />
@@ -290,15 +290,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoMark: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
+  headerLogo: {
+    width: 36,
+    height: 36,
   },
-  logoText: { fontSize: 20 },
   notifBtn: { position: "relative", padding: 4 },
   notifBadge: {
     position: "absolute",

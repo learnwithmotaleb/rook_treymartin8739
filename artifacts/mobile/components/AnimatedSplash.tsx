@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, StyleSheet, View } from "react-native";
 import Animated, {
   Easing,
   runOnJS,
@@ -28,8 +28,6 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
   const glowScale        = useSharedValue(1);
   const glowOpacity      = useSharedValue(0.35);
   const ringRotation     = useSharedValue(0);
-  const textOpacity      = useSharedValue(0);
-  const textTranslateY   = useSharedValue(14);
 
   // ── Entry + looping animations ────────────────────────────────────────────
   useEffect(() => {
@@ -39,19 +37,9 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
       easing: Easing.out(Easing.cubic),
     });
 
-    // Text entrance — slightly delayed
-    textOpacity.value = withTiming(1, {
-      duration: 900,
-      easing: Easing.out(Easing.cubic),
-    });
-    textTranslateY.value = withTiming(0, {
-      duration: 900,
-      easing: Easing.out(Easing.cubic),
-    });
-
-    // Continuous logo spin — one full rotation every 7 s (feels premium, not frantic)
+    // Continuous logo spin — one full rotation every 2 s (snappy but smooth)
     logoRotation.value = withRepeat(
-      withTiming(360, { duration: 7000, easing: Easing.linear }),
+      withTiming(360, { duration: 2000, easing: Easing.linear }),
       -1,
       false
     );
@@ -111,10 +99,6 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
     transform: [{ rotate: `${ringRotation.value}deg` }],
   }));
 
-  const textStyle = useAnimatedStyle(() => ({
-    opacity: textOpacity.value,
-    transform: [{ translateY: textTranslateY.value }],
-  }));
 
   return (
     <Animated.View style={[styles.container, containerStyle, { pointerEvents: "none" }]}>
@@ -135,11 +119,6 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
         <Image source={LOGO} style={styles.logo} resizeMode="contain" />
       </Animated.View>
 
-      {/* App name + tagline */}
-      <Animated.View style={[styles.textBlock, textStyle]}>
-        <Text style={styles.title}>ShieldID</Text>
-        <Text style={styles.subtitle}>Identity Protection</Text>
-      </Animated.View>
     </Animated.View>
   );
 }
@@ -213,25 +192,4 @@ const styles = StyleSheet.create({
     height: LOGO_SIZE,
   },
 
-  textBlock: {
-    position: "absolute",
-    bottom: "22%",
-    alignItems: "center",
-    gap: 4,
-  },
-
-  title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 2,
-  },
-
-  subtitle: {
-    fontSize: 14,
-    fontWeight: "400",
-    color: "#60A5FA",
-    letterSpacing: 3,
-    textTransform: "uppercase",
-  },
 });
