@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Dimensions, Image, StyleSheet, View } from "react-native";
+import { Dimensions, Image, StyleSheet } from "react-native";
 import Animated, {
   Easing,
   runOnJS,
@@ -21,72 +21,68 @@ interface Props {
 }
 
 export function AnimatedSplash({ isReady, onHidden }: Props) {
-  // ── Shared values ─────────────────────────────────────────────────────────
+  // ── Shared values ──────────────────────────────────────────────────────────
   const containerOpacity = useSharedValue(1);
-  const logoScale        = useSharedValue(0.75);
-  const logoRotation     = useSharedValue(0);
+  const logoScale        = useSharedValue(0.8);
+  const logoRotationX    = useSharedValue(0);   // X-axis flip (coin-flip style)
   const glowScale        = useSharedValue(1);
-  const glowOpacity      = useSharedValue(0.35);
-  const ringRotation     = useSharedValue(0);
+  const glowOpacity      = useSharedValue(0.4);
 
-  // ── Entry + looping animations ────────────────────────────────────────────
+  // ── Animations ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Logo entrance
+    // Entrance: scale up
     logoScale.value = withTiming(1, {
-      duration: 700,
+      duration: 600,
       easing: Easing.out(Easing.cubic),
     });
 
-    // Continuous logo spin — one full rotation every 2 s (snappy but smooth)
-    logoRotation.value = withRepeat(
-      withTiming(360, { duration: 2000, easing: Easing.linear }),
+    // Continuous X-axis spin (coin-flip / card-flip)
+    logoRotationX.value = withRepeat(
+      withTiming(360, { duration: 2200, easing: Easing.linear }),
       -1,
       false
     );
 
-    // Outer scanner ring spins opposite direction, faster
-    ringRotation.value = withRepeat(
-      withTiming(-360, { duration: 4000, easing: Easing.linear }),
-      -1,
-      false
-    );
-
-    // Pulsing glow halo
+    // Pulsing glow halo — scale breathes in sync with the spin feel
     glowScale.value = withRepeat(
       withSequence(
-        withTiming(1.25, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1.0,  { duration: 1400, easing: Easing.inOut(Easing.ease) })
+        withTiming(1.3, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1.0, { duration: 1100, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       false
     );
     glowOpacity.value = withRepeat(
       withSequence(
-        withTiming(0.75, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.25, { duration: 1400, easing: Easing.inOut(Easing.ease) })
+        withTiming(0.8, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.2, { duration: 1100, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       false
     );
   }, []);
 
-  // ── Fade-out when app is ready ────────────────────────────────────────────
+  // ── Fade-out when app is ready ─────────────────────────────────────────────
   useEffect(() => {
     if (!isReady) return;
-    containerOpacity.value = withTiming(0, { duration: 480, easing: Easing.in(Easing.ease) }, (done) => {
-      if (done) runOnJS(onHidden)();
-    });
+    containerOpacity.value = withTiming(
+      0,
+      { duration: 480, easing: Easing.in(Easing.ease) },
+      (done) => { if (done) runOnJS(onHidden)(); }
+    );
   }, [isReady]);
 
-  // ── Animated styles ───────────────────────────────────────────────────────
+  // ── Animated styles ────────────────────────────────────────────────────────
   const containerStyle = useAnimatedStyle(() => ({
     opacity: containerOpacity.value,
   }));
 
+  // X-axis rotation needs a perspective value to look 3D
   const logoStyle = useAnimatedStyle(() => ({
     transform: [
+      { perspective: 900 },
       { scale: logoScale.value },
-      { rotate: `${logoRotation.value}deg` },
+      { rotateX: `${logoRotationX.value}deg` },
     ],
   }));
 
@@ -95,26 +91,13 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
     opacity: glowOpacity.value,
   }));
 
-  const ringStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${ringRotation.value}deg` }],
-  }));
-
-
   return (
     <Animated.View style={[styles.container, containerStyle, { pointerEvents: "none" }]}>
-      {/* Outer ambient glow */}
+
+      {/* Pulsing neon glow behind the logo */}
       <Animated.View style={[styles.glowHalo, glowStyle]} />
 
-      {/* Scanner ring */}
-      <Animated.View style={[styles.scannerRing, ringStyle]}>
-        <View style={styles.ringDot} />
-        <View style={[styles.ringDot, styles.ringDotBottom]} />
-      </Animated.View>
-
-      {/* Second static ring */}
-      <View style={styles.staticRing} />
-
-      {/* Spinning logo */}
+      {/* X-axis spinning logo */}
       <Animated.View style={[styles.logoWrapper, logoStyle]}>
         <Image source={LOGO} style={styles.logo} resizeMode="contain" />
       </Animated.View>
@@ -122,8 +105,6 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
     </Animated.View>
   );
 }
-
-const RING_SIZE = LOGO_SIZE + 64;
 
 const styles = StyleSheet.create({
   container: {
@@ -134,50 +115,12 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
 
-  // Soft neon glow behind the logo
   glowHalo: {
     position: "absolute",
-    width: LOGO_SIZE + 40,
-    height: LOGO_SIZE + 40,
-    borderRadius: (LOGO_SIZE + 40) / 2,
-    backgroundColor: "#1E40AF30",
-  },
-
-  // Rotating outer arc ring
-  scannerRing: {
-    position: "absolute",
-    width: RING_SIZE,
-    height: RING_SIZE,
-    borderRadius: RING_SIZE / 2,
-    borderWidth: 1.5,
-    borderColor: "#3B82F680",
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  ringDot: {
-    position: "absolute",
-    top: -3,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#60A5FA",
-  },
-
-  ringDotBottom: {
-    top: "auto",
-    bottom: -3,
-  },
-
-  // Subtle inner static ring
-  staticRing: {
-    position: "absolute",
-    width: RING_SIZE + 36,
-    height: RING_SIZE + 36,
-    borderRadius: (RING_SIZE + 36) / 2,
-    borderWidth: 1,
-    borderColor: "#1E40AF40",
+    width: LOGO_SIZE + 60,
+    height: LOGO_SIZE + 60,
+    borderRadius: (LOGO_SIZE + 60) / 2,
+    backgroundColor: "#1A56DB28",
   },
 
   logoWrapper: {
@@ -191,5 +134,4 @@ const styles = StyleSheet.create({
     width: LOGO_SIZE,
     height: LOGO_SIZE,
   },
-
 });
