@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Platform,
   RefreshControl,
@@ -45,29 +45,42 @@ function StatCard({
   );
 }
 
-function FingerprintStat({ label, value }: { label: string; value: string }) {
-  const colors = useColors();
-  return (
-    <View style={styles.fpStat}>
-      <Text style={[styles.fpStatValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        {value}
-      </Text>
-      <Text style={[styles.fpStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 export default function Dashboard() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, threats, activeThreats, fakeAccounts, refreshData } = useApp();
+  const {
+    user,
+    threats,
+    activeThreats,
+    fakeAccounts,
+    refreshData,
+    hasSeenOnboarding,
+    isInitializing,
+    isLoggedIn,
+    completeOnboarding,
+  } = useApp();
   const [refreshing, setRefreshing] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const recentThreats = threats.filter((t) => !t.resolved).slice(0, 3);
+
+  // Routing guard — only fires once hydration is complete
+  useEffect(() => {
+    if (isInitializing) return;
+    if (!isLoggedIn) {
+      router.replace("/auth" as any);
+      return;
+    }
+    // Existing users (have accounts) should never see onboarding again
+    if (!hasSeenOnboarding) {
+      if (user.connectedAccounts.length > 0 || user.name) {
+        completeOnboarding();
+      } else {
+        router.replace("/onboarding" as any);
+      }
+    }
+  }, [isInitializing, isLoggedIn, hasSeenOnboarding, user.connectedAccounts.length, user.name]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -80,23 +93,16 @@ export default function Dashboard() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View
-        style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}
-      >
+      <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
-          <View
-            style={[styles.logoMark, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "44" }]}
-          >
+          <View style={[styles.logoMark, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "44" }]}>
             <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
           </View>
           <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
             ShieldID
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.notifBtn}
-          onPress={() => router.push("/(tabs)/alerts")}
-        >
+        <TouchableOpacity style={styles.notifBtn} onPress={() => router.push("/(tabs)/alerts")}>
           <Ionicons name="notifications" size={24} color={colors.foreground} />
           {activeThreats > 0 && (
             <View style={[styles.notifBadge, { backgroundColor: colors.danger }]}>
@@ -121,13 +127,8 @@ export default function Dashboard() {
         {/* Security Score */}
         <Animated.View entering={FadeInDown.delay(0).springify()}>
           <GlassCard style={styles.scoreCard}>
-            <LinearGradient
-              colors={["#3B82F611", "transparent"]}
-              style={StyleSheet.absoluteFill}
-            />
-            <Text
-              style={[styles.scoreCardTitle, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}
-            >
+            <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} />
+            <Text style={[styles.scoreCardTitle, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
               Identity Risk Score
             </Text>
             <View style={styles.scoreRow}>
@@ -198,36 +199,8 @@ export default function Dashboard() {
           </View>
         </Animated.View>
 
-        {/* Identity Fingerprint */}
-        <Animated.View entering={FadeInDown.delay(160).springify()}>
-          <GlassCard style={styles.fingerprintCard}>
-            <LinearGradient
-              colors={["#3B82F60D", "transparent"]}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.fingerprintHeader}>
-              <MaterialCommunityIcons name="fingerprint" size={24} color={colors.primary} />
-              <View style={styles.fpTextCol}>
-                <Text style={[styles.fpTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                  Identity Fingerprint
-                </Text>
-                <Text style={[styles.fpSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Your indexed digital footprint
-                </Text>
-              </View>
-              <View style={[styles.fpActiveDot, { backgroundColor: colors.success }]} />
-            </View>
-            <View style={styles.fpStats}>
-              <FingerprintStat label="Photos" value={String(user.totalPhotosIndexed)} />
-              <FingerprintStat label="Captions" value={String(user.totalCaptionsIndexed)} />
-              <FingerprintStat label="Reels" value={String(user.reelsIndexed)} />
-              <FingerprintStat label="Platforms" value={String(user.monitored)} />
-            </View>
-          </GlassCard>
-        </Animated.View>
-
         {/* Connected Accounts */}
-        <Animated.View entering={FadeInDown.delay(240).springify()}>
+        <Animated.View entering={FadeInDown.delay(160).springify()}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
               Verified Accounts
@@ -276,8 +249,8 @@ export default function Dashboard() {
           </GlassCard>
         </Animated.View>
 
-        {/* Recent Alerts */}
-        <Animated.View entering={FadeInDown.delay(320).springify()}>
+        {/* Recent Threats */}
+        <Animated.View entering={FadeInDown.delay(240).springify()}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
               Recent Threats
@@ -326,10 +299,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   logoText: { fontSize: 20 },
-  notifBtn: {
-    position: "relative",
-    padding: 4,
-  },
+  notifBtn: { position: "relative", padding: 4 },
   notifBadge: {
     position: "absolute",
     top: 0,
@@ -347,17 +317,6 @@ const styles = StyleSheet.create({
   scoreCardTitle: { fontSize: 15 },
   scoreRow: { alignItems: "center", justifyContent: "center" },
   lastScan: { fontSize: 13, marginTop: 4 },
-
-  fingerprintCard: { gap: 16 },
-  fingerprintHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  fpTextCol: { flex: 1 },
-  fpTitle: { fontSize: 15 },
-  fpSubtitle: { fontSize: 12, marginTop: 1 },
-  fpActiveDot: { width: 8, height: 8, borderRadius: 4 },
-  fpStats: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8 },
-  fpStat: { alignItems: "center", gap: 4 },
-  fpStatValue: { fontSize: 18 },
-  fpStatLabel: { fontSize: 12 },
 
   sectionHeader: {
     flexDirection: "row",

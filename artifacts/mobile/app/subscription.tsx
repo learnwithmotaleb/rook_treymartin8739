@@ -10,6 +10,8 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -190,22 +192,55 @@ export default function Subscription() {
     return offering.monthly ?? offering.availablePackages.find((p) => p.packageType === "MONTHLY") ?? null;
   };
 
-  /** Derive display price string from RC package */
-  const getDisplayPrice = (tier: Tier): string => {
-    const pkg = getPackage(tier, billingCycle);
-    if (!pkg) return "—";
-    if (billingCycle === "yearly") {
-      // Show per-month equivalent: yearly price ÷ 12
-      const perMonth = pkg.product.price / 12;
-      return `$${perMonth.toFixed(2)}`;
-    }
-    return pkg.product.priceString;
+  // Fallback prices shown while RC offerings are loading (or in Expo Go test mode)
+  const FALLBACK_PRICES: Record<Tier, { monthly: string; yearlyPerMonth: string; yearlyTotal: string }> = {
+    free: { monthly: "$0", yearlyPerMonth: "$0", yearlyTotal: "$0" },
+    pro: { monthly: "$7.99", yearlyPerMonth: "$4.99", yearlyTotal: "$59.99" },
+    premium: { monthly: "$14.99", yearlyPerMonth: "$9.99", yearlyTotal: "$99.99" },
   };
 
-  /** Yearly billed-as string e.g. "$119.99/year" */
+  /** Derive display price string from RC package, with fallback */
+  const getDisplayPrice = (tier: Tier): string => {
+    const pkg = getPackage(tier, billingCycle);
+    if (pkg) {
+      if (billingCycle === "yearly") {
+        const perMonth = pkg.product.price / 12;
+        return `$${perMonth.toFixed(2)}`;
+      }
+      return pkg.product.priceString;
+    }
+    // Fallback when RC offerings not yet loaded
+    return billingCycle === "yearly"
+      ? FALLBACK_PRICES[tier].yearlyPerMonth
+      : FALLBACK_PRICES[tier].monthly;
+  };
+
+  /** Yearly billed-as string e.g. "$99.99/year" */
   const getYearlyBilled = (tier: Tier): string => {
     const pkg = getPackage(tier, "yearly");
-    return pkg ? `Billed ${pkg.product.priceString}/year · Save ~33%` : "";
+    if (pkg) return `Billed ${pkg.product.priceString}/year · Save ~33%`;
+    const fb = FALLBACK_PRICES[tier];
+    return fb ? `Billed ${fb.yearlyTotal}/year · Save ~33%` : "";
+  };
+
+  const handleManageSubscription = () => {
+    Alert.alert(
+      "Manage Subscription",
+      "Subscriptions are managed through your device's app store settings.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: Platform.OS === "ios" ? "Open App Store" : "Open Play Store",
+          onPress: () => {
+            const url =
+              Platform.OS === "ios"
+                ? "https://apps.apple.com/account/subscriptions"
+                : "https://play.google.com/store/account/subscriptions";
+            Linking.openURL(url);
+          },
+        },
+      ]
+    );
   };
 
   const handleUpgrade = (meta: PlanMeta) => {
@@ -430,21 +465,15 @@ export default function Subscription() {
                   </Text>
                 </View>
                 <View style={styles.planPriceBlock}>
-                  {price === "—" ? (
-                    <ActivityIndicator size="small" color={isPremium ? colors.premium : colors.primary} />
-                  ) : (
-                    <>
-                      <Text style={[
-                        styles.planPrice,
-                        { color: isPremium ? colors.premium : colors.primary, fontFamily: "Inter_700Bold" },
-                      ]}>
-                        {price}
-                      </Text>
-                      <Text style={[styles.planPricePer, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        /mo
-                      </Text>
-                    </>
-                  )}
+                  <Text style={[
+                    styles.planPrice,
+                    { color: isPremium ? colors.premium : colors.primary, fontFamily: "Inter_700Bold" },
+                  ]}>
+                    {price}
+                  </Text>
+                  <Text style={[styles.planPricePer, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    /mo
+                  </Text>
                 </View>
               </View>
 
@@ -496,9 +525,14 @@ export default function Subscription() {
               {isCurrent && (
                 <View style={[styles.planCurrentRow, { borderTopColor: colors.border }]}>
                   <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                  <Text style={[styles.planCurrentText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
+                  <Text style={[styles.planCurrentText, { color: colors.success, fontFamily: "Inter_500Medium", flex: 1 }]}>
                     Active — you're protected
                   </Text>
+                  <TouchableOpacity onPress={handleManageSubscription} activeOpacity={0.7}>
+                    <Text style={[styles.manageLink, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      Manage
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </GlassCard>
@@ -671,6 +705,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   planCurrentText: { fontSize: 14 },
+  manageLink: { fontSize: 13, textDecorationLine: "underline" },
 
   restoreRow: {
     flexDirection: "row",
