@@ -11,12 +11,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { AnimatedSplash } from "@/components/AnimatedSplash";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
@@ -27,10 +28,10 @@ try {
   Alert.alert("RevenueCat Unavailable", err?.message ?? "Unknown error");
 }
 
+// Keep the native splash screen up until our animated one takes over
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
-
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
 function RootLayoutNav() {
@@ -55,12 +56,19 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+  // Controls whether the AnimatedSplash is still mounted
+  const [splashDone, setSplashDone] = useState(false);
 
+  // Fonts done = signal the animated splash to start its fade-out
+  const isReady = fontsLoaded || !!fontError;
+
+  // Hide the native Expo splash as soon as JS is running so our animated
+  // splash takes over seamlessly
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
+
+  // Notification deep-link handling (unchanged)
   useEffect(() => {
     if (Platform.OS === "web") return;
 
@@ -82,20 +90,26 @@ export default function RootLayout() {
       }
     });
 
-    const sub = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const data = response.notification.request.content.data as Record<
-          string,
-          unknown
-        >;
-        handleNotificationData(data);
-      }
-    );
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, unknown>;
+      handleNotificationData(data);
+    });
     return () => sub.remove();
   }, []);
 
-  if (!fontsLoaded && !fontError) return null;
+  // ── Phase 1: show ONLY the animated splash while fonts load ──────────────
+  // Once fonts are ready AND the fade-out animation completes, splashDone
+  // flips to true and the full app renders.
+  if (!splashDone) {
+    return (
+      <AnimatedSplash
+        isReady={isReady}
+        onHidden={() => setSplashDone(true)}
+      />
+    );
+  }
 
+  // ── Phase 2: full app ────────────────────────────────────────────────────
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <ClerkLoaded>
@@ -104,10 +118,13 @@ export default function RootLayout() {
             <QueryClientProvider client={queryClient}>
               <SubscriptionProvider>
                 <AppProvider>
-                  <GestureHandlerRootView style={Platform.OS === "web"
-            ? { flex: 1, maxWidth: 430, width: "100%", alignSelf: "center" as const, overflow: "hidden" }
-            : { flex: 1 }
-          }>
+                  <GestureHandlerRootView
+                    style={
+                      Platform.OS === "web"
+                        ? { flex: 1, maxWidth: 430, width: "100%", alignSelf: "center" as const, overflow: "hidden" }
+                        : { flex: 1 }
+                    }
+                  >
                     <KeyboardProvider>
                       <RootLayoutNav />
                     </KeyboardProvider>
