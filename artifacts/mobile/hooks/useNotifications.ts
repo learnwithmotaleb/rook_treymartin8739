@@ -55,7 +55,7 @@ function showPrePrompt(): Promise<boolean> {
   return new Promise((resolve) => {
     Alert.alert(
       "Stay Protected in Real-Time",
-      "ShieldID will send you instant alerts when threats to your identity are detected — impersonators, breaches, and stolen photos. You can adjust this anytime in Settings.",
+      "ShieldID will send you instant alerts when threats to your identity are detected — impersonators, fake profiles, and stolen photos. You can adjust this anytime in Settings.",
       [
         { text: "Not Now", style: "cancel", onPress: () => resolve(false) },
         {

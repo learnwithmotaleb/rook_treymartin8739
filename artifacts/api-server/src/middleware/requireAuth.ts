@@ -2,7 +2,6 @@ import type { Request, Response, NextFunction } from "express";
 import { getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
-import { getOrCreateDemoUser } from "../lib/demoUser";
 import { logger } from "../lib/logger";
 
 declare global {
@@ -31,14 +30,12 @@ export async function requireAuth(
     }
 
     if (hasAuthHeader) {
-      req.log.warn("requireAuth: auth header present but Clerk could not verify — falling back to demo");
+      req.log.warn("requireAuth: auth header present but Clerk could not verify — 401");
     } else {
-      req.log.warn("requireAuth: no auth header — falling back to demo user");
+      req.log.warn("requireAuth: no auth header — 401");
     }
 
-    const demo = await getOrCreateDemoUser();
-    req.userId = demo.id;
-    next();
+    res.status(401).json({ error: "Unauthorized" });
   } catch (err) {
     logger.error({ err }, "requireAuth error");
     res.status(500).json({ error: "Auth error" });

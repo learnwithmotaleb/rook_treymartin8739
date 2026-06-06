@@ -557,7 +557,7 @@ function ConnectScreen({
 const FEATURES = [
   { icon: "person-remove", label: "Impersonator Detection", desc: "Find accounts pretending to be you across all platforms.", color: "#EF4444" },
   { icon: "images", label: "Photo Monitoring", desc: "Detect stolen photos and visual identity theft in real time.", color: "#3B82F6" },
-  { icon: "warning", label: "Breach Detection", desc: "Get alerted when your credentials appear in data breaches.", color: "#F59E0B" },
+  { icon: "shield-checkmark", label: "AI Scam Detection", desc: "Instantly analyze suspicious messages and links for scam patterns.", color: "#F59E0B" },
   { icon: "notifications", label: "Real-Time Alerts", desc: "Instant notifications the moment a new threat is detected.", color: "#10B981" },
 ];
 

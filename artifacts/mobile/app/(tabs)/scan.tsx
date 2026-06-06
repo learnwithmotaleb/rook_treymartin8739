@@ -448,7 +448,7 @@ export default function ScanScreen() {
               ]}
             >
               Scans all {user.monitored} connected account{user.monitored !== 1 ? "s" : ""} for impersonators,
-              stolen photos, and data breaches.
+              stolen photos, and fake profiles.
             </Text>
           </>
         )}

@@ -41,7 +41,6 @@ import {
   loadUserEmbeddings,
   comparePhotoWithEmbeddings,
 } from "./fingerprintService";
-import { checkEmailBreach } from "./breachMonitorService";
 import { generateThreatExplanation } from "./aiAnalysisService";
 import { getAdapter, type MediaItem } from "../adapters/platformAdapter";
 import {
@@ -59,8 +58,7 @@ const SCAN_STEPS = [
   { step: "Searching platform variants for impersonators", progress: 50 },
   { step: "Scanning the web for impostor profiles", progress: 62 },
   { step: "Analyzing visual media matches", progress: 74 },
-  { step: "Checking breach databases", progress: 84 },
-  { step: "Generating AI threat analysis", progress: 93 },
+  { step: "Generating AI threat analysis", progress: 88 },
   { step: "Finalizing results", progress: 98 },
 ] as const;
 
@@ -912,60 +910,8 @@ async function runScanPipeline(
     });
   }
 
-  // ── Step 7: Breach check ──────────────────────────────────────────────────
+  // ── Step 7: AI threat explanation ─────────────────────────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[6].progress, SCAN_STEPS[6].step);
-  await sleep(500);
-
-  let breachThreatAdded = false;
-  // Skip breach check simulation for real users — only run if HIBP key is configured
-  // (real data) OR it's the demo user (simulation is fine for demos).
-  const hibpConfigured = !!process.env["HIBP_API_KEY"];
-  const runBreachCheck = hibpConfigured || isDemoUser;
-
-  if (user.email && runBreachCheck) {
-    try {
-      const breachResult = await checkEmailBreach(user.email);
-      if (breachResult.breachCount > 0) {
-        const breach = breachResult.breaches[0];
-        newThreats.push({
-          userId,
-          scanJobId: jobId,
-          type: "leaked_password",
-          severity: "medium",
-          platform: null,
-          title: "Leaked Credentials Found",
-          description: `Your email was found in the ${breach?.title ?? "recent"} data breach`,
-          details: `Your email address was discovered in the ${breach?.title ?? "a recent"} breach, which exposed ${breach ? (breach.pwnCount / 1000000).toFixed(0) + "M" : "millions of"} records. ${breach?.dataClasses?.includes("Passwords") ? "Your hashed password was included in the leaked dataset." : ""}`,
-          aiExplanation:
-            "Your email was found in a known data breach dataset. We recommend updating your password immediately and enabling two-factor authentication on all accounts.",
-          threatScore: 58,
-          suspiciousUsername: breach?.title ?? "Data Breach",
-          matchedMediaCount: 0,
-          evidenceJson: JSON.stringify([]),
-          scoreBreakdownJson: JSON.stringify({
-            mediaSimilarity: 0, contentReuse: 0, profileSimilarity: 0,
-            bioSimilarity: 0, usernameSimilarity: 0, behavioral: 58, total: 58,
-          }),
-          detectedSignalsJson: JSON.stringify([
-            `Email found in ${breach?.title ?? "breach"} dataset`,
-            breach ? `${(breach.pwnCount / 1000000).toFixed(0)}M records exposed` : "Large scale breach",
-            "Immediate password change recommended",
-            ...(breach?.dataClasses ?? []).map((dc) => `${dc} exposed`),
-          ]),
-          resolved: false,
-        });
-        breachThreatAdded = true;
-      }
-    } catch (err) {
-      logger.warn({ err }, "Breach check failed during scan");
-    }
-  }
-
-  // No dark web simulation — dark web monitoring is a paid/third-party integration.
-  // If !breachThreatAdded, we simply don't add a placeholder threat.
-
-  // ── Step 8: AI threat explanation ─────────────────────────────────────────
-  await updateJobProgress(jobId, SCAN_STEPS[7].progress, SCAN_STEPS[7].step);
   await sleep(600);
 
   if (newThreats.length > 0) {
@@ -974,8 +920,8 @@ async function runScanPipeline(
     }
   }
 
-  // ── Step 9: Complete ──────────────────────────────────────────────────────
-  await updateJobProgress(jobId, SCAN_STEPS[8].progress, SCAN_STEPS[8].step);
+  // ── Step 8: Complete ──────────────────────────────────────────────────────
+  await updateJobProgress(jobId, SCAN_STEPS[7].progress, SCAN_STEPS[7].step);
   await sleep(400);
 
   await db
@@ -996,7 +942,6 @@ async function runScanPipeline(
       verifiedAccounts: verifiedAccounts.length,
       realCandidates: allCandidates.filter((c) => !c.simulated).length,
       simulatedCandidates: allCandidates.filter((c) => c.simulated).length,
-      breachThreatAdded,
       mediaIndexed: { photos: totalPhotos, captions: totalCaptions, reels: totalReels },
     },
     "Scan pipeline completed"
