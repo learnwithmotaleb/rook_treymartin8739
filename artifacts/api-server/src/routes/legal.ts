@@ -186,5 +186,45 @@ router.get("/legal/terms", (_req, res) => {
   `));
 });
 
+router.get("/legal/support", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html("Support", `
+    <h1>Support</h1>
+    <p class="meta">We're here to help with ${APP_NAME}.</p>
+
+    <div class="card">
+      <h2 style="margin-top:0">Contact Us</h2>
+      <p><strong>Email:</strong> <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+      <p>We aim to respond within 1 business day.</p>
+    </div>
+
+    <h2>Common Questions</h2>
+
+    <h2>How do I connect a social account?</h2>
+    <p>Go to the <strong>Profile</strong> tab → <strong>Connected Accounts</strong> → tap <strong>Add Account</strong>. Select the platform and follow the OAuth authorization flow. You'll be returned to ${APP_NAME} automatically.</p>
+
+    <h2>How do I run a scan?</h2>
+    <p>Open the <strong>Scan</strong> tab and tap the scan button. Your first scan may take a few minutes as ${APP_NAME} builds your identity fingerprint. Subsequent scans are faster.</p>
+
+    <h2>How do I cancel my subscription?</h2>
+    <p>Subscriptions are managed through the App Store (iOS) or Google Play (Android). To cancel:</p>
+    <ul>
+      <li><strong>iOS:</strong> Settings → [your name] → Subscriptions → ShieldID → Cancel</li>
+      <li><strong>Android:</strong> Google Play → Menu → Subscriptions → ShieldID → Cancel</li>
+    </ul>
+    <p>Your access continues until the end of the current billing period.</p>
+
+    <h2>How do I delete my account?</h2>
+    <p>Email us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> with the subject "Delete My Account". We'll process the request within 30 days and confirm by email.</p>
+
+    <h2>My scan didn't find any threats — is that right?</h2>
+    <p>That's great news — it likely means no impersonators have been detected. ${APP_NAME} cross-references your public content against the open web. If you recently connected a new account, wait for the identity fingerprint to build before running a scan.</p>
+
+    <div class="card">
+      <p><a href="/api/legal/privacy">Privacy Policy</a> &nbsp;·&nbsp; <a href="/api/legal/terms">Terms of Service</a></p>
+    </div>
+  `));
+});
+
 export { DOMAIN };
 export default router;

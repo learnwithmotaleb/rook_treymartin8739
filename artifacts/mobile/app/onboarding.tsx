@@ -193,9 +193,9 @@ function ConcernScreen({
 
 // ─── Step 3: Education ────────────────────────────────────────────────────────
 const STATS = [
-  { icon: "person-add", value: "500K+", label: "Fake profiles created daily", color: "#EF4444" },
-  { icon: "warning", value: "1 in 4", label: "People have been impersonated online", color: "#F59E0B" },
-  { icon: "card", value: "$10B+", label: "Lost to social media fraud yearly", color: "#8B5CF6" },
+  { icon: "person-add", value: "5+", label: "Platforms monitored simultaneously", color: "#EF4444" },
+  { icon: "scan-circle", value: "24/7", label: "Continuous AI-powered monitoring", color: "#F59E0B" },
+  { icon: "shield-checkmark", value: "Real-time", label: "Alerts the moment a threat is detected", color: "#8B5CF6" },
 ];
 
 const CONCERN_HEADLINES: Record<string, string> = {

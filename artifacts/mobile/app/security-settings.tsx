@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   ScrollView,
@@ -14,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
+import { useSessionList, useSession, useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
 
@@ -21,34 +23,66 @@ const STORAGE_KEY = "shieldid:security_prefs";
 
 interface SecurityPrefs {
   biometricLogin: boolean;
-  twoFactorEnabled: boolean;
   sessionNotifications: boolean;
 }
 
 const DEFAULTS: SecurityPrefs = {
   biometricLogin: false,
-  twoFactorEnabled: false,
   sessionNotifications: true,
 };
 
-const MOCK_SESSIONS = [
-  { id: "1", device: "iPhone 15 Pro", location: "San Francisco, CA", current: true, lastSeen: "Now" },
-  { id: "2", device: "Chrome — MacBook Pro", location: "San Francisco, CA", current: false, lastSeen: "2h ago" },
-];
+function formatLastActive(date: Date | null | undefined): string {
+  if (!date) return "Unknown";
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 2) return "Now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffH = Math.floor(diffMins / 60);
+  if (diffH < 24) return `${diffH}h ago`;
+  return `${Math.floor(diffH / 24)}d ago`;
+}
 
-const MOCK_EVENTS = [
-  { id: "1", icon: "log-in", color: "#10B981", label: "Successful login", time: "Today, 9:41 AM" },
-  { id: "2", icon: "shield-checkmark", color: "#3B82F6", label: "Scan completed", time: "Today, 8:00 AM" },
-  { id: "3", icon: "warning", color: "#F59E0B", label: "New device detected", time: "Yesterday, 6:32 PM" },
-];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySession = any;
+
+function getLatestActivity(session: AnySession) {
+  return session?.latestActivity ?? null;
+}
+
+function formatSessionDevice(session: AnySession): string {
+  const activity = getLatestActivity(session);
+  if (!activity) return "Unknown device";
+  const browser: string = activity.browserName ?? "";
+  const deviceType: string = activity.deviceType ?? "";
+  if (deviceType === "mobile") return "Mobile device";
+  if (browser) return `${browser} — Desktop`;
+  return "Desktop";
+}
+
+function formatSessionLocation(session: AnySession): string {
+  const activity = getLatestActivity(session);
+  if (!activity) return "";
+  const parts = [activity.city, activity.country].filter(Boolean) as string[];
+  return parts.join(", ") || "Unknown location";
+}
+
+function isMobileSession(session: AnySession): boolean {
+  const activity = getLatestActivity(session);
+  return activity?.deviceType === "mobile" || activity?.isMobile === true;
+}
 
 export default function SecuritySettings() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [prefs, setPrefs] = useState<SecurityPrefs>(DEFAULTS);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  const { sessions, isLoaded: sessionsLoaded } = useSessionList();
+  const { session: currentSession } = useSession();
+  const { user } = useUser();
 
   useEffect(() => {
     LocalAuthentication.hasHardwareAsync().then(setBiometricAvailable);
@@ -95,30 +129,32 @@ export default function SecuritySettings() {
     }
   };
 
-  const handle2FAToggle = (v: boolean) => {
-    if (v) {
-      setShow2FAModal(true);
-    } else {
-      Alert.alert(
-        "Disable Two-Factor Auth",
-        "Disabling 2FA reduces the security of your account. Are you sure?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Disable",
-            style: "destructive",
-            onPress: () => save({ ...prefs, twoFactorEnabled: false }),
+  const handleRevokeSession = (sessionId: string, deviceLabel: string) => {
+    Alert.alert(
+      "Sign Out Device",
+      `Remove "${deviceLabel}" from your active sessions?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            setRevokingId(sessionId);
+            try {
+              const target = sessions?.find((s) => s.id === sessionId) as AnySession;
+              await target?.revoke?.();
+            } catch {
+              Alert.alert("Error", "Could not remove this session. Please try again.");
+            } finally {
+              setRevokingId(null);
+            }
           },
-        ]
-      );
-    }
+        },
+      ]
+    );
   };
 
-  const confirm2FA = () => {
-    setShow2FAModal(false);
-    save({ ...prefs, twoFactorEnabled: true });
-    Alert.alert("2FA Enabled", "Two-factor authentication is now active. A verification code will be required when logging in.");
-  };
+  const twoFactorEnabled = user?.twoFactorEnabled ?? false;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -146,9 +182,9 @@ export default function SecuritySettings() {
               Account Security
             </Text>
             <Text style={[styles.scoreStatus, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
-              {prefs.twoFactorEnabled && prefs.biometricLogin
+              {twoFactorEnabled && prefs.biometricLogin
                 ? "Excellent — fully protected"
-                : prefs.twoFactorEnabled || prefs.biometricLogin
+                : twoFactorEnabled || prefs.biometricLogin
                   ? "Good — consider enabling more features"
                   : "Basic — enable 2FA to improve security"}
             </Text>
@@ -190,16 +226,20 @@ export default function SecuritySettings() {
                 Two-Factor Auth
               </Text>
               <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                {prefs.twoFactorEnabled ? "Active — email verification required" : "Adds a second layer of protection"}
+                {twoFactorEnabled ? "Active — managed by your account" : "Not enabled — managed by your account"}
               </Text>
             </View>
-            <Switch
-              value={prefs.twoFactorEnabled}
-              onValueChange={handle2FAToggle}
-              trackColor={{ false: "#3A3A3A", true: "#3B82F6" }}
-              thumbColor={prefs.twoFactorEnabled ? "#FFFFFF" : "#AAAAAA"}
-              ios_backgroundColor="#3A3A3A"
-            />
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: twoFactorEnabled ? colors.success + "22" : colors.secondary },
+            ]}>
+              <Text style={[
+                styles.statusBadgeText,
+                { color: twoFactorEnabled ? colors.success : colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+              ]}>
+                {twoFactorEnabled ? "On" : "Off"}
+              </Text>
+            </View>
           </View>
         </GlassCard>
 
@@ -235,116 +275,80 @@ export default function SecuritySettings() {
           Active Sessions
         </Text>
         <GlassCard noPadding>
-          {MOCK_SESSIONS.map((session, i) => (
-            <View
-              key={session.id}
-              style={[
-                styles.sessionRow,
-                i < MOCK_SESSIONS.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-              ]}
-            >
-              <View style={[styles.rowIcon, { backgroundColor: session.current ? colors.success + "18" : colors.secondary }]}>
-                <Ionicons
-                  name={session.device.includes("Chrome") ? "laptop-outline" : "phone-portrait-outline"}
-                  size={18}
-                  color={session.current ? colors.success : colors.mutedForeground}
-                />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                  {session.device}
-                  {session.current ? (
-                    <Text style={{ color: colors.success }}> · Current</Text>
-                  ) : null}
-                </Text>
-                <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {session.location} · {session.lastSeen}
-                </Text>
-              </View>
-              {!session.current && (
-                <TouchableOpacity
-                  onPress={() =>
-                    Alert.alert("Sign Out Device", `Remove ${session.device} from your active sessions?`, [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Remove", style: "destructive", onPress: () => {} },
-                    ])
-                  }
-                >
-                  <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
-                </TouchableOpacity>
-              )}
+          {!sessionsLoaded ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Loading sessions…
+              </Text>
             </View>
-          ))}
+          ) : !sessions || sessions.length === 0 ? (
+            <View style={styles.loadingRow}>
+              <Ionicons name="phone-portrait-outline" size={18} color={colors.mutedForeground} />
+              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                No active sessions found
+              </Text>
+            </View>
+          ) : (
+            sessions.map((session, i) => {
+              const isCurrent = session.id === currentSession?.id;
+              const deviceLabel = formatSessionDevice(session);
+              const location = formatSessionLocation(session);
+              const isRevoking = revokingId === session.id;
+              return (
+                <View
+                  key={session.id}
+                  style={[
+                    styles.sessionRow,
+                    i < sessions.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+                  ]}
+                >
+                  <View style={[styles.rowIcon, { backgroundColor: isCurrent ? colors.success + "18" : colors.secondary }]}>
+                    <Ionicons
+                      name={isMobileSession(session) ? "phone-portrait-outline" : "laptop-outline"}
+                      size={18}
+                      color={isCurrent ? colors.success : colors.mutedForeground}
+                    />
+                  </View>
+                  <View style={styles.rowText}>
+                    <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                      {deviceLabel}
+                      {isCurrent ? (
+                        <Text style={{ color: colors.success }}> · Current</Text>
+                      ) : null}
+                    </Text>
+                    <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {[location, formatLastActive(session.lastActiveAt)].filter(Boolean).join(" · ")}
+                    </Text>
+                  </View>
+                  {!isCurrent && (
+                    isRevoking ? (
+                      <ActivityIndicator size="small" color={colors.danger} />
+                    ) : (
+                      <TouchableOpacity onPress={() => handleRevokeSession(session.id, deviceLabel)}>
+                        <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
+                      </TouchableOpacity>
+                    )
+                  )}
+                </View>
+              );
+            })
+          )}
         </GlassCard>
 
-        {/* Recent Security Events */}
+        {/* Recent Activity — empty state until a real event log is wired up */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
           Recent Activity
         </Text>
-        <GlassCard noPadding>
-          {MOCK_EVENTS.map((event, i) => (
-            <View
-              key={event.id}
-              style={[
-                styles.eventRow,
-                i < MOCK_EVENTS.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-              ]}
-            >
-              <View style={[styles.eventDot, { backgroundColor: event.color + "22" }]}>
-                <Ionicons name={event.icon as any} size={14} color={event.color} />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                  {event.label}
-                </Text>
-                <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {event.time}
-                </Text>
-              </View>
-            </View>
-          ))}
+        <GlassCard style={[styles.activityEmpty, { borderColor: colors.border }]}>
+          <View style={[styles.activityEmptyIcon, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="time-outline" size={22} color={colors.mutedForeground} />
+          </View>
+          <Text style={[styles.activityEmptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Security events — new sign-ins, scan completions, and device changes — will appear here.
+          </Text>
         </GlassCard>
       </ScrollView>
-
-      {/* 2FA Setup Modal */}
-      {show2FAModal && (
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modal, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.modal2FAIcon, { backgroundColor: colors.primary + "18" }]}>
-              <Ionicons name="lock-closed" size={32} color={colors.primary} />
-            </View>
-            <Text style={[styles.modal2FATitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              Enable Two-Factor Auth
-            </Text>
-            <Text style={[styles.modal2FASub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              When you log in, ShieldID will send a 6-digit code to your registered email address. Enter the code to verify your identity.
-            </Text>
-            <View style={styles.modal2FASteps}>
-              {["We'll send a code to your email", "Enter the code when prompted", "Stays active until you disable it"].map((step, i) => (
-                <View key={i} style={styles.step}>
-                  <View style={[styles.stepNum, { backgroundColor: colors.primary }]}>
-                    <Text style={[styles.stepNumText, { fontFamily: "Inter_700Bold" }]}>{i + 1}</Text>
-                  </View>
-                  <Text style={[styles.stepText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                    {step}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={[styles.modal2FAConfirm, { backgroundColor: colors.primary }]}
-              onPress={confirm2FA}
-            >
-              <Text style={[styles.modal2FAConfirmText, { fontFamily: "Inter_700Bold" }]}>Enable 2FA</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShow2FAModal(false)}>
-              <Text style={[styles.modal2FACancel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
@@ -372,34 +376,11 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowLabel: { fontSize: 15 },
   rowSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusBadgeText: { fontSize: 12 },
   sessionRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
-  eventRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
-  eventDot: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  modalOverlay: {
-    position: "absolute",
-    inset: 0,
-    backgroundColor: "#00000088",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modal: {
-    borderRadius: 24,
-    padding: 28,
-    borderWidth: 1,
-    alignItems: "center",
-    gap: 16,
-    width: "100%",
-  },
-  modal2FAIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  modal2FATitle: { fontSize: 20, textAlign: "center" },
-  modal2FASub: { fontSize: 14, textAlign: "center", lineHeight: 20 },
-  modal2FASteps: { width: "100%", gap: 12 },
-  step: { flexDirection: "row", alignItems: "center", gap: 12 },
-  stepNum: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  stepNumText: { color: "#FFFFFF", fontSize: 12 },
-  stepText: { flex: 1, fontSize: 14 },
-  modal2FAConfirm: { width: "100%", height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },
-  modal2FAConfirmText: { color: "#FFFFFF", fontSize: 16 },
-  modal2FACancel: { fontSize: 14, paddingVertical: 4 },
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
+  activityEmpty: { flexDirection: "row", alignItems: "center", gap: 14 },
+  activityEmptyIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  activityEmptyText: { flex: 1, fontSize: 13, lineHeight: 19 },
 });

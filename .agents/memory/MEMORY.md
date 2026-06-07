@@ -1,1 +1,3 @@
 - [Scan simulation guard](scan-simulation-guard.md) — simulation only fires for demo user (no clerkId); real users always get honest results even if empty.
+- [Clerk session types](clerk-session-types.md) — useSessionList() returns SessionResource[] not SessionWithActivities[]; latestActivity and revoke are not on the TS type; cast to any for access.
+- [Store metadata no dark web](store-metadata-notes.md) — dark web monitor was removed; all metadata files must not reference it; iOS keywords ≤100 chars.

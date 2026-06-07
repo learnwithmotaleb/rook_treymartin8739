@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -15,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useColors } from "@/hooks/useColors";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { Platform as PlatformType } from "@/context/AppContext";
+import { updateMe } from "@/lib/api";
 
 const PLATFORMS: NonNullable<PlatformType>[] = [
   "instagram",
@@ -30,6 +33,7 @@ export default function Setup() {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
   const [selectedPlatforms, setSelectedPlatforms] = useState<
     NonNullable<PlatformType>[]
   >(["instagram", "x", "tiktok"]);
@@ -43,8 +47,24 @@ export default function Setup() {
     );
   };
 
-  const handleContinue = () => {
-    router.replace("/(tabs)");
+  const handleContinue = async () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      Alert.alert("Name Required", "Please enter your full name so ShieldID can identify your identity fingerprint.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await updateMe({
+        name: trimmedName,
+        username: username.trim() ? `@${username.trim().replace(/^@/, "")}` : undefined,
+      });
+      router.replace("/(tabs)");
+    } catch {
+      Alert.alert("Error", "Could not save your profile. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -241,17 +261,22 @@ export default function Setup() {
         <TouchableOpacity
           style={[
             styles.continueBtn,
-            { backgroundColor: colors.primary, borderRadius: 27 },
+            { backgroundColor: loading ? colors.primary + "99" : colors.primary, borderRadius: 27 },
           ]}
           activeOpacity={0.8}
           onPress={handleContinue}
+          disabled={loading}
         >
-          <Text
-            style={[styles.continueText, { fontFamily: "Inter_600SemiBold" }]}
-          >
-            Start Monitoring
-          </Text>
-          <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <>
+              <Text style={[styles.continueText, { fontFamily: "Inter_600SemiBold" }]}>
+                Start Monitoring
+              </Text>
+              <Ionicons name="shield-checkmark" size={18} color="#FFFFFF" />
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
