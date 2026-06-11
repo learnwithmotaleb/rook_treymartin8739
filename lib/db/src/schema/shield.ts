@@ -139,12 +139,45 @@ export const insertScanJobSchema = createInsertSchema(scanJobsTable).omit({
 export type InsertScanJob = z.infer<typeof insertScanJobSchema>;
 export type ScanJob = typeof scanJobsTable.$inferSelect;
 
+// ─── Threat Intelligence Graph ────────────────────────────────────────────────
+
+/**
+ * Canonical bad-actor records deduplicated across all users.
+ * When multiple users are targeted by the same suspicious username cluster,
+ * they share one threat_actor row — confidence grows with each new victim.
+ * Must be defined before threatsTable due to FK reference.
+ */
+export const threatActorsTable = pgTable("threat_actors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** Representative username (lowercased). */
+  canonicalUsername: text("canonical_username"),
+  /** JSON array of observed pHash strings from victim comparisons. */
+  pHashClusterJson: text("phash_cluster_json").default("[]"),
+  /** Number of distinct users targeted by this actor. */
+  victimCount: integer("victim_count").notNull().default(1),
+  /** JSON array of platform strings where this actor was detected. */
+  platformSetJson: text("platform_set_json").default("[]"),
+  firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
+  lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * 0–100 score derived from victim count and platform diversity.
+   * Formula: min(100, victimCount * 15 + uniquePlatforms * 5)
+   */
+  confidenceScore: integer("confidence_score").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ThreatActor = typeof threatActorsTable.$inferSelect;
+export type InsertThreatActor = typeof threatActorsTable.$inferInsert;
+
 export const threatsTable = pgTable("threats", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   scanJobId: uuid("scan_job_id").references(() => scanJobsTable.id),
+  /** Nullable FK to the shared threat actor record (null until matched). */
+  threatActorId: uuid("threat_actor_id").references(() => threatActorsTable.id),
   type: text("type").notNull(),
   severity: text("severity").notNull(),
   platform: text("platform"),
@@ -188,11 +221,6 @@ export type DevicePushToken = typeof devicePushTokensTable.$inferSelect;
 
 // ─── Cost & Rate-Limiting tables ─────────────────────────────────────────────
 
-/**
- * Scan result cache — avoids re-running expensive external APIs for the same
- * set of profiles within the 72-hour TTL window.  The cache key is a SHA-256
- * hash of the sorted "username:platform" pairs for the user's connected accounts.
- */
 export const scanCacheTable = pgTable("scan_cache", {
   id: uuid("id").primaryKey().defaultRandom(),
   cacheKey: text("cache_key").notNull().unique(),
@@ -204,17 +232,13 @@ export const scanCacheTable = pgTable("scan_cache", {
 });
 export type ScanCache = typeof scanCacheTable.$inferSelect;
 
-/**
- * API cost log — one row per external API call (OpenAI, Google Vision, Google CSE).
- * Used by the monitoring dashboard to compute per-user and per-provider spend.
- */
 export const apiCostLogTable = pgTable("api_cost_log", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(),   // "openai" | "google_vision" | "google_cse"
-  operation: text("operation").notNull(), // e.g. "threat_explanation", "image_reverse_search"
+  provider: text("provider").notNull(),
+  operation: text("operation").notNull(),
   costUsd: text("cost_usd").notNull().default("0"),
   tokensUsed: integer("tokens_used").notNull().default(0),
   cacheHit: boolean("cache_hit").notNull().default(false),
@@ -222,10 +246,6 @@ export const apiCostLogTable = pgTable("api_cost_log", {
 });
 export type ApiCostLog = typeof apiCostLogTable.$inferSelect;
 
-/**
- * Per-user quota tracking for rate limiting.
- * Month and day keys are string-compared to detect rollovers without cron jobs.
- */
 export const usageQuotasTable = pgTable("usage_quotas", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")
@@ -234,12 +254,118 @@ export const usageQuotasTable = pgTable("usage_quotas", {
     .unique(),
   scansThisMonth: integer("scans_this_month").notNull().default(0),
   deepScansToday: integer("deep_scans_today").notNull().default(0),
-  /** "YYYY-M" — used to detect when the month rolls over and reset the counter. */
   monthKey: text("month_key").notNull().default(""),
-  /** "YYYY-M-D" — used to detect when the day rolls over and reset deepScansToday. */
   dayKey: text("day_key").notNull().default(""),
   flaggedForAbuse: boolean("flagged_for_abuse").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type UsageQuota = typeof usageQuotasTable.$inferSelect;
+
+// ─── Identity Embeddings (cross-user similarity layer) ────────────────────────
+
+/**
+ * Per-image embedding vectors stored as JSON text arrays (number[]).
+ * One row per (userId, imageUrl) pair.
+ * Designed for future upgrade to pgvector native type + HNSW index.
+ * For now, cross-user similarity runs via in-memory cosine comparison.
+ */
+export const identityEmbeddingsTable = pgTable("identity_embeddings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  imageUrl: text("image_url").notNull(),
+  /** JSON-serialised number[] — text for now, ready for vector(1536) migration. */
+  embeddingJson: text("embedding_json").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type IdentityEmbedding = typeof identityEmbeddingsTable.$inferSelect;
+
+// ─── Developer API Platform ───────────────────────────────────────────────────
+
+/**
+ * External API keys for the /api/v1/* developer platform.
+ * Key is stored as a SHA-256 hex digest; plaintext is returned only at creation.
+ * Key format shown to users: sid_live_<prefix> where prefix is the first 8 chars of the random hex.
+ */
+export const apiKeysTable = pgTable("api_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  /** SHA-256 hex digest of the raw secret. */
+  keyHash: text("key_hash").notNull().unique(),
+  /** First 8 chars of the raw hex — safe to display for identification. */
+  keyPrefix: text("key_prefix").notNull(),
+  name: text("name").notNull().default("Default"),
+  /** Max requests per minute. Defaults to 60. */
+  rateLimitRpm: integer("rate_limit_rpm").notNull().default(60),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+export type ApiKey = typeof apiKeysTable.$inferSelect;
+
+/**
+ * Registered webhook endpoints per API key.
+ * Receives signed JSON POST payloads for threat.detected and scan.completed events.
+ */
+export const webhooksTable = pgTable("webhooks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  apiKeyId: uuid("api_key_id")
+    .notNull()
+    .references(() => apiKeysTable.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  /** JSON array of subscribed event types. */
+  eventsJson: text("events_json").notNull().default('["threat.detected","scan.completed"]'),
+  /** HMAC-SHA256 signing secret — shown to user once at registration. */
+  signingSecret: text("signing_secret").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type Webhook = typeof webhooksTable.$inferSelect;
+
+/**
+ * Log of every webhook delivery attempt.
+ * Used for retry logic and delivery auditing.
+ */
+export const webhookDeliveryLogTable = pgTable("webhook_delivery_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  webhookId: uuid("webhook_id")
+    .notNull()
+    .references(() => webhooksTable.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(),
+  /** JSON-serialised event payload. */
+  payloadJson: text("payload_json").notNull(),
+  /** "pending" | "delivered" | "failed" */
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  responseCode: integer("response_code"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type WebhookDeliveryLog = typeof webhookDeliveryLogTable.$inferSelect;
+
+/**
+ * Sliding-window rate limit counters for API keys.
+ * One row per (keyId, 1-minute window bucket).
+ * Rows older than 2 minutes are pruned lazily on each request.
+ */
+export const apiKeyRateLimitsTable = pgTable("api_key_rate_limits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  keyId: uuid("key_id")
+    .notNull()
+    .references(() => apiKeysTable.id, { onDelete: "cascade" }),
+  /** Truncated to the minute: floor(Date.now() / 60000) * 60000 */
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  count: integer("count").notNull().default(1),
+});
+
+export type ApiKeyRateLimit = typeof apiKeyRateLimitsTable.$inferSelect;

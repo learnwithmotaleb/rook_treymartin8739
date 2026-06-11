@@ -18,6 +18,7 @@ import { eq } from "drizzle-orm";
 import { db, visualFingerprintsTable, connectedAccountsTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { logger } from "../lib/logger";
+import { upsertIdentityEmbedding } from "./vectorSearchService";
 
 export interface FingerprintStats {
   totalPhotosIndexed: number;
@@ -257,6 +258,8 @@ export async function buildUserPhotoEmbeddings(
     if (vector) {
       store.embeddings.push({ url, vector });
       generated++;
+      // Also write to identity_embeddings for cross-user similarity queries
+      upsertIdentityEmbedding(userId, url, vector).catch(() => {});
     }
     // Small delay to respect rate limits
     await new Promise<void>((r) => setTimeout(r, 200));

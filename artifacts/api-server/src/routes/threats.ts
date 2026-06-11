@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, threatsTable } from "@workspace/db";
+import { db, threatsTable, threatActorsTable } from "@workspace/db";
 
 
 const router: IRouter = Router();
@@ -108,7 +108,27 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(parseThreat(threat));
+  // Enrich with shared threat actor intelligence (if linked)
+  let threatActor = undefined;
+  if (threat.threatActorId) {
+    const [actor] = await db
+      .select()
+      .from(threatActorsTable)
+      .where(eq(threatActorsTable.id, threat.threatActorId));
+
+    if (actor) {
+      threatActor = {
+        id: actor.id,
+        victimCount: actor.victimCount,
+        platformSpread: safeParseJson<string[]>(actor.platformSetJson, []),
+        firstSeen: actor.firstSeen.toISOString(),
+        lastSeen: actor.lastSeen.toISOString(),
+        confidenceScore: actor.confidenceScore,
+      };
+    }
+  }
+
+  res.json({ ...parseThreat(threat), ...(threatActor !== undefined ? { threatActor } : {}) });
 });
 
 router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {

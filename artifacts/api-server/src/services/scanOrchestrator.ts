@@ -50,6 +50,8 @@ import {
   type WebSearchCandidate,
 } from "./webSearchService";
 import { computeHashesForUrls, compareImageToHashes } from "./photoHashService";
+import { linkThreatToActor } from "./threatActorService";
+import { deliverEvent } from "./webhookService";
 
 const SCAN_STEPS = [
   { step: "Verifying connected accounts", progress: 8 },
@@ -914,9 +916,44 @@ async function runScanPipeline(
   await updateJobProgress(jobId, SCAN_STEPS[6].progress, SCAN_STEPS[6].step);
   await sleep(600);
 
+  const insertedThreatIds: string[] = [];
+
   if (newThreats.length > 0) {
     for (const threat of newThreats) {
-      await db.insert(threatsTable).values(threat);
+      const [inserted] = await db
+        .insert(threatsTable)
+        .values(threat)
+        .returning({
+          id: threatsTable.id,
+          suspiciousUsername: threatsTable.suspiciousUsername,
+          platform: threatsTable.platform,
+          severity: threatsTable.severity,
+          threatScore: threatsTable.threatScore,
+        });
+
+      if (inserted) {
+        insertedThreatIds.push(inserted.id);
+
+        // Link to shared threat actor (zero API cost — pure DB logic)
+        linkThreatToActor(
+          inserted.id,
+          inserted.suspiciousUsername ?? "",
+          inserted.platform
+        ).catch((err) =>
+          logger.warn({ err, threatId: inserted.id }, "Threat actor linking failed (non-fatal)")
+        );
+
+        // Deliver threat.detected webhook event to any registered API key holders
+        if (inserted.severity === "high" || inserted.severity === "medium") {
+          deliverEvent(userId, "threat.detected", {
+            threatId: inserted.id,
+            severity: inserted.severity,
+            platform: inserted.platform,
+            suspiciousUsername: inserted.suspiciousUsername,
+            threatScore: inserted.threatScore,
+          }).catch(() => {});
+        }
+      }
     }
   }
 
@@ -934,6 +971,13 @@ async function runScanPipeline(
       completedAt: new Date(),
     })
     .where(eq(scanJobsTable.id, jobId));
+
+  // Deliver scan.completed webhook event
+  deliverEvent(userId, "scan.completed", {
+    scanId: jobId,
+    threatsFound: newThreats.length,
+    threatIds: insertedThreatIds,
+  }).catch(() => {});
 
   logger.info(
     {

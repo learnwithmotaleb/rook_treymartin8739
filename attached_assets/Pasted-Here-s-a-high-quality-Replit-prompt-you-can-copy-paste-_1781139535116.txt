@@ -1,0 +1,165 @@
+Here’s a **high-quality Replit prompt** you can copy/paste. It is designed to force Replit to think like a **startup architect + acquisition strategist**, not just a builder.
+
+---
+
+## 🚀 REPLIT PROMPT (Acquisition Infrastructure Mapping)
+
+You are a senior startup systems architect and technical strategist with experience in building companies that reach $100M+ acquisition outcomes in AI, identity systems, data infrastructure, and platform companies.
+
+Your task is to analyze this application and map out what is required to evolve it into a **high-value acquisition target infrastructure platform** aligned with recent acquisition trends from companies like Google, Meta, Microsoft, Salesforce, ServiceNow, OpenAI, Anthropic, Apple, and Databricks.
+
+These companies are acquiring systems that function as:
+
+* Identity and trust infrastructure layers
+* AI agent platforms and automation systems
+* Data infrastructure and intelligence graphs
+* API-first platforms that other systems depend on
+* Security, fraud detection, and verification systems
+
+---
+
+## 🎯 Objective
+
+Do NOT focus on UI improvements or feature expansion alone.
+
+Instead, map out the **full infrastructure required to support a potential $100M+ acquisition valuation**.
+
+Think in terms of:
+
+* system dependency
+* data moat creation
+* scalability
+* API-first architecture
+* intelligence layer design
+* long-term defensibility
+
+---
+
+## 🧱 What You Must Produce
+
+Break your response into the following sections:
+
+---
+
+### 1. Target Acquisition-Level Architecture
+
+Define what the system must look like if it were being evaluated by a major tech acquirer.
+
+Include:
+
+* core system layers
+* backend architecture design
+* data infrastructure model
+* AI / intelligence layer structure
+* API layer design
+
+---
+
+### 2. Infrastructure Gaps Analysis
+
+Identify what critical infrastructure components are missing for:
+
+* scalability to millions of users
+* enterprise/API adoption
+* data moat formation
+* real-time processing
+* system reliability at scale
+
+Be specific and technical.
+
+---
+
+### 3. Data & Intelligence Layer Design
+
+Explain:
+
+* what data must be collected
+* how it should be structured
+* how identity/trust/intelligence signals should be computed
+* how this data becomes a defensible moat over time
+
+---
+
+### 4. API & Platform Strategy
+
+Define:
+
+* what external APIs should exist
+* how third-party systems would integrate
+* what makes the system “dependency-grade” infrastructure
+* how to structure API monetization or usage at scale
+
+---
+
+### 5. Scalability & System Design Requirements
+
+Outline:
+
+* backend architecture needed for high concurrency
+* event-driven or streaming systems required
+* database architecture decisions
+* caching, queues, and processing layers
+* observability and logging requirements
+
+---
+
+### 6. Acquisition Readiness Scorecard
+
+Evaluate the system based on:
+
+* data moat strength
+* API dependency potential
+* scalability readiness
+* AI integration readiness
+* defensibility vs competitors
+
+Provide a score and explain what is needed to reach “high acquisition readiness.”
+
+---
+
+### 7. Step-by-Step Build Order
+
+Give a prioritized roadmap of:
+
+* what to build first
+* what creates immediate value
+* what builds long-term defensibility
+* what should NOT be built yet
+
+Focus on fastest path to:
+
+> becoming an infrastructure-level acquisition target in the $100M+ range
+
+---
+
+## 🧠 Key Context
+
+This is NOT a consumer app evaluation.
+
+It is a **platform infrastructure evaluation for acquisition potential in AI-era identity + trust systems**.
+
+The goal is to determine:
+
+> “What must exist in this system for a major tech company to want to acquire it instead of building it themselves?”
+
+---
+
+## 📌 Output Style
+
+Be:
+
+* highly technical
+* structured
+* direct
+* focused on infrastructure, not features
+* aligned with real acquisition patterns in big tech
+
+Avoid:
+
+* vague startup advice
+* marketing language
+* UI/UX suggestions unless infrastructure-related
+
+---
+
+If you want, I can also give you a **second prompt that turns Replit’s answer into an actual build plan (files, backend services, database schema, and APIs)**.

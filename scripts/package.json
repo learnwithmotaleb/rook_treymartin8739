@@ -7,6 +7,8 @@
     "hello": "tsx ./src/hello.ts",
     "seed:revenuecat": "tsx ./src/seedRevenueCat.ts",
     "update:pricing": "tsx ./src/updatePricing.ts",
+    "migrate:infrastructure": "tsx ./src/migrate-infrastructure.ts",
+    "backfill:actors": "tsx ./src/backfill-threat-actors.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -14,6 +16,8 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pg": "^8.20.0",
+    "pg": "^8.20.0",
     "tsx": "catalog:"
   }
 }

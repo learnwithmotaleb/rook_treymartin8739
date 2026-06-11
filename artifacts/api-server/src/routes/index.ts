@@ -12,6 +12,7 @@ import legalRouter from "./legal";
 import oauthRouter from "./oauth";
 import notificationsRouter from "./notifications";
 import adminRouter from "./admin";
+import v1Router from "./v1";
 
 const router: IRouter = Router();
 
@@ -19,6 +20,9 @@ router.use(healthRouter);
 router.use(legalRouter);
 router.use(oauthRouter);
 router.use(adminRouter); // admin routes use their own X-Admin-Key auth
+
+// Developer API v1 — API key auth handled inside v1Router
+router.use(v1Router);
 
 router.use(requireAuth);
 
