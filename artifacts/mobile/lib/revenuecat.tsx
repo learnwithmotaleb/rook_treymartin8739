@@ -20,6 +20,7 @@ import Purchases, {
 } from "react-native-purchases";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
+import { syncSubscriptionTier } from "@/lib/api";
 
 const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
 const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
@@ -97,6 +98,8 @@ function useSubscriptionContext(): SubscriptionContextValue {
     },
     onSuccess: (info) => {
       qc.setQueryData(["revenuecat", "customer-info"], info);
+      const newTier = getTierFromCustomerInfo(info);
+      syncSubscriptionTier(newTier).catch(() => {});
     },
   });
 
@@ -107,6 +110,8 @@ function useSubscriptionContext(): SubscriptionContextValue {
     },
     onSuccess: (info) => {
       qc.setQueryData(["revenuecat", "customer-info"], info);
+      const newTier = getTierFromCustomerInfo(info);
+      syncSubscriptionTier(newTier).catch(() => {});
     },
   });
 

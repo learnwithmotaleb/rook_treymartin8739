@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, subscriptionsTable } from "@workspace/db";
+import { db, subscriptionsTable, usersTable } from "@workspace/db";
 
 import { PLAN_CONFIG } from "../lib/planConfig";
 import {
@@ -255,6 +255,41 @@ router.post("/billing/webhook", async (req, res): Promise<void> => {
   }
 
   res.json({ received: true });
+});
+
+/**
+ * POST /billing/revenuecat-sync
+ *
+ * Called by the mobile app after a RevenueCat purchase, restore, or on launch
+ * to keep the server-side subscription record (used for scan-quota checks)
+ * in sync with the authoritative RevenueCat state on the device.
+ */
+router.post("/billing/revenuecat-sync", async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const { tier } = req.body as { tier?: string };
+
+  if (!tier || !["free", "pro", "premium"].includes(tier)) {
+    res.status(400).json({ error: "tier must be 'free', 'pro', or 'premium'" });
+    return;
+  }
+
+  const validTier = tier as "free" | "pro" | "premium";
+  const status = validTier === "free" ? "canceled" : "active";
+
+  await db
+    .insert(subscriptionsTable)
+    .values({ userId, tier: validTier, status, billingCycle: "monthly" })
+    .onConflictDoUpdate({
+      target: [subscriptionsTable.userId],
+      set: { tier: validTier, status, updatedAt: new Date() },
+    });
+
+  await db
+    .update(usersTable)
+    .set({ isPremium: validTier !== "free", updatedAt: new Date() })
+    .where(eq(usersTable.id, userId));
+
+  res.json({ tier: validTier, synced: true });
 });
 
 export default router;

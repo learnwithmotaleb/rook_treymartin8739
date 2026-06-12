@@ -310,3 +310,12 @@ export async function deregisterPushToken(
 export async function getOAuthRedirectUris(): Promise<Record<string, string>> {
   return apiFetch<Record<string, string>>("/oauth/redirect-uris");
 }
+
+export async function syncSubscriptionTier(
+  tier: "free" | "pro" | "premium"
+): Promise<void> {
+  await apiFetch("/billing/revenuecat-sync", {
+    method: "POST",
+    body: JSON.stringify({ tier }),
+  });
+}

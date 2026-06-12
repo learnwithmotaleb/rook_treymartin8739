@@ -11,8 +11,10 @@ import { useAuth, useUser } from "@clerk/expo";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { setApiAuthToken } from "@/lib/api";
+import { setApiAuthToken, syncSubscriptionTier } from "@/lib/api";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useSubscription } from "@/lib/revenuecat";
+import Purchases from "react-native-purchases";
 
 function NativeTabLayout() {
   const { activeThreats } = useApp();
@@ -139,6 +141,7 @@ export default function TabLayout() {
   const { user: clerkUser } = useUser();
   const { login, logout, hasSeenOnboarding, isInitializing, isLoggedIn } = useApp();
   const colors = useColors();
+  const { tier } = useSubscription();
   useNotifications(isLoggedIn);
 
   // Keep a stable ref to getToken so the effect below doesn't need it as a
@@ -163,10 +166,24 @@ export default function TabLayout() {
       const name = clerkUser?.fullName ?? clerkUser?.firstName ?? "";
       const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
       login(name, email);
+      // Identify the user to RevenueCat so purchases are tied to their account
+      // across devices and are recoverable after reinstall.
+      if (clerkUser?.id) {
+        Purchases.logIn(clerkUser.id).catch(() => {
+          // Non-fatal: if RevenueCat identification fails the app still works.
+        });
+      }
     }
   // getToken intentionally omitted — accessed via ref to keep this effect stable
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isInitializing, isSignedIn, hasSeenOnboarding, login, logout, clerkUser]);
+
+  // Sync the RevenueCat tier to the server whenever it changes so the server-
+  // side scan-quota system reflects the user's actual subscription.
+  useEffect(() => {
+    if (!isLoaded || isInitializing || !isSignedIn || !hasSeenOnboarding) return;
+    syncSubscriptionTier(tier).catch(() => {});
+  }, [tier, isLoaded, isInitializing, isSignedIn, hasSeenOnboarding]);
 
   // Render a blank screen (not null) while loading — returning null from a
   // layout component breaks expo-router's component tree on web and causes
