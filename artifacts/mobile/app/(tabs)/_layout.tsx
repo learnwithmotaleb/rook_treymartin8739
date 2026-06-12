@@ -157,33 +157,30 @@ export default function TabLayout() {
       logout();
       return;
     }
-    if (hasSeenOnboarding) {
-      // setApiAuthToken must be called BEFORE login() so that the getter is
-      // ready when refreshData() fires inside login().
-      setApiAuthToken(() => getTokenRef.current());
-      // Pass real name/email from Clerk so the DB record gets the user's actual
-      // display name instead of the "Shield User" JIT-provisioning fallback.
-      const name = clerkUser?.fullName ?? clerkUser?.firstName ?? "";
-      const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
-      login(name, email);
-      // Identify the user to RevenueCat so purchases are tied to their account
-      // across devices and are recoverable after reinstall.
-      if (clerkUser?.id) {
-        Purchases.logIn(clerkUser.id).catch(() => {
-          // Non-fatal: if RevenueCat identification fails the app still works.
-        });
-      }
+    // Always wire auth token and load data for any signed-in user —
+    // regardless of onboarding state. Returning users (reinstall, re-login)
+    // should never be blocked from reaching the app by the onboarding flag.
+    setApiAuthToken(() => getTokenRef.current());
+    const name = clerkUser?.fullName ?? clerkUser?.firstName ?? "";
+    const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
+    login(name, email);
+    // Identify the user to RevenueCat so purchases are tied to their account
+    // across devices and are recoverable after reinstall.
+    if (clerkUser?.id) {
+      Purchases.logIn(clerkUser.id).catch(() => {
+        // Non-fatal: if RevenueCat identification fails the app still works.
+      });
     }
   // getToken intentionally omitted — accessed via ref to keep this effect stable
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isInitializing, isSignedIn, hasSeenOnboarding, login, logout, clerkUser]);
+  }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser]);
 
   // Sync the RevenueCat tier to the server whenever it changes so the server-
   // side scan-quota system reflects the user's actual subscription.
   useEffect(() => {
-    if (!isLoaded || isInitializing || !isSignedIn || !hasSeenOnboarding) return;
+    if (!isLoaded || isInitializing || !isSignedIn) return;
     syncSubscriptionTier(tier).catch(() => {});
-  }, [tier, isLoaded, isInitializing, isSignedIn, hasSeenOnboarding]);
+  }, [tier, isLoaded, isInitializing, isSignedIn]);
 
   // Render a blank screen (not null) while loading — returning null from a
   // layout component breaks expo-router's component tree on web and causes
@@ -196,7 +193,16 @@ export default function TabLayout() {
     return <Redirect href="/auth" />;
   }
 
-  if (!hasSeenOnboarding) {
+  // Only send the user to onboarding if they genuinely haven't seen it AND
+  // their Clerk account was created within the last 10 minutes (i.e. they just
+  // signed up for the first time). Returning users who reinstall or re-login
+  // have an older account and should go straight to the app.
+  const accountAgeMs = clerkUser?.createdAt
+    ? Date.now() - new Date(clerkUser.createdAt).getTime()
+    : Infinity;
+  const isNewAccount = accountAgeMs < 10 * 60 * 1000; // < 10 minutes old
+
+  if (!hasSeenOnboarding && isNewAccount) {
     return <Redirect href="/onboarding" />;
   }
 
