@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,7 +14,7 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useAuth } from "@clerk/expo";
+import { useAuth, useClerk } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
@@ -78,7 +80,11 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, logout } = useApp();
-  const { signOut } = useAuth();
+  const { signOut, getToken } = useAuth();
+  const { signOut: clerkSignOut } = useClerk();
+
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -99,6 +105,29 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    try {
+      const token = await getToken();
+      const domain = process.env.EXPO_PUBLIC_DOMAIN;
+      const base = domain ? `https://${domain}/api` : "/api";
+      const resp = await fetch(`${base}/me`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok && resp.status !== 204) {
+        throw new Error("Failed to delete account");
+      }
+      await clerkSignOut();
+      logout();
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Could not delete account. Please try again.");
+    } finally {
+      setDeleteLoading(false);
+      setDeleteModalVisible(false);
+    }
   };
 
   return (
@@ -187,7 +216,7 @@ export default function ProfileScreen() {
                     Upgrade to Pro or Premium
                   </Text>
                   <Text style={[styles.upgradeSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    Real-time alerts, photo monitoring & more
+                    Automated alerts, photo monitoring & more
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={colors.premium} />
@@ -303,10 +332,67 @@ export default function ProfileScreen() {
           />
         </GlassCard>
 
+        {/* Delete Account */}
+        <GlassCard noPadding>
+          <SettingsRow
+            icon={<Ionicons name="trash-outline" size={20} color={colors.danger} />}
+            label="Delete Account"
+            onPress={() => setDeleteModalVisible(true)}
+            danger
+            last
+          />
+        </GlassCard>
+
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
           ShieldID v1.0.0 · All data encrypted end-to-end
         </Text>
       </ScrollView>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !deleteLoading && setDeleteModalVisible(false)}
+      >
+        <View style={styles.deleteOverlay}>
+          <View style={[styles.deleteSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.deleteIconWrap, { backgroundColor: colors.danger + "22" }]}>
+              <Ionicons name="warning-outline" size={32} color={colors.danger} />
+            </View>
+            <Text style={[styles.deleteTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Delete Account
+            </Text>
+            <Text style={[styles.deleteBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              This will permanently delete your account, connected social accounts, identity fingerprint, all threat history, and cancel any active subscription.{"\n\n"}This action cannot be undone.
+            </Text>
+            <TouchableOpacity
+              style={[styles.deleteConfirmBtn, { backgroundColor: colors.danger, opacity: deleteLoading ? 0.7 : 1 }]}
+              activeOpacity={0.8}
+              onPress={handleDeleteAccount}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={[styles.deleteConfirmText, { fontFamily: "Inter_700Bold" }]}>
+                  Yes, Delete My Account
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.deleteCancelBtn, { backgroundColor: colors.secondary }]}
+              activeOpacity={0.8}
+              onPress={() => setDeleteModalVisible(false)}
+              disabled={deleteLoading}
+            >
+              <Text style={[styles.deleteCancelText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -430,4 +516,14 @@ const styles = StyleSheet.create({
   settingsValue: { fontSize: 13 },
 
   version: { fontSize: 12, textAlign: "center", marginTop: 12 },
+
+  deleteOverlay: { flex: 1, backgroundColor: "#00000099", alignItems: "center", justifyContent: "center", padding: 24 },
+  deleteSheet: { width: "100%", maxWidth: 380, borderRadius: 20, borderWidth: 1, padding: 28, alignItems: "center", gap: 16 },
+  deleteIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center" },
+  deleteTitle: { fontSize: 20, textAlign: "center" },
+  deleteBody: { fontSize: 14, lineHeight: 22, textAlign: "center" },
+  deleteConfirmBtn: { width: "100%", height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  deleteConfirmText: { color: "#FFFFFF", fontSize: 16 },
+  deleteCancelBtn: { width: "100%", height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  deleteCancelText: { fontSize: 15 },
 });

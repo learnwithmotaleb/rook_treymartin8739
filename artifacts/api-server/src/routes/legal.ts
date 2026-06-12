@@ -9,7 +9,7 @@ const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
 const APP_NAME = "ShieldID";
 const CONTACT_EMAIL = "privacy@shieldid.app";
 const SUPPORT_EMAIL = "support@shieldid.app";
-const LAST_UPDATED = "June 5, 2026";
+const LAST_UPDATED = "June 12, 2026";
 
 const html = (title: string, body: string) => `<!DOCTYPE html>
 <html lang="en">
@@ -106,22 +106,54 @@ router.get("/legal/privacy", (_req, res) => {
       <li><strong>Law enforcement:</strong> Only when required by applicable law.</li>
     </ul>
 
-    <h2>5. Data Retention</h2>
-    <p>We retain your data for as long as your account is active. You may delete your account and all associated data at any time by contacting <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. Deleted data is purged from our systems within 30 days.</p>
+    <h2>5. Automated Decision-Making</h2>
+    <p>${APP_NAME} uses AI algorithms to automatically analyze social media content and generate threat scores and alerts. These scores are probabilistic estimates based on pattern matching — they are not legal determinations and may contain errors. You have the right to request human review of any automated alert by contacting us at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. All AI-generated results are labeled as such within the app.</p>
 
-    <h2>6. Security</h2>
+    <h2>6. Data Retention</h2>
+    <ul>
+      <li><strong>Account data:</strong> Retained until account deletion; purged within 30 days thereafter.</li>
+      <li><strong>Threat history:</strong> Retained for 30 days (Premium), 7 days (Pro), 1 day (Free) from detection, then automatically deleted.</li>
+      <li><strong>Identity fingerprint data (perceptual hashes):</strong> Retained while account is active; deleted upon account deletion.</li>
+      <li><strong>OAuth tokens:</strong> Deleted immediately upon account disconnection or account deletion.</li>
+      <li><strong>Anonymized usage analytics:</strong> May be retained for up to 2 years in aggregated, non-identifiable form.</li>
+    </ul>
+    <p>You may delete your account and all associated data at any time directly in the app under <strong>Profile → Delete Account</strong>. Data is purged from our production systems within 30 days of deletion.</p>
+
+    <h2>7. Security</h2>
     <p>All data is encrypted in transit (TLS 1.2+) and at rest. OAuth tokens are stored encrypted. We follow industry-standard security practices and conduct regular security reviews.</p>
 
-    <h2>7. Children's Privacy</h2>
+    <h2>8. Children's Privacy</h2>
     <p>${APP_NAME} is not directed to children under 13. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has provided us personal information, contact us immediately at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
 
-    <h2>8. Your Rights</h2>
-    <p>Depending on your jurisdiction, you may have the right to access, correct, or delete your personal data. California residents may have additional rights under CCPA. Contact us at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> to exercise these rights.</p>
+    <h2>9. Your Rights (GDPR — EU/EEA/UK Residents)</h2>
+    <p>If you are located in the European Union, European Economic Area, or United Kingdom, you have the following rights under the GDPR:</p>
+    <ul>
+      <li><strong>Right of Access:</strong> Request a copy of the personal data we hold about you.</li>
+      <li><strong>Right to Rectification:</strong> Request correction of inaccurate or incomplete data.</li>
+      <li><strong>Right to Erasure ("Right to be Forgotten"):</strong> Request deletion of your personal data. You can do this directly via <strong>Profile → Delete Account</strong> or by contacting us.</li>
+      <li><strong>Right to Restrict Processing:</strong> Request that we limit how we use your data.</li>
+      <li><strong>Right to Data Portability:</strong> Request your personal data in a structured, machine-readable format.</li>
+      <li><strong>Right to Object:</strong> Object to processing based on legitimate interests, including profiling.</li>
+      <li><strong>Right to Human Review:</strong> Request human review of any automated decision that significantly affects you.</li>
+      <li><strong>Right to Withdraw Consent:</strong> Where processing is based on consent, you may withdraw it at any time without affecting prior processing.</li>
+    </ul>
+    <p>Our legal basis for processing personal data is: <em>contract performance</em> (providing the service you signed up for), <em>legitimate interests</em> (fraud prevention, security), and <em>consent</em> (marketing communications, where applicable). To exercise any GDPR right, contact <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. We will respond within 30 days. You also have the right to lodge a complaint with your local supervisory authority.</p>
 
-    <h2>9. Changes to This Policy</h2>
+    <h2>10. Your Rights (CCPA — California Residents)</h2>
+    <p>If you are a California resident, the California Consumer Privacy Act (CCPA) gives you additional rights:</p>
+    <ul>
+      <li><strong>Right to Know:</strong> Request disclosure of the categories and specific pieces of personal information we collect, use, disclose, or sell.</li>
+      <li><strong>Right to Delete:</strong> Request deletion of personal information we have collected from you (subject to certain exceptions). Use <strong>Profile → Delete Account</strong> or contact us.</li>
+      <li><strong>Right to Opt-Out of Sale:</strong> We do not sell personal information. No opt-out is required.</li>
+      <li><strong>Right to Non-Discrimination:</strong> We will not discriminate against you for exercising any CCPA rights.</li>
+      <li><strong>Right to Correct:</strong> Request correction of inaccurate personal information.</li>
+    </ul>
+    <p>To exercise CCPA rights, contact <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> with subject "CCPA Request". We will respond within 45 days.</p>
+
+    <h2>11. Changes to This Policy</h2>
     <p>We may update this Privacy Policy from time to time. We will notify you of material changes via email or in-app notification. Continued use of the service after changes constitutes acceptance.</p>
 
-    <h2>10. Contact</h2>
+    <h2>12. Contact</h2>
     <div class="card">
       <p><strong>Privacy inquiries:</strong> <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
       <p><strong>Support:</strong> <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
@@ -149,13 +181,16 @@ router.get("/legal/terms", (_req, res) => {
 
     <h2>4. Subscriptions and Payments</h2>
     <ul>
-      <li><strong>Free tier:</strong> Limited monitoring for 1 account, manual scans every 14 days.</li>
-      <li><strong>Pro tier ($7.99/month or $59.99/year):</strong> Up to 3 accounts, weekly automated scans, real-time alerts with full evidence trails.</li>
-      <li><strong>Premium tier ($14.99/month or $99.99/year):</strong> Unlimited accounts, daily deep scans, advanced intelligence reports.</li>
+      <li><strong>Free tier:</strong> Limited monitoring for 1 account, manual scans, basic threat history.</li>
+      <li><strong>Pro tier:</strong> Up to 3 accounts, weekly automated scans, real-time alerts with full evidence trails. Current pricing is displayed in the app before purchase.</li>
+      <li><strong>Premium tier:</strong> Unlimited accounts, daily deep scans, advanced intelligence reports. Current pricing is displayed in the app before purchase.</li>
     </ul>
-    <p>Paid subscriptions are billed in advance on a recurring basis through the Apple App Store or Google Play Store. All paid subscriptions include a 7-day free trial for new subscribers. You may cancel at any time through your device's subscription settings; cancellation takes effect at the end of the current billing period. No partial refunds are issued for unused periods. Subscription management is handled by Apple or Google according to their respective terms.</p>
+    <p>Paid subscriptions are billed in advance on a recurring basis through the Apple App Store or Google Play Store. All paid subscriptions include a <strong>7-day free trial</strong> for new subscribers — you will not be charged during the trial period. After the trial, you will be charged the applicable subscription price unless you cancel at least 24 hours before the trial ends. You may cancel at any time through your device's subscription settings; cancellation takes effect at the end of the current billing period. No partial refunds are issued for unused periods. Subscription management is handled by Apple or Google according to their respective terms.</p>
 
-    <h2>5. Acceptable Use</h2>
+    <h2>5. AI-Generated Content and Accuracy Disclaimer</h2>
+    <p>The Service uses artificial intelligence and machine learning to identify potential identity threats. <strong>All AI-generated alerts, threat scores, and analyses are probabilistic estimates — they may contain errors, false positives, or false negatives.</strong> Results do not constitute legal advice, and ${APP_NAME} makes no guarantee that all threats will be detected or that detected threats are accurate. You should independently verify any alert before taking action. ${APP_NAME} is not liable for any action taken (or not taken) based on AI-generated results.</p>
+
+    <h2>6. Acceptable Use</h2>
     <p>You agree not to:</p>
     <ul>
       <li>Use the Service to monitor accounts you do not own or have authorization to monitor.</li>
@@ -164,19 +199,26 @@ router.get("/legal/terms", (_req, res) => {
       <li>Circumvent any rate limits, subscription tiers, or access controls.</li>
     </ul>
 
-    <h2>6. Disclaimer of Warranties</h2>
+    <h2>7. Intellectual Property</h2>
+    <p>${APP_NAME} and its licensors own all right, title, and interest in the Service, including all software, algorithms, designs, trademarks, and content we create. You retain ownership of your own content (your photos, posts, and profile information). You grant ${APP_NAME} a limited, non-exclusive, royalty-free license to process your content solely to provide the identity monitoring service described in these Terms. We do not claim ownership of your personal content.</p>
+
+    <h2>8. Disclaimer of Warranties</h2>
     <p>The Service is provided "as is" without warranty of any kind. We do not guarantee that all impersonators or threats will be detected. Monitoring coverage depends on platform API availability and our detection algorithms, which are continuously improving but not infallible.</p>
 
-    <h2>7. Limitation of Liability</h2>
-    <p>To the maximum extent permitted by law, ${APP_NAME} shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the Service.</p>
+    <h2>9. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by law, ${APP_NAME} shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the Service. Our total liability for any claim arising out of or relating to these Terms shall not exceed the amount you paid us in the 12 months preceding the claim.</p>
 
-    <h2>8. Termination</h2>
-    <p>We may suspend or terminate your account for violation of these Terms. You may delete your account at any time from the app settings or by contacting support.</p>
+    <h2>10. Dispute Resolution and Governing Law</h2>
+    <p>These Terms are governed by the laws of the State of Delaware, United States, without regard to conflict of law principles. Any dispute arising from these Terms or your use of the Service shall first be submitted to informal resolution by contacting <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. If not resolved within 30 days, disputes shall be resolved by binding individual arbitration under the rules of the American Arbitration Association (AAA), conducted in English. <strong>You waive any right to participate in class actions or class-wide arbitration.</strong> Nothing in this section prevents either party from seeking injunctive or other equitable relief in a court of competent jurisdiction.</p>
+    <p>Users in the EU/EEA may also submit disputes to the European Online Dispute Resolution platform at <a href="https://ec.europa.eu/consumers/odr" target="_blank">ec.europa.eu/consumers/odr</a>.</p>
 
-    <h2>9. Changes to Terms</h2>
-    <p>We may update these Terms at any time. Material changes will be communicated via email or in-app notification. Continued use of the Service constitutes acceptance of updated Terms.</p>
+    <h2>11. Termination</h2>
+    <p>We may suspend or terminate your account for violation of these Terms. You may delete your account at any time directly in the app under <strong>Profile → Delete Account</strong>, which immediately and permanently deletes all your data. Upon termination, all licenses granted under these Terms cease.</p>
 
-    <h2>10. Contact</h2>
+    <h2>12. Changes to Terms</h2>
+    <p>We may update these Terms at any time. Material changes will be communicated via email or in-app notification at least 14 days before taking effect. Continued use of the Service after the effective date constitutes acceptance of updated Terms.</p>
+
+    <h2>13. Contact</h2>
     <div class="card">
       <p><strong>Support:</strong> <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
       <p><strong>Privacy:</strong> <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
@@ -214,7 +256,7 @@ router.get("/legal/support", (_req, res) => {
     <p>Your access continues until the end of the current billing period.</p>
 
     <h2>How do I delete my account?</h2>
-    <p>Email us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> with the subject "Delete My Account". We'll process the request within 30 days and confirm by email.</p>
+    <p>Go to <strong>Profile → Delete Account</strong> in the app. This immediately and permanently deletes your account, all connected social accounts, identity fingerprint, threat history, and any active subscription. Data is purged from our systems within 30 days. You can also email <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> with "Delete My Account" as the subject for assistance.</p>
 
     <h2>My scan didn't find any threats — is that right?</h2>
     <p>That's great news — it likely means no impersonators have been detected. ${APP_NAME} cross-references your public content against the open web. If you recently connected a new account, wait for the identity fingerprint to build before running a scan.</p>

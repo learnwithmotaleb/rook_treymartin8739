@@ -17,7 +17,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.shieldid.app",
       "buildNumber": "1",
-      "usesAppleSignIn": false,
+      "usesAppleSignIn": true,
       "infoPlist": {
         "LSApplicationCategoryType": "public.app-category.utilities",
         "NSCameraUsageDescription": "ShieldID uses your camera to scan photos for your identity fingerprint.",
@@ -53,6 +53,7 @@
           "origin": "https://replit.com/"
         }
       ],
+      "expo-apple-authentication",
       "expo-font",
       "expo-web-browser",
       [

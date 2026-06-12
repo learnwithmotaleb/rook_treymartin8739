@@ -82,6 +82,12 @@ export function ThreatCard({ threat, compact }: ThreatCardProps) {
               </View>
             )}
           </View>
+          <View style={[styles.aiDisclaimer, { backgroundColor: colors.secondary }]}>
+            <MaterialCommunityIcons name="robot-outline" size={9} color={colors.mutedForeground + "88"} />
+            <Text style={[styles.aiDisclaimerText, { color: colors.mutedForeground + "88", fontFamily: "Inter_400Regular" }]}>
+              AI · May contain errors
+            </Text>
+          </View>
         </View>
         <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
       </GlassCard>
@@ -142,4 +148,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   mediaBadgeText: { fontSize: 10 },
+  aiDisclaimer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    alignSelf: "flex-start",
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+  },
+  aiDisclaimerText: { fontSize: 9 },
 });

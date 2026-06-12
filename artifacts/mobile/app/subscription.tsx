@@ -106,10 +106,10 @@ function ConfirmModal({ visible, pkg, onConfirm, onCancel }: ConfirmModalProps) 
           </Text>
           <Text style={[confirmStyles.price, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             {pkg.product.priceString}
-            {pkg.packageType === "ANNUAL" ? "/year" : "/month"} · Test Store
+            {pkg.packageType === "ANNUAL" ? "/year" : "/month"}
           </Text>
           <Text style={[confirmStyles.note, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            This purchase is charged through the test store and can be cancelled anytime.
+            Your subscription begins with a 7-day free trial. After the trial, you will be charged {pkg.product.priceString}{pkg.packageType === "ANNUAL" ? "/year" : "/month"} unless cancelled at least 24 hours before the renewal date. Cancel anytime in your device's subscription settings.
           </Text>
           <View style={confirmStyles.btnRow}>
             <TouchableOpacity
@@ -509,26 +509,31 @@ export default function Subscription() {
               </View>
 
               {!disabled && (
-                <TouchableOpacity
-                  style={[
-                    styles.planCta,
-                    { backgroundColor: isPremium ? colors.premium : colors.primary, opacity: isLoading ? 0.7 : 1 },
-                  ]}
-                  disabled={isLoading}
-                  activeOpacity={0.8}
-                  onPress={() => handleUpgrade(meta)}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <>
-                      <MaterialCommunityIcons name="crown" size={16} color="#FFFFFF" />
-                      <Text style={[styles.planCtaText, { fontFamily: "Inter_700Bold" }]}>
-                        {getPlanCtaLabel(meta)}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    style={[
+                      styles.planCta,
+                      { backgroundColor: isPremium ? colors.premium : colors.primary, opacity: isLoading ? 0.7 : 1 },
+                    ]}
+                    disabled={isLoading}
+                    activeOpacity={0.8}
+                    onPress={() => handleUpgrade(meta)}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <>
+                        <MaterialCommunityIcons name="crown" size={16} color="#FFFFFF" />
+                        <Text style={[styles.planCtaText, { fontFamily: "Inter_700Bold" }]}>
+                          {getPlanCtaLabel(meta)}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <Text style={[styles.trialNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    7-day free trial · then {getDisplayPrice(meta.id)}/mo · cancel anytime
+                  </Text>
+                </>
               )}
 
               {isCurrent && (
@@ -706,6 +711,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
   },
   planCtaText: { color: "#FFFFFF", fontSize: 15 },
+  trialNote: { fontSize: 11, textAlign: "center", marginTop: 6 },
   planCurrentRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { useSignIn, useSignUp, useSSO, useAuth } from "@clerk/expo";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useColors } from "@/hooks/useColors";
@@ -143,6 +144,31 @@ export default function Auth() {
     }
   }, [startSSOFlow]);
 
+  const handleAppleSSO = useCallback(async () => {
+    setError("");
+    setSsoLoading(true);
+    try {
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy: "oauth_apple",
+        redirectUrl: AuthSession.makeRedirectUri(),
+      });
+      if (createdSessionId && setActive) {
+        await setActive({
+          session: createdSessionId,
+          navigate: () => {
+            router.replace("/(tabs)/" as any);
+          },
+        } as any);
+      }
+    } catch (e: any) {
+      if ((e as any).code === "ERR_REQUEST_CANCELED") return;
+      const clerkErr = e?.errors?.[0];
+      setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Apple sign in failed");
+    } finally {
+      setSsoLoading(false);
+    }
+  }, [startSSOFlow]);
+
   const handleSubmit = () => {
     if (mode === "login") handleSignIn();
     else handleSignUp();
@@ -230,6 +256,16 @@ export default function Auth() {
               <Text style={[styles.googleText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>Continue with Google</Text>
             </TouchableOpacity>
 
+            {Platform.OS === "ios" && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={12}
+                style={[styles.appleBtn, { opacity: loading ? 0.7 : 1 }]}
+                onPress={handleAppleSSO}
+              />
+            )}
+
             <View style={styles.dividerRow}>
               <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               <Text style={[styles.dividerText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>or</Text>
@@ -308,6 +344,26 @@ export default function Auth() {
               </Text>
             </TouchableOpacity>
 
+            {mode === "register" && (
+              <Text style={[styles.consentText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                By creating an account, you agree to our{" "}
+                <Text
+                  style={{ color: colors.primary }}
+                  onPress={() => router.push("/legal" as any)}
+                >
+                  Terms of Service
+                </Text>
+                {" "}and{" "}
+                <Text
+                  style={{ color: colors.primary }}
+                  onPress={() => router.push("/legal" as any)}
+                >
+                  Privacy Policy
+                </Text>
+                .
+              </Text>
+            )}
+
             <View style={styles.switchRow}>
               <Text style={[styles.switchText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                 {mode === "login" ? "Don't have an account?" : "Already have an account?"}
@@ -347,6 +403,8 @@ const styles = StyleSheet.create({
   dividerText: { fontSize: 13 },
   submitBtn: { height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center", marginTop: 8 },
   submitText: { color: "#FFFFFF", fontSize: 16 },
+  appleBtn: { height: 52, borderRadius: 12 },
+  consentText: { fontSize: 12, lineHeight: 18, textAlign: "center" },
   switchRow: { flexDirection: "row", gap: 6, justifyContent: "center" },
   switchText: { fontSize: 14 },
   switchLink: { fontSize: 14 },

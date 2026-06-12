@@ -194,8 +194,8 @@ function ConcernScreen({
 // ─── Step 3: Education ────────────────────────────────────────────────────────
 const STATS = [
   { icon: "person-add", value: "5+", label: "Platforms monitored simultaneously", color: "#EF4444" },
-  { icon: "scan-circle", value: "24/7", label: "Continuous AI-powered monitoring", color: "#F59E0B" },
-  { icon: "shield-checkmark", value: "Real-time", label: "Alerts the moment a threat is detected", color: "#8B5CF6" },
+  { icon: "scan-circle", value: "Ongoing", label: "AI-powered monitoring across platforms", color: "#F59E0B" },
+  { icon: "shield-checkmark", value: "Automated", label: "Alerts when potential threats are detected", color: "#8B5CF6" },
 ];
 
 const CONCERN_HEADLINES: Record<string, string> = {
@@ -852,9 +852,9 @@ function RevealScreen({
 
         <View style={styles.revealHighlights}>
           {[
-            { icon: "notifications", text: "Real-time alerts when threats are detected" },
-            { icon: "eye", text: "Continuous monitoring across all connected platforms" },
-            { icon: "analytics", text: "AI threat analysis with detailed evidence" },
+            { icon: "notifications", text: "Automated alerts when potential threats are detected" },
+            { icon: "eye", text: "Ongoing monitoring across connected platforms" },
+            { icon: "analytics", text: "AI-assisted threat analysis with detailed evidence" },
           ].map((h) => (
             <View key={h.icon} style={styles.highlightRow}>
               <View style={[styles.highlightIcon, { backgroundColor: colors.primary + "18" }]}>

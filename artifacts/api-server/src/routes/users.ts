@@ -112,6 +112,59 @@ router.patch("/me", async (req, res): Promise<void> => {
   res.json(updated);
 });
 
+router.delete("/me", async (req, res): Promise<void> => {
+  const userId = req.userId;
+
+  const [user] = await db
+    .select({ id: usersTable.id, clerkId: usersTable.clerkId })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  // Fetch connected accounts so we can revoke OAuth tokens before deleting.
+  const accounts = await db
+    .select({
+      platform: connectedAccountsTable.platform,
+      accessToken: connectedAccountsTable.accessToken,
+      platformUserId: connectedAccountsTable.platformUserId,
+    })
+    .from(connectedAccountsTable)
+    .where(eq(connectedAccountsTable.userId, userId));
+
+  // Best-effort OAuth token revocation per platform (errors are non-fatal).
+  await Promise.allSettled(
+    accounts
+      .filter((a) => a.accessToken)
+      .map(async (account) => {
+        const token = account.accessToken!;
+        try {
+          if (account.platform === "facebook" || account.platform === "instagram") {
+            // Meta revocation endpoint
+            await fetch(
+              `https://graph.facebook.com/${account.platformUserId ?? "me"}/permissions?access_token=${token}`,
+              { method: "DELETE" }
+            );
+          }
+          // Other platforms (X, TikTok, LinkedIn, etc.) require server-to-server
+          // revocation with app credentials — handled separately if credentials are available.
+        } catch (err) {
+          req.log.warn({ platform: account.platform, err }, "Token revocation failed (non-fatal)");
+        }
+      })
+  );
+
+  // Cascade delete: connected_accounts, visual_fingerprints, scan_jobs, threats, etc.
+  // all have onDelete:"cascade" referencing usersTable.id, so one delete suffices.
+  await db.delete(usersTable).where(eq(usersTable.id, userId));
+
+  req.log.info({ userId }, "User account deleted");
+  res.status(204).end();
+});
+
 function formatRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();

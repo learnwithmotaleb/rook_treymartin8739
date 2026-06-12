@@ -448,7 +448,7 @@ export default function ConnectAccount() {
                       Sign in with {config.label}
                     </Text>
                     <Text style={[styles.authHeaderSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                      Verified accounts get real-time sync and full monitoring
+                      Verified accounts get automated sync and full monitoring. ShieldID will only read your public profile and posts — we will never post, like, or message on your behalf.
                     </Text>
                   </View>
                 </View>
