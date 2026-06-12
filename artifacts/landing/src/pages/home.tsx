@@ -26,7 +26,7 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass-panel border-b-0 border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
-            <Shield className="w-6 h-6 text-primary" />
+            <img src="/landing/logo.png" alt="ShieldID" className="h-8 w-8 object-contain" />
             <span>Shield<span className="text-primary">ID</span></span>
           </div>
           <button 
@@ -413,7 +413,7 @@ export default function Home() {
       <footer className="border-t border-white/5 py-12 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2 font-bold text-lg">
-            <Shield className="w-5 h-5 text-primary" />
+            <img src="/landing/logo.png" alt="ShieldID" className="h-7 w-7 object-contain" />
             <span>Shield<span className="text-primary">ID</span></span>
           </div>
           

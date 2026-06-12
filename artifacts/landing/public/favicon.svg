@@ -1,3 +1,16 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <rect width="180" height="180" rx="36" fill="#070B12"/>
+  <path d="M90 22L34 44V90C34 122 58 150 90 158C122 150 146 122 146 90V44L90 22Z" fill="#0D1420" stroke="#3B82F6" stroke-width="2.5"/>
+  <path d="M90 22L34 44V90C34 122 58 150 90 158C122 150 146 122 146 90V44L90 22Z" fill="url(#shield-grad)" opacity="0.15"/>
+  <ellipse cx="90" cy="90" rx="28" ry="34" stroke="#3B82F6" stroke-width="1.5" fill="none" opacity="0.9"/>
+  <ellipse cx="90" cy="90" rx="19" ry="23" stroke="#60A5FA" stroke-width="1.5" fill="none" opacity="0.7"/>
+  <ellipse cx="90" cy="90" rx="10" ry="12" stroke="#93C5FD" stroke-width="1.5" fill="none" opacity="0.5"/>
+  <line x1="90" y1="56" x2="90" y2="124" stroke="#3B82F6" stroke-width="1.5" opacity="0.6"/>
+  <circle cx="90" cy="90" r="3" fill="#60A5FA"/>
+  <defs>
+    <linearGradient id="shield-grad" x1="90" y1="22" x2="90" y2="158" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
 </svg>
