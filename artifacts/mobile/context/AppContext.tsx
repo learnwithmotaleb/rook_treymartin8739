@@ -274,32 +274,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshData = useCallback(async () => {
-    try {
-      const [profile, accounts, summaries] = await Promise.all([
-        getMe(),
-        getAccounts(),
-        listThreats(),
-      ]);
-      setUser(mapProfileToUser(profile, accounts));
-      setThreats(summaries.map(mapSummaryToThreat));
-    } catch (err) {
-      // Retry once after a short delay — the auth token getter may not be
-      // ready on the very first call (race between Clerk token hydration and
-      // the initial login() call).
-      setTimeout(async () => {
-        try {
-          const [profile, accounts, summaries] = await Promise.all([
-            getMe(),
-            getAccounts(),
-            listThreats(),
-          ]);
-          setUser(mapProfileToUser(profile, accounts));
-          setThreats(summaries.map(mapSummaryToThreat));
-        } catch {
-          // Silently fail on retry — user stays on the empty default state
-        }
-      }, 1500);
+    const attempt = async (): Promise<boolean> => {
+      try {
+        const [profile, accounts, summaries] = await Promise.all([
+          getMe(),
+          getAccounts(),
+          listThreats(),
+        ]);
+        setUser(mapProfileToUser(profile, accounts));
+        setThreats(summaries.map(mapSummaryToThreat));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    if (await attempt()) return;
+
+    // Retry with exponential backoff — handles the race where Clerk's token
+    // is not yet available on the very first call after login().
+    const delays = [1000, 2500];
+    for (const delay of delays) {
+      await new Promise((r) => setTimeout(r, delay));
+      if (await attempt()) return;
     }
+    // Silently fail after all retries — user stays on empty default state.
   }, []);
 
   // NOTE: Do NOT trigger refreshData() from the isLoggedIn useEffect.

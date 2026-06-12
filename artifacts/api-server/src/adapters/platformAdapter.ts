@@ -274,7 +274,16 @@ export class TikTokAdapter implements PlatformAdapter {
       bio_description?: string;
     }}};
     const user = data?.user;
-    if (!user) throw new Error("TikTok user data missing");
+    if (!user) {
+      return {
+        platformUserId: "",
+        username: "",
+        displayName: undefined,
+        followers: 0,
+        profileImageUrl: undefined,
+        bio: undefined,
+      };
+    }
     return {
       platformUserId: user.open_id,
       username: user.username ?? user.display_name ?? "",

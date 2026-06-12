@@ -476,6 +476,25 @@ export default function ConnectAccount() {
                     onSuccess={handleOAuthDone}
                     disabled={submitting}
                   />
+                ) : isExistingAccount ? (
+                  <View style={{ gap: 12 }}>
+                    <View style={[styles.noCredCard, { backgroundColor: colors.success + "0C", borderColor: colors.success + "33" }]}>
+                      <Ionicons name="shield-checkmark" size={16} color={colors.success} />
+                      <Text style={[styles.noCredText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        This account is already being monitored. OAuth sign-in isn't configured for {config.label} yet, so ownership verification is unavailable — but basic monitoring is active.
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.oauthBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]}
+                      activeOpacity={0.8}
+                      onPress={() => router.back()}
+                    >
+                      <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                      <Text style={[styles.oauthBtnText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                        Continue with basic monitoring
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
                   <View style={[styles.noCredCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                     <MaterialCommunityIcons name="information" size={16} color={colors.mutedForeground} />

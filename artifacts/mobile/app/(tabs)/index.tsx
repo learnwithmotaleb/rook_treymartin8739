@@ -20,6 +20,7 @@ import { SecurityScoreRing } from "@/components/SecurityScoreRing";
 import { ThreatCard } from "@/components/ThreatCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { GlassCard } from "@/components/GlassCard";
+import { Skeleton } from "@/components/Skeleton";
 
 function StatCard({
   label,
@@ -55,9 +56,9 @@ export default function Dashboard() {
     activeThreats,
     fakeAccounts,
     refreshData,
+    isLoading,
     hasSeenOnboarding,
     isInitializing,
-    isLoggedIn,
     completeOnboarding,
   } = useApp();
   const [refreshing, setRefreshing] = useState(false);
@@ -66,22 +67,15 @@ export default function Dashboard() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const recentThreats = threats.filter((t) => !t.resolved).slice(0, 3);
 
-  // Routing guard — only fires once hydration is complete
+  // Auto-complete onboarding for returning users who already have data.
+  // The tab layout handles the /auth and /onboarding redirects — we only
+  // need this to skip onboarding for users who arrived before it was added.
   useEffect(() => {
     if (isInitializing) return;
-    if (!isLoggedIn) {
-      router.replace("/auth" as any);
-      return;
+    if (!hasSeenOnboarding && (user.connectedAccounts.length > 0 || user.name)) {
+      completeOnboarding();
     }
-    // Existing users (have accounts) should never see onboarding again
-    if (!hasSeenOnboarding) {
-      if (user.connectedAccounts.length > 0 || user.name) {
-        completeOnboarding();
-      } else {
-        router.replace("/onboarding" as any);
-      }
-    }
-  }, [isInitializing, isLoggedIn, hasSeenOnboarding, user.connectedAccounts.length, user.name]);
+  }, [isInitializing, hasSeenOnboarding, user.connectedAccounts.length, user.name, completeOnboarding]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -147,56 +141,65 @@ export default function Dashboard() {
               Overview
             </Text>
           </View>
-          <View style={styles.statsGrid}>
-            <StatCard
-              label="Active Threats"
-              value={String(activeThreats)}
-              valueColor={activeThreats > 0 ? colors.danger : colors.success}
-              icon={
-                <MaterialCommunityIcons
-                  name="alert-circle"
-                  size={24}
-                  color={activeThreats > 0 ? colors.danger : colors.success}
-                />
-              }
-            />
-            <StatCard
-              label="Fake Accounts"
-              value={String(fakeAccounts)}
-              valueColor={fakeAccounts > 0 ? colors.warning : colors.success}
-              icon={
-                <Ionicons
-                  name="search"
-                  size={24}
-                  color={fakeAccounts > 0 ? colors.warning : colors.success}
-                />
-              }
-            />
-            <StatCard
-              label="Platforms Monitored"
-              value={monitoredCount > 0 ? String(monitoredCount) : "None"}
-              valueColor={monitoredCount > 0 ? colors.success : colors.mutedForeground}
-              icon={
-                <MaterialCommunityIcons
-                  name="shield-check"
-                  size={24}
-                  color={monitoredCount > 0 ? colors.success : colors.mutedForeground}
-                />
-              }
-            />
-            <StatCard
-              label="Photos Indexed"
-              value={user.totalPhotosIndexed > 0 ? String(user.totalPhotosIndexed) : "—"}
-              valueColor={user.totalPhotosIndexed > 0 ? colors.primary : colors.mutedForeground}
-              icon={
-                <Ionicons
-                  name="images"
-                  size={24}
-                  color={user.totalPhotosIndexed > 0 ? colors.primary : colors.mutedForeground}
-                />
-              }
-            />
-          </View>
+          {isLoading ? (
+            <View style={styles.statsGrid}>
+              <Skeleton height={110} width="48%" borderRadius={14} />
+              <Skeleton height={110} width="48%" borderRadius={14} />
+              <Skeleton height={110} width="48%" borderRadius={14} />
+              <Skeleton height={110} width="48%" borderRadius={14} />
+            </View>
+          ) : (
+            <View style={styles.statsGrid}>
+              <StatCard
+                label="Active Threats"
+                value={String(activeThreats)}
+                valueColor={activeThreats > 0 ? colors.danger : colors.success}
+                icon={
+                  <MaterialCommunityIcons
+                    name="alert-circle"
+                    size={24}
+                    color={activeThreats > 0 ? colors.danger : colors.success}
+                  />
+                }
+              />
+              <StatCard
+                label="Fake Accounts"
+                value={String(fakeAccounts)}
+                valueColor={fakeAccounts > 0 ? colors.warning : colors.success}
+                icon={
+                  <Ionicons
+                    name="search"
+                    size={24}
+                    color={fakeAccounts > 0 ? colors.warning : colors.success}
+                  />
+                }
+              />
+              <StatCard
+                label="Platforms Monitored"
+                value={monitoredCount > 0 ? String(monitoredCount) : "None"}
+                valueColor={monitoredCount > 0 ? colors.success : colors.mutedForeground}
+                icon={
+                  <MaterialCommunityIcons
+                    name="shield-check"
+                    size={24}
+                    color={monitoredCount > 0 ? colors.success : colors.mutedForeground}
+                  />
+                }
+              />
+              <StatCard
+                label="Photos Indexed"
+                value={user.totalPhotosIndexed > 0 ? String(user.totalPhotosIndexed) : "—"}
+                valueColor={user.totalPhotosIndexed > 0 ? colors.primary : colors.mutedForeground}
+                icon={
+                  <Ionicons
+                    name="images"
+                    size={24}
+                    color={user.totalPhotosIndexed > 0 ? colors.primary : colors.mutedForeground}
+                  />
+                }
+              />
+            </View>
+          )}
         </Animated.View>
 
         {/* Connected Accounts */}
@@ -261,7 +264,12 @@ export default function Dashboard() {
               </Text>
             </TouchableOpacity>
           </View>
-          {recentThreats.length === 0 ? (
+          {isLoading ? (
+            <View style={{ gap: 10 }}>
+              <Skeleton height={80} borderRadius={14} />
+              <Skeleton height={80} borderRadius={14} />
+            </View>
+          ) : recentThreats.length === 0 ? (
             <GlassCard style={styles.noThreats}>
               <Ionicons name="shield-checkmark" size={32} color={colors.success} />
               <Text style={[styles.noThreatsText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>

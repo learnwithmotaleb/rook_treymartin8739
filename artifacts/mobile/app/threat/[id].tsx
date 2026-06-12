@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Image,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,6 +22,77 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { Skeleton } from "@/components/Skeleton";
 import { severityColor } from "@/lib/severity";
 import { getThreat, resolveThreat as apiResolveThreat, type ThreatDetail } from "@/lib/api";
+
+const REPORT_URLS: Record<string, string> = {
+  instagram: "https://help.instagram.com/519522125107875",
+  facebook: "https://www.facebook.com/help/174210519303259",
+  x: "https://help.twitter.com/en/safety-and-security/report-a-fake-account",
+  tiktok: "https://support.tiktok.com/en/safety-hc/report-a-problem",
+  youtube: "https://support.google.com/youtube/answer/2802268",
+  linkedin: "https://www.linkedin.com/help/linkedin/answer/a1340567",
+  snapchat: "https://support.snapchat.com/en-US/i-need-help",
+};
+
+function generateAiExplanation(
+  type: string,
+  platform: string | null,
+  suspiciousUsername: string,
+  threatScore: number,
+  matchedMediaCount: number
+): string {
+  const p = platform ?? "social media";
+  const u = suspiciousUsername || "an unverified account";
+  const riskLevel = threatScore >= 80 ? "critical" : threatScore >= 60 ? "significant" : "moderate";
+
+  if (type === "impersonator" || type === "fake_account") {
+    return (
+      `Our AI detected ${u} on ${p} exhibiting strong impersonation signals against your identity. ` +
+      `With a threat score of ${threatScore}/100, this account shows ${riskLevel} similarity to your verified profile.` +
+      (matchedMediaCount > 0
+        ? ` ${matchedMediaCount} piece${matchedMediaCount !== 1 ? "s" : ""} of your media content were identified in this account's posts.`
+        : "") +
+      ` We recommend reporting and blocking this account immediately through ${p}'s official reporting tools.`
+    );
+  }
+  if (type === "stolen_photo") {
+    return (
+      (matchedMediaCount > 0
+        ? `${matchedMediaCount} of your photos have been`
+        : "Your photo content has been") +
+      ` detected on ${u}'s ${p} profile without your authorization. Our AI cross-referenced your indexed media fingerprints against this account's content library. This constitutes unauthorized use of your identity and likeness.`
+    );
+  }
+  if (type === "leaked_password") {
+    return "Our AI has detected credential exposure linked to your identity. Your login information may have appeared in a data breach. We recommend immediately changing your password for any affected accounts and enabling two-factor authentication to secure your profiles.";
+  }
+  if (type === "suspicious_login") {
+    return `Our AI flagged a suspicious login attempt on ${p} that doesn't match your usual access patterns. This could indicate an unauthorized attempt to access your account. Review your active sessions and change your password if you don't recognize the activity.`;
+  }
+  return `Our AI flagged suspicious activity related to your identity on ${p}. Threat score: ${threatScore}/100. Review this alert and take action to protect your digital identity.`;
+}
+
+function generateDetectedSignals(breakdown: ThreatScoreBreakdown, type: string): string[] {
+  const signals: string[] = [];
+  if (breakdown.mediaSimilarity >= 20)
+    signals.push(`Visual media similarity confirmed (${breakdown.mediaSimilarity}/40 match score)`);
+  else if (breakdown.mediaSimilarity >= 10)
+    signals.push("Partial media overlap detected across profiles");
+  if (breakdown.contentReuse >= 10)
+    signals.push("Post content reuse identified across accounts");
+  if (breakdown.profileSimilarity >= 8)
+    signals.push("Profile information closely mirrors your verified account");
+  if (breakdown.bioSimilarity >= 5)
+    signals.push("Bio text shows high similarity to your profile");
+  if (breakdown.usernameSimilarity >= 5)
+    signals.push("Username follows impersonation variation pattern");
+  if (breakdown.behavioral >= 3)
+    signals.push("Behavioral patterns consistent with impersonator accounts");
+  if (type === "stolen_photo")
+    signals.push("Reverse image search confirmed photo match");
+  if (type === "impersonator" || type === "fake_account")
+    signals.push("Account creation post-dates your verified profile");
+  return signals;
+}
 
 function ScoreGauge({ score }: { score: number }) {
   const colors = useColors();
@@ -332,9 +405,26 @@ export default function ThreatDetail() {
     stolenPhotoUrl: e.stolenPhotoUrl,
   }));
 
-  const detectedSignals = detail?.detectedSignals ?? [];
-  const aiExplanation = detail?.aiExplanation ?? "";
-  const suspiciousUsername = detail?.suspiciousUsername ?? ("suspiciousUsername" in threat ? (threat as { suspiciousUsername?: string | null }).suspiciousUsername : "") ?? "";
+  const suspiciousUsername =
+    detail?.suspiciousUsername ??
+    ("suspiciousUsername" in threat
+      ? (threat as { suspiciousUsername?: string | null }).suspiciousUsername
+      : "") ??
+    "";
+
+  const detectedSignals =
+    detail?.detectedSignals && detail.detectedSignals.length > 0
+      ? detail.detectedSignals
+      : generateDetectedSignals(breakdown, String(threat.type));
+  const aiExplanation =
+    detail?.aiExplanation ||
+    generateAiExplanation(
+      String(threat.type),
+      threat.platform as string | null,
+      suspiciousUsername,
+      threat.threatScore,
+      threat.matchedMediaCount
+    );
 
   const time =
     "time" in threat
@@ -353,6 +443,40 @@ export default function ThreatDetail() {
 
   const handleReport = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const platform = threat.platform as string | null;
+    const reportUrl = platform ? REPORT_URLS[platform] : null;
+    Alert.alert(
+      "Report Impersonator",
+      `Report ${suspiciousUsername || "this account"} as an impersonator?${
+        reportUrl
+          ? " We'll open the platform's official reporting page."
+          : " Your report will be recorded in ShieldID."
+      }`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Report",
+          style: "destructive",
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            if (reportUrl) {
+              Linking.openURL(reportUrl).catch(() => {
+                Alert.alert(
+                  "Could not open browser",
+                  "Please report the account manually through the platform's app."
+                );
+              });
+            } else {
+              Alert.alert(
+                "Report Recorded",
+                "Your report has been recorded. We recommend also reporting the account directly through the platform.",
+                [{ text: "OK" }]
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
