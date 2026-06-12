@@ -14,7 +14,15 @@ const waitlistSchema = z.object({
 
 type WaitlistFormValues = z.infer<typeof waitlistSchema>;
 
-export function WaitlistForm({ className = "" }: { className?: string }) {
+export function WaitlistForm({
+  className = "",
+  buttonText = "Get Early Access",
+  placeholder = "Enter your email address",
+}: {
+  className?: string;
+  buttonText?: string;
+  placeholder?: string;
+}) {
   const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
 
   const form = useForm<WaitlistFormValues>({
@@ -67,7 +75,7 @@ export function WaitlistForm({ className = "" }: { className?: string }) {
               <FormControl>
                 <div className="relative">
                   <Input
-                    placeholder="Enter your email address"
+                    placeholder={placeholder}
                     className="h-12 bg-black/40 border-border/60 focus:border-primary/50 focus:ring-primary/50 pl-4 pr-4 rounded-xl text-base w-full"
                     disabled={status === "loading"}
                     {...field}
@@ -78,16 +86,16 @@ export function WaitlistForm({ className = "" }: { className?: string }) {
             </FormItem>
           )}
         />
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           disabled={status === "loading"}
-          className="h-12 px-6 rounded-xl bg-primary hover:bg-primary/90 text-white font-medium transition-all group"
+          className="h-12 px-6 rounded-xl bg-primary hover:bg-primary/90 text-white font-medium transition-all group whitespace-nowrap"
         >
           {status === "loading" ? (
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
             <>
-              Join Waitlist
+              {buttonText}
               <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
             </>
           )}
