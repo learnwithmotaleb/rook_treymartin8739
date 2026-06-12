@@ -417,7 +417,7 @@ export default function Home() {
             <span>Shield<span className="text-primary">ID</span></span>
           </div>
           
-          <div className="flex gap-6 text-sm text-muted-foreground font-medium">
+          <div className="flex gap-8 text-base text-muted-foreground font-medium">
             <a href="/api/legal/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Privacy Policy</a>
             <a href="/api/legal/terms" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Terms of Service</a>
             <a href="mailto:support@shieldid.app" className="hover:text-white transition-colors">Contact</a>
