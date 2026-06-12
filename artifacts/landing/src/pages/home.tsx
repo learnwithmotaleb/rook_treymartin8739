@@ -54,7 +54,7 @@ export default function Home() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
               </span>
-              Watching 7 Platforms 24/7
+              Watching 7 Platforms
             </motion.div>
             
             <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[1.1]">
@@ -72,44 +72,126 @@ export default function Home() {
               <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1.5">
                 <Lock className="w-3 h-3" /> No credit card required to join.
               </p>
+              {/* App store badges */}
+              <div className="flex flex-wrap items-center gap-3 mt-5">
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-sm font-medium text-white/50 select-none">
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                  </svg>
+                  App Store
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-sm font-medium text-white/50 select-none">
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                    <path d="M3.18 23.76a2 2 0 0 0 2.18-.43l.06-.06 12.23-7.07-2.66-2.67M1.5 1.87A2 2 0 0 0 1 3.28v17.44a2 2 0 0 0 .5 1.41l.07.07 9.77-9.77v-.23L1.5 1.87m20.25 8.36-2.62-1.52-2.93 2.93 2.93 2.93 2.65-1.52a2 2 0 0 0 0-3.82M3.18.24L15.41 7.3l-2.66 2.67L.44.44A2 2 0 0 1 3.18.24z"/>
+                  </svg>
+                  Google Play
+                </div>
+                <span className="text-xs text-muted-foreground">· Coming Soon</span>
+              </div>
             </motion.div>
           </motion.div>
           
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="relative flex justify-center items-center h-full min-h-[400px]"
+            className="relative flex justify-center items-center py-8"
           >
-            <div className="relative z-10">
-              <AnimatedRing score={72} />
-              
-              {/* Floating badges */}
-              <motion.div 
-                animate={{ y: [0, -10, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute -top-4 -right-12 glass-panel px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-medium border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
-              >
-                <div className="w-2 h-2 rounded-full bg-red-500" />
-                1 Threat Blocked
-              </motion.div>
-              
-              <motion.div 
-                animate={{ y: [0, 10, 0] }}
-                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                className="absolute -bottom-8 -left-8 glass-panel px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-medium border-green-500/20"
-              >
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                Network Secure
-              </motion.div>
-            </div>
+            {/* Glow behind phone */}
+            <div className="absolute w-72 h-72 bg-primary/20 rounded-full blur-[90px] opacity-60 pointer-events-none" />
             
-            {/* Radar rings background */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-              <div className="w-64 h-64 border border-primary rounded-full" />
-              <div className="absolute w-96 h-96 border border-primary rounded-full" />
-              <div className="absolute w-[32rem] h-[32rem] border border-primary rounded-full opacity-50" />
+            {/* Phone Frame */}
+            <div className="relative w-[268px] h-[548px] bg-[#07070f] rounded-[44px] border border-white/[0.11] shadow-[0_40px_80px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.04),0_0_50px_rgba(59,130,246,0.12)] overflow-hidden z-10">
+              {/* Dynamic Island */}
+              <div className="absolute top-3.5 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-20 flex items-center justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-gray-800" />
+                <div className="w-1 h-1 rounded-full bg-gray-700" />
+              </div>
+
+              {/* Screen content */}
+              <div className="absolute inset-0 flex flex-col pt-14 pb-4 px-4">
+                {/* App header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center">
+                      <Shield className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                    <span className="text-white text-xs font-bold tracking-tight">ShieldID</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-green-400 text-[10px] font-semibold">Protected</span>
+                  </div>
+                </div>
+
+                {/* Security ring — scaled into phone */}
+                <div className="flex justify-center" style={{ transform: "scale(0.54)", transformOrigin: "center top", height: "150px", marginBottom: "-38px" }}>
+                  <AnimatedRing score={72} />
+                </div>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-1.5 mb-3">
+                  {[
+                    { label: "Accounts", value: "7", hi: false },
+                    { label: "Alerts", value: "1", hi: true },
+                    { label: "Score", value: "72", hi: false },
+                  ].map((s, i) => (
+                    <div key={i} className={`rounded-xl p-2 text-center border ${s.hi ? "bg-red-500/10 border-red-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
+                      <div className={`font-bold text-xs ${s.hi ? "text-red-400" : "text-white"}`}>{s.value}</div>
+                      <div className="text-[9px] text-white/40 mt-0.5">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Threat card */}
+                <motion.div
+                  animate={{ opacity: [0.75, 1, 0.75] }}
+                  transition={{ duration: 2.5, repeat: Infinity }}
+                  className="bg-red-500/[0.07] border border-red-500/20 rounded-2xl p-3 flex items-center gap-2.5 mb-2"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center shrink-0">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-red-400 text-[10px] font-semibold">Impersonator Found</div>
+                    <div className="text-white/45 text-[9px] truncate">@●●●●_official · Instagram</div>
+                  </div>
+                  <span className="text-[9px] text-white/25 shrink-0">2m</span>
+                </motion.div>
+
+                {/* Clean card */}
+                <div className="bg-green-500/[0.06] border border-green-500/15 rounded-2xl p-3 flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-green-500/15 flex items-center justify-center shrink-0">
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                  </div>
+                  <div>
+                    <div className="text-green-400 text-[10px] font-semibold">Email Secure</div>
+                    <div className="text-white/45 text-[9px]">No breach records found</div>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            {/* Floating notification badges */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 1, duration: 0.5 }}
+              className="absolute -right-4 top-24 glass-panel px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-medium z-20 shadow-lg"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+              Threat blocked
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 1.4, duration: 0.5 }}
+              className="absolute -left-4 bottom-32 glass-panel px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-medium z-20 shadow-lg"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+              Identity verified
+            </motion.div>
           </motion.div>
         </div>
       </section>
@@ -125,13 +207,13 @@ export default function Home() {
             </div>
             <div className="flex flex-col items-center justify-center gap-2">
               <ScanFace className="w-6 h-6 text-primary mb-1" />
-              <span className="font-bold text-2xl text-white">24/7</span>
-              <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">AI Detection</span>
+              <span className="font-bold text-2xl text-white">AI</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Powered Detection</span>
             </div>
             <div className="flex flex-col items-center justify-center gap-2">
               <Zap className="w-6 h-6 text-primary mb-1" />
-              <span className="font-bold text-2xl text-white">Real-time</span>
-              <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Instant Alerts</span>
+              <span className="font-bold text-2xl text-white">Automated</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Threat Alerts</span>
             </div>
             <div className="flex flex-col items-center justify-center gap-2">
               <Shield className="w-6 h-6 text-primary mb-1" />
@@ -174,7 +256,7 @@ export default function Home() {
               },
               {
                 icon: <Bell className="w-5 h-5 text-primary" />,
-                title: "Real-Time Threat Feed",
+                title: "Threat Feed",
                 desc: "One centralized dashboard for all alerts. Review, dismiss, or auto-report threats in seconds."
               },
               {
@@ -315,7 +397,7 @@ export default function Home() {
               <p className="text-xs text-primary/80 mb-6 font-medium">Launch price. Normally $14.99</p>
               
               <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {['3 Connected Accounts', 'Real-time AI scanning', 'Stolen photo detection', 'Dark web monitoring', 'Priority email support'].map((feature, i) => (
+                {['3 Connected Accounts', 'AI-powered scanning', 'Stolen photo detection', 'Dark web monitoring', 'Priority email support'].map((feature, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm font-medium">
                     <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
                     <span>{feature}</span>

@@ -50,6 +50,7 @@ import {
   type WebSearchCandidate,
 } from "./webSearchService";
 import { computeHashesForUrls, compareImageToHashes } from "./photoHashService";
+import { sendScanCompleteNotification } from "./notificationService";
 import { linkThreatToActor } from "./threatActorService";
 import { deliverEvent } from "./webhookService";
 
@@ -978,6 +979,9 @@ async function runScanPipeline(
     threatsFound: newThreats.length,
     threatIds: insertedThreatIds,
   }).catch(() => {});
+
+  // Send push notification to user's registered devices
+  sendScanCompleteNotification(userId, newThreats.length).catch(() => {});
 
   logger.info(
     {
