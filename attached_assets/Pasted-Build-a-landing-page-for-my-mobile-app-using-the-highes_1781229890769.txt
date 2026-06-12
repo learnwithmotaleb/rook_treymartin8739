@@ -1,0 +1,141 @@
+Build a landing page for my mobile app using the highest-converting landing page structure and copywriting principles available. Do not simply create a visually appealing website. Your objective is to maximize waitlist signups and App Store launch conversions.
+
+
+
+Before generating anything, analyze the product, target audience, user psychology, trust barriers, objections, and desired actions. Then determine the optimal landing page structure, content hierarchy, messaging, sections, CTAs, trust elements, and user journey based on proven conversion rate optimization principles.
+
+
+
+
+
+
+
+Core capabilities include:
+
+
+
+* Impersonator detection
+
+* Stolen photo detection
+
+* Social media monitoring
+
+* AI threat analysis
+
+* Security scoring
+
+* Threat evidence and reporting
+
+* Multi-platform monitoring
+
+
+
+Target users include:
+
+
+
+* Content creators
+
+* Influencers
+
+* Professionals
+
+* Business owners
+
+* Public figures
+
+* Online entrepreneurs
+
+* Everyday social media users
+
+
+
+The landing page should communicate the value of the product as quickly as possible, create urgency, establish trust, reduce skepticism, and motivate visitors to join the waitlist or download the app upon launch.
+
+
+
+Do not ask me how the page should be structured. Determine the structure yourself using proven SaaS, cybersecurity, consumer security, and mobile app conversion frameworks.
+
+
+
+Requirements:
+
+
+
+* Generate all copywriting.
+
+* Generate all headlines and CTAs.
+
+* Generate all page sections.
+
+* Generate all trust-building elements.
+
+* Generate all FAQ content.
+
+* Generate SEO metadata.
+
+* Generate Open Graph metadata.
+
+* Generate waitlist signup flow.
+
+* Optimize for mobile-first traffic.
+
+* Optimize for traffic coming from TikTok, Instagram Reels, YouTube Shorts, influencers, and paid social ads.
+
+* Focus heavily on conversion rate optimization.
+
+* Make every section earn its place on the page.
+
+* Remove anything that does not contribute to trust, clarity, or conversions.
+
+
+
+Design should feel like a premium technology company capable of becoming a category-defining consumer security brand.
+
+
+
+The final result should look production-ready and capable of converting cold visitors who have never heard of the product before.  heres an example but use this only to guide you this is not exactly what i want just direction it needs to better quality than what i came up with for sure. Nav — Logo left, "Download on App Store" CTA button right (sticky, blurs on scroll with backdrop-filter)
+
+Hero — Bold headline ("Your Identity Is Under Attack. We Fight Back."), subheadline, App Store download badge, animated security score ring (SVG arc, 0–100, cyan glow), floating phone mockup with a blurred gradient background orb
+
+Social Proof Bar — "Monitoring 7 platforms · AI-powered detection · Real-time alerts" icon+text strip
+
+Features Grid — 6 glassmorphism cards, each with an icon, title, and 1-line description:
+
+
+
+AI Impersonator Detection
+
+Stolen Photo Monitoring
+
+Data Breach Alerts
+
+Live Security Score
+
+Real-Time Threat Feed
+
+Multi-Platform Coverage (Instagram, Facebook, X, TikTok, YouTube, LinkedIn, Snapchat)
+
+
+
+
+
+How It Works — 3-step horizontal flow with numbered steps and connector line:
+
+
+
+Connect your accounts → AI scans for threats → Get instant alerts
+
+
+
+
+
+Threat Demo — Static mockup of 2–3 ThreatCards (impersonator found, stolen photo detected, data breach) styled exactly like the in-app UI — platform icon, severity badge (High/Medium), timestamp, blurred username
+
+Pricing Tiers — 3 cards: Free / Pro / Premium. Pro card highlighted with a cyan border glow and "Most Popular" badge. Each card lists 4–5 bullet features. CTA button on each.
+
+Testimonials — 3 short fake testimonials with avatar initials, star rating, and 1–2 sentence quote about catching impersonators or finding breaches
+
+Final CTA — Full-width dark section, large headline ("Take Back Control of Your Identity"), App Store badge, subtle radar pulse animation in background
+
+Footer — Logo, links (Privacy Policy, Terms, Contact), copyright
