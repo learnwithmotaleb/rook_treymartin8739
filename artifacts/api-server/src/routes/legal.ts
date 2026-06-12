@@ -23,8 +23,7 @@ const html = (title: string, body: string) => `<!DOCTYPE html>
            background: #0a0f1e; color: #e2e8f0; line-height: 1.7; }
     .container { max-width: 760px; margin: 0 auto; padding: 60px 24px 80px; }
     .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 48px; }
-    .logo-mark { width: 36px; height: 36px; background: #3B82F6; border-radius: 10px;
-                 display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .logo-mark { width: 44px; height: 44px; object-fit: contain; }
     .logo-name { font-size: 20px; font-weight: 700; color: #f8fafc; }
     h1 { font-size: 32px; font-weight: 800; color: #f8fafc; margin-bottom: 8px; }
     .meta { color: #64748b; font-size: 14px; margin-bottom: 48px; }
@@ -44,7 +43,7 @@ const html = (title: string, body: string) => `<!DOCTYPE html>
 <body>
   <div class="container">
     <div class="logo">
-      <div class="logo-mark">🛡</div>
+      <img class="logo-mark" src="/landing/logo.png" alt="ShieldID" />
       <span class="logo-name">${APP_NAME}</span>
     </div>
     ${body}
