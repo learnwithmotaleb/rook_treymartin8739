@@ -187,6 +187,17 @@ export interface ExplanationResult {
   generatedAt: string;
 }
 
+export interface WaitlistInput {
+  email: string;
+}
+
+export interface WaitlistEntry {
+  id: string;
+  email: string;
+  createdAt: string;
+  alreadyRegistered: boolean;
+}
+
 export type ListThreatsParams = {
 severity?: ListThreatsSeverity;
 resolved?: boolean;

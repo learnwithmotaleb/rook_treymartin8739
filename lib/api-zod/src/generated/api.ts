@@ -9,6 +9,22 @@ import * as zod from 'zod';
 
 
 /**
+ * Add an email address to the launch waitlist. Duplicate submissions are silently deduplicated.
+ * @summary Join the waitlist
+ */
+export const JoinWaitlistBody = zod.object({
+  "email": zod.string().email()
+})
+
+export const JoinWaitlistResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "createdAt": zod.string(),
+  "alreadyRegistered": zod.boolean()
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

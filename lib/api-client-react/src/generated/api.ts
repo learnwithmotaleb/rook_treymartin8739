@@ -33,7 +33,9 @@ import type {
   ScanJob,
   ThreatDetail,
   ThreatSummary,
-  UserProfile
+  UserProfile,
+  WaitlistEntry,
+  WaitlistInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -47,6 +49,78 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
+
+export const getJoinWaitlistUrl = () => {
+
+
+
+
+  return `/api/waitlist`
+}
+
+/**
+ * Add an email address to the launch waitlist. Duplicate submissions are silently deduplicated.
+ * @summary Join the waitlist
+ */
+export const joinWaitlist = async (waitlistInput: WaitlistInput, options?: RequestInit): Promise<WaitlistEntry> => {
+
+  return customFetch<WaitlistEntry>(getJoinWaitlistUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      waitlistInput,)
+  }
+);}
+
+
+
+
+export const getJoinWaitlistMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: BodyType<WaitlistInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: BodyType<WaitlistInput>}, TContext> => {
+
+const mutationKey = ['joinWaitlist'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinWaitlist>>, {data: BodyType<WaitlistInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  joinWaitlist(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinWaitlistMutationResult = NonNullable<Awaited<ReturnType<typeof joinWaitlist>>>
+    export type JoinWaitlistMutationBody = BodyType<WaitlistInput>
+    export type JoinWaitlistMutationError = ErrorType<void>
+
+    /**
+ * @summary Join the waitlist
+ */
+export const useJoinWaitlist = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: BodyType<WaitlistInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinWaitlist>>,
+        TError,
+        {data: BodyType<WaitlistInput>},
+        TContext
+      > => {
+      return useMutation(getJoinWaitlistMutationOptions(options));
+    }
 
 export const getHealthCheckUrl = () => {
 

@@ -369,3 +369,13 @@ export const apiKeyRateLimitsTable = pgTable("api_key_rate_limits", {
 });
 
 export type ApiKeyRateLimit = typeof apiKeyRateLimitsTable.$inferSelect;
+
+export const waitlistSignupsTable = pgTable("waitlist_signups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type WaitlistSignup = typeof waitlistSignupsTable.$inferSelect;

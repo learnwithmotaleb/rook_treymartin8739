@@ -22,7 +22,31 @@ tags:
     description: Identity fingerprint operations
   - name: ai
     description: AI analysis endpoints
+  - name: waitlist
+    description: Waitlist signup operations
 paths:
+  /waitlist:
+    post:
+      operationId: joinWaitlist
+      tags: [waitlist]
+      summary: Join the waitlist
+      description: Add an email address to the launch waitlist. Duplicate submissions are silently deduplicated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaitlistInput"
+      responses:
+        "200":
+          description: Signup recorded (or already on the list)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistEntry"
+        "400":
+          description: Invalid email
+
   /healthz:
     get:
       operationId: healthCheck
@@ -739,3 +763,29 @@ components:
       required:
         - explanation
         - generatedAt
+
+    WaitlistInput:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    WaitlistEntry:
+      type: object
+      required:
+        - id
+        - email
+        - createdAt
+        - alreadyRegistered
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        createdAt:
+          type: string
+        alreadyRegistered:
+          type: boolean

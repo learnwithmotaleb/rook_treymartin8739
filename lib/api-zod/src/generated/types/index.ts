@@ -26,3 +26,5 @@ export * from './threatEvidence';
 export * from './threatScoreBreakdown';
 export * from './threatSummary';
 export * from './userProfile';
+export * from './waitlistEntry';
+export * from './waitlistInput';

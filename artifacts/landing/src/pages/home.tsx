@@ -1,15 +1,16 @@
-import { motion } from "framer-motion";
-import { Shield, Smartphone, Globe, Bell, Lock, Zap, CheckCircle2, ChevronRight, Activity, ScanFace, Database, LayoutDashboard, Fingerprint, Eye } from "lucide-react";
+import { motion, type Variants } from "framer-motion";
+import { Shield, Globe, Bell, Lock, Zap, CheckCircle2, Activity, ScanFace, Database, Fingerprint, Eye } from "lucide-react";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { AnimatedRing } from "@/components/AnimatedRing";
 import { ThreatCard } from "@/components/ThreatCard";
 
-const fadeUp = {
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" as const } }
 };
 
-const stagger = {
+const stagger: Variants = {
+  hidden: {},
   visible: { transition: { staggerChildren: 0.1 } }
 };
 
@@ -177,9 +178,9 @@ export default function Home() {
                 desc: "One centralized dashboard for all alerts. Review, dismiss, or auto-report threats in seconds."
               },
               {
-                icon: <Fingerprint className="w-5 h-5 text-primary" />,
-                title: "Identity Fingerprinting",
-                desc: "Establish an unforgeable baseline of your true digital presence across all connected accounts."
+                icon: <Globe className="w-5 h-5 text-primary" />,
+                title: "Multi-Platform Coverage",
+                desc: "Monitor Instagram, Facebook, X, TikTok, YouTube, LinkedIn, and Snapchat from one unified dashboard."
               }
             ].map((feature, i) => (
               <motion.div
@@ -326,7 +327,7 @@ export default function Home() {
 
             {/* Premium Tier */}
             <div className="glass-panel p-8 rounded-3xl flex flex-col">
-              <h3 className="text-lg font-semibold text-purple-400 mb-2">Agency Shield</h3>
+              <h3 className="text-lg font-semibold text-purple-400 mb-2">Premium Shield</h3>
               <div className="text-4xl font-bold mb-6">$14.99<span className="text-lg font-normal text-muted-foreground">/mo</span></div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
                 {['Unlimited Accounts', 'Instant SMS alerts', 'Auto-takedown requests', 'Dedicated account manager', 'API access'].map((feature, i) => (

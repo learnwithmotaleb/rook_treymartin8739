@@ -24,10 +24,18 @@ export function WaitlistForm({ className = "" }: { className?: string }) {
 
   const onSubmit = async (data: WaitlistFormValues) => {
     setStatus("loading");
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setStatus("success");
-    // Form is not actually submitting anywhere, local state only as requested.
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: data.email }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      setStatus("success");
+    } catch {
+      form.setError("email", { message: "Something went wrong. Please try again." });
+      setStatus("idle");
+    }
   };
 
   if (status === "success") {

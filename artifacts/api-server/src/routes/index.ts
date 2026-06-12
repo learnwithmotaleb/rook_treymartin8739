@@ -13,12 +13,14 @@ import oauthRouter from "./oauth";
 import notificationsRouter from "./notifications";
 import adminRouter from "./admin";
 import v1Router from "./v1";
+import waitlistRouter from "./waitlist";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(legalRouter);
 router.use(oauthRouter);
+router.use(waitlistRouter);
 router.use(adminRouter); // admin routes use their own X-Admin-Key auth
 
 // Developer API v1 — API key auth handled inside v1Router
