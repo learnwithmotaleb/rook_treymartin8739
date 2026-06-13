@@ -65,28 +65,42 @@ router.post("/photos/search", async (req, res): Promise<void> => {
 
     for (const match of externalMatches) {
       try {
+        const simPct = Math.round(match.similarity * 100);
+        const platformLabel = match.platform.charAt(0).toUpperCase() + match.platform.slice(1);
+
+        // stolenPhotoUrl: for fullMatchingImages candidates Vision returns the CDN
+        // image URL as profileUrl — it renders directly. For page-match candidates
+        // profileUrl is a page URL which Image will reject and fall back gracefully.
+        const stolenPhotoUrl = match.profileUrl;
+
+        // yourPhotoUrl: when the caller gave us a CDN imageUrl to search, pass it
+        // through so the "Your Photo" side of the evidence card can render.
+        const yourPhotoUrl = imageUrl ?? undefined;
+
         await db.insert(threatsTable).values({
           userId,
           type: "stolen_photo",
           severity: "high",
           platform: match.platform,
           title: "Stolen photo detected",
-          description: `Your photo was found on @${match.username}'s ${match.platform} profile via reverse image search.`,
-          details: `Discovered via Google Vision reverse image search. Profile: ${match.profileUrl}`,
+          description: `Your photo was found on @${match.username}'s ${platformLabel} profile via reverse image search.`,
+          details: `Discovered via Google Vision WEB_DETECTION API. Confirmed on: ${match.profileUrl}`,
           aiExplanation:
-            `Your uploaded photo was confirmed on @${match.username}'s ${match.platform} account ` +
-            `through Google's WEB_DETECTION API. This means your image is actively being used ` +
-            `without your authorization on another account's profile.`,
-          threatScore: Math.round(match.similarity * 100),
+            `Your uploaded photo was confirmed on @${match.username}'s ${platformLabel} account ` +
+            `through Google's reverse image search (WEB_DETECTION API with ${simPct}% confidence). ` +
+            `This means your image is actively being used without your authorization on another account's profile. ` +
+            `We recommend reporting @${match.username} to ${platformLabel} using the Report button below.`,
+          threatScore: simPct,
           suspiciousUsername: match.username,
           matchedMediaCount: 1,
           evidenceJson: JSON.stringify([
             {
               id: `ev_search_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
               type: "post_photo",
-              similarity: Math.round(match.similarity * 100),
-              label: "Photo confirmed via reverse image search",
-              stolenPhotoUrl: match.profileUrl,
+              similarity: simPct,
+              label: "Photo confirmed via Google reverse image search",
+              ...(yourPhotoUrl ? { yourPhotoUrl } : {}),
+              stolenPhotoUrl,
             },
           ]),
           scoreBreakdownJson: JSON.stringify({
@@ -98,8 +112,9 @@ router.post("/photos/search", async (req, res): Promise<void> => {
             behavioral: 0,
           }),
           detectedSignalsJson: JSON.stringify([
-            "reverse_image_match",
-            "unauthorized_photo_use",
+            `Visual media similarity confirmed (${Math.round(match.similarity * 40)}/40 match score)`,
+            "Reverse image search confirmed photo match",
+            "Unauthorized photo use detected on external profile",
           ]),
           resolved: false,
         });
