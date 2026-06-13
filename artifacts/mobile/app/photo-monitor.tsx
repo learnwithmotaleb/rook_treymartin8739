@@ -121,7 +121,7 @@ export default function PhotoMonitorScreen() {
   const matchedPhotoIds = new Set(
     threats
       .filter((t) => t.type === "stolen_photo" && !t.resolved)
-      .flatMap((t) => t.evidence.map((e) => e.id.replace("ev_", "photo_")))
+      .flatMap((t) => t.evidence.map((e) => e.id.replace(/^ev_/, "")))
   );
 
   const handlePickPhotos = useCallback(async () => {
