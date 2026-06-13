@@ -37,60 +37,111 @@ function LockedThreatCard({ threat, colors }: { threat: Threat; colors: ReturnTy
       ? colors.warning
       : colors.success;
 
+  const severityLabel =
+    threat.severity === "high" ? "HIGH" : threat.severity === "medium" ? "MED" : "LOW";
+
   return (
-    <View style={[lockedStyles.wrapper, { borderColor: colors.border }]}>
-      <View style={lockedStyles.blur} pointerEvents="none">
-        <View style={[lockedStyles.fakeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[lockedStyles.fakeDot, { backgroundColor: severityColor }]} />
-          <View style={lockedStyles.fakeLines}>
-            <View style={[lockedStyles.fakeLine, { backgroundColor: colors.border, width: "80%" }]} />
-            <View style={[lockedStyles.fakeLine, { backgroundColor: colors.border, width: "50%", opacity: 0.6 }]} />
-            <View style={[lockedStyles.fakeLine, { backgroundColor: colors.border, width: "40%", opacity: 0.3 }]} />
+    <View style={[lockedStyles.wrapper, { backgroundColor: colors.card, borderColor: severityColor + "30" }]}>
+      <View style={[lockedStyles.accentBar, { backgroundColor: severityColor }]} />
+      <View style={lockedStyles.body}>
+        <View style={lockedStyles.topRow}>
+          <View style={[lockedStyles.severityPill, { backgroundColor: severityColor + "20", borderColor: severityColor + "50" }]}>
+            <View style={[lockedStyles.severityDot, { backgroundColor: severityColor }]} />
+            <Text style={[lockedStyles.severityText, { color: severityColor, fontFamily: "Inter_700Bold" }]}>
+              {severityLabel}
+            </Text>
+          </View>
+          <View style={[lockedStyles.lockBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Ionicons name="lock-closed" size={11} color={colors.mutedForeground} />
           </View>
         </View>
-      </View>
-      <View style={[lockedStyles.overlay, { backgroundColor: colors.background + "CC" }]}>
-        <View style={lockedStyles.overlayContent}>
-          <View style={[lockedStyles.lockIcon, { backgroundColor: colors.warning + "22", borderColor: colors.warning + "44" }]}>
-            <Ionicons name="lock-closed" size={24} color={colors.warning} />
-          </View>
-          <Text style={[lockedStyles.lockLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            {threat.severity === "high" ? "High-Severity" : threat.severity === "medium" ? "Medium-Severity" : "Low-Severity"} Threat Hidden
-          </Text>
-          <Text style={[lockedStyles.lockSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Upgrade to ShieldID Pro to unlock all alerts
-          </Text>
+        <View style={lockedStyles.skeletonGroup}>
+          <View style={[lockedStyles.skeletonLine, { backgroundColor: colors.border, width: "78%" }]} />
+          <View style={[lockedStyles.skeletonLine, { backgroundColor: colors.border, width: "52%", opacity: 0.55 }]} />
+        </View>
+        <View style={lockedStyles.bottomRow}>
+          <View style={[lockedStyles.skeletonChip, { backgroundColor: colors.border }]} />
+          <View style={[lockedStyles.skeletonChip, { backgroundColor: colors.border, width: 48, opacity: 0.5 }]} />
         </View>
       </View>
+      <LinearGradient
+        colors={["transparent", colors.card + "E0"]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        pointerEvents="none"
+      />
     </View>
   );
 }
 
-function PaywallBanner({ hiddenCount, colors }: { hiddenCount: number; colors: ReturnType<typeof useColors> }) {
+function PaywallBanner({ threats, colors }: { threats: Threat[]; colors: ReturnType<typeof useColors> }) {
+  const high = threats.filter((t) => t.severity === "high").length;
+  const medium = threats.filter((t) => t.severity === "medium").length;
+  const low = threats.filter((t) => t.severity === "low").length;
+
   return (
     <TouchableOpacity
-      activeOpacity={0.85}
+      activeOpacity={0.88}
       onPress={() => router.push("/subscription" as any)}
-      style={[paywallStyles.banner, { borderColor: colors.premium + "44" }]}
+      style={[paywallStyles.banner, { borderColor: colors.premium + "55", backgroundColor: colors.card }]}
     >
       <LinearGradient
-        colors={[colors.primary + "22", colors.premium + "33"]}
+        colors={[colors.premium + "18", colors.primary + "12"]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
-      <View style={[paywallStyles.iconWrap, { backgroundColor: colors.premium + "33" }]}>
-        <MaterialCommunityIcons name="crown" size={20} color={colors.premium} />
+      <View style={paywallStyles.topRow}>
+        <View style={[paywallStyles.crownBadge, { backgroundColor: colors.premium + "22", borderColor: colors.premium + "44" }]}>
+          <MaterialCommunityIcons name="crown" size={13} color={colors.premium} />
+          <Text style={[paywallStyles.crownLabel, { color: colors.premium, fontFamily: "Inter_700Bold" }]}>
+            ShieldID Pro
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.premium + "99"} />
       </View>
-      <View style={paywallStyles.text}>
-        <Text style={[paywallStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-          {hiddenCount} more threat{hiddenCount !== 1 ? "s" : ""} hidden
-        </Text>
-        <Text style={[paywallStyles.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Upgrade to Pro to see all alerts and take action
-        </Text>
+
+      <Text style={[paywallStyles.headline, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+        {threats.length} threat{threats.length !== 1 ? "s" : ""} hidden behind paywall
+      </Text>
+      <Text style={[paywallStyles.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+        Upgrade to see every alert and take action before damage is done.
+      </Text>
+
+      <View style={paywallStyles.severityRow}>
+        {high > 0 && (
+          <View style={[paywallStyles.chip, { backgroundColor: colors.danger + "18", borderColor: colors.danger + "40" }]}>
+            <View style={[paywallStyles.chipDot, { backgroundColor: colors.danger }]} />
+            <Text style={[paywallStyles.chipText, { color: colors.danger, fontFamily: "Inter_600SemiBold" }]}>
+              {high} High
+            </Text>
+          </View>
+        )}
+        {medium > 0 && (
+          <View style={[paywallStyles.chip, { backgroundColor: colors.warning + "18", borderColor: colors.warning + "40" }]}>
+            <View style={[paywallStyles.chipDot, { backgroundColor: colors.warning }]} />
+            <Text style={[paywallStyles.chipText, { color: colors.warning, fontFamily: "Inter_600SemiBold" }]}>
+              {medium} Medium
+            </Text>
+          </View>
+        )}
+        {low > 0 && (
+          <View style={[paywallStyles.chip, { backgroundColor: colors.success + "18", borderColor: colors.success + "40" }]}>
+            <View style={[paywallStyles.chipDot, { backgroundColor: colors.success }]} />
+            <Text style={[paywallStyles.chipText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
+              {low} Low
+            </Text>
+          </View>
+        )}
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.premium} />
+
+      <View style={[paywallStyles.ctaRow, { borderTopColor: colors.border }]}>
+        <Text style={[paywallStyles.ctaText, { color: colors.premium, fontFamily: "Inter_600SemiBold" }]}>
+          Unlock All Alerts
+        </Text>
+        <Ionicons name="arrow-forward" size={15} color={colors.premium} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -206,7 +257,7 @@ export default function AlertsScreen() {
           <>
             {lockedThreats.length > 0 && (
               <View style={styles.lockedSection}>
-                <PaywallBanner hiddenCount={lockedThreats.length} colors={colors} />
+                <PaywallBanner threats={lockedThreats} colors={colors} />
                 {lockedThreats.map((t, index) => (
                   <Animated.View key={t.id} entering={FadeInDown.delay((visibleThreats.length + index) * 80).springify()}>
                     <LockedThreatCard threat={t} colors={colors} />
@@ -290,71 +341,103 @@ const styles = StyleSheet.create({
 
 const lockedStyles = StyleSheet.create({
   wrapper: {
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     overflow: "hidden",
-    position: "relative",
-    height: 96,
+    flexDirection: "row",
+    height: 100,
   },
-  blur: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.2,
-    padding: 16,
+  accentBar: {
+    width: 4,
+    alignSelf: "stretch",
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
     justifyContent: "center",
   },
-  fakeCard: {
+  topRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
+    justifyContent: "space-between",
   },
-  fakeDot: { width: 10, height: 10, borderRadius: 5 },
-  fakeLines: { flex: 1, gap: 8 },
-  fakeLine: { height: 10, borderRadius: 5 },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  overlayContent: {
+  severityPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    gap: 14,
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
   },
-  lockIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  severityDot: { width: 6, height: 6, borderRadius: 3 },
+  severityText: { fontSize: 11, letterSpacing: 0.6 },
+  lockBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  lockLabel: { fontSize: 14, flex: 1 },
-  lockSub: { fontSize: 12 },
+  skeletonGroup: { gap: 7 },
+  skeletonLine: { height: 9, borderRadius: 5 },
+  bottomRow: { flexDirection: "row", gap: 8 },
+  skeletonChip: { height: 7, width: 64, borderRadius: 4 },
 });
 
 const paywallStyles = StyleSheet.create({
   banner: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    padding: 16,
+    gap: 10,
+    marginBottom: 4,
+  },
+  topRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 4,
-    overflow: "hidden",
+    justifyContent: "space-between",
   },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  crownBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  crownLabel: { fontSize: 11, letterSpacing: 0.3 },
+  headline: { fontSize: 17, lineHeight: 22 },
+  sub: { fontSize: 13, lineHeight: 18, opacity: 0.85 },
+  severityRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipText: { fontSize: 12 },
+  ctaRow: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+    paddingTop: 10,
+    marginTop: 2,
+    borderTopWidth: 1,
   },
-  text: { flex: 1, gap: 2 },
-  title: { fontSize: 14 },
-  sub: { fontSize: 12 },
+  ctaText: { fontSize: 14 },
 });
