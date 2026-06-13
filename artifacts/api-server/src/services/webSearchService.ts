@@ -31,6 +31,7 @@ export interface WebSearchCandidate {
   username: string;
   platform: string;
   profileUrl: string;
+  imageUrl?: string;
   title: string;
   snippet: string;
   similarity: number;
@@ -129,6 +130,8 @@ interface VisionWebPage {
   url: string;
   pageTitle?: string;
   score?: number;
+  fullMatchingImages?: VisionWebImage[];
+  partialMatchingImages?: VisionWebImage[];
 }
 
 interface VisionWebImage {
@@ -823,10 +826,15 @@ export async function reverseImageSearchForPhoto(input: {
     const key = `${extracted.platform}:${extracted.username}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    // Use the nested image URL (actual photo) for display; page.url for opening in browser
+    const nestedImageUrl =
+      page.fullMatchingImages?.[0]?.url ??
+      page.partialMatchingImages?.[0]?.url;
     candidates.push({
       username: extracted.username,
       platform: extracted.platform,
       profileUrl: page.url,
+      imageUrl: nestedImageUrl,
       title: page.pageTitle ?? `${extracted.username} on ${extracted.platform}`,
       snippet: "Your photo was found on this profile via Google reverse image search",
       similarity: page.score ?? 0.92,
@@ -844,6 +852,7 @@ export async function reverseImageSearchForPhoto(input: {
       username: extracted.username,
       platform: extracted.platform,
       profileUrl: img.url,
+      imageUrl: img.url,
       title: `${extracted.username} on ${extracted.platform}`,
       snippet: "Exact copy of your photo found at this URL",
       similarity: img.score ?? 0.98,

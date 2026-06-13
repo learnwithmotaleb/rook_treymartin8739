@@ -69,10 +69,14 @@ router.post("/photos/search", async (req, res): Promise<void> => {
         const simPct = Math.round(match.similarity * 100);
         const platformLabel = match.platform.charAt(0).toUpperCase() + match.platform.slice(1);
 
-        // stolenPhotoUrl: for fullMatchingImages candidates Vision returns the CDN
-        // image URL as profileUrl — it renders directly. For page-match candidates
-        // profileUrl is a page URL which Image will reject and fall back gracefully.
-        const stolenPhotoUrl = match.profileUrl;
+        // stolenPhotoUrl: actual image URL for display (nested from Vision page data
+        // or the CDN image URL itself). May require auth on some platforms — the
+        // client falls back to "Tap to view" gracefully when it can't render.
+        const stolenPhotoUrl = match.imageUrl ?? match.profileUrl;
+
+        // stolenPageUrl: the web page where the image was found — used as the
+        // tap target to open the platform page directly in the browser.
+        const stolenPageUrl = match.profileUrl;
 
         // yourPhotoUrl: CDN URL for account photos; for camera roll uploads use the
         // base64 as a data URI so it persists in the DB and renders in any session
@@ -106,6 +110,7 @@ router.post("/photos/search", async (req, res): Promise<void> => {
               label: "Photo confirmed via Google reverse image search",
               ...(yourPhotoUrl ? { yourPhotoUrl } : {}),
               stolenPhotoUrl,
+              stolenPageUrl,
             },
           ]),
           scoreBreakdownJson: JSON.stringify({

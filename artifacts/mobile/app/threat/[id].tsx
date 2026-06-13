@@ -331,8 +331,8 @@ function EvidenceCard({ item }: { item: MatchedEvidence }) {
           caption={item.stolenCaption}
           simColor={simColor}
           onTap={
-            item.stolenPhotoUrl
-              ? () => Linking.openURL(item.stolenPhotoUrl!).catch(() => {})
+            (item.stolenPageUrl ?? item.stolenPhotoUrl)
+              ? () => Linking.openURL((item.stolenPageUrl ?? item.stolenPhotoUrl)!).catch(() => {})
               : undefined
           }
         />
@@ -439,6 +439,7 @@ export default function ThreatDetail() {
     stolenCaption: "stolenCaption" in e ? (e as any).stolenCaption : undefined,
     yourPhotoUrl: "yourPhotoUrl" in e ? (e as any).yourPhotoUrl : undefined,
     stolenPhotoUrl: "stolenPhotoUrl" in e ? (e as any).stolenPhotoUrl : undefined,
+    stolenPageUrl: "stolenPageUrl" in e ? (e as any).stolenPageUrl : undefined,
   }));
 
   const suspiciousUsername =

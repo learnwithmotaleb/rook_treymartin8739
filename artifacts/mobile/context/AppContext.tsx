@@ -72,6 +72,7 @@ export interface MatchedEvidence {
   stolenCaption?: string;
   yourPhotoUrl?: string;
   stolenPhotoUrl?: string;
+  stolenPageUrl?: string;
   label: string;
 }
 
