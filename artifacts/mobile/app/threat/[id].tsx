@@ -394,15 +394,15 @@ export default function ThreatDetail() {
     behavioral: 0,
   };
 
-  const evidence: MatchedEvidence[] = (detail?.evidence ?? []).map((e) => ({
+  const evidence: MatchedEvidence[] = (detail?.evidence ?? summary?.evidence ?? []).map((e) => ({
     id: e.id,
-    type: e.type,
+    type: e.type as MatchedEvidence["type"],
     similarity: e.similarity,
     label: e.label,
-    yourCaption: e.yourCaption,
-    stolenCaption: e.stolenCaption,
-    yourPhotoUrl: e.yourPhotoUrl,
-    stolenPhotoUrl: e.stolenPhotoUrl,
+    yourCaption: "yourCaption" in e ? (e as any).yourCaption : undefined,
+    stolenCaption: "stolenCaption" in e ? (e as any).stolenCaption : undefined,
+    yourPhotoUrl: "yourPhotoUrl" in e ? (e as any).yourPhotoUrl : undefined,
+    stolenPhotoUrl: "stolenPhotoUrl" in e ? (e as any).stolenPhotoUrl : undefined,
   }));
 
   const suspiciousUsername =

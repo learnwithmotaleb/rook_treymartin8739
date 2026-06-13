@@ -20,6 +20,7 @@ import {
   removeAccount as apiRemoveAccount,
   updateAccount as apiUpdateAccount,
   updateMe,
+  checkIsDemoUser,
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
@@ -455,10 +456,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             // Generate a client-side stolen_photo threat when photos are indexed
             // and no stolen_photo threat was returned from the server.
+            // Mirrors the server-side isDemoUser guard: only fabricate threats for
+            // demo users (no Clerk token). Real users must only see real results.
             const photos = indexedPhotosRef.current;
             const existingPhotoThreats = localPhotoThreatsRef.current.filter((t) => !t.resolved);
             const serverHasPhotoThreat = freshThreats.some((t) => t.type === "stolen_photo" && !t.resolved);
-            if (photos.length > 0 && !serverHasPhotoThreat && existingPhotoThreats.length === 0) {
+            const demoUser = await checkIsDemoUser();
+            if (demoUser && photos.length > 0 && !serverHasPhotoThreat && existingPhotoThreats.length === 0) {
               const photo = photos[Math.floor(Math.random() * photos.length)]!;
               const platforms: Platform[] = ["tiktok", "facebook", "instagram", "x"];
               const platform = platforms[Math.floor(Math.random() * platforms.length)]!;
@@ -484,7 +488,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   {
                     id: `ev_${photo.id}`,
                     type: "post_photo",
-                    similarity: 0.94,
+                    similarity: 94,
                     yourPhotoUrl: photo.localUri,
                     label: "Photo match detected",
                   },

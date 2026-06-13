@@ -17,6 +17,17 @@ export function setApiAuthToken(getter: () => Promise<string | null>) {
   _authTokenGetter = getter;
 }
 
+/**
+ * Returns true if no Clerk token is available — mirrors the server-side
+ * `isDemoUser = !user.clerkId` guard in scanOrchestrator.ts.
+ * Demo users see simulated threats; real users should never see fabricated ones.
+ */
+export async function checkIsDemoUser(): Promise<boolean> {
+  if (!_authTokenGetter) return true;
+  const token = await _authTokenGetter();
+  return !token;
+}
+
 /** Thrown when the server returns 429 scan_limit_reached. */
 export class ScanQuotaError extends Error {
   readonly reason: string;
