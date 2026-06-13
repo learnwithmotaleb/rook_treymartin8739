@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import Animated, { FadeInDown, Layout } from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
 import { useApp, Severity, type Threat } from "@/context/AppContext";
@@ -152,6 +152,22 @@ export default function AlertsScreen() {
   const { threats, refreshData, user } = useApp();
   const [filter, setFilter] = useState<Filter>("all");
   const [refreshing, setRefreshing] = useState(false);
+  const navigation = useNavigation();
+  const hasMounted = useRef(false);
+
+  // Refresh user profile + threats every time this tab comes into focus so
+  // that tier/premium changes (e.g. after a subscription upgrade) are reflected
+  // immediately without requiring a full app restart.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      if (!hasMounted.current) {
+        hasMounted.current = true;
+        return;
+      }
+      refreshData().catch(() => {});
+    });
+    return unsubscribe;
+  }, [navigation, refreshData]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
