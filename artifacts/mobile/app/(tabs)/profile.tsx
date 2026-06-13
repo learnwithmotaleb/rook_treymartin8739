@@ -299,6 +299,11 @@ export default function ProfileScreen() {
             onPress={() => router.push("/subscription" as any)}
           />
           <SettingsRow
+            icon={<MaterialCommunityIcons name="image-search" size={20} color={colors.primary} />}
+            label="Photo Monitor"
+            onPress={() => router.push("/photo-monitor" as any)}
+          />
+          <SettingsRow
             icon={<Ionicons name="notifications" size={20} color={colors.primary} />}
             label="Notifications"
             onPress={() => router.push("/notification-settings" as any)}

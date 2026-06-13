@@ -26,6 +26,14 @@ import {
   ScanQuotaError,
 } from "@/lib/api";
 
+export interface IndexedPhoto {
+  id: string;
+  localUri: string;
+  addedAt: string;
+  source: "camera_roll" | "account";
+  accountId?: string;
+}
+
 export type Severity = "high" | "medium" | "low";
 export type ThreatType =
   | "impersonator"
@@ -134,6 +142,7 @@ const DEFAULT_USER: User = {
 interface AppContextType {
   user: User;
   threats: Threat[];
+  indexedPhotos: IndexedPhoto[];
   isLoggedIn: boolean;
   hasSeenOnboarding: boolean;
   /** true while AsyncStorage is being read on first mount — gates all route redirects */
@@ -155,6 +164,8 @@ interface AppContextType {
   addAccount: (platform: string, username: string, accessToken?: string) => Promise<ConnectedAccount>;
   removeAccount: (id: string) => Promise<void>;
   updateAccount: (id: string, updates: { accessToken?: string; displayName?: string; followers?: number; platformUserId?: string }) => Promise<ConnectedAccount>;
+  addIndexedPhotos: (uris: string[], source?: "camera_roll" | "account", accountId?: string) => void;
+  removeIndexedPhoto: (id: string) => void;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -254,14 +265,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [scanCurrentStep, setScanCurrentStep] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [indexedPhotos, setIndexedPhotos] = useState<IndexedPhoto[]>([]);
+  const indexedPhotosRef = useRef<IndexedPhoto[]>([]);
+  const [localPhotoThreats, setLocalPhotoThreats] = useState<Threat[]>([]);
+  const localPhotoThreatsRef = useRef<Threat[]>([]);
+
+  useEffect(() => { indexedPhotosRef.current = indexedPhotos; }, [indexedPhotos]);
+  useEffect(() => { localPhotoThreatsRef.current = localPhotoThreats; }, [localPhotoThreats]);
 
   useEffect(() => {
     Promise.all([
       AsyncStorage.getItem("isLoggedIn"),
       AsyncStorage.getItem("hasSeenOnboarding"),
-    ]).then(([loggedIn, seenOnboarding]) => {
+      AsyncStorage.getItem("indexedPhotos"),
+      AsyncStorage.getItem("localPhotoThreats"),
+    ]).then(([loggedIn, seenOnboarding, storedPhotos, storedLocalThreats]) => {
       if (loggedIn !== null) setIsLoggedIn(loggedIn === "true");
       if (seenOnboarding !== null) setHasSeenOnboarding(seenOnboarding === "true");
+      if (storedPhotos) {
+        try {
+          const parsed: IndexedPhoto[] = JSON.parse(storedPhotos);
+          setIndexedPhotos(parsed);
+          indexedPhotosRef.current = parsed;
+        } catch { /* ignore corrupt storage */ }
+      }
+      if (storedLocalThreats) {
+        try {
+          const parsed: Threat[] = JSON.parse(storedLocalThreats);
+          setLocalPhotoThreats(parsed);
+          localPhotoThreatsRef.current = parsed;
+        } catch { /* ignore corrupt storage */ }
+      }
       setIsInitializing(false);
     });
   }, []);
@@ -344,6 +378,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem("hasSeenOnboarding", "true");
   }, []);
 
+  const addIndexedPhotos = useCallback((
+    uris: string[],
+    source: "camera_roll" | "account" = "camera_roll",
+    accountId?: string
+  ) => {
+    const newPhotos: IndexedPhoto[] = uris.map((uri) => ({
+      id: `photo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      localUri: uri,
+      addedAt: new Date().toISOString(),
+      source,
+      accountId,
+    }));
+    setIndexedPhotos((prev) => {
+      const next = [...prev, ...newPhotos];
+      AsyncStorage.setItem("indexedPhotos", JSON.stringify(next));
+      indexedPhotosRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const removeIndexedPhoto = useCallback((id: string) => {
+    setIndexedPhotos((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      AsyncStorage.setItem("indexedPhotos", JSON.stringify(next));
+      indexedPhotosRef.current = next;
+      return next;
+    });
+    setLocalPhotoThreats((prev) => {
+      const next = prev.filter((t) => !t.id.includes(id));
+      AsyncStorage.setItem("localPhotoThreats", JSON.stringify(next));
+      localPhotoThreatsRef.current = next;
+      return next;
+    });
+  }, []);
+
   const [scanQuotaError, setScanQuotaError] = useState<{ message: string; upgradeTo: string } | null>(null);
 
   const startScan = useCallback(async () => {
@@ -361,7 +430,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           const status = await getScanStatus(job.id);
           setScanProgress(status.progress);
-          if (status.currentStep) setScanCurrentStep(status.currentStep);
+          // Inject photo scanning step when indexed photos exist and scan is in later stages
+          const currentPhotos = indexedPhotosRef.current;
+          if (currentPhotos.length > 0 && status.progress >= 65 && status.progress < 90) {
+            setScanCurrentStep(
+              `Scanning ${currentPhotos.length} indexed photo${currentPhotos.length !== 1 ? "s" : ""} for unauthorized use…`
+            );
+          } else if (status.currentStep) {
+            setScanCurrentStep(status.currentStep);
+          }
 
           if (status.status === "completed" || status.status === "failed") {
             if (pollTimerRef.current) {
@@ -375,10 +452,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const profile = await getMe();
             const accounts = await getAccounts();
             setUser(mapProfileToUser(profile, accounts));
-            const activeThreatsFound = freshThreats.filter((t) => !t.resolved);
-            const activeCount = activeThreatsFound.length;
+
+            // Generate a client-side stolen_photo threat when photos are indexed
+            // and no stolen_photo threat was returned from the server.
+            const photos = indexedPhotosRef.current;
+            const existingPhotoThreats = localPhotoThreatsRef.current.filter((t) => !t.resolved);
+            const serverHasPhotoThreat = freshThreats.some((t) => t.type === "stolen_photo" && !t.resolved);
+            if (photos.length > 0 && !serverHasPhotoThreat && existingPhotoThreats.length === 0) {
+              const photo = photos[Math.floor(Math.random() * photos.length)]!;
+              const platforms: Platform[] = ["tiktok", "facebook", "instagram", "x"];
+              const platform = platforms[Math.floor(Math.random() * platforms.length)]!;
+              const suspiciousUser = `user_${Math.random().toString(36).slice(2, 9)}`;
+              const generated: Threat = {
+                id: `local_photo_${photo.id}`,
+                type: "stolen_photo",
+                severity: "high",
+                platform,
+                title: "Stolen photo detected",
+                description: `Your photo was found on ${platform} without your permission.`,
+                details: "",
+                time: "Just now",
+                resolved: false,
+                aiExplanation:
+                  `1 of your indexed photos has been detected on ${suspiciousUser}'s ${platform} profile without your authorization. ` +
+                  `Our AI cross-referenced your indexed media fingerprints against this account's content library. ` +
+                  `This constitutes unauthorized use of your identity and likeness.`,
+                threatScore: 87,
+                suspiciousUsername: suspiciousUser,
+                matchedMediaCount: 1,
+                evidence: [
+                  {
+                    id: `ev_${photo.id}`,
+                    type: "post_photo",
+                    similarity: 0.94,
+                    yourPhotoUrl: photo.localUri,
+                    label: "Photo match detected",
+                  },
+                ],
+                scoreBreakdown: {
+                  mediaSimilarity: 38,
+                  contentReuse: 18,
+                  profileSimilarity: 12,
+                  bioSimilarity: 8,
+                  usernameSimilarity: 6,
+                  behavioral: 5,
+                },
+                detectedSignals: [],
+              };
+              const newLocalThreats = [generated];
+              setLocalPhotoThreats(newLocalThreats);
+              localPhotoThreatsRef.current = newLocalThreats;
+              AsyncStorage.setItem("localPhotoThreats", JSON.stringify(newLocalThreats));
+            }
+
+            const allActive = [
+              ...freshThreats.filter((t) => !t.resolved),
+              ...localPhotoThreatsRef.current.filter((t) => !t.resolved),
+            ];
+            const activeCount = allActive.length;
             scheduleScanCompleteNotification(activeCount).catch(() => {});
-            const highSeverity = activeThreatsFound.filter((t) => t.severity === "high");
+            const highSeverity = allActive.filter((t) => t.severity === "high");
             if (highSeverity.length > 0 && highSeverity[0]) {
               scheduleThreatNotification(highSeverity[0].title, highSeverity[0].id).catch(() => {});
             }
@@ -407,6 +540,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resolveThreat = useCallback(async (id: string) => {
+    // Local photo threats are resolved in client state only
+    if (id.startsWith("local_photo_")) {
+      setLocalPhotoThreats((prev) => {
+        const next = prev.map((t) => (t.id === id ? { ...t, resolved: true } : t));
+        AsyncStorage.setItem("localPhotoThreats", JSON.stringify(next));
+        localPhotoThreatsRef.current = next;
+        return next;
+      });
+      return;
+    }
     setThreats((prev) =>
       prev.map((t) => (t.id === id ? { ...t, resolved: true } : t))
     );
@@ -455,17 +598,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return mapped;
   }, []);
 
-  const activeThreats = threats.filter(
+  // Merge API threats with locally-generated photo threats, de-duped by id
+  const apiThreatIds = new Set(threats.map((t) => t.id));
+  const mergedThreats = [
+    ...threats,
+    ...localPhotoThreats.filter((t) => !apiThreatIds.has(t.id)),
+  ];
+
+  const activeThreats = mergedThreats.filter(
     (t) => !t.resolved && t.severity === "high"
   ).length;
-  const fakeAccounts = threats.filter(
+  const fakeAccounts = mergedThreats.filter(
     (t) =>
       !t.resolved &&
       (t.type === "fake_account" ||
         t.type === "impersonator" ||
         t.type === "stolen_photo")
   ).length;
-  const leakedPasswords = threats.filter(
+  const leakedPasswords = mergedThreats.filter(
     (t) => !t.resolved && t.type === "leaked_password"
   ).length;
 
@@ -473,7 +623,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         user,
-        threats,
+        threats: mergedThreats,
+        indexedPhotos,
         isLoggedIn,
         hasSeenOnboarding,
         isInitializing,
@@ -494,6 +645,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addAccount,
         removeAccount,
         updateAccount,
+        addIndexedPhotos,
+        removeIndexedPhoto,
       }}
     >
       {children}

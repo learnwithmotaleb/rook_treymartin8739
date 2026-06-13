@@ -32,6 +32,7 @@ export default function ScanScreen() {
     activeThreats,
     fakeAccounts,
     threats,
+    indexedPhotos,
   } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -253,7 +254,57 @@ export default function ScanScreen() {
               Fake Accts
             </Text>
           </GlassCard>
+          <GlassCard style={styles.statItem}>
+            <MaterialCommunityIcons
+              name="image-search"
+              size={24}
+              color={indexedPhotos.length > 0 ? colors.primary : colors.mutedForeground}
+            />
+            <Text
+              style={[
+                styles.statValue,
+                {
+                  color: indexedPhotos.length > 0 ? colors.foreground : colors.mutedForeground,
+                  fontFamily: "Inter_700Bold",
+                },
+              ]}
+            >
+              {indexedPhotos.length}
+            </Text>
+            <Text
+              style={[
+                styles.statLabel,
+                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+              ]}
+            >
+              Photos
+            </Text>
+          </GlassCard>
         </View>
+
+        {/* Photo Monitor shortcut */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push("/photo-monitor" as any)}
+          style={{ width: "100%" }}
+        >
+          <GlassCard style={styles.photoMonitorCard}>
+            <View style={[styles.photoMonitorIcon, { backgroundColor: colors.primary + "22" }]}>
+              <MaterialCommunityIcons name="image-search" size={22} color={colors.primary} />
+            </View>
+            <View style={styles.photoMonitorText}>
+              <Text style={[styles.photoMonitorTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Photo Monitor
+              </Text>
+              <Text style={[styles.photoMonitorSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {indexedPhotos.length > 0
+                  ? `${indexedPhotos.length} photo${indexedPhotos.length !== 1 ? "s" : ""} being monitored`
+                  : "Upload photos to monitor for unauthorized use"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+          </GlassCard>
+        </TouchableOpacity>
 
         {/* Last scan */}
         <View style={styles.lastScanRow}>
@@ -557,6 +608,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 4,
   },
+  photoMonitorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    width: "100%",
+    paddingVertical: 14,
+  },
+  photoMonitorIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoMonitorText: { flex: 1, gap: 2 },
+  photoMonitorTitle: { fontSize: 15 },
+  photoMonitorSub: { fontSize: 13 },
   noAccountsTitle: { fontSize: 16, textAlign: "center" },
   noAccountsSub: { fontSize: 14, textAlign: "center", lineHeight: 20, opacity: 0.8 },
   connectBtn: {
