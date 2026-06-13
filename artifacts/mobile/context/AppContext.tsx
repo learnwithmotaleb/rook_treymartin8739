@@ -450,7 +450,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ? Promise.allSettled(
           photosSnapshot.map(async (photo) => {
             if (photo.base64) {
-              await reverseImageSearch({ imageBase64: photo.base64 });
+              await reverseImageSearch({ imageBase64: photo.base64, localUri: photo.localUri });
             } else if (photo.localUri.startsWith("http")) {
               await reverseImageSearch({ imageUrl: photo.localUri });
             }

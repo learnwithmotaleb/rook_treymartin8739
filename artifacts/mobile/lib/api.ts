@@ -370,6 +370,7 @@ export interface PhotoSearchResponse {
 export async function reverseImageSearch(input: {
   imageUrl?: string;
   imageBase64?: string;
+  localUri?: string;
 }): Promise<PhotoSearchResponse> {
   return apiFetch<PhotoSearchResponse>("/photos/search", {
     method: "POST",

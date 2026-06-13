@@ -23,7 +23,17 @@ import { Skeleton } from "@/components/Skeleton";
 import { severityColor } from "@/lib/severity";
 import { getThreat, resolveThreat as apiResolveThreat, type ThreatDetail } from "@/lib/api";
 
-const REPORT_URLS: Record<string, string> = {
+const PROFILE_URL_TEMPLATES: Record<string, (u: string) => string> = {
+  instagram: (u) => `https://www.instagram.com/${u}/`,
+  facebook: (u) => `https://www.facebook.com/${u}`,
+  x: (u) => `https://x.com/${u}`,
+  tiktok: (u) => `https://www.tiktok.com/@${u}`,
+  youtube: (u) => `https://www.youtube.com/@${u}`,
+  linkedin: (u) => `https://www.linkedin.com/in/${u}`,
+  snapchat: (u) => `https://www.snapchat.com/add/${u}`,
+};
+
+const REPORT_GUIDE_URLS: Record<string, string> = {
   instagram: "https://help.instagram.com/519522125107875",
   facebook: "https://www.facebook.com/help/174210519303259",
   x: "https://help.twitter.com/en/safety-and-security/report-a-fake-account",
@@ -444,38 +454,47 @@ export default function ThreatDetail() {
   const handleReport = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const platform = threat.platform as string | null;
-    const reportUrl = platform ? REPORT_URLS[platform] : null;
+    const handle = (suspiciousUsername || "").replace(/^@/, "");
+    const profileUrl = platform && handle ? PROFILE_URL_TEMPLATES[platform]?.(handle) : null;
+    const guideUrl = platform ? REPORT_GUIDE_URLS[platform] : null;
+
+    const openProfile = () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      if (profileUrl) {
+        Linking.openURL(profileUrl).catch(() => {
+          Alert.alert("Could not open browser", "Please find and report the account manually through the platform's app.");
+        });
+      } else if (guideUrl) {
+        Linking.openURL(guideUrl).catch(() => {});
+      }
+    };
+
+    const buttons: Parameters<typeof Alert.alert>[2] = [
+      { text: "Cancel", style: "cancel" },
+    ];
+
+    if (profileUrl) {
+      buttons.push({
+        text: "Go to Profile & Report",
+        style: "destructive",
+        onPress: openProfile,
+      });
+    } else {
+      buttons.push({
+        text: "Report",
+        style: "destructive",
+        onPress: openProfile,
+      });
+    }
+
     Alert.alert(
-      "Report Impersonator",
-      `Report ${suspiciousUsername || "this account"} as an impersonator?${
-        reportUrl
-          ? " We'll open the platform's official reporting page."
-          : " Your report will be recorded in ShieldID."
-      }`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Report",
-          style: "destructive",
-          onPress: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            if (reportUrl) {
-              Linking.openURL(reportUrl).catch(() => {
-                Alert.alert(
-                  "Could not open browser",
-                  "Please report the account manually through the platform's app."
-                );
-              });
-            } else {
-              Alert.alert(
-                "Report Recorded",
-                "Your report has been recorded. We recommend also reporting the account directly through the platform.",
-                [{ text: "OK" }]
-              );
-            }
-          },
-        },
-      ]
+      `Report @${handle || "this account"}`,
+      profileUrl
+        ? `We'll open @${handle}'s profile directly so you can tap "Report" from within the platform's app.`
+        : guideUrl
+        ? "We'll open the platform's official reporting guide."
+        : "Your report will be recorded in ShieldID.",
+      buttons
     );
   };
 

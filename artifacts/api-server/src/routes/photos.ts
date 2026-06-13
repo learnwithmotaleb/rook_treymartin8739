@@ -19,9 +19,10 @@ const MAX_BASE64_BYTES = 8 * 1024 * 1024; // 8 MB limit
  */
 router.post("/photos/search", async (req, res): Promise<void> => {
   const userId = req.userId;
-  const { imageUrl, imageBase64 } = req.body as {
+  const { imageUrl, imageBase64, localUri } = req.body as {
     imageUrl?: string;
     imageBase64?: string;
+    localUri?: string;
   };
 
   if (!imageUrl && !imageBase64) {
@@ -73,9 +74,9 @@ router.post("/photos/search", async (req, res): Promise<void> => {
         // profileUrl is a page URL which Image will reject and fall back gracefully.
         const stolenPhotoUrl = match.profileUrl;
 
-        // yourPhotoUrl: when the caller gave us a CDN imageUrl to search, pass it
-        // through so the "Your Photo" side of the evidence card can render.
-        const yourPhotoUrl = imageUrl ?? undefined;
+        // yourPhotoUrl: CDN URL for account photos; localUri for camera roll uploads
+        // (device file:// paths render fine in React Native Image on the same device).
+        const yourPhotoUrl = imageUrl ?? localUri ?? undefined;
 
         await db.insert(threatsTable).values({
           userId,
