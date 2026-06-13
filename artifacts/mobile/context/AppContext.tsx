@@ -429,6 +429,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setScanQuotaError(null);
     setIsScanning(true);
     setScanProgress(0);
+    setScanCurrentStep(null);
+
+    // Safety: never leave isScanning stuck true for more than 3 minutes
+    const safetyTimer = setTimeout(() => {
+      setIsScanning(false);
+      setScanCurrentStep(null);
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    }, 3 * 60 * 1000);
 
     // Snapshot monitored photos at scan start so the list can't change mid-scan
     const photosSnapshot = [...indexedPhotosRef.current];
@@ -465,6 +476,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               clearInterval(pollTimerRef.current);
               pollTimerRef.current = null;
             }
+            clearTimeout(safetyTimer);
 
             // Wait for any in-flight photo scans before the final data refresh
             await photoScanPromise.catch(() => {});
@@ -493,12 +505,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
           }
+          clearTimeout(safetyTimer);
           setIsScanning(false);
           setScanCurrentStep(null);
         }
       }, 1200);
     } catch (err) {
+      clearTimeout(safetyTimer);
       setIsScanning(false);
+      setScanCurrentStep(null);
       if (err instanceof ScanQuotaError) {
         setScanQuotaError({ message: err.userMessage, upgradeTo: err.upgradeTo });
       }

@@ -235,7 +235,7 @@ export default function PhotoMonitorScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: "images",
         allowsMultipleSelection: true,
-        quality: 0.4,
+        quality: 0.1,
         selectionLimit: 10,
         base64: true,
       });
