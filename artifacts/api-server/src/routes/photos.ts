@@ -6,6 +6,7 @@ import {
   isVisionConfigured,
 } from "../services/webSearchService";
 import { logger } from "../lib/logger";
+import { recalculateScore } from "../services/scoreService";
 
 const router: IRouter = Router();
 
@@ -132,6 +133,12 @@ router.post("/photos/search", async (req, res): Promise<void> => {
       } catch (err) {
         logger.error({ err, match }, "Failed to insert photo threat record");
       }
+    }
+
+    if (threatsCreated > 0) {
+      recalculateScore(userId).catch((err) =>
+        logger.warn({ err }, "Score recalculation failed after photo threats")
+      );
     }
 
     logger.info(

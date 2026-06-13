@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, threatsTable, threatActorsTable } from "@workspace/db";
+import { recalculateScore } from "../services/scoreService";
 
 
 const router: IRouter = Router();
@@ -149,6 +150,10 @@ router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Threat not found" });
     return;
   }
+
+  recalculateScore(userId).catch((err) =>
+    req.log.warn({ err }, "Score recalculation failed after resolve")
+  );
 
   res.json(parseThreat(updated));
 });

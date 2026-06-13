@@ -16,6 +16,7 @@
  */
 
 import { eq, and, ne } from "drizzle-orm";
+import { recalculateScore } from "./scoreService";
 import {
   db,
   scanJobsTable,
@@ -972,6 +973,11 @@ async function runScanPipeline(
       completedAt: new Date(),
     })
     .where(eq(scanJobsTable.id, jobId));
+
+  // Recalculate security score based on all active threats after scan
+  recalculateScore(userId).catch((err) =>
+    logger.warn({ err }, "Score recalculation failed after scan")
+  );
 
   // Deliver scan.completed webhook event
   deliverEvent(userId, "scan.completed", {
