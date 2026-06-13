@@ -74,9 +74,13 @@ router.post("/photos/search", async (req, res): Promise<void> => {
         // profileUrl is a page URL which Image will reject and fall back gracefully.
         const stolenPhotoUrl = match.profileUrl;
 
-        // yourPhotoUrl: CDN URL for account photos; localUri for camera roll uploads
-        // (device file:// paths render fine in React Native Image on the same device).
-        const yourPhotoUrl = imageUrl ?? localUri ?? undefined;
+        // yourPhotoUrl: CDN URL for account photos; for camera roll uploads use the
+        // base64 as a data URI so it persists in the DB and renders in any session
+        // without depending on the device's ephemeral temp file path.
+        const yourPhotoUrl = imageUrl
+          ?? (imageBase64 ? `data:image/jpeg;base64,${imageBase64}` : undefined)
+          ?? localUri
+          ?? undefined;
 
         await db.insert(threatsTable).values({
           userId,
