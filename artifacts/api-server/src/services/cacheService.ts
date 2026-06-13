@@ -14,7 +14,7 @@ import { eq, and, gt } from "drizzle-orm";
 import { db, scanCacheTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 
-const CACHE_TTL_MS = 72 * 60 * 60 * 1000; // 72 hours
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours — short enough to re-scan same day
 
 /**
  * Build a deterministic cache key from a list of username:platform pairs.

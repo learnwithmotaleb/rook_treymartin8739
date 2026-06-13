@@ -307,7 +307,7 @@ export default function PhotoMonitorScreen() {
   // ── Camera roll: pick photos, get base64, run reverse image search ────────
 
   const handlePickPhotos = useCallback(async () => {
-    if (addingPhotos || searching) return;
+    if (addingPhotos || searching || isDemoUser === null) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
 
@@ -319,7 +319,7 @@ export default function PhotoMonitorScreen() {
         allowsMultipleSelection: true,
         quality: 0.6,
         selectionLimit: 10,
-        base64: isDemoUser === false, // Only fetch base64 if we can actually search
+        base64: !isDemoUser, // Always fetch base64 for authenticated users
       });
 
       if (!result.canceled && result.assets.length > 0) {
@@ -536,14 +536,21 @@ export default function PhotoMonitorScreen() {
             styles.addBtn,
             {
               backgroundColor: colors.primary,
-              opacity: addingPhotos || searching ? 0.7 : 1,
+              opacity: addingPhotos || searching || isDemoUser === null ? 0.7 : 1,
             },
           ]}
           activeOpacity={0.85}
           onPress={handlePickPhotos}
-          disabled={addingPhotos || searching}
+          disabled={addingPhotos || searching || isDemoUser === null}
         >
-          {searching && !monitoringAccount ? (
+          {isDemoUser === null ? (
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={[styles.addBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                Checking sign-in…
+              </Text>
+            </>
+          ) : searching && !monitoringAccount ? (
             <>
               <ActivityIndicator size="small" color="#FFFFFF" />
               <Text style={[styles.addBtnText, { fontFamily: "Inter_600SemiBold" }]}>
