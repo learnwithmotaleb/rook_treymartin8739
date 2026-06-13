@@ -24,35 +24,6 @@ import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
 
-function StatPill({
-  icon,
-  value,
-  label,
-  color,
-}: {
-  icon: React.ReactNode;
-  value: string | number;
-  label: string;
-  color: string;
-}) {
-  const colors = useColors();
-  return (
-    <GlassCard style={styles.statPill}>
-      <View style={[styles.statPillIcon, { backgroundColor: color + "18" }]}>
-        {icon}
-      </View>
-      <View style={styles.statPillText}>
-        <Text style={[styles.statPillValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          {value}
-        </Text>
-        <Text style={[styles.statPillLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          {label}
-        </Text>
-      </View>
-    </GlassCard>
-  );
-}
-
 export default function ScanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -63,8 +34,6 @@ export default function ScanScreen() {
     scanCurrentStep,
     scanQuotaError,
     startScan,
-    activeThreats,
-    fakeAccounts,
     threats,
     indexedPhotos,
   } = useApp();
@@ -281,58 +250,6 @@ export default function ScanScreen() {
             </Text>
           </View>
         )}
-
-        {/* ── Stats Row ── */}
-        <View style={styles.statsRow}>
-          <StatPill
-            icon={
-              <MaterialCommunityIcons
-                name="radar"
-                size={18}
-                color={colors.primary}
-              />
-            }
-            value={user.connectedAccounts.length}
-            label="Accounts"
-            color={colors.primary}
-          />
-          <StatPill
-            icon={
-              <Ionicons
-                name="alert-circle"
-                size={18}
-                color={activeThreats > 0 ? colors.danger : colors.success}
-              />
-            }
-            value={activeThreats}
-            label="Threats"
-            color={activeThreats > 0 ? colors.danger : colors.success}
-          />
-          <StatPill
-            icon={
-              <MaterialCommunityIcons
-                name="account-multiple-remove"
-                size={18}
-                color={fakeAccounts > 0 ? colors.warning : colors.success}
-              />
-            }
-            value={fakeAccounts}
-            label="Fake Accts"
-            color={fakeAccounts > 0 ? colors.warning : colors.success}
-          />
-          <StatPill
-            icon={
-              <MaterialCommunityIcons
-                name="image-search"
-                size={18}
-                color={photoCount > 0 ? colors.primary : colors.mutedForeground}
-              />
-            }
-            value={photoCount}
-            label="Photos"
-            color={photoCount > 0 ? colors.primary : colors.mutedForeground}
-          />
-        </View>
 
         {/* ── Photo Monitor card ── */}
         <TouchableOpacity
@@ -776,27 +693,6 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: "100%", borderRadius: 3 },
   progressPct: { fontSize: 13, width: 36, textAlign: "right" },
-
-  /* Stats */
-  statsRow: { flexDirection: "row", gap: 8, width: "100%" },
-  statPill: {
-    flex: 1,
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-  },
-  statPillIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statPillText: { alignItems: "center", gap: 2 },
-  statPillValue: { fontSize: 18 },
-  statPillLabel: { fontSize: 10, textAlign: "center" },
 
   /* Photo Monitor card */
   photoCard: {
