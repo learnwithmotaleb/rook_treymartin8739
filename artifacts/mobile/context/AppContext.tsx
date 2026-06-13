@@ -371,7 +371,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(false);
     setUser(DEFAULT_USER);
     setThreats([]);
+    setIndexedPhotos([]);
+    indexedPhotosRef.current = [];
+    setLocalPhotoThreats([]);
+    localPhotoThreatsRef.current = [];
     AsyncStorage.setItem("isLoggedIn", "false");
+    AsyncStorage.removeItem("indexedPhotos");
+    AsyncStorage.removeItem("localPhotoThreats");
   }, []);
 
   const completeOnboarding = useCallback(() => {
