@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,11 +13,45 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from "react-native-reanimated";
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
+
+function StatPill({
+  icon,
+  value,
+  label,
+  color,
+}: {
+  icon: React.ReactNode;
+  value: string | number;
+  label: string;
+  color: string;
+}) {
+  const colors = useColors();
+  return (
+    <GlassCard style={styles.statPill}>
+      <View style={[styles.statPillIcon, { backgroundColor: color + "18" }]}>
+        {icon}
+      </View>
+      <View style={styles.statPillText}>
+        <Text style={[styles.statPillValue, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          {value}
+        </Text>
+        <Text style={[styles.statPillLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {label}
+        </Text>
+      </View>
+    </GlassCard>
+  );
+}
 
 export default function ScanScreen() {
   const colors = useColors();
@@ -38,23 +72,23 @@ export default function ScanScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const [lastResult, setLastResult] = useState<{ threatsFound: number; time: string } | null>(null);
+  const [lastResult, setLastResult] = useState<{
+    threatsFound: number;
+    photoThreats: number;
+    time: string;
+  } | null>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
   const prevScanning = useRef(false);
 
   const btnScale = useSharedValue(1);
 
-  const animatedProgressStyle = useAnimatedStyle(() => {
-    return {
-      width: withTiming(`${scanProgress}%`, { duration: 300 }),
-    };
-  });
+  const animatedProgressStyle = useAnimatedStyle(() => ({
+    width: withTiming(`${scanProgress}%` as any, { duration: 300 }),
+  }));
 
-  const animatedBtnStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: btnScale.value }],
-    };
-  });
+  const animatedBtnStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: btnScale.value }],
+  }));
 
   useEffect(() => {
     if (isScanning) {
@@ -62,9 +96,16 @@ export default function ScanScreen() {
     } else if (prevScanning.current) {
       prevScanning.current = false;
       const activeCount = threats.filter((t) => !t.resolved).length;
+      const photoCount = threats.filter(
+        (t) => !t.resolved && t.type === "stolen_photo"
+      ).length;
       setLastResult({
         threatsFound: activeCount,
-        time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        photoThreats: photoCount,
+        time: new Date().toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       });
       resultOpacity.setValue(0);
       Animated.timing(resultOpacity, {
@@ -73,17 +114,20 @@ export default function ScanScreen() {
         useNativeDriver: true,
       }).start(() => {
         if (activeCount > 0) {
-          // Pause briefly so the user sees the result card, then navigate to Alerts
           setTimeout(() => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             router.push("/(tabs)/alerts");
-          }, 1800);
+          }, 2000);
         }
       });
     }
   }, [isScanning, threats, resultOpacity]);
 
   const hasAccounts = user.connectedAccounts.length > 0;
+  const photoCount = indexedPhotos.length;
+  const photoMatches = threats.filter(
+    (t) => !t.resolved && t.type === "stolen_photo"
+  ).length;
 
   const handleScan = () => {
     if (isScanning || !hasAccounts) return;
@@ -92,15 +136,17 @@ export default function ScanScreen() {
     startScan();
   };
 
-  const currentStep = isScanning ? (scanCurrentStep ?? "Initializing scan…") : null;
-  const statusText = isScanning ? `${scanProgress}% complete` : "All systems active";
+  const isIdle = !isScanning;
   const statusColor = isScanning ? colors.primary : colors.success;
+  const statusText = isScanning
+    ? `${scanProgress}%  complete`
+    : "All systems active";
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={[colors.primary + "1A", "transparent"]}
-        style={[styles.topGradient, { height: 400 }]}
+        colors={[colors.primary + "18", "transparent"]}
+        style={styles.topGradient}
       />
 
       {/* Header */}
@@ -118,12 +164,26 @@ export default function ScanScreen() {
         >
           Identity Scan
         </Text>
+        <Text
+          style={[
+            styles.headerSub,
+            { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+          ]}
+        >
+          Last scan: {user.lastScan}
+        </Text>
       </View>
 
-      <View style={[styles.content, { paddingBottom: bottomPad + 100 }]}>
-        {/* Scan Animation */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: bottomPad + 110 },
+        ]}
+      >
+        {/* ── Scan Animation ── */}
         <View style={styles.scanCenter}>
-          <View style={[styles.scanContainer, { width: 220, height: 220 }]}>
+          <View style={styles.scanContainer}>
             <ScanPulse size={220} active={isScanning} />
             <View
               style={[
@@ -133,32 +193,38 @@ export default function ScanScreen() {
                     ? colors.primary + "22"
                     : colors.success + "22",
                   borderColor: isScanning
-                    ? colors.primary + "66"
-                    : colors.success + "66",
+                    ? colors.primary + "55"
+                    : colors.success + "55",
                 },
               ]}
             >
               {isScanning ? (
-                <ActivityIndicator color={colors.primary} size="large" />
+                <MaterialCommunityIcons
+                  name="radar"
+                  size={52}
+                  color={colors.primary}
+                />
               ) : (
                 <Ionicons
                   name="shield-checkmark"
-                  size={60}
+                  size={56}
                   color={colors.success}
                 />
               )}
             </View>
           </View>
 
+          {/* Status badge */}
           <View
             style={[
               styles.statusBadge,
-              { backgroundColor: statusColor + "22", borderColor: statusColor + "44" },
+              {
+                backgroundColor: statusColor + "18",
+                borderColor: statusColor + "44",
+              },
             ]}
           >
-            <View
-              style={[styles.statusDot, { backgroundColor: statusColor }]}
-            />
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             <Text
               style={[
                 styles.statusText,
@@ -169,172 +235,202 @@ export default function ScanScreen() {
             </Text>
           </View>
 
-          {currentStep ? (
-            <Text style={[styles.stepText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              {currentStep}
+          {/* Step text during scan */}
+          {isScanning && scanCurrentStep ? (
+            <Text
+              style={[
+                styles.stepText,
+                {
+                  color: colors.mutedForeground,
+                  fontFamily: "Inter_400Regular",
+                },
+              ]}
+            >
+              {scanCurrentStep}
             </Text>
           ) : null}
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <GlassCard style={styles.statItem}>
-            <MaterialCommunityIcons
-              name="radar"
-              size={24}
-              color={colors.primary}
-            />
-            <Text
-              style={[
-                styles.statValue,
-                { color: colors.foreground, fontFamily: "Inter_700Bold" },
-              ]}
-            >
-              {user.monitored}
-            </Text>
-            <Text
-              style={[
-                styles.statLabel,
-                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-              ]}
-            >
-              Accounts
-            </Text>
-          </GlassCard>
-          <GlassCard style={styles.statItem}>
-            <Ionicons
-              name="alert-circle"
-              size={24}
-              color={activeThreats > 0 ? colors.danger : colors.success}
-            />
-            <Text
-              style={[
-                styles.statValue,
-                {
-                  color:
-                    activeThreats > 0 ? colors.danger : colors.success,
-                  fontFamily: "Inter_700Bold",
-                },
-              ]}
-            >
-              {activeThreats}
-            </Text>
-            <Text
-              style={[
-                styles.statLabel,
-                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-              ]}
-            >
-              Threats
-            </Text>
-          </GlassCard>
-          <GlassCard style={styles.statItem}>
-            <MaterialCommunityIcons
-              name="account-multiple-remove"
-              size={24}
-              color={fakeAccounts > 0 ? colors.warning : colors.success}
-            />
-            <Text
-              style={[
-                styles.statValue,
-                {
-                  color: fakeAccounts > 0 ? colors.warning : colors.success,
-                  fontFamily: "Inter_700Bold",
-                },
-              ]}
-            >
-              {fakeAccounts}
-            </Text>
-            <Text
-              style={[
-                styles.statLabel,
-                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-              ]}
-            >
-              Fake Accts
-            </Text>
-          </GlassCard>
-          <GlassCard style={styles.statItem}>
-            <MaterialCommunityIcons
-              name="image-search"
-              size={24}
-              color={indexedPhotos.length > 0 ? colors.primary : colors.mutedForeground}
-            />
-            <Text
-              style={[
-                styles.statValue,
-                {
-                  color: indexedPhotos.length > 0 ? colors.foreground : colors.mutedForeground,
-                  fontFamily: "Inter_700Bold",
-                },
-              ]}
-            >
-              {indexedPhotos.length}
-            </Text>
-            <Text
-              style={[
-                styles.statLabel,
-                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-              ]}
-            >
-              Photos
-            </Text>
-          </GlassCard>
-        </View>
-
-        {/* Photo Monitor shortcut */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => router.push("/photo-monitor" as any)}
-          style={{ width: "100%" }}
-        >
-          <GlassCard style={styles.photoMonitorCard}>
-            <View style={[styles.photoMonitorIcon, { backgroundColor: colors.primary + "22" }]}>
-              <MaterialCommunityIcons name="image-search" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.photoMonitorText}>
-              <Text style={[styles.photoMonitorTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Photo Monitor
-              </Text>
-              <Text style={[styles.photoMonitorSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                {indexedPhotos.length > 0
-                  ? `${indexedPhotos.length} photo${indexedPhotos.length !== 1 ? "s" : ""} being monitored`
-                  : "Upload photos to monitor for unauthorized use"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
-          </GlassCard>
-        </TouchableOpacity>
-
-        {/* Last scan */}
-        <View style={styles.lastScanRow}>
-          <Ionicons name="time-outline" size={14} color={colors.mutedForeground} />
-          <Text
-            style={[
-              styles.lastScan,
-              { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-            ]}
-          >
-            Last scan: {user.lastScan}
-          </Text>
-        </View>
-
-        {/* Progress bar when scanning */}
+        {/* ── Progress Bar ── */}
         {isScanning && (
-          <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-            <Reanimated.View
+          <View style={styles.progressSection}>
+            <View
               style={[
-                styles.progressFill,
-                { backgroundColor: colors.primary },
-                animatedProgressStyle,
+                styles.progressTrack,
+                { backgroundColor: colors.border },
               ]}
-            />
+            >
+              <Reanimated.View
+                style={[
+                  styles.progressFill,
+                  { backgroundColor: colors.primary },
+                  animatedProgressStyle,
+                ]}
+              />
+            </View>
+            <Text
+              style={[
+                styles.progressPct,
+                {
+                  color: colors.primary,
+                  fontFamily: "Inter_600SemiBold",
+                },
+              ]}
+            >
+              {scanProgress}%
+            </Text>
           </View>
         )}
 
-        {/* Scan result card after completion */}
-        {lastResult && !isScanning && (
-          <Animated.View style={{ opacity: resultOpacity, width: "100%" }}>
+        {/* ── Stats Row ── */}
+        <View style={styles.statsRow}>
+          <StatPill
+            icon={
+              <MaterialCommunityIcons
+                name="radar"
+                size={18}
+                color={colors.primary}
+              />
+            }
+            value={user.connectedAccounts.length}
+            label="Accounts"
+            color={colors.primary}
+          />
+          <StatPill
+            icon={
+              <Ionicons
+                name="alert-circle"
+                size={18}
+                color={activeThreats > 0 ? colors.danger : colors.success}
+              />
+            }
+            value={activeThreats}
+            label="Threats"
+            color={activeThreats > 0 ? colors.danger : colors.success}
+          />
+          <StatPill
+            icon={
+              <MaterialCommunityIcons
+                name="account-multiple-remove"
+                size={18}
+                color={fakeAccounts > 0 ? colors.warning : colors.success}
+              />
+            }
+            value={fakeAccounts}
+            label="Fake Accts"
+            color={fakeAccounts > 0 ? colors.warning : colors.success}
+          />
+          <StatPill
+            icon={
+              <MaterialCommunityIcons
+                name="image-search"
+                size={18}
+                color={photoCount > 0 ? colors.primary : colors.mutedForeground}
+              />
+            }
+            value={photoCount}
+            label="Photos"
+            color={photoCount > 0 ? colors.primary : colors.mutedForeground}
+          />
+        </View>
+
+        {/* ── Photo Monitor card ── */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push("/photo-monitor" as any)}
+        >
+          <GlassCard
+            style={[
+              styles.photoCard,
+              photoMatches > 0 && {
+                borderColor: colors.danger + "44",
+                backgroundColor: colors.danger + "08",
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.photoCardIcon,
+                {
+                  backgroundColor:
+                    photoMatches > 0
+                      ? colors.danger + "22"
+                      : photoCount > 0
+                      ? colors.primary + "22"
+                      : colors.secondary,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={photoMatches > 0 ? "image-off" : "image-search"}
+                size={22}
+                color={
+                  photoMatches > 0
+                    ? colors.danger
+                    : photoCount > 0
+                    ? colors.primary
+                    : colors.mutedForeground
+                }
+              />
+            </View>
+
+            <View style={styles.photoCardBody}>
+              <Text
+                style={[
+                  styles.photoCardTitle,
+                  {
+                    color:
+                      photoMatches > 0 ? colors.danger : colors.foreground,
+                    fontFamily: "Inter_600SemiBold",
+                  },
+                ]}
+              >
+                {photoMatches > 0
+                  ? `${photoMatches} photo match${photoMatches !== 1 ? "es" : ""} found`
+                  : photoCount > 0
+                  ? `${photoCount} photo${photoCount !== 1 ? "s" : ""} being monitored`
+                  : "Photo Monitor"}
+              </Text>
+              <Text
+                style={[
+                  styles.photoCardSub,
+                  {
+                    color: colors.mutedForeground,
+                    fontFamily: "Inter_400Regular",
+                  },
+                ]}
+              >
+                {photoMatches > 0
+                  ? "Tap to review unauthorized use detected"
+                  : photoCount > 0
+                  ? "Included in next scan · Tap to manage"
+                  : "Upload photos to monitor for unauthorized use"}
+              </Text>
+            </View>
+
+            <View style={styles.photoCardChevron}>
+              {photoMatches > 0 && (
+                <View
+                  style={[
+                    styles.matchBadge,
+                    { backgroundColor: colors.danger },
+                  ]}
+                >
+                  <Text style={styles.matchBadgeText}>{photoMatches}</Text>
+                </View>
+              )}
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.mutedForeground}
+              />
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
+
+        {/* ── Scan result card (post-scan) ── */}
+        {lastResult && isIdle && (
+          <Animated.View style={{ opacity: resultOpacity }}>
             <GlassCard
               accent
               style={[
@@ -349,7 +445,7 @@ export default function ScanScreen() {
             >
               <View
                 style={[
-                  styles.resultIcon,
+                  styles.resultIconWrap,
                   {
                     backgroundColor:
                       lastResult.threatsFound > 0
@@ -359,18 +455,26 @@ export default function ScanScreen() {
                 ]}
               >
                 <Ionicons
-                  name={lastResult.threatsFound > 0 ? "alert-circle" : "shield-checkmark"}
-                  size={48}
-                  color={lastResult.threatsFound > 0 ? colors.danger : colors.success}
+                  name={
+                    lastResult.threatsFound > 0
+                      ? "alert-circle"
+                      : "shield-checkmark"
+                  }
+                  size={40}
+                  color={
+                    lastResult.threatsFound > 0 ? colors.danger : colors.success
+                  }
                 />
               </View>
-              <View style={styles.resultText}>
+              <View style={styles.resultBody}>
                 <Text
                   style={[
                     styles.resultTitle,
                     {
                       color:
-                        lastResult.threatsFound > 0 ? colors.danger : colors.success,
+                        lastResult.threatsFound > 0
+                          ? colors.danger
+                          : colors.success,
                       fontFamily: "Inter_600SemiBold",
                     },
                   ]}
@@ -378,79 +482,159 @@ export default function ScanScreen() {
                   Scan Complete · {lastResult.time}
                 </Text>
                 <Text
-                  style={[styles.resultSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                  style={[
+                    styles.resultSub,
+                    {
+                      color: colors.mutedForeground,
+                      fontFamily: "Inter_400Regular",
+                    },
+                  ]}
                 >
                   {lastResult.threatsFound > 0
-                    ? `${lastResult.threatsFound} active threat${lastResult.threatsFound !== 1 ? "s" : ""} detected`
+                    ? `${lastResult.threatsFound} active threat${lastResult.threatsFound !== 1 ? "s" : ""}${lastResult.photoThreats > 0 ? ` · ${lastResult.photoThreats} photo match${lastResult.photoThreats !== 1 ? "es" : ""}` : ""} detected`
+                    : photoCount > 0
+                    ? `No threats found · ${photoCount} photos verified clean`
                     : "No new threats found — you're protected"}
                 </Text>
+                {lastResult.threatsFound > 0 && (
+                  <Text
+                    style={[
+                      styles.resultHint,
+                      {
+                        color: colors.primary,
+                        fontFamily: "Inter_500Medium",
+                      },
+                    ]}
+                  >
+                    Navigating to Alerts…
+                  </Text>
+                )}
               </View>
             </GlassCard>
           </Animated.View>
         )}
 
-        {/* No accounts CTA */}
-        {!hasAccounts && !isScanning ? (
-          <GlassCard style={[styles.noAccountsCard, { borderColor: colors.border }]}>
-            <View style={[styles.noAccountsIcon, { backgroundColor: colors.primary + "18" }]}>
-              <Ionicons name="person-add" size={26} color={colors.primary} />
+        {/* ── Bottom action area ── */}
+        {!hasAccounts && isIdle ? (
+          /* No accounts */
+          <GlassCard
+            style={[styles.ctaCard, { borderColor: colors.border }]}
+          >
+            <View
+              style={[
+                styles.ctaIcon,
+                { backgroundColor: colors.primary + "18" },
+              ]}
+            >
+              <Ionicons name="person-add" size={28} color={colors.primary} />
             </View>
-            <Text style={[styles.noAccountsTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            <Text
+              style={[
+                styles.ctaTitle,
+                { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
+              ]}
+            >
               Connect an account first
             </Text>
-            <Text style={[styles.noAccountsSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            <Text
+              style={[
+                styles.ctaSub,
+                {
+                  color: colors.mutedForeground,
+                  fontFamily: "Inter_400Regular",
+                },
+              ]}
+            >
               Link at least one social account so ShieldID knows who to protect.
             </Text>
             <TouchableOpacity
-              style={[styles.connectBtn, { backgroundColor: colors.primary }]}
+              style={[styles.ctaBtn, { backgroundColor: colors.primary }]}
               activeOpacity={0.85}
               onPress={() => router.push("/connect-account" as any)}
             >
               <Ionicons name="link" size={16} color="#fff" />
-              <Text style={[styles.connectBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+              <Text
+                style={[styles.ctaBtnText, { fontFamily: "Inter_600SemiBold" }]}
+              >
                 Connect Account
               </Text>
             </TouchableOpacity>
           </GlassCard>
-        ) : scanQuotaError && !isScanning ? (
-          /* Scan quota reached — show upgrade prompt */
-          <GlassCard style={[styles.noAccountsCard, { borderColor: colors.warning + "44" }]}>
-            <View style={[styles.noAccountsIcon, { backgroundColor: colors.warning + "18" }]}>
-              <Ionicons name="shield-half" size={26} color={colors.warning} />
+        ) : scanQuotaError && isIdle ? (
+          /* Quota reached */
+          <GlassCard
+            style={[
+              styles.ctaCard,
+              { borderColor: colors.warning + "44" },
+            ]}
+          >
+            <View
+              style={[
+                styles.ctaIcon,
+                { backgroundColor: colors.warning + "18" },
+              ]}
+            >
+              <Ionicons
+                name="shield-half"
+                size={28}
+                color={colors.warning}
+              />
             </View>
-            <Text style={[styles.noAccountsTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            <Text
+              style={[
+                styles.ctaTitle,
+                { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
+              ]}
+            >
               Scan limit reached
             </Text>
-            <Text style={[styles.noAccountsSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            <Text
+              style={[
+                styles.ctaSub,
+                {
+                  color: colors.mutedForeground,
+                  fontFamily: "Inter_400Regular",
+                },
+              ]}
+            >
               {scanQuotaError.message}
             </Text>
             <TouchableOpacity
-              style={[styles.connectBtn, { backgroundColor: colors.warning }]}
+              style={[styles.ctaBtn, { backgroundColor: colors.warning }]}
               activeOpacity={0.85}
               onPress={() => router.push("/subscription" as any)}
             >
               <Ionicons name="arrow-up-circle" size={16} color="#fff" />
-              <Text style={[styles.connectBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                Upgrade to {scanQuotaError.upgradeTo.charAt(0).toUpperCase() + scanQuotaError.upgradeTo.slice(1)}
+              <Text
+                style={[styles.ctaBtnText, { fontFamily: "Inter_600SemiBold" }]}
+              >
+                Upgrade to{" "}
+                {scanQuotaError.upgradeTo.charAt(0).toUpperCase() +
+                  scanQuotaError.upgradeTo.slice(1)}
               </Text>
             </TouchableOpacity>
           </GlassCard>
         ) : (
+          /* Scan button */
           <>
-            {/* Scan button */}
             <TouchableOpacity
               activeOpacity={1}
-              onPressIn={() => btnScale.value = withSpring(0.97)}
-              onPressOut={() => btnScale.value = withSpring(1)}
+              onPressIn={() => {
+                if (!isScanning) btnScale.value = withSpring(0.97);
+              }}
+              onPressOut={() => {
+                btnScale.value = withSpring(1);
+              }}
               onPress={handleScan}
               disabled={isScanning}
-              style={{ width: "100%" }}
             >
               <Reanimated.View
                 style={[
                   styles.scanBtn,
                   {
-                    backgroundColor: isScanning ? colors.secondary : colors.primary,
+                    backgroundColor: isScanning
+                      ? colors.secondary
+                      : colors.primary,
                     borderColor: isScanning ? colors.border : colors.primary,
                   },
                   animatedBtnStyle,
@@ -458,7 +642,7 @@ export default function ScanScreen() {
               >
                 {!isScanning && (
                   <LinearGradient
-                    colors={[colors.primaryForeground + "11", "transparent"]}
+                    colors={["#FFFFFF18", "transparent"]}
                     style={StyleSheet.absoluteFill}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 0, y: 1 }}
@@ -466,11 +650,18 @@ export default function ScanScreen() {
                 )}
                 {isScanning ? (
                   <>
-                    <ActivityIndicator color={colors.mutedForeground} size="small" />
+                    <MaterialCommunityIcons
+                      name="radar"
+                      size={22}
+                      color={colors.mutedForeground}
+                    />
                     <Text
                       style={[
                         styles.scanBtnText,
-                        { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+                        {
+                          color: colors.mutedForeground,
+                          fontFamily: "Inter_600SemiBold",
+                        },
                       ]}
                     >
                       Scanning…
@@ -478,7 +669,11 @@ export default function ScanScreen() {
                   </>
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="radar" size={24} color="#FFFFFF" />
+                    <MaterialCommunityIcons
+                      name="radar"
+                      size={22}
+                      color="#FFFFFF"
+                    />
                     <Text
                       style={[
                         styles.scanBtnText,
@@ -492,40 +687,55 @@ export default function ScanScreen() {
               </Reanimated.View>
             </TouchableOpacity>
 
-            <Text
-              style={[
-                styles.scanHint,
-                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-              ]}
-            >
-              Scans all {user.monitored} connected account{user.monitored !== 1 ? "s" : ""} for impersonators,
-              stolen photos, and fake profiles.
-            </Text>
+            {!isScanning && (
+              <Text
+                style={[
+                  styles.scanHint,
+                  {
+                    color: colors.mutedForeground,
+                    fontFamily: "Inter_400Regular",
+                  },
+                ]}
+              >
+                Scans {user.connectedAccounts.length} connected account
+                {user.connectedAccounts.length !== 1 ? "s" : ""} for
+                impersonators &amp; fake profiles
+                {photoCount > 0
+                  ? ` · checks ${photoCount} indexed photo${photoCount !== 1 ? "s" : ""} for misuse`
+                  : ""}
+              </Text>
+            )}
           </>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topGradient: { position: "absolute", top: 0, left: 0, right: 0 },
+  topGradient: { position: "absolute", top: 0, left: 0, right: 0, height: 380 },
+
   header: {
     paddingHorizontal: 20,
     paddingBottom: 14,
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 24 },
+  headerSub: { fontSize: 13, marginTop: 2 },
+
   content: {
-    flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 24,
-    gap: 20,
+    paddingTop: 28,
+    gap: 18,
     alignItems: "center",
   },
-  scanCenter: { alignItems: "center", gap: 16 },
+
+  /* Scan animation */
+  scanCenter: { alignItems: "center", gap: 16, width: "100%" },
   scanContainer: {
+    width: 220,
+    height: 220,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -549,39 +759,128 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 14 },
-  stepText: { fontSize: 13, textAlign: "center" },
-  statsRow: { flexDirection: "row", gap: 10, width: "100%" },
-  statItem: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 14 },
-  statValue: { fontSize: 20 },
-  statLabel: { fontSize: 11, textAlign: "center" },
-  lastScanRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  lastScan: { fontSize: 13 },
-  progressTrack: {
+  stepText: { fontSize: 13, textAlign: "center", opacity: 0.8, paddingHorizontal: 20 },
+
+  /* Progress */
+  progressSection: {
     width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  progressTrack: {
+    flex: 1,
     height: 6,
     borderRadius: 3,
     overflow: "hidden",
   },
   progressFill: { height: "100%", borderRadius: 3 },
-  resultCard: {
-    flexDirection: "row",
+  progressPct: { fontSize: 13, width: 36, textAlign: "right" },
+
+  /* Stats */
+  statsRow: { flexDirection: "row", gap: 8, width: "100%" },
+  statPill: {
+    flex: 1,
+    flexDirection: "column",
     alignItems: "center",
-    gap: 16,
-    width: "100%",
-    padding: 20,
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
   },
-  resultIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  statPillIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  resultText: { flex: 1, gap: 2 },
-  resultTitle: { fontSize: 15 },
-  resultSub: { fontSize: 13 },
-  scanBtn: {
+  statPillText: { alignItems: "center", gap: 2 },
+  statPillValue: { fontSize: 18 },
+  statPillLabel: { fontSize: 10, textAlign: "center" },
+
+  /* Photo Monitor card */
+  photoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     width: "100%",
+    paddingVertical: 14,
+  },
+  photoCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoCardBody: { flex: 1, gap: 3 },
+  photoCardTitle: { fontSize: 15 },
+  photoCardSub: { fontSize: 13 },
+  photoCardChevron: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  matchBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  matchBadgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+
+  /* Result card */
+  resultCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    width: "100%",
+    padding: 18,
+  },
+  resultIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resultBody: { flex: 1, gap: 4 },
+  resultTitle: { fontSize: 15 },
+  resultSub: { fontSize: 13, lineHeight: 18 },
+  resultHint: { fontSize: 13, marginTop: 2 },
+
+  /* CTA cards */
+  ctaCard: {
+    width: "100%",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+  },
+  ctaIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  ctaTitle: { fontSize: 16, textAlign: "center" },
+  ctaSub: { fontSize: 14, textAlign: "center", lineHeight: 20, opacity: 0.8 },
+  ctaBtn: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 28,
+  },
+  ctaBtnText: { fontSize: 15, color: "#fff" },
+
+  /* Scan button */
+  scanBtn: {
     height: 60,
     borderRadius: 32,
     flexDirection: "row",
@@ -590,51 +889,15 @@ const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     overflow: "hidden",
+    paddingHorizontal: 40,
+    minWidth: 240,
   },
   scanBtnText: { fontSize: 18 },
-  scanHint: { fontSize: 14, textAlign: "center", lineHeight: 22, opacity: 0.8 },
-  noAccountsCard: {
-    width: "100%",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
+  scanHint: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
+    opacity: 0.8,
+    paddingHorizontal: 10,
   },
-  noAccountsIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  photoMonitorCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    width: "100%",
-    paddingVertical: 14,
-  },
-  photoMonitorIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoMonitorText: { flex: 1, gap: 2 },
-  photoMonitorTitle: { fontSize: 15 },
-  photoMonitorSub: { fontSize: 13 },
-  noAccountsTitle: { fontSize: 16, textAlign: "center" },
-  noAccountsSub: { fontSize: 14, textAlign: "center", lineHeight: 20, opacity: 0.8 },
-  connectBtn: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 28,
-  },
-  connectBtnText: { fontSize: 15, color: "#fff" },
 });

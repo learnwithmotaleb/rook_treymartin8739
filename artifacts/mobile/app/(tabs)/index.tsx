@@ -55,6 +55,7 @@ export default function Dashboard() {
     threats,
     activeThreats,
     fakeAccounts,
+    indexedPhotos,
     refreshData,
     isLoading,
     hasSeenOnboarding,
@@ -188,13 +189,13 @@ export default function Dashboard() {
               />
               <StatCard
                 label="Photos Indexed"
-                value={user.totalPhotosIndexed > 0 ? String(user.totalPhotosIndexed) : "—"}
-                valueColor={user.totalPhotosIndexed > 0 ? colors.primary : colors.mutedForeground}
+                value={indexedPhotos.length > 0 ? String(indexedPhotos.length) : "—"}
+                valueColor={indexedPhotos.length > 0 ? colors.primary : colors.mutedForeground}
                 icon={
                   <Ionicons
                     name="images"
                     size={24}
-                    color={user.totalPhotosIndexed > 0 ? colors.primary : colors.mutedForeground}
+                    color={indexedPhotos.length > 0 ? colors.primary : colors.mutedForeground}
                   />
                 }
               />
