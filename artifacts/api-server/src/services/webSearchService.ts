@@ -754,3 +754,103 @@ export async function searchForImpersonators(
 
   return allCandidates;
 }
+
+// ─── On-demand photo reverse search (used by POST /photos/search) ─────────────
+
+/**
+ * Perform a standalone reverse image search for a single photo.
+ * Accepts either a public HTTPS URL (from a connected account CDN) or a
+ * base64-encoded image string (from the device camera roll via the mobile app).
+ *
+ * Returns all discovered social-platform candidates where the image was found.
+ * The caller is responsible for filtering out the user's own accounts.
+ */
+export async function reverseImageSearchForPhoto(input: {
+  imageUrl?: string;
+  imageBase64?: string;
+}): Promise<{ matches: WebSearchCandidate[] }> {
+  const apiKey = process.env["GOOGLE_SEARCH_API_KEY"];
+  if (!apiKey) return { matches: [] };
+
+  let webDetection: VisionWebDetection | null = null;
+
+  if (input.imageUrl) {
+    webDetection = await runVisionWebDetection(input.imageUrl);
+  } else if (input.imageBase64) {
+    // Direct base64 path — mobile camera roll photo sent as content bytes
+    const body = {
+      requests: [
+        {
+          image: { content: input.imageBase64 },
+          features: [{ type: "WEB_DETECTION", maxResults: 20 }],
+        },
+      ],
+    };
+    try {
+      const res = await fetch(`${VISION_ENDPOINT}?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { responses?: Array<VisionAnnotateResponse> };
+        const response = data.responses?.[0];
+        if (response?.error) {
+          logger.warn({ error: response.error }, "Vision base64 direct search: response-level error");
+        } else {
+          webDetection = response?.webDetection ?? null;
+        }
+      } else {
+        const errBody = await res.json().catch(() => ({})) as { error?: { message?: string; code?: number } };
+        logger.warn(
+          { status: res.status, message: errBody.error?.message, code: errBody.error?.code },
+          "Vision base64 direct search: non-OK HTTP response"
+        );
+      }
+    } catch (err) {
+      logger.warn({ err }, "Vision base64 direct search threw");
+    }
+  }
+
+  if (!webDetection) return { matches: [] };
+
+  const candidates: WebSearchCandidate[] = [];
+  const seen = new Set<string>();
+
+  for (const page of webDetection.pagesWithMatchingImages ?? []) {
+    const extracted = extractUsernameFromUrl(page.url);
+    if (!extracted) continue;
+    const key = `${extracted.platform}:${extracted.username}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    candidates.push({
+      username: extracted.username,
+      platform: extracted.platform,
+      profileUrl: page.url,
+      title: page.pageTitle ?? `${extracted.username} on ${extracted.platform}`,
+      snippet: "Your photo was found on this profile via Google reverse image search",
+      similarity: page.score ?? 0.92,
+      discoveryMethod: "image_search",
+    });
+  }
+
+  for (const img of webDetection.fullMatchingImages ?? []) {
+    const extracted = extractUsernameFromUrl(img.url);
+    if (!extracted) continue;
+    const key = `${extracted.platform}:${extracted.username}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    candidates.push({
+      username: extracted.username,
+      platform: extracted.platform,
+      profileUrl: img.url,
+      title: `${extracted.username} on ${extracted.platform}`,
+      snippet: "Exact copy of your photo found at this URL",
+      similarity: img.score ?? 0.98,
+      discoveryMethod: "image_search",
+    });
+  }
+
+  logger.info({ found: candidates.length }, "reverseImageSearchForPhoto complete");
+  return { matches: candidates };
+}

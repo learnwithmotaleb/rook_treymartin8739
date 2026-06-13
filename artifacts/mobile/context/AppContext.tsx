@@ -437,13 +437,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           const status = await getScanStatus(job.id);
           setScanProgress(status.progress);
-          // Inject photo scanning step when indexed photos exist and scan is in later stages
-          const currentPhotos = indexedPhotosRef.current;
-          if (currentPhotos.length > 0 && status.progress >= 65 && status.progress < 90) {
-            setScanCurrentStep(
-              `Scanning ${currentPhotos.length} indexed photo${currentPhotos.length !== 1 ? "s" : ""} for unauthorized use…`
-            );
-          } else if (status.currentStep) {
+          if (status.currentStep) {
             setScanCurrentStep(status.currentStep);
           }
 
@@ -459,61 +453,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const profile = await getMe();
             const accounts = await getAccounts();
             setUser(mapProfileToUser(profile, accounts));
-
-            // Generate a client-side stolen_photo threat when photos are indexed
-            // and no stolen_photo threat was returned from the server.
-            // Mirrors the server-side isDemoUser guard: only fabricate threats for
-            // demo users (no Clerk token). Real users must only see real results.
-            const photos = indexedPhotosRef.current;
-            const existingPhotoThreats = localPhotoThreatsRef.current.filter((t) => !t.resolved);
-            const serverHasPhotoThreat = freshThreats.some((t) => t.type === "stolen_photo" && !t.resolved);
-            const demoUser = await checkIsDemoUser();
-            if (demoUser && photos.length > 0 && !serverHasPhotoThreat && existingPhotoThreats.length === 0) {
-              const photo = photos[Math.floor(Math.random() * photos.length)]!;
-              const platforms: Platform[] = ["tiktok", "facebook", "instagram", "x"];
-              const platform = platforms[Math.floor(Math.random() * platforms.length)]!;
-              const suspiciousUser = `user_${Math.random().toString(36).slice(2, 9)}`;
-              const generated: Threat = {
-                id: `local_photo_${photo.id}`,
-                type: "stolen_photo",
-                severity: "high",
-                platform,
-                title: "Stolen photo detected",
-                description: `Your photo was found on ${platform} without your permission.`,
-                details: "",
-                time: "Just now",
-                resolved: false,
-                aiExplanation:
-                  `1 of your indexed photos has been detected on ${suspiciousUser}'s ${platform} profile without your authorization. ` +
-                  `Our AI cross-referenced your indexed media fingerprints against this account's content library. ` +
-                  `This constitutes unauthorized use of your identity and likeness.`,
-                threatScore: 87,
-                suspiciousUsername: suspiciousUser,
-                matchedMediaCount: 1,
-                evidence: [
-                  {
-                    id: `ev_${photo.id}`,
-                    type: "post_photo",
-                    similarity: 94,
-                    yourPhotoUrl: photo.localUri,
-                    label: "Photo match detected",
-                  },
-                ],
-                scoreBreakdown: {
-                  mediaSimilarity: 38,
-                  contentReuse: 18,
-                  profileSimilarity: 12,
-                  bioSimilarity: 8,
-                  usernameSimilarity: 6,
-                  behavioral: 5,
-                },
-                detectedSignals: [],
-              };
-              const newLocalThreats = [generated];
-              setLocalPhotoThreats(newLocalThreats);
-              localPhotoThreatsRef.current = newLocalThreats;
-              AsyncStorage.setItem("localPhotoThreats", JSON.stringify(newLocalThreats));
-            }
 
             const allActive = [
               ...freshThreats.filter((t) => !t.resolved),

@@ -171,6 +171,71 @@ router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
   });
 });
 
+/**
+ * GET /accounts/:accountId/media
+ * Returns real media items for a connected account using the platform adapter.
+ * Requires an OAuth access token — accounts without one return hasAccess: false.
+ */
+router.get("/accounts/:accountId/media", async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const accountId = Array.isArray(req.params.accountId)
+    ? req.params.accountId[0]!
+    : req.params.accountId;
+
+  const [account] = await db
+    .select()
+    .from(connectedAccountsTable)
+    .where(
+      and(
+        eq(connectedAccountsTable.id, accountId),
+        eq(connectedAccountsTable.userId, userId)
+      )
+    );
+
+  if (!account) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
+
+  if (!account.accessToken || !account.verified) {
+    res.json({ items: [], hasAccess: false, reason: "no_oauth_token" });
+    return;
+  }
+
+  const { getAdapter } = await import("../adapters/platformAdapter");
+  const adapter = getAdapter(account.platform);
+  if (!adapter) {
+    res.json({ items: [], hasAccess: false, reason: "unsupported_platform" });
+    return;
+  }
+
+  try {
+    const limit = Math.min(parseInt(String(req.query["limit"] ?? "30"), 10), 50);
+    const mediaItems = await adapter.getMediaItems(
+      account.accessToken,
+      account.platformUserId ?? "",
+      limit
+    );
+
+    res.json({
+      items: mediaItems
+        .filter((m) => m.url)
+        .map((m) => ({
+          id: m.platformMediaId,
+          type: m.type,
+          url: m.url,
+          thumbnailUrl: m.thumbnailUrl ?? m.url,
+          caption: m.caption ?? null,
+          postedAt: m.postedAt?.toISOString() ?? null,
+        })),
+      hasAccess: true,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Failed to fetch media from platform", detail: message });
+  }
+});
+
 router.delete("/accounts/:accountId", async (req, res): Promise<void> => {
   const userId = req.userId;
   const accountId = Array.isArray(req.params.accountId)

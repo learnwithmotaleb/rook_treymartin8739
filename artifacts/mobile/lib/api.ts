@@ -322,6 +322,61 @@ export async function getOAuthRedirectUris(): Promise<Record<string, string>> {
   return apiFetch<Record<string, string>>("/oauth/redirect-uris");
 }
 
+export interface AccountMediaItem {
+  id: string;
+  type: "image" | "video" | "carousel";
+  url: string;
+  thumbnailUrl: string;
+  caption: string | null;
+  postedAt: string | null;
+}
+
+export interface AccountMediaResponse {
+  items: AccountMediaItem[];
+  hasAccess: boolean;
+  reason?: string;
+}
+
+export async function getAccountMedia(
+  accountId: string,
+  limit = 30
+): Promise<AccountMediaResponse> {
+  return apiFetch<AccountMediaResponse>(
+    `/accounts/${accountId}/media?limit=${limit}`
+  );
+}
+
+export interface PhotoSearchMatch {
+  username: string;
+  platform: string;
+  profileUrl: string;
+  title: string;
+  snippet: string;
+  similarity: number;
+  discoveryMethod: string;
+}
+
+export interface PhotoSearchResponse {
+  matches: PhotoSearchMatch[];
+  threatsCreated: number;
+  configured: boolean;
+}
+
+/**
+ * Reverse image search via Google Cloud Vision WEB_DETECTION.
+ * Pass imageUrl for CDN photos (from connected accounts) or
+ * imageBase64 for camera roll photos (from expo-image-picker with base64:true).
+ */
+export async function reverseImageSearch(input: {
+  imageUrl?: string;
+  imageBase64?: string;
+}): Promise<PhotoSearchResponse> {
+  return apiFetch<PhotoSearchResponse>("/photos/search", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function syncSubscriptionTier(
   tier: "free" | "pro" | "premium"
 ): Promise<void> {

@@ -14,6 +14,7 @@ import notificationsRouter from "./notifications";
 import adminRouter from "./admin";
 import v1Router from "./v1";
 import waitlistRouter from "./waitlist";
+import photosRouter from "./photos";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(fingerprintRouter);
 router.use(aiAnalysisRouter);
 router.use(billingRouter);
 router.use(notificationsRouter);
+router.use(photosRouter);
 
 export default router;
