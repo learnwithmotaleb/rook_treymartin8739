@@ -20,7 +20,7 @@ import {
   removeAccount as apiRemoveAccount,
   updateAccount as apiUpdateAccount,
   updateMe,
-  checkIsDemoUser,
+  reverseImageSearch,
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
@@ -30,6 +30,7 @@ import {
 export interface IndexedPhoto {
   id: string;
   localUri: string;
+  base64?: string;
   addedAt: string;
   source: "camera_roll" | "account";
   accountId?: string;
@@ -165,7 +166,7 @@ interface AppContextType {
   addAccount: (platform: string, username: string, accessToken?: string) => Promise<ConnectedAccount>;
   removeAccount: (id: string) => Promise<void>;
   updateAccount: (id: string, updates: { accessToken?: string; displayName?: string; followers?: number; platformUserId?: string }) => Promise<ConnectedAccount>;
-  addIndexedPhotos: (uris: string[], source?: "camera_roll" | "account", accountId?: string) => void;
+  addIndexedPhotos: (photos: Array<{uri: string; base64?: string}>, source?: "camera_roll" | "account", accountId?: string) => void;
   removeIndexedPhoto: (id: string) => void;
 }
 
@@ -386,13 +387,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addIndexedPhotos = useCallback((
-    uris: string[],
+    photos: Array<{uri: string; base64?: string}>,
     source: "camera_roll" | "account" = "camera_roll",
     accountId?: string
   ) => {
-    const newPhotos: IndexedPhoto[] = uris.map((uri) => ({
+    const newPhotos: IndexedPhoto[] = photos.map(({ uri, base64 }) => ({
       id: `photo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       localUri: uri,
+      base64,
       addedAt: new Date().toISOString(),
       source,
       accountId,
@@ -428,6 +430,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsScanning(true);
     setScanProgress(0);
 
+    // Snapshot monitored photos at scan start so the list can't change mid-scan
+    const photosSnapshot = [...indexedPhotosRef.current];
+
+    // Fire Vision searches for all monitored photos in parallel with the backend scan.
+    // Each photo is searched independently; failures are non-fatal.
+    const photoScanPromise: Promise<void> = photosSnapshot.length > 0
+      ? Promise.allSettled(
+          photosSnapshot.map(async (photo) => {
+            if (photo.base64) {
+              await reverseImageSearch({ imageBase64: photo.base64 });
+            } else if (photo.localUri.startsWith("http")) {
+              await reverseImageSearch({ imageUrl: photo.localUri });
+            }
+          })
+        ).then(() => {})
+      : Promise.resolve();
+
     try {
       const job = await apiStartScan();
 
@@ -446,6 +465,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               clearInterval(pollTimerRef.current);
               pollTimerRef.current = null;
             }
+
+            // Wait for any in-flight photo scans before the final data refresh
+            await photoScanPromise.catch(() => {});
+
             setIsScanning(false);
             setScanProgress(100);
             setScanCurrentStep(null);

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -21,8 +21,6 @@ import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import {
   getAccountMedia,
-  reverseImageSearch,
-  checkIsDemoUser,
   type AccountMediaItem,
 } from "@/lib/api";
 
@@ -45,14 +43,7 @@ interface AccountMediaState {
   error?: string;
 }
 
-interface SearchResult {
-  totalSearched: number;
-  matchesFound: number;
-  threatsCreated: number;
-  error?: string;
-}
-
-// ─── PhotoCell: shows an indexed (local) photo with monitoring/match badge ────
+// ─── PhotoCell: shows a monitored photo with status/match badge ───────────────
 
 function PhotoCell({
   photo,
@@ -93,7 +84,7 @@ function PhotoCell({
       >
         <View style={[styles.statusDot, { backgroundColor: hasMatch ? colors.danger : colors.primary }]} />
         <Text style={[styles.statusText, { color: hasMatch ? colors.danger : colors.primary, fontFamily: "Inter_400Regular" }]}>
-          {hasMatch ? "Match" : "Monitoring"}
+          {hasMatch ? "Match" : "Monitored"}
         </Text>
       </View>
     </View>
@@ -177,100 +168,34 @@ function SkeletonCell({ index }: { index: number }) {
   );
 }
 
-// ─── SearchResultBanner: shows after a reverse image search completes ─────────
-
-function SearchResultBanner({ result, onDismiss }: { result: SearchResult; onDismiss: () => void }) {
-  const colors = useColors();
-  const hasThreats = result.threatsCreated > 0;
-  const hasError = !!result.error;
-
-  return (
-    <View
-      style={[
-        styles.resultBanner,
-        {
-          backgroundColor: hasError
-            ? colors.secondary
-            : hasThreats
-            ? colors.danger + "18"
-            : colors.success + "18",
-          borderColor: hasError
-            ? colors.border
-            : hasThreats
-            ? colors.danger + "44"
-            : colors.success + "44",
-        },
-      ]}
-    >
-      <Ionicons
-        name={hasError ? "alert-circle" : hasThreats ? "warning" : "checkmark-circle"}
-        size={20}
-        color={hasError ? colors.mutedForeground : hasThreats ? colors.danger : colors.success}
-      />
-      <View style={{ flex: 1 }}>
-        {hasError ? (
-          <Text style={[styles.resultTitle, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
-            {result.error}
-          </Text>
-        ) : hasThreats ? (
-          <>
-            <Text style={[styles.resultTitle, { color: colors.danger, fontFamily: "Inter_600SemiBold" }]}>
-              {result.threatsCreated} unauthorized use{result.threatsCreated !== 1 ? "s" : ""} detected
-            </Text>
-            <Text style={[styles.resultDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Check the Alerts tab for details on who's using your photos.
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={[styles.resultTitle, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
-              {result.totalSearched} photo{result.totalSearched !== 1 ? "s" : ""} searched — no matches found
-            </Text>
-            <Text style={[styles.resultDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Your photos weren't found on any other profiles. Good news!
-            </Text>
-          </>
-        )}
-      </View>
-      <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Ionicons name="close" size={16} color={colors.mutedForeground} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function PhotoMonitorScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { indexedPhotos, addIndexedPhotos, removeIndexedPhoto, threats, user, refreshData } = useApp();
+  const { indexedPhotos, addIndexedPhotos, removeIndexedPhoto, threats, user } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const [accountMedia, setAccountMedia] = useState<Record<string, AccountMediaState>>({});
   const [accountSelections, setAccountSelections] = useState<Record<string, Set<number>>>({});
   const [addingPhotos, setAddingPhotos] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [monitoringAccount, setMonitoringAccount] = useState<string | null>(null);
-  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
-  const [isDemoUser, setIsDemoUser] = useState<boolean | null>(null);
+  const [addedFeedback, setAddedFeedback] = useState<string | null>(null);
 
   const connectedAccounts = user.connectedAccounts;
   const accountIdsKey = connectedAccounts.map((a) => a.id).join(",");
 
-  // Check if demo user once on mount
-  useEffect(() => {
-    checkIsDemoUser().then(setIsDemoUser);
-  }, []);
+  const matchedPhotoIds = new Set(
+    threats
+      .filter((t) => t.type === "stolen_photo" && !t.resolved)
+      .flatMap((t) => t.evidence.map((e) => e.id.replace(/^ev_/, "")))
+  );
 
-  // Fetch real media for each connected account when demo status is known
+  // Fetch real media for each connected account on mount
   useEffect(() => {
-    if (isDemoUser === null) return;
     if (connectedAccounts.length === 0) return;
 
     for (const account of connectedAccounts) {
-      // Don't re-fetch if already loading or loaded
       setAccountMedia((prev) => {
         if (prev[account.id]) return prev;
         return { ...prev, [account.id]: { loading: true, items: [], hasAccess: false } };
@@ -296,80 +221,40 @@ export default function PhotoMonitorScreen() {
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountIdsKey, isDemoUser]);
+  }, [accountIdsKey]);
 
-  const matchedPhotoIds = new Set(
-    threats
-      .filter((t) => t.type === "stolen_photo" && !t.resolved)
-      .flatMap((t) => t.evidence.map((e) => e.id.replace(/^ev_/, "")))
-  );
-
-  // ── Camera roll: pick photos, get base64, run reverse image search ────────
+  // ── Camera roll: pick photos and add to monitored list ───────────────────
 
   const handlePickPhotos = useCallback(async () => {
-    if (addingPhotos || searching || isDemoUser === null) return;
+    if (addingPhotos) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
 
     setAddingPhotos(true);
-    setSearchResult(null);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: "images",
         allowsMultipleSelection: true,
-        quality: 0.6,
+        quality: 0.4,
         selectionLimit: 10,
-        base64: !isDemoUser, // Always fetch base64 for authenticated users
+        base64: true,
       });
 
       if (!result.canceled && result.assets.length > 0) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        addIndexedPhotos(result.assets.map((a) => a.uri), "camera_roll");
-
-        // Search if authenticated (not demo user) and base64 available
-        if (isDemoUser === false) {
-          setSearching(true);
-          let totalMatches = 0;
-          let totalThreats = 0;
-          let searchError: string | undefined;
-
-          for (const asset of result.assets) {
-            if (!asset.base64) continue;
-            try {
-              const res = await reverseImageSearch({ imageBase64: asset.base64 });
-              if (res.configured) {
-                totalMatches += res.matches.length;
-                totalThreats += res.threatsCreated;
-              }
-            } catch {
-              searchError = "Search failed for one or more photos.";
-            }
-          }
-
-          if (totalThreats > 0) await refreshData();
-
-          Haptics.notificationAsync(
-            totalThreats > 0
-              ? Haptics.NotificationFeedbackType.Warning
-              : Haptics.NotificationFeedbackType.Success
-          );
-
-          setSearchResult({
-            totalSearched: result.assets.length,
-            matchesFound: totalMatches,
-            threatsCreated: totalThreats,
-            error: searchError,
-          });
-          setSearching(false);
-        }
+        addIndexedPhotos(
+          result.assets.map((a) => ({ uri: a.uri, base64: a.base64 ?? undefined })),
+          "camera_roll"
+        );
+        setAddedFeedback(`${result.assets.length} photo${result.assets.length !== 1 ? "s" : ""} added — will be scanned next time you run a scan`);
+        setTimeout(() => setAddedFeedback(null), 4000);
       }
     } finally {
       setAddingPhotos(false);
-      setSearching(false);
     }
-  }, [addingPhotos, searching, isDemoUser, addIndexedPhotos, refreshData]);
+  }, [addingPhotos, addIndexedPhotos]);
 
-  // ── Account photos: select CDN-hosted posts, run reverse image search ─────
+  // ── Account photos: select and add to monitored list ─────────────────────
 
   const toggleAccountPost = useCallback((accountId: string, index: number) => {
     setAccountSelections((prev) => {
@@ -384,71 +269,28 @@ export default function PhotoMonitorScreen() {
   }, []);
 
   const handleMonitorSelected = useCallback(
-    async (accountId: string, items: AccountMediaItem[]) => {
+    (accountId: string, items: AccountMediaItem[]) => {
       const selected = accountSelections[accountId];
-      if (!selected || selected.size === 0 || searching) return;
+      if (!selected || selected.size === 0) return;
 
       const selectedItems = Array.from(selected)
         .map((i) => items[i])
         .filter((item): item is AccountMediaItem => !!item);
 
-      setSearching(true);
-      setMonitoringAccount(accountId);
-      setSearchResult(null);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      let totalMatches = 0;
-      let totalThreats = 0;
-      let searchError: string | undefined;
+      addIndexedPhotos(
+        selectedItems.map((item) => ({ uri: item.url })),
+        "account",
+        accountId
+      );
 
-      try {
-        // Register photos locally for tracking
-        addIndexedPhotos(
-          selectedItems.map((item) => item.url),
-          "account",
-          accountId
-        );
-
-        // Reverse search each selected photo's CDN URL
-        for (const item of selectedItems) {
-          try {
-            const res = await reverseImageSearch({ imageUrl: item.url });
-            if (res.configured) {
-              totalMatches += res.matches.length;
-              totalThreats += res.threatsCreated;
-            }
-          } catch {
-            searchError = "Search failed for one or more photos.";
-          }
-        }
-
-        if (totalThreats > 0) await refreshData();
-
-        setAccountSelections((prev) => ({ ...prev, [accountId]: new Set() }));
-        Haptics.notificationAsync(
-          totalThreats > 0
-            ? Haptics.NotificationFeedbackType.Warning
-            : Haptics.NotificationFeedbackType.Success
-        );
-        setSearchResult({
-          totalSearched: selectedItems.length,
-          matchesFound: totalMatches,
-          threatsCreated: totalThreats,
-          error: searchError,
-        });
-      } catch {
-        setSearchResult({
-          totalSearched: selectedItems.length,
-          matchesFound: 0,
-          threatsCreated: 0,
-          error: "Search failed. Please try again.",
-        });
-      } finally {
-        setSearching(false);
-        setMonitoringAccount(null);
-      }
+      setAccountSelections((prev) => ({ ...prev, [accountId]: new Set() }));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setAddedFeedback(`${selectedItems.length} photo${selectedItems.length !== 1 ? "s" : ""} added — will be scanned next time you run a scan`);
+      setTimeout(() => setAddedFeedback(null), 4000);
     },
-    [accountSelections, searching, addIndexedPhotos, refreshData]
+    [accountSelections, addIndexedPhotos]
   );
 
   return (
@@ -477,22 +319,24 @@ export default function PhotoMonitorScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 40 }]}
       >
         <Text style={[styles.sectionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Upload photos or import from connected accounts. ShieldID uses Google reverse image search to find unauthorized use across the web.
+          Choose which photos you want protected. Selected photos are searched simultaneously when you run a scan from the Scan tab.
         </Text>
 
-        {/* Search result banner */}
-        {searchResult && (
-          <SearchResultBanner
-            result={searchResult}
-            onDismiss={() => setSearchResult(null)}
-          />
+        {/* Feedback banner */}
+        {addedFeedback && (
+          <View style={[styles.feedbackBanner, { backgroundColor: colors.success + "18", borderColor: colors.success + "44" }]}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+            <Text style={[styles.feedbackText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
+              {addedFeedback}
+            </Text>
+          </View>
         )}
 
-        {/* ── Your Photos ────────────────────────────────────────────────── */}
+        {/* ── Your Monitored Photos ──────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
           <MaterialCommunityIcons name="image-search" size={18} color={colors.primary} />
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            Your Photos
+            Monitored Photos
           </Text>
           {indexedPhotos.length > 0 && (
             <View style={[styles.countBadge, { backgroundColor: colors.primary + "22" }]}>
@@ -509,10 +353,10 @@ export default function PhotoMonitorScreen() {
               <MaterialCommunityIcons name="image-plus" size={32} color={colors.primary} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              No photos indexed yet
+              No photos added yet
             </Text>
             <Text style={[styles.emptyDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Add photos from your camera roll or select from a connected account below.
+              Upload from your camera roll or select from a connected account below.
             </Text>
           </GlassCard>
         ) : (
@@ -536,42 +380,29 @@ export default function PhotoMonitorScreen() {
             styles.addBtn,
             {
               backgroundColor: colors.primary,
-              opacity: addingPhotos || searching || isDemoUser === null ? 0.7 : 1,
+              opacity: addingPhotos ? 0.7 : 1,
             },
           ]}
           activeOpacity={0.85}
           onPress={handlePickPhotos}
-          disabled={addingPhotos || searching || isDemoUser === null}
+          disabled={addingPhotos}
         >
-          {isDemoUser === null ? (
+          {addingPhotos ? (
             <>
               <ActivityIndicator size="small" color="#FFFFFF" />
               <Text style={[styles.addBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                Checking sign-in…
-              </Text>
-            </>
-          ) : searching && !monitoringAccount ? (
-            <>
-              <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={[styles.addBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                Searching…
+                Opening Library…
               </Text>
             </>
           ) : (
             <>
-              <Ionicons name={addingPhotos ? "hourglass" : "images"} size={20} color="#FFFFFF" />
+              <Ionicons name="images" size={20} color="#FFFFFF" />
               <Text style={[styles.addBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                {addingPhotos ? "Opening Library…" : "Add & Search from Camera Roll"}
+                Add from Camera Roll
               </Text>
             </>
           )}
         </TouchableOpacity>
-
-        {isDemoUser === true && (
-          <Text style={[styles.demoNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Sign in to enable reverse image search — photos will be searched across the web for unauthorized use.
-          </Text>
-        )}
 
         {/* ── Import from Connected Accounts ─────────────────────────────── */}
         {connectedAccounts.length > 0 && (
@@ -583,7 +414,7 @@ export default function PhotoMonitorScreen() {
               </Text>
             </View>
             <Text style={[styles.importDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Select photos from your connected accounts to search for unauthorized use on other platforms.
+              Select photos from your connected accounts to include in your next scan.
             </Text>
 
             {connectedAccounts.map((account) => {
@@ -594,7 +425,6 @@ export default function PhotoMonitorScreen() {
               };
               const selected = accountSelections[account.id] ?? new Set<number>();
               const selectedCount = selected.size;
-              const isThisAccountSearching = searching && monitoringAccount === account.id;
 
               return (
                 <GlassCard key={account.id} style={styles.accountCard}>
@@ -630,7 +460,7 @@ export default function PhotoMonitorScreen() {
                     <View style={styles.noAccessRow}>
                       <Ionicons name="lock-closed-outline" size={15} color={colors.mutedForeground} />
                       <Text style={[styles.noAccessText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        Connect via OAuth to import and search your photos from this account.
+                        Connect via OAuth to import photos from this account.
                       </Text>
                     </View>
                   ) : mediaState.items.length === 0 ? (
@@ -657,49 +487,32 @@ export default function PhotoMonitorScreen() {
                       style={[
                         styles.monitorBtn,
                         {
-                          backgroundColor:
-                            selectedCount > 0 && !searching
-                              ? colors.primary
-                              : colors.secondary,
-                          borderColor:
-                            selectedCount > 0 ? colors.primary : colors.border,
-                          opacity: searching ? 0.7 : 1,
+                          backgroundColor: selectedCount > 0 ? colors.primary : colors.secondary,
+                          borderColor: selectedCount > 0 ? colors.primary : colors.border,
                         },
                       ]}
                       activeOpacity={0.85}
                       onPress={() => handleMonitorSelected(account.id, mediaState.items)}
-                      disabled={selectedCount === 0 || searching}
+                      disabled={selectedCount === 0}
                     >
-                      {isThisAccountSearching ? (
-                        <>
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                          <Text style={[styles.monitorBtnText, { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" }]}>
-                            Searching {selectedCount} photo{selectedCount !== 1 ? "s" : ""}…
-                          </Text>
-                        </>
-                      ) : (
-                        <>
-                          <MaterialCommunityIcons
-                            name="radar"
-                            size={18}
-                            color={selectedCount > 0 ? "#FFFFFF" : colors.mutedForeground}
-                          />
-                          <Text
-                            style={[
-                              styles.monitorBtnText,
-                              {
-                                color:
-                                  selectedCount > 0 ? "#FFFFFF" : colors.mutedForeground,
-                                fontFamily: "Inter_600SemiBold",
-                              },
-                            ]}
-                          >
-                            {selectedCount > 0
-                              ? `Search & Monitor (${selectedCount})`
-                              : "Select photos to search"}
-                          </Text>
-                        </>
-                      )}
+                      <MaterialCommunityIcons
+                        name="image-check"
+                        size={18}
+                        color={selectedCount > 0 ? "#FFFFFF" : colors.mutedForeground}
+                      />
+                      <Text
+                        style={[
+                          styles.monitorBtnText,
+                          {
+                            color: selectedCount > 0 ? "#FFFFFF" : colors.mutedForeground,
+                            fontFamily: "Inter_600SemiBold",
+                          },
+                        ]}
+                      >
+                        {selectedCount > 0
+                          ? `Monitor ${selectedCount} Photo${selectedCount !== 1 ? "s" : ""}`
+                          : "Select photos to monitor"}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </GlassCard>
@@ -711,15 +524,15 @@ export default function PhotoMonitorScreen() {
         {/* ── Info card ──────────────────────────────────────────────────── */}
         <GlassCard style={styles.infoCard}>
           <View style={styles.infoRow}>
-            <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+            <Ionicons name="scan-outline" size={18} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Photos from connected accounts are searched via Google Cloud Vision reverse image search — your actual pixels are matched against the entire public web to find unauthorized use.
+              All monitored photos are searched via Google Cloud Vision simultaneously when you run a scan — your pixels are matched against the entire public web to find unauthorized use.
             </Text>
           </View>
           <View style={[styles.infoRow, { marginTop: 10 }]}>
             <Ionicons name="phone-portrait-outline" size={18} color={colors.mutedForeground} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Camera roll photos are sent securely to our servers for one-time search and never stored.
+              Camera roll photos are processed securely and used only for your scans. Go to the Scan tab and tap Start Full Scan to run now.
             </Text>
           </View>
         </GlassCard>
@@ -752,17 +565,15 @@ const styles = StyleSheet.create({
   countBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
   countText: { fontSize: 13 },
 
-  // Search result banner
-  resultBanner: {
+  feedbackBanner: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: 14,
-    borderRadius: 12,
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
     borderWidth: 1,
   },
-  resultTitle: { fontSize: 14, marginBottom: 2 },
-  resultDesc: { fontSize: 13, lineHeight: 18 },
+  feedbackText: { flex: 1, fontSize: 13, lineHeight: 18 },
 
   emptyCard: { alignItems: "center", gap: 10, paddingVertical: 28 },
   emptyIcon: {
@@ -815,7 +626,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
   },
   addBtnText: { fontSize: 16, color: "#FFFFFF" },
-  demoNote: { fontSize: 13, lineHeight: 18, textAlign: "center", marginTop: -4 },
 
   importDesc: { fontSize: 13, lineHeight: 18, marginTop: -6 },
   accountCard: { gap: 12 },
@@ -824,7 +634,6 @@ const styles = StyleSheet.create({
   accountUsername: { fontSize: 15 },
   accountPlatform: { fontSize: 13, marginTop: 2, textTransform: "capitalize" },
 
-  // Real post grid
   postGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   postCell: { position: "relative" },
   postCellInner: {
