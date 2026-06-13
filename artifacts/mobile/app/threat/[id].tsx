@@ -169,20 +169,29 @@ function EvidencePhotoBox({
   photoUrl,
   caption,
   simColor,
+  onTap,
 }: {
   side: "yours" | "stolen";
   photoUrl?: string;
   caption?: string;
   simColor: string;
+  onTap?: () => void;
 }) {
   const colors = useColors();
   const [imgFailed, setImgFailed] = useState(false);
   const boxColor = side === "yours" ? colors.success : simColor;
   const showImage = !!photoUrl && !imgFailed;
+  const canTap = side === "stolen" && !!onTap;
+
+  const BoxWrapper = canTap ? TouchableOpacity : View;
+  const boxWrapperProps = canTap
+    ? { activeOpacity: 0.75, onPress: onTap }
+    : {};
 
   return (
     <View style={styles.evidencePhotoCol}>
-      <View
+      <BoxWrapper
+        {...(boxWrapperProps as object)}
         style={[
           styles.evidencePhotoBox,
           { backgroundColor: boxColor + "18", borderColor: boxColor + "44" },
@@ -205,8 +214,20 @@ function EvidencePhotoBox({
           side === "yours" ? (
             <Ionicons name="person-circle" size={36} color={boxColor} />
           ) : (
-            <Ionicons name="warning" size={28} color={simColor} />
+            <View style={styles.stolenPlaceholder}>
+              <Ionicons name="eye-outline" size={26} color={simColor} />
+              {canTap && (
+                <Text style={[styles.tapToView, { color: simColor, fontFamily: "Inter_600SemiBold" }]}>
+                  Tap to view
+                </Text>
+              )}
+            </View>
           )
+        )}
+        {showImage && canTap && (
+          <View style={[styles.viewOverlay, { backgroundColor: simColor + "CC" }]}>
+            <Ionicons name="open-outline" size={12} color="#FFFFFF" />
+          </View>
         )}
         <View
           style={[
@@ -220,7 +241,7 @@ function EvidencePhotoBox({
             color="#FFFFFF"
           />
         </View>
-      </View>
+      </BoxWrapper>
       <Text
         style={[
           styles.evidencePhotoLabel,
@@ -309,6 +330,11 @@ function EvidenceCard({ item }: { item: MatchedEvidence }) {
           photoUrl={item.stolenPhotoUrl}
           caption={item.stolenCaption}
           simColor={simColor}
+          onTap={
+            item.stolenPhotoUrl
+              ? () => Linking.openURL(item.stolenPhotoUrl!).catch(() => {})
+              : undefined
+          }
         />
       </View>
     </View>
@@ -803,6 +829,18 @@ const styles = StyleSheet.create({
   },
   evidencePhotoLabel: { fontSize: 11 },
   evidenceCaption: { fontSize: 11, textAlign: "center", lineHeight: 15 },
+  stolenPlaceholder: { alignItems: "center", gap: 4 },
+  tapToView: { fontSize: 10 },
+  viewOverlay: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   evidenceArrow: { alignItems: "center", gap: 4 },
   similarityBubble: {
