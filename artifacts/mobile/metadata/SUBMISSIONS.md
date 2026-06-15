@@ -213,7 +213,7 @@ Or upload the `.aab` manually via **Production → Releases → Create new relea
 2. Create **Entitlements**: `pro`, `premium`
 3. Create **Products**: add all 8 subscription product IDs from both stores
 4. Create **Offerings**: map products to entitlements
-5. Verify the `REVENUECAT_API_KEY` (iOS) and `REVENUECAT_ANDROID_API_KEY` are set in EAS secrets
+5. Verify the `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, and `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY` are set in EAS secrets (via `eas secret:create`)
 
 ---
 

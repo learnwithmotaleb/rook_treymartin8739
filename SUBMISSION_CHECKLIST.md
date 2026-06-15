@@ -35,8 +35,17 @@ Add 7-day free trial to all four. Copy IDs into RevenueCat dashboard entitlement
 
 ## 4 — EAS secrets (set via `eas secret:create`)
 
-- `REVENUECAT_IOS_API_KEY` — from RevenueCat iOS app settings
-- `REVENUECAT_ANDROID_API_KEY` — from RevenueCat Android app settings
+These must match what the app reads at runtime (see `artifacts/mobile/lib/revenuecat.tsx`):
+
+- `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` — from RevenueCat iOS app settings
+- `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` — from RevenueCat Android app settings
+- `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY` — sandbox/test key (required even in production builds)
+
+```bash
+eas secret:create --scope project --name EXPO_PUBLIC_REVENUECAT_IOS_API_KEY --value "appl_..."
+eas secret:create --scope project --name EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY --value "goog_..."
+eas secret:create --scope project --name EXPO_PUBLIC_REVENUECAT_TEST_API_KEY --value "..."
+```
 
 ## 5 — Regenerate app icons (if logo changes)
 
