@@ -3,6 +3,7 @@
     "name": "ShieldID",
     "slug": "mobile",
     "version": "1.0.0",
+    "privacyPolicyUrl": "https://shieldid.replit.app/api/legal/privacy",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",

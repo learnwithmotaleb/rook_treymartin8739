@@ -9,7 +9,7 @@ const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
 const APP_NAME = "ShieldID";
 const CONTACT_EMAIL = "privacy@shieldid.app";
 const SUPPORT_EMAIL = "support@shieldid.app";
-const LAST_UPDATED = "June 12, 2026";
+const LAST_UPDATED = "June 15, 2026";
 
 const html = (title: string, body: string) => `<!DOCTYPE html>
 <html lang="en">
