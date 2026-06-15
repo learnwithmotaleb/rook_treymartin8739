@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import { publicLegalRouter } from "./routes/legal";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -52,6 +53,7 @@ app.use(
   })),
 );
 
+app.use("/", publicLegalRouter);
 app.use("/api", router);
 
 export default app;

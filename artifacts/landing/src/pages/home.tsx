@@ -1133,8 +1133,8 @@ export default function Home() {
             <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
-            <a href="/landing/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
-            <a href="/landing/terms" className="hover:text-white transition-colors">Terms of Service</a>
+            <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
+            <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
             <a href="mailto:support@shieldid.app" className="hover:text-white transition-colors">Contact</a>
           </div>
           <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} ShieldID. All rights reserved.</div>

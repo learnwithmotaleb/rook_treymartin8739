@@ -1,6 +1,7 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 
 const router: IRouter = Router();
+const publicLegalRouter: IRouter = Router();
 
 const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? process.env["REPLIT_DEV_DOMAIN"]
@@ -49,15 +50,15 @@ const html = (title: string, body: string) => `<!DOCTYPE html>
     ${body}
     <div class="footer">
       &copy; ${new Date().getFullYear()} ${APP_NAME} &nbsp;·&nbsp;
-      <a href="/api/legal/privacy">Privacy Policy</a> &nbsp;·&nbsp;
-      <a href="/api/legal/terms">Terms of Service</a> &nbsp;·&nbsp;
+      <a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp;
+      <a href="/terms">Terms of Service</a> &nbsp;·&nbsp;
       <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>
     </div>
   </div>
 </body>
 </html>`;
 
-router.get("/legal/privacy", (_req, res) => {
+function servePrivacy(_req: Request, res: Response) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html("Privacy Policy", `
     <h1>Privacy Policy</h1>
@@ -68,11 +69,11 @@ router.get("/legal/privacy", (_req, res) => {
     <h2>1. Information We Collect</h2>
     <p>We collect information you provide directly and information we obtain through connected social accounts:</p>
     <ul>
-      <li><strong>Account information:</strong> Name, email address, and username when you register.</li>
-      <li><strong>Connected platform data:</strong> When you authorize ${APP_NAME} to access a social platform, we receive read-only access to your public profile information including your username, profile photo, follower count, and public posts.</li>
-      <li><strong>Visual fingerprint data:</strong> Perceptual hashes (not raw images) derived from your public photos, used to detect visually similar stolen content.</li>
-      <li><strong>Scan results:</strong> Records of monitoring activity, detected threats, and impersonation alerts associated with your account.</li>
-      <li><strong>Payment information:</strong> Subscriptions and billing are handled by <strong>RevenueCat</strong> and processed through the Apple App Store or Google Play Store. We store only your subscription tier and entitlement status — we never see or store your full payment card number or billing details.</li>
+      <li><strong>Account information:</strong> Name, email address, and username when you register. Authentication is handled by <strong>Clerk</strong> — we receive a secure user identifier (Clerk user ID) and basic profile info, but never your password.</li>
+      <li><strong>Connected platform data:</strong> When you authorize ${APP_NAME} to access a social platform, we receive read-only access to your public profile information — username, profile photo, follower count, and public posts.</li>
+      <li><strong>Identity fingerprint data:</strong> Perceptual hashes (not raw images) derived from your public photos, used to detect visually similar stolen content.</li>
+      <li><strong>Scan results:</strong> Records of monitoring activity, detected threats, and impersonation alerts associated with your account. Stored in a managed <strong>PostgreSQL</strong> database.</li>
+      <li><strong>Payment information:</strong> Subscriptions are managed by <strong>RevenueCat</strong> and billed through the Apple App Store or Google Play Store. We store only your subscription tier and entitlement status — we never see your full payment card number or billing address.</li>
       <li><strong>Usage data:</strong> App interactions, feature usage, and device information to improve the service.</li>
     </ul>
 
@@ -96,18 +97,20 @@ router.get("/legal/privacy", (_req, res) => {
     </ul>
     <p>You can revoke access at any time from the platform's settings page or by disconnecting the account in ${APP_NAME}.</p>
 
-    <h2>4. Data Sharing</h2>
-    <p>We do not sell your personal information. We share data only with:</p>
+    <h2>4. Data Processors</h2>
+    <p>We use the following sub-processors to deliver the service:</p>
     <ul>
-      <li><strong>RevenueCat:</strong> For subscription management and entitlement verification (subject to <a href="https://www.revenuecat.com/privacy" target="_blank">RevenueCat's Privacy Policy</a>). Payments are processed directly by Apple or Google — we never handle payment card data.</li>
-      <li><strong>Google Cloud Vision:</strong> Photo URLs from your connected accounts are sent to Google's Web Detection API to find where those images appear on the open web (subject to <a href="https://policies.google.com/privacy" target="_blank">Google's Privacy Policy</a>).</li>
-      <li><strong>OpenAI:</strong> Anonymized text snippets may be analyzed to generate AI threat explanations (subject to <a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI's Privacy Policy</a>).</li>
-      <li><strong>Infrastructure providers:</strong> Cloud hosting and database services necessary to operate the app.</li>
-      <li><strong>Law enforcement:</strong> Only when required by applicable law.</li>
+      <li><strong>Clerk</strong> — authentication and identity management (<a href="https://clerk.com/privacy" target="_blank">Privacy Policy</a>)</li>
+      <li><strong>PostgreSQL on Replit</strong> — encrypted-at-rest managed database hosting all user and threat data</li>
+      <li><strong>RevenueCat</strong> — subscription management and entitlement verification (<a href="https://www.revenuecat.com/privacy" target="_blank">Privacy Policy</a>)</li>
+      <li><strong>Google Cloud Vision</strong> — photo URLs are sent to Google's Web Detection API to locate stolen images on the open web (<a href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a>)</li>
+      <li><strong>OpenAI</strong> — anonymized text snippets may be sent for AI-generated threat explanations (<a href="https://openai.com/policies/privacy-policy" target="_blank">Privacy Policy</a>)</li>
+      <li><strong>Replit</strong> — cloud infrastructure and hosting (<a href="https://replit.com/privacy" target="_blank">Privacy Policy</a>)</li>
     </ul>
+    <p>We do not sell your personal information to any third party.</p>
 
     <h2>5. Automated Decision-Making</h2>
-    <p>${APP_NAME} uses AI algorithms to automatically analyze social media content and generate threat scores and alerts. These scores are probabilistic estimates based on pattern matching — they are not legal determinations and may contain errors. You have the right to request human review of any automated alert by contacting us at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. All AI-generated results are labeled as such within the app.</p>
+    <p>${APP_NAME} uses AI algorithms to automatically analyze social media content and generate threat scores and alerts. These scores are probabilistic estimates — not legal determinations — and may contain errors. You have the right to request human review of any automated alert by contacting <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. All AI-generated results are labeled as such within the app.</p>
 
     <h2>6. Data Retention</h2>
     <ul>
@@ -120,35 +123,33 @@ router.get("/legal/privacy", (_req, res) => {
     <p>You may delete your account and all associated data at any time directly in the app under <strong>Profile → Delete Account</strong>. Data is purged from our production systems within 30 days of deletion.</p>
 
     <h2>7. Security</h2>
-    <p>All data is encrypted in transit (TLS 1.2+) and at rest. OAuth tokens are stored encrypted. We follow industry-standard security practices and conduct regular security reviews.</p>
+    <p>All data is encrypted in transit (TLS 1.2+) and at rest in PostgreSQL. OAuth tokens are stored encrypted. We follow industry-standard security practices and conduct regular security reviews.</p>
 
     <h2>8. Children's Privacy</h2>
     <p>${APP_NAME} is not directed to children under 13. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has provided us personal information, contact us immediately at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
 
     <h2>9. Your Rights (GDPR — EU/EEA/UK Residents)</h2>
-    <p>If you are located in the European Union, European Economic Area, or United Kingdom, you have the following rights under the GDPR:</p>
+    <p>If you are located in the EU, EEA, or UK, you have the following rights under the GDPR (Art. 15–22):</p>
     <ul>
-      <li><strong>Right of Access:</strong> Request a copy of the personal data we hold about you.</li>
-      <li><strong>Right to Rectification:</strong> Request correction of inaccurate or incomplete data.</li>
-      <li><strong>Right to Erasure ("Right to be Forgotten"):</strong> Request deletion of your personal data. You can do this directly via <strong>Profile → Delete Account</strong> or by contacting us.</li>
-      <li><strong>Right to Restrict Processing:</strong> Request that we limit how we use your data.</li>
-      <li><strong>Right to Data Portability:</strong> Request your personal data in a structured, machine-readable format.</li>
-      <li><strong>Right to Object:</strong> Object to processing based on legitimate interests, including profiling.</li>
-      <li><strong>Right to Human Review:</strong> Request human review of any automated decision that significantly affects you.</li>
-      <li><strong>Right to Withdraw Consent:</strong> Where processing is based on consent, you may withdraw it at any time without affecting prior processing.</li>
+      <li><strong>Right of Access (Art. 15):</strong> Request a copy of the personal data we hold about you.</li>
+      <li><strong>Right to Rectification (Art. 16):</strong> Request correction of inaccurate or incomplete data.</li>
+      <li><strong>Right to Erasure / "Right to be Forgotten" (Art. 17):</strong> Request deletion via <strong>Profile → Delete Account</strong> or by contacting us.</li>
+      <li><strong>Right to Restrict Processing (Art. 18):</strong> Request that we limit how we use your data.</li>
+      <li><strong>Right to Data Portability (Art. 20):</strong> Request your personal data in a structured, machine-readable format.</li>
+      <li><strong>Right to Object (Art. 21):</strong> Object to processing based on legitimate interests, including profiling.</li>
+      <li><strong>Right to Human Review (Art. 22):</strong> Request human review of any automated decision that significantly affects you.</li>
     </ul>
-    <p>Our legal basis for processing personal data is: <em>contract performance</em> (providing the service you signed up for), <em>legitimate interests</em> (fraud prevention, security), and <em>consent</em> (marketing communications, where applicable). To exercise any GDPR right, contact <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. We will respond within 30 days. You also have the right to lodge a complaint with your local supervisory authority.</p>
+    <p>Our legal bases for processing (Art. 6): <em>contract performance</em> (providing the service you signed up for), <em>legitimate interests</em> (fraud prevention, security), and <em>consent</em> (marketing communications). To exercise any right, contact <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. We respond within 30 days. You also have the right to lodge a complaint with your local supervisory authority.</p>
 
     <h2>10. Your Rights (CCPA — California Residents)</h2>
-    <p>If you are a California resident, the California Consumer Privacy Act (CCPA) gives you additional rights:</p>
     <ul>
-      <li><strong>Right to Know:</strong> Request disclosure of the categories and specific pieces of personal information we collect, use, disclose, or sell.</li>
-      <li><strong>Right to Delete:</strong> Request deletion of personal information we have collected from you (subject to certain exceptions). Use <strong>Profile → Delete Account</strong> or contact us.</li>
-      <li><strong>Right to Opt-Out of Sale:</strong> We do not sell personal information. No opt-out is required.</li>
-      <li><strong>Right to Non-Discrimination:</strong> We will not discriminate against you for exercising any CCPA rights.</li>
+      <li><strong>Right to Know:</strong> Request disclosure of the categories and specific pieces of personal information we collect, use, or disclose.</li>
+      <li><strong>Right to Delete:</strong> Request deletion via <strong>Profile → Delete Account</strong> or contact us.</li>
+      <li><strong>Right to Opt-Out of Sale:</strong> We do not sell personal information.</li>
+      <li><strong>Right to Non-Discrimination:</strong> We will not discriminate against you for exercising CCPA rights.</li>
       <li><strong>Right to Correct:</strong> Request correction of inaccurate personal information.</li>
     </ul>
-    <p>To exercise CCPA rights, contact <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> with subject "CCPA Request". We will respond within 45 days.</p>
+    <p>To exercise CCPA rights, contact <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> with subject "CCPA Request". We respond within 45 days.</p>
 
     <h2>11. Changes to This Policy</h2>
     <p>We may update this Privacy Policy from time to time. We will notify you of material changes via email or in-app notification. Continued use of the service after changes constitutes acceptance.</p>
@@ -160,32 +161,33 @@ router.get("/legal/privacy", (_req, res) => {
       <p><strong>Website:</strong> <a href="https://${DOMAIN}">https://${DOMAIN}</a></p>
     </div>
   `));
-});
+}
 
-router.get("/legal/terms", (_req, res) => {
+function serveTerms(_req: Request, res: Response) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html("Terms of Service", `
     <h1>Terms of Service</h1>
     <p class="meta">Last updated: ${LAST_UPDATED}</p>
 
-    <p>These Terms of Service ("Terms") govern your use of ${APP_NAME} ("Service"). By using the Service you agree to these Terms.</p>
+    <p>These Terms of Service ("Terms") govern your use of ${APP_NAME} ("Service"). By downloading, installing, or using the Service you agree to these Terms. If you do not agree, do not use the Service.</p>
 
     <h2>1. The Service</h2>
-    <p>${APP_NAME} provides AI-powered identity monitoring services including detection of social media impersonators and stolen photos. The Service is provided on a subscription basis with Free, Pro, and Premium tiers.</p>
+    <p>${APP_NAME} provides AI-powered identity monitoring services including detection of social media impersonators and stolen photos. The Service is provided on a subscription basis with Free, Pro, and Premium tiers as described below.</p>
 
     <h2>2. Account Registration</h2>
-    <p>You must provide accurate information when creating an account. You are responsible for maintaining the security of your account credentials. You must be at least 13 years old to use the Service.</p>
+    <p>You must provide accurate information when creating an account. Account creation and authentication is handled by <strong>Clerk</strong>. You are responsible for maintaining the security of your account credentials. You must be at least 13 years old to use the Service.</p>
 
     <h2>3. Connected Social Accounts</h2>
     <p>By connecting a social media account you authorize ${APP_NAME} to access your public profile information in read-only mode for identity monitoring purposes. You represent that you own or have authorization to connect each account. You may disconnect accounts at any time.</p>
 
     <h2>4. Subscriptions and Payments</h2>
     <ul>
-      <li><strong>Free tier:</strong> Limited monitoring for 1 account, manual scans, basic threat history.</li>
-      <li><strong>Pro tier:</strong> Up to 3 accounts, weekly automated scans, real-time alerts with full evidence trails. Current pricing is displayed in the app before purchase.</li>
-      <li><strong>Premium tier:</strong> Unlimited accounts, daily deep scans, advanced intelligence reports. Current pricing is displayed in the app before purchase.</li>
+      <li><strong>Free tier:</strong> 1 connected account, manual scans only, 24-hour threat history.</li>
+      <li><strong>Pro — $4.99/month:</strong> Up to 3 connected accounts, weekly automated scans, 7-day threat history, real-time alerts with full evidence trails.</li>
+      <li><strong>Premium — $9.99/month:</strong> Unlimited connected accounts, daily deep scans, 30-day threat history, advanced intelligence reports, priority support.</li>
     </ul>
-    <p>Paid subscriptions are billed in advance on a recurring basis through the Apple App Store or Google Play Store. All paid subscriptions include a <strong>7-day free trial</strong> for new subscribers — you will not be charged during the trial period. After the trial, you will be charged the applicable subscription price unless you cancel at least 24 hours before the trial ends. You may cancel at any time through your device's subscription settings; cancellation takes effect at the end of the current billing period. No partial refunds are issued for unused periods. Subscription management is handled by Apple or Google according to their respective terms.</p>
+    <p>Paid subscriptions are billed in advance on a monthly recurring basis through the Apple App Store or Google Play Store. All paid subscriptions include a <strong>7-day free trial</strong> for new subscribers — you will not be charged during the trial period. After the trial, you will be charged the applicable subscription price ($4.99/month for Pro, $9.99/month for Premium) unless you cancel at least 24 hours before the trial ends.</p>
+    <p>You may cancel at any time through your device's subscription settings (iOS: Settings → [your name] → Subscriptions → ShieldID → Cancel; Android: Google Play → Subscriptions → ShieldID → Cancel). Cancellation takes effect at the end of the current billing period. No partial refunds are issued for unused periods. Subscription management and billing are handled by Apple or Google according to their respective terms.</p>
 
     <h2>5. AI-Generated Content and Accuracy Disclaimer</h2>
     <p>The Service uses artificial intelligence and machine learning to identify potential identity threats. <strong>All AI-generated alerts, threat scores, and analyses are probabilistic estimates — they may contain errors, false positives, or false negatives.</strong> Results do not constitute legal advice, and ${APP_NAME} makes no guarantee that all threats will be detected or that detected threats are accurate. You should independently verify any alert before taking action. ${APP_NAME} is not liable for any action taken (or not taken) based on AI-generated results.</p>
@@ -200,7 +202,7 @@ router.get("/legal/terms", (_req, res) => {
     </ul>
 
     <h2>7. Intellectual Property</h2>
-    <p>${APP_NAME} and its licensors own all right, title, and interest in the Service, including all software, algorithms, designs, trademarks, and content we create. You retain ownership of your own content (your photos, posts, and profile information). You grant ${APP_NAME} a limited, non-exclusive, royalty-free license to process your content solely to provide the identity monitoring service described in these Terms. We do not claim ownership of your personal content.</p>
+    <p>${APP_NAME} and its licensors own all right, title, and interest in the Service, including all software, algorithms, designs, trademarks, and content we create. You retain ownership of your own content. You grant ${APP_NAME} a limited, non-exclusive, royalty-free license to process your content solely to provide the identity monitoring service described in these Terms.</p>
 
     <h2>8. Disclaimer of Warranties</h2>
     <p>The Service is provided "as is" without warranty of any kind. We do not guarantee that all impersonators or threats will be detected. Monitoring coverage depends on platform API availability and our detection algorithms, which are continuously improving but not infallible.</p>
@@ -209,7 +211,7 @@ router.get("/legal/terms", (_req, res) => {
     <p>To the maximum extent permitted by law, ${APP_NAME} shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the Service. Our total liability for any claim arising out of or relating to these Terms shall not exceed the amount you paid us in the 12 months preceding the claim.</p>
 
     <h2>10. Dispute Resolution and Governing Law</h2>
-    <p>These Terms are governed by the laws of the State of Delaware, United States, without regard to conflict of law principles. Any dispute arising from these Terms or your use of the Service shall first be submitted to informal resolution by contacting <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. If not resolved within 30 days, disputes shall be resolved by binding individual arbitration under the rules of the American Arbitration Association (AAA), conducted in English. <strong>You waive any right to participate in class actions or class-wide arbitration.</strong> Nothing in this section prevents either party from seeking injunctive or other equitable relief in a court of competent jurisdiction.</p>
+    <p>These Terms are governed by the laws of the State of Delaware, United States, without regard to conflict of law principles. Any dispute shall first be submitted to informal resolution by contacting <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. If not resolved within 30 days, disputes shall be resolved by binding individual arbitration under the rules of the American Arbitration Association (AAA), conducted in English. <strong>You waive any right to participate in class actions or class-wide arbitration.</strong> Nothing in this section prevents either party from seeking injunctive or other equitable relief in a court of competent jurisdiction.</p>
     <p>Users in the EU/EEA may also submit disputes to the European Online Dispute Resolution platform at <a href="https://ec.europa.eu/consumers/odr" target="_blank">ec.europa.eu/consumers/odr</a>.</p>
 
     <h2>11. Termination</h2>
@@ -225,9 +227,9 @@ router.get("/legal/terms", (_req, res) => {
       <p><strong>Website:</strong> <a href="https://${DOMAIN}">https://${DOMAIN}</a></p>
     </div>
   `));
-});
+}
 
-router.get("/legal/support", (_req, res) => {
+function serveSupport(_req: Request, res: Response) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html("Support", `
     <h1>Support</h1>
@@ -262,10 +264,18 @@ router.get("/legal/support", (_req, res) => {
     <p>That's great news — it likely means no impersonators have been detected. ${APP_NAME} cross-references your public content against the open web. If you recently connected a new account, wait for the identity fingerprint to build before running a scan.</p>
 
     <div class="card">
-      <p><a href="/api/legal/privacy">Privacy Policy</a> &nbsp;·&nbsp; <a href="/api/legal/terms">Terms of Service</a></p>
+      <p><a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms">Terms of Service</a></p>
     </div>
   `));
-});
+}
 
-export { DOMAIN };
+router.get("/legal/privacy", servePrivacy);
+router.get("/legal/terms", serveTerms);
+router.get("/legal/support", serveSupport);
+
+publicLegalRouter.get("/privacy", servePrivacy);
+publicLegalRouter.get("/terms", serveTerms);
+publicLegalRouter.get("/support", serveSupport);
+
+export { DOMAIN, publicLegalRouter };
 export default router;
