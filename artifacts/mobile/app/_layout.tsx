@@ -83,9 +83,11 @@ export default function RootLayout() {
       const screen = data?.screen as string | undefined;
       if (screen === "threat" && data?.threatId) {
         router.push(`/threat/${data.threatId}` as any);
+      } else if (screen === "alerts") {
+        router.push("/(tabs)/alerts" as any);
       } else if (screen === "scan") {
         router.push("/(tabs)/scan" as any);
-      } else if (screen === "dashboard") {
+      } else if (screen === "dashboard" || screen === "home") {
         router.push("/(tabs)" as any);
       }
     }
