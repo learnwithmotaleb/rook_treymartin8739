@@ -9,10 +9,12 @@
     "update:pricing": "tsx ./src/updatePricing.ts",
     "migrate:infrastructure": "tsx ./src/migrate-infrastructure.ts",
     "backfill:actors": "tsx ./src/backfill-threat-actors.ts",
+    "generate:icon": "tsx ./src/generate-icon.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@replit/revenuecat-sdk": "^4.2.0"
+    "@replit/revenuecat-sdk": "^4.2.0",
+    "sharp": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

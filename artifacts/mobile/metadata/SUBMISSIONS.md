@@ -11,8 +11,8 @@ Step-by-step checklist for submitting to the Apple App Store and Google Play.
 - [ ] EAS CLI installed: `npm install -g eas-cli`
 - [ ] Logged in to EAS: `eas login`
 - [ ] RevenueCat production products created and verified in both store dashboards
-- [ ] Privacy Policy live at: `https://shieldid.app/api/legal/privacy`
-- [ ] Support page live at: `https://shieldid.app/api/legal/support`
+- [ ] Privacy Policy live at: `https://shieldid.replit.app/privacy`
+- [ ] Support page live at: `https://shieldid.replit.app/support`
 
 ---
 
@@ -71,7 +71,7 @@ This creates a signed `.aab` (Android App Bundle) for the Play Store.
 |---|---|
 | Name | ShieldID — Identity Protection |
 | Subtitle | AI-Powered Impersonator Shield |
-| Privacy Policy URL | https://shieldid.app/api/legal/privacy |
+| Privacy Policy URL | https://shieldid.replit.app/privacy |
 | Category (Primary) | Utilities |
 | Category (Secondary) | Productivity |
 
@@ -101,8 +101,8 @@ Copy from the `metadata/ios/en-US/` files:
 - **Keywords**: `keywords.txt` (≤ 100 chars, comma-separated)
 - **Promotional Text**: `promotional_text.txt` (updateable without re-review)
 - **What's New**: `release_notes.txt`
-- **Support URL**: https://shieldid.app/api/legal/support
-- **Marketing URL**: https://shieldid.app
+- **Support URL**: https://shieldid.replit.app/support
+- **Marketing URL**: https://shieldid.replit.app
 
 ### 2e. Screenshots
 
