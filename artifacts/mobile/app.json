@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "ShieldID",
-    "slug": "mobile",
+    "slug": "shieldid",
     "version": "1.0.0",
     "privacyPolicyUrl": "https://shieldid.replit.app/privacy",
     "orientation": "portrait",
