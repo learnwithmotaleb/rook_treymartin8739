@@ -18,15 +18,15 @@ import { GlassCard } from "@/components/GlassCard";
 const FAQ = [
   {
     q: "How does identity monitoring work?",
-    a: "ShieldID uses AI to scan major social platforms, dark web databases, and public photo indexes for matches to your profile. When a potential impersonator or stolen asset is detected, you're immediately alerted with evidence.",
+    a: "ShieldID uses AI to scan social platforms and public photo indexes for matches to your profile. When a potential impersonator or stolen asset is detected, you're immediately alerted with evidence.",
   },
   {
     q: "Which platforms are monitored?",
-    a: "We actively monitor Instagram, X (Twitter), TikTok, YouTube, Facebook, LinkedIn, and Snapchat. Premium members also get dark web and breach database scanning.",
+    a: "We actively monitor Instagram and Facebook. Support for X (Twitter), TikTok, YouTube, LinkedIn, and Snapchat is coming soon.",
   },
   {
     q: "How often are scans performed?",
-    a: "Free accounts scan every 14 days. Pro accounts scan weekly with automated scheduling. Premium accounts scan daily with deep AI analysis.",
+    a: "Free accounts get manual scans once per month. Pro accounts scan weekly with automated scheduling. Premium accounts scan daily with deep AI analysis.",
   },
   {
     q: "What do I do if I find an impersonator?",

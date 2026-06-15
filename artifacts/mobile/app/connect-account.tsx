@@ -115,6 +115,10 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
 
 const ALL_PLATFORMS = Object.keys(PLATFORM_CONFIGS) as NonNullable<AppPlatform>[];
 
+// Platforms that are visible in the picker but not yet available for connection.
+// Keep them ready — just swap this set to empty when the backend callbacks are live.
+const LAUNCH_DISABLED_PLATFORMS = new Set<string>(["x", "tiktok"]);
+
 function getClientId(platform: string): string | undefined {
   const key = PLATFORM_CONFIGS[platform]?.clientIdEnvKey;
   if (!key) return undefined;
@@ -280,14 +284,16 @@ export default function ConnectAccount() {
     user.connectedAccounts.map((a) => a.platform).filter(Boolean)
   );
 
-  const [selectedPlatform, setSelectedPlatform] = useState<NonNullable<AppPlatform> | null>(
-    (params.platform as NonNullable<AppPlatform>) ?? null
-  );
+  // If a deep-link targets a disabled platform, fall back to the pick step.
+  const initialPlatform = params.platform && !LAUNCH_DISABLED_PLATFORMS.has(params.platform)
+    ? (params.platform as NonNullable<AppPlatform>)
+    : null;
+  const [selectedPlatform, setSelectedPlatform] = useState<NonNullable<AppPlatform> | null>(initialPlatform);
   const [username, setUsername] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [oauthDone, setOauthDone] = useState(false);
   const [step, setStep] = useState<"pick" | "connect">(
-    params.platform ? "connect" : "pick"
+    initialPlatform ? "connect" : "pick"
   );
 
   const config = selectedPlatform ? PLATFORM_CONFIGS[selectedPlatform] : null;
@@ -387,7 +393,34 @@ export default function ConnectAccount() {
               <View style={styles.platformGrid}>
                 {ALL_PLATFORMS.map((p) => {
                   const isConnected = connectedPlatforms.has(p as any);
+                  const isDisabled = LAUNCH_DISABLED_PLATFORMS.has(p);
                   const cfg = PLATFORM_CONFIGS[p]!;
+                  if (isDisabled) {
+                    return (
+                      <View
+                        key={p}
+                        style={[
+                          styles.platformTile,
+                          {
+                            backgroundColor: colors.card,
+                            borderColor: colors.border,
+                            borderWidth: 1.5,
+                            opacity: 0.4,
+                          },
+                        ]}
+                      >
+                        <PlatformIcon platform={p} size={38} />
+                        <Text style={[styles.platformTileLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                          {cfg.label}
+                        </Text>
+                        <View style={[styles.connectedChip, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 }]}>
+                          <Text style={[styles.connectedChipText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                            Soon
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  }
                   return (
                     <TouchableOpacity
                       key={p}

@@ -34,7 +34,6 @@ interface NotifPrefs {
   dataBreachAlerts: boolean;
   photoTheftAlerts: boolean;
   loginAlerts: boolean;
-  scamAlerts: boolean;
   frequency: "immediate" | "hourly" | "daily";
 }
 
@@ -48,7 +47,6 @@ const DEFAULTS: NotifPrefs = {
   dataBreachAlerts: true,
   photoTheftAlerts: true,
   loginAlerts: true,
-  scamAlerts: true,
   frequency: "immediate",
 };
 
@@ -377,14 +375,6 @@ export default function NotificationSettings() {
             sublabel="Unrecognized login to your linked accounts"
             value={prefs.loginAlerts}
             onToggle={(v) => toggle("loginAlerts", v)}
-          />
-          <ToggleRow
-            icon="chatbubble-ellipses"
-            iconColor="#3B82F6"
-            label="Scam Message Detected"
-            sublabel="AI flagged a potential scam targeting you"
-            value={prefs.scamAlerts}
-            onToggle={(v) => toggle("scamAlerts", v)}
             last
           />
         </GlassCard>

@@ -510,7 +510,27 @@ function ConnectScreen({
 
       <View style={styles.platformList}>
         {displayPlatforms.map((p) => {
+          const isComingSoon = p.id === "x" || p.id === "tiktok";
           const isSelected = selected.has(p.id);
+          if (isComingSoon) {
+            return (
+              <View key={p.id} style={[styles.platformRow2, {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                opacity: 0.45,
+              }]}>
+                <PlatformIcon platform={p.id} size={28} />
+                <Text style={[styles.platformLabel2, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                  {p.label}
+                </Text>
+                <View style={[styles.comingSoonChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                  <Text style={[styles.comingSoonChipText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                    Soon
+                  </Text>
+                </View>
+              </View>
+            );
+          }
           return (
             <TouchableOpacity key={p.id} activeOpacity={0.75} onPress={() => toggle(p.id)}
               style={[styles.platformRow2, {
@@ -557,7 +577,7 @@ function ConnectScreen({
 const FEATURES = [
   { icon: "person-remove", label: "Impersonator Detection", desc: "Find accounts pretending to be you across all platforms.", color: "#EF4444" },
   { icon: "images", label: "Photo Monitoring", desc: "Detect stolen photos and visual identity theft in real time.", color: "#3B82F6" },
-  { icon: "shield-checkmark", label: "AI Scam Detection", desc: "Instantly analyze suspicious messages and links for scam patterns.", color: "#F59E0B" },
+  { icon: "shield-checkmark", label: "Identity Fingerprint", desc: "AI builds a unique profile of your content to catch even subtle impersonation attempts.", color: "#F59E0B" },
   { icon: "notifications", label: "Real-Time Alerts", desc: "Instant notifications the moment a new threat is detected.", color: "#10B981" },
 ];
 
@@ -572,7 +592,7 @@ function FeaturesScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
         Everything You Need to Stay Protected
       </Text>
       <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        ShieldID combines AI scanning, photo recognition, and deep-web monitoring into one app.
+        ShieldID combines AI scanning, photo recognition, and real-time threat monitoring into one app.
       </Text>
       <View style={styles.featureGrid}>
         {FEATURES.map((f) => (
@@ -1152,6 +1172,8 @@ const styles = StyleSheet.create({
   platformRow2: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 14, borderWidth: 1 },
   platformLabel2: { flex: 1, fontSize: 15 },
   checkbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  comingSoonChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
+  comingSoonChipText: { fontSize: 10 },
   privacyCard: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   privacyText: { flex: 1, fontSize: 12, lineHeight: 18 },
   connectActions: { gap: 12, alignItems: "center" },
