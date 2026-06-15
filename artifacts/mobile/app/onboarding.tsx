@@ -409,6 +409,7 @@ function PlatformsScreen({
 
       <View style={styles.platformGrid}>
         {ALL_PLATFORMS.map((p, idx) => {
+          const isComingSoon = p.id === "x" || p.id === "tiktok";
           const isSelected = selected.includes(p.id);
           return (
             <Animated.View key={p.id} style={{
@@ -416,29 +417,50 @@ function PlatformsScreen({
               transform: [{ translateY: cardAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
               width: (width - 60) / 2,
             }}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(p.id); }}
-                style={[styles.platCard, {
-                  backgroundColor: isSelected ? p.color + "14" : colors.card,
-                  borderColor: isSelected ? p.color + "70" : colors.border,
-                  borderWidth: isSelected ? 1.5 : 1,
-                }]}
-              >
-                <View style={styles.platCardRow}>
-                  <PlatformIcon platform={p.id} size={26} />
-                  <View style={[styles.platCheckbox, {
-                    backgroundColor: isSelected ? p.color : "transparent",
-                    borderColor: isSelected ? p.color : colors.border,
-                  }]}>
-                    {isSelected && <Ionicons name="checkmark" size={10} color="#fff" />}
+              {isComingSoon ? (
+                <View style={[styles.platCard, {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  opacity: 0.4,
+                }]}>
+                  <View style={styles.platCardRow}>
+                    <PlatformIcon platform={p.id} size={26} />
+                    <View style={[styles.comingSoonPlatBadge, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                      <Text style={[styles.comingSoonPlatText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                        Coming Soon
+                      </Text>
+                    </View>
                   </View>
+                  <Text style={[styles.platLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {p.label}
+                  </Text>
                 </View>
-                <Text style={[styles.platLabel, {
-                  color: isSelected ? colors.foreground : colors.mutedForeground,
-                  fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
-                }]}>{p.label}</Text>
-              </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(p.id); }}
+                  style={[styles.platCard, {
+                    backgroundColor: isSelected ? p.color + "14" : colors.card,
+                    borderColor: isSelected ? p.color + "70" : colors.border,
+                    borderWidth: isSelected ? 1.5 : 1,
+                  }]}
+                >
+                  <View style={styles.platCardRow}>
+                    <PlatformIcon platform={p.id} size={26} />
+                    <View style={[styles.platCheckbox, {
+                      backgroundColor: isSelected ? p.color : "transparent",
+                      borderColor: isSelected ? p.color : colors.border,
+                    }]}>
+                      {isSelected && <Ionicons name="checkmark" size={10} color="#fff" />}
+                    </View>
+                  </View>
+                  <Text style={[styles.platLabel, {
+                    color: isSelected ? colors.foreground : colors.mutedForeground,
+                    fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
+                  }]}>{p.label}</Text>
+                </TouchableOpacity>
+              )}
             </Animated.View>
           );
         })}
@@ -525,7 +547,7 @@ function ConnectScreen({
                 </Text>
                 <View style={[styles.comingSoonChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                   <Text style={[styles.comingSoonChipText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                    Soon
+                    Coming Soon
                   </Text>
                 </View>
               </View>
@@ -1174,6 +1196,8 @@ const styles = StyleSheet.create({
   checkbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   comingSoonChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
   comingSoonChipText: { fontSize: 10 },
+  comingSoonPlatBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, borderWidth: 1 },
+  comingSoonPlatText: { fontSize: 9 },
   privacyCard: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   privacyText: { flex: 1, fontSize: 12, lineHeight: 18 },
   connectActions: { gap: 12, alignItems: "center" },

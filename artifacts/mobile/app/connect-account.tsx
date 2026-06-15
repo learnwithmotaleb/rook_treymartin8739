@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -296,6 +296,21 @@ export default function ConnectAccount() {
     initialPlatform ? "connect" : "pick"
   );
 
+  // When a deep-link arrives for a launch-disabled platform, stay on pick step
+  // and show a clear "coming soon" message so the user knows why it didn't open.
+  useEffect(() => {
+    if (params.platform && LAUNCH_DISABLED_PLATFORMS.has(params.platform)) {
+      const label = PLATFORM_CONFIGS[params.platform]?.label ?? "This platform";
+      Alert.alert(
+        "Coming Soon",
+        `${label} connection isn't available yet. We're working on it — stay tuned!`,
+        [{ text: "Got it" }]
+      );
+    }
+  // Only run once on mount to reflect the initial deep-link params
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const config = selectedPlatform ? PLATFORM_CONFIGS[selectedPlatform] : null;
   const clientId = selectedPlatform ? getClientId(selectedPlatform) : undefined;
   const isExistingAccount = !!params.existingId;
@@ -415,7 +430,7 @@ export default function ConnectAccount() {
                         </Text>
                         <View style={[styles.connectedChip, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 }]}>
                           <Text style={[styles.connectedChipText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                            Soon
+                            Coming Soon
                           </Text>
                         </View>
                       </View>
