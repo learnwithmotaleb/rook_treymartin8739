@@ -179,6 +179,13 @@ export async function updateMe(updates: {
   });
 }
 
+export async function uploadAvatar(imageBase64: string): Promise<{ avatarUrl: string }> {
+  return apiFetch<{ avatarUrl: string }>("/me/avatar", {
+    method: "PATCH",
+    body: JSON.stringify({ imageBase64 }),
+  });
+}
+
 export async function getAccounts(opts?: { bustCache?: boolean }): Promise<AccountProfile[]> {
   const path = opts?.bustCache ? `/accounts?_t=${Date.now()}` : "/accounts";
   return apiFetch<AccountProfile[]>(path);
@@ -217,8 +224,18 @@ export async function getThreat(id: string): Promise<ThreatDetail> {
   return apiFetch<ThreatDetail>(`/threats/${id}`);
 }
 
-export async function resolveThreat(id: string): Promise<void> {
-  await apiFetch(`/threats/${id}/resolve`, { method: "PATCH" });
+export async function resolveThreat(id: string, resolveAction?: string): Promise<void> {
+  await apiFetch(`/threats/${id}/resolve`, {
+    method: "PATCH",
+    body: JSON.stringify(resolveAction ? { resolveAction } : {}),
+  });
+}
+
+export async function bulkResolveThreats(ids: string[]): Promise<void> {
+  await apiFetch("/threats/bulk-resolve", {
+    method: "PATCH",
+    body: JSON.stringify({ ids }),
+  });
 }
 
 export async function addAccount(

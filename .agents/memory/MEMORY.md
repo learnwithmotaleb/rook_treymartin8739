@@ -2,3 +2,5 @@
 - [Clerk session types](clerk-session-types.md) — useSessionList() returns SessionResource[] not SessionWithActivities[]; latestActivity and revoke are not on the TS type; cast to any for access.
 - [Store metadata no dark web](store-metadata-notes.md) — dark web monitor was removed; all metadata files must not reference it; iOS keywords ≤100 chars.
 - [RevenueCat tier sync pattern](revenuecat-tier-sync.md) — RC purchases are authoritative on-device; server quota uses DB; sync via POST /api/billing/revenuecat-sync called after purchase/restore and on tab mount.
+- [Avatar photo storage](avatar-photo-storage.md) — profile photos stored as base64 data URLs in avatarUrl column (sharp-compressed 160×160 JPEG); no object storage needed at current scale.
+- [Scheduled scan pattern](scheduled-scan-pattern.md) — schedulerService.ts polls every 15 min via setInterval.unref(); scanOrchestrator sets nextScanDue after completion (pro=+7d, premium=+1d); free tier skipped.

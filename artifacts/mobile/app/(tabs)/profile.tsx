@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Platform,
   ScrollView,
@@ -146,16 +147,22 @@ export default function ProfileScreen() {
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={() => router.push("/edit-profile" as any)} activeOpacity={0.85}>
             <View style={[styles.avatar, { borderColor: colors.primary + "66" }]}>
-              <LinearGradient
-                colors={[colors.primaryDark, colors.primary, colors.primaryForeground]}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                locations={[0, 0.6, 1]}
-              />
-              <Text style={[styles.avatarText, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>
-                {user.avatarInitials}
-              </Text>
+              {user.avatarUrl ? (
+                <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <>
+                  <LinearGradient
+                    colors={[colors.primaryDark, colors.primary, colors.primaryForeground]}
+                    style={StyleSheet.absoluteFill}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    locations={[0, 0.6, 1]}
+                  />
+                  <Text style={[styles.avatarText, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>
+                    {user.avatarInitials}
+                  </Text>
+                </>
+              )}
             </View>
             <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
               <Ionicons name="pencil" size={12} color="#FFFFFF" />
@@ -422,6 +429,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     overflow: "hidden",
   },
+  avatarImage: { width: 90, height: 90, borderRadius: 45 },
   avatarText: { fontSize: 30, zIndex: 1 },
   editBadge: {
     position: "absolute",

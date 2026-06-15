@@ -974,6 +974,17 @@ async function runScanPipeline(
     })
     .where(eq(scanJobsTable.id, jobId));
 
+  // Schedule next automated scan based on tier
+  const daysUntilNext = planTier === "premium" ? 1 : planTier === "pro" ? 7 : null;
+  if (daysUntilNext !== null) {
+    const nextScanDue = new Date();
+    nextScanDue.setDate(nextScanDue.getDate() + daysUntilNext);
+    db.update(usersTable)
+      .set({ nextScanDue })
+      .where(eq(usersTable.id, userId))
+      .catch((err) => logger.warn({ err }, "Failed to set nextScanDue"));
+  }
+
   // Recalculate security score based on all active threats after scan
   recalculateScore(userId).catch((err) =>
     logger.warn({ err }, "Score recalculation failed after scan")

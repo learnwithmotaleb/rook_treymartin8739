@@ -59,8 +59,8 @@ const PLAN_META: PlanMeta[] = [
     badge: "Most Popular",
     ctaColor: "#3B82F6",
     differentiators: [
-      { icon: "scan", text: "15 scans / month" },
-      { icon: "images", text: "5 images per scan" },
+      { icon: "scan", text: "15 manual scans / month" },
+      { icon: "calendar", text: "Weekly automated monitoring" },
       { icon: "time", text: "7-day threat history" },
       { icon: "notifications", text: "Real-time alerts + full evidence" },
     ],
@@ -75,9 +75,9 @@ const PLAN_META: PlanMeta[] = [
     ctaColor: undefined,
     differentiators: [
       { icon: "infinite", text: "Unlimited scans & accounts" },
+      { icon: "flash", text: "Daily automated monitoring" },
       { icon: "calendar", text: "30-day threat history" },
-      { icon: "flash", text: "Priority processing + risk intelligence" },
-      { icon: "analytics", text: "Downloadable reports + early access" },
+      { icon: "analytics", text: "Priority processing + early access" },
     ],
   },
 ];

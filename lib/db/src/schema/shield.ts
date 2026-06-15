@@ -19,6 +19,8 @@ export const usersTable = pgTable("users", {
   isPremium: boolean("is_premium").notNull().default(false),
   securityScore: integer("security_score").notNull().default(72),
   scoreTrend: integer("score_trend").notNull().default(0),
+  nextScanDue: timestamp("next_scan_due", { withTimezone: true }),
+  avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -193,6 +195,7 @@ export const threatsTable = pgTable("threats", {
   detectedSignalsJson: text("detected_signals_json"),
   resolved: boolean("resolved").notNull().default(false),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolveAction: text("resolve_action"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

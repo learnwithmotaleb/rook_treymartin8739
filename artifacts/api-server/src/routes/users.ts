@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
+import sharp from "sharp";
 import {
   db,
   usersTable,
@@ -56,12 +57,14 @@ router.get("/me", async (req, res): Promise<void> => {
     email: user.email,
     username: user.username,
     avatarInitials: user.avatarInitials,
+    avatarUrl: user.avatarUrl ?? null,
     isPremium: user.isPremium,
     tier: sub.tier,
     securityScore: user.securityScore,
     scoreTrend: user.scoreTrend,
     monitored: accounts.length,
     lastScan,
+    nextScanDue: user.nextScanDue?.toISOString() ?? null,
     totalPhotosIndexed: fingerprint.totalPhotosIndexed,
     totalCaptionsIndexed: fingerprint.totalCaptionsIndexed,
     reelsIndexed: fingerprint.reelsIndexed,
@@ -110,6 +113,31 @@ router.patch("/me", async (req, res): Promise<void> => {
     .where(eq(usersTable.id, userId));
 
   res.json(updated);
+});
+
+router.patch("/me/avatar", async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const { imageBase64 } = req.body as { imageBase64?: string };
+
+  if (!imageBase64 || typeof imageBase64 !== "string") {
+    res.status(400).json({ error: "imageBase64 is required" });
+    return;
+  }
+
+  const raw = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+  const compressed = await sharp(Buffer.from(raw, "base64"))
+    .resize(160, 160, { fit: "cover", position: "centre" })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+
+  const avatarUrl = `data:image/jpeg;base64,${compressed.toString("base64")}`;
+
+  await db
+    .update(usersTable)
+    .set({ avatarUrl, updatedAt: new Date() })
+    .where(eq(usersTable.id, userId));
+
+  res.json({ avatarUrl });
 });
 
 router.delete("/me", async (req, res): Promise<void> => {

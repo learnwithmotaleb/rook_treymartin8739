@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   RefreshControl,
@@ -45,23 +47,35 @@ function LockedThreatCard({ threat, colors }: { threat: Threat; colors: ReturnTy
       <View style={[lockedStyles.accentBar, { backgroundColor: severityColor }]} />
       <View style={lockedStyles.body}>
         <View style={lockedStyles.topRow}>
-          <View style={[lockedStyles.severityPill, { backgroundColor: severityColor + "20", borderColor: severityColor + "50" }]}>
-            <View style={[lockedStyles.severityDot, { backgroundColor: severityColor }]} />
-            <Text style={[lockedStyles.severityText, { color: severityColor, fontFamily: "Inter_700Bold" }]}>
-              {severityLabel}
-            </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={[lockedStyles.severityPill, { backgroundColor: severityColor + "20", borderColor: severityColor + "50" }]}>
+              <View style={[lockedStyles.severityDot, { backgroundColor: severityColor }]} />
+              <Text style={[lockedStyles.severityText, { color: severityColor, fontFamily: "Inter_700Bold" }]}>
+                {severityLabel}
+              </Text>
+            </View>
+            {threat.platform ? (
+              <Text style={[lockedStyles.platformLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {threat.platform.charAt(0).toUpperCase() + threat.platform.slice(1)}
+              </Text>
+            ) : null}
           </View>
           <View style={[lockedStyles.lockBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
             <Ionicons name="lock-closed" size={11} color={colors.mutedForeground} />
           </View>
         </View>
         <View style={lockedStyles.skeletonGroup}>
-          <View style={[lockedStyles.skeletonLine, { backgroundColor: colors.border, width: "78%" }]} />
-          <View style={[lockedStyles.skeletonLine, { backgroundColor: colors.border, width: "52%", opacity: 0.55 }]} />
+          <Text style={[lockedStyles.threatHint, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            {threat.type === "impersonator" || threat.type === "fake_account"
+              ? "Impersonation detected"
+              : threat.type === "stolen_photo"
+              ? "Photo theft found"
+              : "Identity threat detected"}
+          </Text>
+          <View style={[lockedStyles.skeletonLine, { backgroundColor: colors.border, width: "45%", opacity: 0.4 }]} />
         </View>
         <View style={lockedStyles.bottomRow}>
           <View style={[lockedStyles.skeletonChip, { backgroundColor: colors.border }]} />
-          <View style={[lockedStyles.skeletonChip, { backgroundColor: colors.border, width: 48, opacity: 0.5 }]} />
         </View>
       </View>
       <LinearGradient
@@ -149,7 +163,7 @@ function PaywallBanner({ threats, colors }: { threats: Threat[]; colors: ReturnT
 export default function AlertsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { threats, refreshData, user } = useApp();
+  const { threats, refreshData, user, resolveThreat } = useApp();
   const [filter, setFilter] = useState<Filter>("all");
   const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
@@ -190,11 +204,38 @@ export default function AlertsScreen() {
     return colors.primary;
   };
 
+  const [clearingAll, setClearingAll] = useState(false);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshData();
     setRefreshing(false);
   }, [refreshData]);
+
+  const handleClearAll = useCallback(() => {
+    if (filtered.length === 0 || clearingAll) return;
+    Alert.alert(
+      "Clear All",
+      `Mark all ${filtered.length} visible threat${filtered.length !== 1 ? "s" : ""} as resolved?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: async () => {
+            setClearingAll(true);
+            try {
+              await Promise.all(filtered.map((t) => resolveThreat(t.id)));
+            } catch {
+              Alert.alert("Error", "Some threats could not be resolved. Please try again.");
+            } finally {
+              setClearingAll(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [filtered, clearingAll, resolveThreat]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: Threat; index: number }) => (
@@ -208,14 +249,32 @@ export default function AlertsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Alerts
-        </Text>
-        <View style={[styles.countBadge, { backgroundColor: colors.primary + "22" }]}>
-          <Text style={[styles.countText, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
-            {filtered.length}
+        <View style={styles.headerLeft}>
+          <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Alerts
           </Text>
+          <View style={[styles.countBadge, { backgroundColor: colors.primary + "22" }]}>
+            <Text style={[styles.countText, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+              {filtered.length}
+            </Text>
+          </View>
         </View>
+        {filtered.length > 0 && (
+          <TouchableOpacity
+            onPress={handleClearAll}
+            disabled={clearingAll}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {clearingAll ? (
+              <ActivityIndicator size="small" color={colors.mutedForeground} />
+            ) : (
+              <Text style={[styles.clearAllText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                Clear All
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={{ borderBottomColor: colors.border, borderBottomWidth: 1 }}>
@@ -294,9 +353,21 @@ export default function AlertsScreen() {
               </Text>
               <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                 {filter === "all"
-                  ? "We haven't detected any active threats to your identity. We'll keep monitoring."
+                  ? "No active threats detected. Run a scan to check for new impersonators."
                   : `No ${filter}-severity threats detected. You're fully protected.`}
               </Text>
+              {filter === "all" && (
+                <TouchableOpacity
+                  style={[styles.runScanBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push("/(tabs)/scan" as any)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="scan" size={18} color="#FFFFFF" />
+                  <Text style={[styles.runScanBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                    Run a Scan
+                  </Text>
+                </TouchableOpacity>
+              )}
             </Animated.View>
           )
         }
@@ -310,10 +381,15 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingBottom: 14,
     borderBottomWidth: 1,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   headerTitle: { fontSize: 24 },
   countBadge: {
@@ -353,6 +429,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 22 },
   emptySub: { fontSize: 15, textAlign: "center", lineHeight: 22 },
+  clearAllText: { fontSize: 14 },
+  runScanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: 8,
+  },
+  runScanBtnText: { fontSize: 15, color: "#FFFFFF" },
 });
 
 const lockedStyles = StyleSheet.create({
@@ -402,6 +489,8 @@ const lockedStyles = StyleSheet.create({
   skeletonLine: { height: 9, borderRadius: 5 },
   bottomRow: { flexDirection: "row", gap: 8 },
   skeletonChip: { height: 7, width: 64, borderRadius: 4 },
+  platformLabel: { fontSize: 11 },
+  threatHint: { fontSize: 13, opacity: 0.5 },
 });
 
 const paywallStyles = StyleSheet.create({

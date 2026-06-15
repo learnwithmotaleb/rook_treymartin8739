@@ -470,12 +470,47 @@ export default function ThreatDetail() {
       ? new Date(detail.createdAt).toLocaleDateString()
       : "";
 
-  const handleResolve = async () => {
+  const performResolve = async (action: string) => {
     if (resolving) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setResolving(true);
-    resolveThreat(threat.id);
-    router.back();
+    try {
+      await resolveThreat(threat.id, action);
+      router.back();
+    } catch {
+      Alert.alert(
+        "Resolve Failed",
+        "Could not mark this threat as resolved. Please check your connection and try again."
+      );
+      setResolving(false);
+    }
+  };
+
+  const handleResolve = () => {
+    if (resolving) return;
+    Alert.alert(
+      "How did you handle this?",
+      "Your response helps ShieldID improve its detection accuracy.",
+      [
+        {
+          text: "I reported it to the platform",
+          onPress: () => performResolve("reported_to_platform"),
+        },
+        {
+          text: "I know & approved this account",
+          onPress: () => performResolve("approved"),
+        },
+        {
+          text: "False positive — not a real threat",
+          onPress: () => performResolve("false_positive"),
+        },
+        {
+          text: "Already resolved manually",
+          onPress: () => performResolve("resolved_manually"),
+        },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
   };
 
   const handleReport = () => {

@@ -24,6 +24,16 @@ import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
 
+function formatNextScan(iso: string): string {
+  const due = new Date(iso);
+  const diffMs = due.getTime() - Date.now();
+  if (diffMs <= 0) return "scheduled";
+  const h = Math.floor(diffMs / 3_600_000);
+  if (h < 24) return `in ${h}h`;
+  const d = Math.floor(h / 24);
+  return `in ${d} day${d !== 1 ? "s" : ""}`;
+}
+
 export default function ScanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -141,6 +151,16 @@ export default function ScanScreen() {
         >
           Last scan: {user.lastScan}
         </Text>
+        {user.nextScanDue && (
+          <Text
+            style={[
+              styles.headerSub,
+              { color: colors.success + "CC", fontFamily: "Inter_400Regular" },
+            ]}
+          >
+            Auto-scan {formatNextScan(user.nextScanDue)}
+          </Text>
+        )}
       </View>
 
       <ScrollView

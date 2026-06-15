@@ -111,6 +111,7 @@ export interface User {
   email: string;
   username: string;
   avatarInitials: string;
+  avatarUrl: string | null;
   securityScore: number;
   scoreTrend: number;
   isPremium: boolean;
@@ -118,6 +119,7 @@ export interface User {
   connectedAccounts: ConnectedAccount[];
   monitored: number;
   lastScan: string;
+  nextScanDue: string | null;
   totalPhotosIndexed: number;
   totalCaptionsIndexed: number;
   reelsIndexed: number;
@@ -129,6 +131,7 @@ const DEFAULT_USER: User = {
   email: "",
   username: "",
   avatarInitials: "—",
+  avatarUrl: null,
   securityScore: 0,
   scoreTrend: 0,
   isPremium: false,
@@ -136,6 +139,7 @@ const DEFAULT_USER: User = {
   connectedAccounts: [],
   monitored: 0,
   lastScan: "Never",
+  nextScanDue: null,
   totalPhotosIndexed: 0,
   totalCaptionsIndexed: 0,
   reelsIndexed: 0,
@@ -162,7 +166,7 @@ interface AppContextType {
   logout: () => void;
   completeOnboarding: () => void;
   startScan: () => void;
-  resolveThreat: (id: string) => void;
+  resolveThreat: (id: string, action?: string) => Promise<void>;
   refreshData: () => Promise<void>;
   addAccount: (platform: string, username: string, accessToken?: string) => Promise<ConnectedAccount>;
   removeAccount: (id: string) => Promise<void>;
@@ -237,12 +241,14 @@ function mapProfileToUser(
     email: profile.email,
     username: profile.username,
     avatarInitials: profile.avatarInitials,
+    avatarUrl: (profile as any).avatarUrl ?? null,
     securityScore: profile.securityScore,
     scoreTrend: profile.scoreTrend,
     isPremium: profile.isPremium,
     tier: (profile.tier as "free" | "pro" | "premium") ?? "free",
     monitored: profile.monitored,
     lastScan: profile.lastScan,
+    nextScanDue: (profile as any).nextScanDue ?? null,
     totalPhotosIndexed: profile.totalPhotosIndexed,
     totalCaptionsIndexed: profile.totalCaptionsIndexed,
     reelsIndexed: profile.reelsIndexed,
@@ -527,7 +533,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const resolveThreat = useCallback(async (id: string) => {
+  const resolveThreat = useCallback(async (id: string, action?: string): Promise<void> => {
     // Local photo threats are resolved in client state only
     if (id.startsWith("local_photo_")) {
       setLocalPhotoThreats((prev) => {
@@ -542,11 +548,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       prev.map((t) => (t.id === id ? { ...t, resolved: true } : t))
     );
     try {
-      await apiResolveThreat(id);
-    } catch {
+      await apiResolveThreat(id, action);
+    } catch (err) {
       setThreats((prev) =>
         prev.map((t) => (t.id === id ? { ...t, resolved: false } : t))
       );
+      throw err;
     }
   }, []);
 
@@ -594,7 +601,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   ];
 
   const activeThreats = mergedThreats.filter(
-    (t) => !t.resolved && t.severity === "high"
+    (t) => !t.resolved
   ).length;
   const fakeAccounts = mergedThreats.filter(
     (t) =>

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, threatsTable, threatActorsTable } from "@workspace/db";
 import { recalculateScore } from "../services/scoreService";
 
@@ -132,15 +132,45 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
   res.json({ ...parseThreat(threat), ...(threatActor !== undefined ? { threatActor } : {}) });
 });
 
+router.patch("/threats/bulk-resolve", async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const { ids } = req.body as { ids?: string[] };
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: "ids array is required" });
+    return;
+  }
+
+  await db
+    .update(threatsTable)
+    .set({ resolved: true, resolvedAt: new Date() })
+    .where(and(eq(threatsTable.userId, userId), inArray(threatsTable.id, ids)));
+
+  recalculateScore(userId).catch((err) =>
+    req.log.warn({ err }, "Score recalculation failed after bulk resolve")
+  );
+
+  res.json({ resolved: ids.length });
+});
+
 router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
   const userId = req.userId;
   const threatId = Array.isArray(req.params.threatId)
     ? req.params.threatId[0]
     : req.params.threatId;
 
+  const { resolveAction } = req.body as { resolveAction?: string };
+
+  const validActions = ["reported_to_platform", "approved", "false_positive", "resolved_manually"];
+  const action = resolveAction && validActions.includes(resolveAction) ? resolveAction : null;
+
   const [updated] = await db
     .update(threatsTable)
-    .set({ resolved: true, resolvedAt: new Date() })
+    .set({
+      resolved: true,
+      resolvedAt: new Date(),
+      ...(action ? { resolveAction: action } : {}),
+    })
     .where(
       and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId))
     )

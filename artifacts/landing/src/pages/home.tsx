@@ -61,7 +61,7 @@ const OUTCOMES = [
   "Know when your images appear on platforms you've never used.",
   "Know when fake accounts message your followers or contacts.",
   "Know when your personal data surfaces in a breach.",
-  "Take action in seconds — with one-click reporting and auto-takedown.",
+  "Take action in seconds — report to platforms with evidence-backed one-click guidance.",
 ];
 
 const FAQS = [
@@ -75,7 +75,7 @@ const FAQS = [
   },
   {
     q: "Which platforms do you monitor?",
-    a: "ShieldID actively monitors Instagram, Facebook, X (Twitter), TikTok, YouTube, LinkedIn, and Snapchat — with more platforms being added. Our AI scans across all of them simultaneously so you don't have to check each one manually.",
+    a: "ShieldID actively monitors Instagram, Facebook, YouTube, LinkedIn, and Snapchat. X (Twitter) and TikTok support is coming soon. Our AI scans across all connected platforms simultaneously so you don't have to check each one manually.",
   },
   {
     q: "Will you access my private messages or personal data?",
@@ -87,7 +87,7 @@ const FAQS = [
   },
   {
     q: "What happens when ShieldID finds an impersonator?",
-    a: "You'll receive an instant alert with full details on the fake account. From there, you can view the impersonator's profile, auto-generate a DMCA takedown request, and report them directly to the platform with a single tap. ShieldID handles the paperwork.",
+    a: "You'll receive an instant alert with full details on the fake account, including AI analysis and evidence. From there, you can view the impersonator's profile and report them directly to the platform with guided step-by-step instructions. ShieldID handles the evidence documentation.",
   },
   {
     q: "Is my data secure?",
@@ -208,14 +208,14 @@ function PhoneMockup() {
             transition={{ duration: 2, repeat: Infinity }}
             style={{ width: 7, height: 7, borderRadius: 4, background: C.success }}
           />
-          <span style={{ color: C.success, fontSize: 9, fontWeight: 600 }}>Protected · 7 platforms monitored</span>
+          <span style={{ color: C.success, fontSize: 9, fontWeight: 600 }}>Protected · 5 platforms monitored</span>
         </div>
       </div>
 
       {/* Stat row */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 }}>
         {[
-          { label: "Monitored", value: "7", hi: false },
+          { label: "Monitored", value: "5", hi: false },
           { label: "Alerts", value: "1", hi: true },
           { label: "Resolved", value: "2", hi: false },
         ].map((s, i) => (
@@ -564,7 +564,7 @@ export default function Home() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400" />
               </span>
-              Identity threats detected across 7 platforms daily
+              AI identity protection across 5 major social platforms
             </motion.div>
 
             <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[1.05]">
@@ -836,12 +836,12 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { icon: <ScanFace className="w-5 h-5 text-primary" />, title: "AI Impersonator Detection", desc: "Our neural net scans profile photos, bios, and handles across 7 platforms to find clones before they can scam your followers." },
+              { icon: <ScanFace className="w-5 h-5 text-primary" />, title: "AI Impersonator Detection", desc: "Our neural net scans profile photos, bios, and handles across major platforms to find clones before they can scam your followers." },
               { icon: <Eye className="w-5 h-5 text-primary" />, title: "Stolen Photo Monitoring", desc: "We track where your images appear across the web and social platforms — surfacing every unauthorized use of your face." },
               { icon: <Database className="w-5 h-5 text-primary" />, title: "Data Breach Alerts", desc: "Get notified the moment your email, passwords, or personal info surfaces in a new security breach — before hackers can exploit it." },
               { icon: <Activity className="w-5 h-5 text-primary" />, title: "Live Security Score", desc: "A continuously-updated health metric of your digital footprint, with prioritized action steps to strengthen your protection." },
               { icon: <Bell className="w-5 h-5 text-primary" />, title: "Instant Threat Alerts", desc: "One centralized alert feed. Review, dismiss, or auto-report threats in seconds — directly from your phone." },
-              { icon: <Globe className="w-5 h-5 text-primary" />, title: "7-Platform Coverage", desc: "Monitor Instagram, Facebook, X, TikTok, YouTube, LinkedIn, and Snapchat simultaneously from one unified dashboard." },
+              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Monitor Instagram, Facebook, YouTube, LinkedIn, and Snapchat from one unified dashboard. X and TikTok coming soon." },
             ].map((feature, i) => (
               <motion.div
                 key={i}
@@ -885,10 +885,10 @@ export default function Home() {
             </p>
             <ul className="flex flex-col gap-4 mb-8">
               {[
-                "Auto-generate DMCA takedown requests in seconds",
-                "1-click reporting directly to platform trust & safety",
+                "Guided 1-click reporting directly to platform trust & safety",
                 "Push notifications the moment a threat is detected",
                 "Full evidence package for each impersonator found",
+                "AI analysis with risk score and detected signals",
               ].map((item, i) => (
                 <li key={i} className="flex items-center gap-3 text-sm font-medium">
                   <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
@@ -969,7 +969,7 @@ export default function Home() {
             <div className="hidden md:block absolute top-10 left-[18%] right-[18%] h-px bg-gradient-to-r from-transparent via-border to-transparent" />
             {[
               { step: 1, title: "Connect Your Accounts", desc: "Link your social profiles in under 2 minutes to establish your verified digital identity baseline." },
-              { step: 2, title: "AI Scanning Begins", desc: "ShieldID immediately begins scanning 7 platforms for impersonators, stolen photos, and identity threats." },
+              { step: 2, title: "AI Scanning Begins", desc: "ShieldID immediately begins scanning your connected platforms for impersonators, stolen photos, and identity threats." },
               { step: 3, title: "Get Instant Alerts", desc: "Receive push notifications the moment a threat is detected, with everything you need to act immediately." },
             ].map((item, i) => (
               <motion.div
@@ -1027,7 +1027,7 @@ export default function Home() {
               <div className="text-4xl font-extrabold mb-1">$7.99</div>
               <div className="text-sm text-primary/70 mb-8 font-medium">per month · 7-day free trial</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {["3 connected accounts", "AI-powered scanning", "Stolen photo detection", "Dark web monitoring", "Priority support"].map((f, i) => (
+                {["3 connected accounts", "AI-powered scanning", "Stolen photo detection", "Weekly automated scans", "Priority support"].map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm font-medium">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />{f}
                   </li>
@@ -1043,7 +1043,7 @@ export default function Home() {
               <div className="text-4xl font-extrabold mb-1">$14.99</div>
               <div className="text-sm text-muted-foreground mb-8">per month · 7-day free trial</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {["Unlimited accounts", "Instant SMS alerts", "Auto-takedown requests", "Dedicated account manager", "API access"].map((f, i) => (
+                {["Unlimited accounts", "Daily automated scans", "Priority scan processing", "Dedicated account manager", "API access"].map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm">
                     <CheckCircle2 className="w-4 h-4 text-purple-400/60 shrink-0 mt-0.5" />
                     <span className="text-foreground/90">{f}</span>

@@ -276,11 +276,16 @@ export default function SecuritySettings() {
         </Text>
         <GlassCard noPadding>
           {!sessionsLoaded ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Loading sessions…
-              </Text>
+            <View style={[styles.loadingRow, { flexDirection: "column", gap: 10, padding: 16 }]}>
+              {[0, 1].map((i) => (
+                <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.secondary }} />
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <View style={{ height: 10, borderRadius: 5, backgroundColor: colors.secondary, width: "60%" }} />
+                    <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.secondary, width: "40%", opacity: 0.6 }} />
+                  </View>
+                </View>
+              ))}
             </View>
           ) : !sessions || sessions.length === 0 ? (
             <View style={styles.loadingRow}>

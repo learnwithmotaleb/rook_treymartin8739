@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,10 +15,11 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
-import { updateMe } from "@/lib/api";
+import { updateMe, uploadAvatar } from "@/lib/api";
 
 interface FieldProps {
   icon: string;
@@ -109,6 +111,8 @@ export default function EditProfile() {
   const [saving, setSaving] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatarUrl);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (user.name && !initialized) {
@@ -133,9 +137,46 @@ export default function EditProfile() {
       email !== (user.email ?? "")
     );
 
+  const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Needed", "Allow photo access to change your avatar.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+      base64: true,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    const base64 = asset.base64;
+    if (!base64) return;
+    setUploadingAvatar(true);
+    try {
+      const { avatarUrl } = await uploadAvatar(`data:image/jpeg;base64,${base64}`);
+      setAvatarPreview(avatarUrl);
+      await refreshData();
+    } catch {
+      Alert.alert("Upload Failed", "Could not save your photo. Please try again.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert("Name Required", "Please enter your full name.");
+      return;
+    }
+    if (username.trim() && !/^[a-zA-Z0-9._]{1,30}$/.test(username.trim())) {
+      Alert.alert("Invalid Username", "Username can only contain letters, numbers, dots, and underscores (max 30 characters).");
+      return;
+    }
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
       return;
     }
     setSaving(true);
@@ -200,18 +241,31 @@ export default function EditProfile() {
       >
         {/* Avatar preview */}
         <View style={styles.avatarSection}>
-          <View
-            style={[
-              styles.avatar,
-              { backgroundColor: colors.primary + "33", borderColor: colors.primary + "66" },
-            ]}
-          >
-            <Text style={[styles.avatarText, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
-              {initials || "?"}
-            </Text>
-          </View>
+          <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.85} style={styles.avatarWrapper}>
+            <View
+              style={[
+                styles.avatar,
+                { backgroundColor: colors.primary + "33", borderColor: colors.primary + "66" },
+              ]}
+            >
+              {avatarPreview ? (
+                <Image source={{ uri: avatarPreview }} style={styles.avatarImage} />
+              ) : (
+                <Text style={[styles.avatarText, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+                  {initials || "?"}
+                </Text>
+              )}
+            </View>
+            <View style={[styles.cameraBadge, { backgroundColor: colors.primary }]}>
+              {uploadingAvatar ? (
+                <ActivityIndicator size={10} color="#fff" />
+              ) : (
+                <Ionicons name="camera" size={12} color="#fff" />
+              )}
+            </View>
+          </TouchableOpacity>
           <Text style={[styles.avatarHint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Avatar updates live as you type your name
+            {avatarPreview ? "Tap to change photo" : "Tap to add a photo"}
           </Text>
         </View>
 
@@ -311,6 +365,7 @@ const styles = StyleSheet.create({
   saveBtn: { fontSize: 16 },
   content: { padding: 20, gap: 14 },
   avatarSection: { alignItems: "center", gap: 8, paddingVertical: 8 },
+  avatarWrapper: { position: "relative" },
   avatar: {
     width: 88,
     height: 88,
@@ -318,6 +373,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
+    overflow: "hidden",
+  },
+  avatarImage: { width: 88, height: 88, borderRadius: 44 },
+  cameraBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarText: { fontSize: 32 },
   avatarHint: { fontSize: 12 },
