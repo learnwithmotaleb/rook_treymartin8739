@@ -468,14 +468,17 @@ async function searchByImageUrls(
       if (!targetPlatforms.includes(platform)) continue;
 
       // ── Retweet / share detection (X/Twitter only) ────────────────────────
-      // Google indexes retweet pages under the retweeter's profile URL, but
-      // the page title starts with "RT @originaluser:" — they are NOT the thief.
-      // Skip retweeters entirely; pivot to the original poster if detectable.
+      // Google Vision returns tweet-level URLs (x.com/user/status/ID) for both
+      // original posts and retweets. We rely on the page title to distinguish:
+      //   • "RT @username:" prefix → retweet → skip retweeter, pivot to original poster
+      //   • No title at all        → ambiguous → skip to avoid false-positives
+      //   • Title present, no RT   → treat as original post by that user
+      // Profile-level URLs (x.com/username only) are always reliable signals.
       if (platform === "x") {
-        const { context, originalPoster } = detectXPostContext(
-          page.pageTitle ?? "",
-          ""
-        );
+        const isTweetUrl = /\/status\/\d+/i.test(page.url);
+        const pageTitle = page.pageTitle?.trim() ?? "";
+        const { context, originalPoster } = detectXPostContext(pageTitle, "");
+
         if (context === "retweet" || context === "share") {
           logger.info(
             { retweeter: found, originalPoster, pageUrl: page.url.slice(0, 80) },
@@ -503,6 +506,16 @@ async function searchByImageUrls(
             }
           }
           continue; // Skip the retweeter as a threat
+        }
+
+        // Tweet-level URL with no page title: we can't verify it's not a retweet.
+        // Skip it rather than risk flagging an innocent retweeter.
+        if (isTweetUrl && !pageTitle) {
+          logger.info(
+            { url: page.url.slice(0, 80), user: found },
+            "X tweet URL has no page title — skipping to avoid retweet false-positive"
+          );
+          continue;
         }
       }
 

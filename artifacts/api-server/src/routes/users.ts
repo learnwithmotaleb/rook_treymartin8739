@@ -11,6 +11,7 @@ import { getFingerprintForUser } from "../services/fingerprintService";
 import { scanJobsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { getSubscription } from "../services/subscriptionService";
+import { recalculateScore } from "../services/scoreService";
 
 const router: IRouter = Router();
 
@@ -51,6 +52,10 @@ router.get("/me", async (req, res): Promise<void> => {
 
   const sub = await getSubscription(userId);
 
+  // Always recalculate the score from live threat data so the dashboard
+  // reflects the current state (e.g. after threats are resolved or reset).
+  const freshScore = await recalculateScore(userId);
+
   res.json({
     id: user.id,
     name: user.name,
@@ -60,7 +65,7 @@ router.get("/me", async (req, res): Promise<void> => {
     avatarUrl: user.avatarUrl ?? null,
     isPremium: user.isPremium,
     tier: sub.tier,
-    securityScore: user.securityScore,
+    securityScore: freshScore,
     scoreTrend: user.scoreTrend,
     monitored: accounts.length,
     lastScan,
