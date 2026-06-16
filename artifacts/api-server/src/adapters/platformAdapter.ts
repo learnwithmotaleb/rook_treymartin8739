@@ -350,20 +350,24 @@ export class FacebookAdapter implements PlatformAdapter {
 
   async getProfile(accessToken: string): Promise<ProfileData> {
     const response = await fetch(
-      `https://graph.facebook.com/me?fields=id,name,picture.type(large)&access_token=${accessToken}`
+      `https://graph.facebook.com/me?fields=id,name&access_token=${accessToken}`
     );
     if (!response.ok) throw new Error(`Facebook API error: ${response.status}`);
     const data = (await response.json()) as {
       id: string;
       name?: string;
-      picture?: { data?: { url?: string } };
     };
+    // Use the stable Graph API redirect URL instead of the signed CDN URL.
+    // The signed CDN URL (platform-lookaside.fbsbx.com/...?ext=...&hash=...)
+    // expires within hours, causing Vision to get 400 errors at scan time.
+    // This URL permanently redirects to the current profile picture and never expires.
+    const profileImageUrl = `https://graph.facebook.com/${data.id}/picture?type=large`;
     return {
       platformUserId: data.id,
       username: data.name ?? data.id,
       displayName: data.name,
       followers: 0,
-      profileImageUrl: data.picture?.data?.url,
+      profileImageUrl,
     };
   }
 
