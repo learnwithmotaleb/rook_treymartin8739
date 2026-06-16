@@ -52,7 +52,7 @@ const WHY_NOW = [
   {
     icon: <Globe className="w-5 h-5 text-primary" />,
     title: "Your Identity is Public Data",
-    desc: "Your photos, posts, bio, and personal details are publicly available across seven platforms. That's everything a scammer needs.",
+    desc: "Your photos, posts, bio, and personal details are publicly available across every major social platform. That's everything a scammer needs.",
   },
 ];
 
@@ -75,7 +75,7 @@ const FAQS = [
   },
   {
     q: "Which platforms do you monitor?",
-    a: "ShieldID actively monitors Instagram, Facebook, X (Twitter), TikTok, YouTube, LinkedIn, and Snapchat — 7 platforms simultaneously. Our AI scans across all connected platforms so you don't have to check each one manually.",
+    a: "ShieldID currently supports Facebook, with Instagram, X (Twitter), TikTok, LinkedIn, YouTube, and Snapchat coming soon. We're rolling out platforms in stages to ensure detection quality — early access users will get each new platform the moment it launches.",
   },
   {
     q: "Will you access my private messages or personal data?",
@@ -208,7 +208,7 @@ function PhoneMockup() {
             transition={{ duration: 2, repeat: Infinity }}
             style={{ width: 7, height: 7, borderRadius: 4, background: C.success }}
           />
-          <span style={{ color: C.success, fontSize: 9, fontWeight: 600 }}>Protected · 5 platforms monitored</span>
+          <span style={{ color: C.success, fontSize: 9, fontWeight: 600 }}>Protected · Facebook monitored</span>
         </div>
       </div>
 
@@ -564,7 +564,7 @@ export default function Home() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400" />
               </span>
-              AI identity protection across 7 major social platforms
+              Facebook monitoring live · Instagram, X, TikTok &amp; more coming soon
             </motion.div>
 
             <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[1.05]">
@@ -792,11 +792,11 @@ export default function Home() {
                 </div>
               </div>
               {[
-                { platform: "Instagram", status: "2 username variants scanned", time: "2m ago", type: "clean" },
-                { platform: "TikTok", status: "Impersonator detected + reported", time: "11m ago", type: "threat" },
-                { platform: "X (Twitter)", status: "Profile photo match found", time: "34m ago", type: "threat" },
-                { platform: "Facebook", status: "No matching profiles found", time: "1h ago", type: "clean" },
-                { platform: "LinkedIn", status: "Name variant monitoring active", time: "2h ago", type: "clean" },
+                { platform: "Facebook", status: "No matching profiles found", time: "1h ago", type: "clean", live: true },
+                { platform: "Instagram", status: "Coming soon", time: "", type: "soon", live: false },
+                { platform: "TikTok", status: "Coming soon", time: "", type: "soon", live: false },
+                { platform: "X (Twitter)", status: "Coming soon", time: "", type: "soon", live: false },
+                { platform: "LinkedIn", status: "Coming soon", time: "", type: "soon", live: false },
               ].map((item, i) => (
                 <motion.div
                   key={i}
@@ -804,14 +804,18 @@ export default function Home() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.08 }}
-                  className="flex items-center gap-4"
+                  className={`flex items-center gap-4 ${!item.live ? "opacity-40" : ""}`}
                 >
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${item.type === "threat" ? "bg-red-400" : "bg-green-400"}`} />
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${item.type === "threat" ? "bg-red-400" : item.type === "soon" ? "bg-white/20" : "bg-green-400"}`} />
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-semibold">{item.platform}</span>
                     <span className="text-sm text-muted-foreground"> — {item.status}</span>
                   </div>
-                  <span className="text-xs text-white/25 shrink-0">{item.time}</span>
+                  {item.live ? (
+                    <span className="text-xs text-white/25 shrink-0">{item.time}</span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-white/20 border border-white/10 rounded px-1.5 py-0.5 shrink-0">Soon</span>
+                  )}
                 </motion.div>
               ))}
               <div className="pt-4 border-t border-white/[0.07]">
@@ -841,7 +845,7 @@ export default function Home() {
               { icon: <Database className="w-5 h-5 text-primary" />, title: "AI Scam Message Analyzer", desc: "Paste any suspicious message and our AI detects whether it's a phishing scam, impersonation attempt, or social engineering attack — in seconds." },
               { icon: <Activity className="w-5 h-5 text-primary" />, title: "Live Security Score", desc: "A continuously-updated health metric of your digital identity, with prioritized action steps to strengthen your protection." },
               { icon: <Bell className="w-5 h-5 text-primary" />, title: "Instant Threat Alerts", desc: "One centralized alert feed. Review, dismiss, or report threats directly from your phone — with full evidence and AI analysis." },
-              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Monitor Instagram, TikTok, X, Facebook, LinkedIn, YouTube, and Snapchat from one unified dashboard — all 7 major social platforms." },
+              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Facebook monitoring is live now. Instagram, TikTok, X, LinkedIn, YouTube, and Snapchat are rolling out to early access users — all from one unified dashboard." },
             ].map((feature, i) => (
               <motion.div
                 key={i}
