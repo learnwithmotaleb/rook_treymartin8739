@@ -48,9 +48,10 @@ function getRevenueCatApiKey(): string {
 
 export function initializeRevenueCat(): void {
   const apiKey = getRevenueCatApiKey();
-  Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
+  if (__DEV__) {
+    Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
+  }
   Purchases.configure({ apiKey });
-  console.log("[RevenueCat] Configured with key prefix:", apiKey.slice(0, 8));
 }
 
 /** Derive tier from RevenueCat customer info entitlements */

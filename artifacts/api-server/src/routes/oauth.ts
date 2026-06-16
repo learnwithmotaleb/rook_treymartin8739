@@ -75,8 +75,11 @@ async function resolveUserFromState(state: string | undefined): Promise<string> 
         .where(eq(usersTable.clerkId, payload.sub));
       if (dbUser) return dbUser.id;
     } catch {
-      // expired / invalid — fall through to demo
+      // expired / invalid — fall through
     }
+  }
+  if (process.env["NODE_ENV"] === "production") {
+    throw new Error("OAuth state resolution failed — no valid state token provided");
   }
   const { getOrCreateDemoUser } = await import("../lib/demoUser");
   const demo = await getOrCreateDemoUser();

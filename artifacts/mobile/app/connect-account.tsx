@@ -176,9 +176,7 @@ function OAuthButton({
       const redirectUrl = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${config.callbackPath}`;
       const authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
 
-      console.log(`[OAuth:${platform}] opening browser`, { authUrl, redirectUrl });
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-      console.log(`[OAuth:${platform}] result.type=${result.type}`, "url" in result ? result.url : "(no url)");
 
       const resultUrl = "url" in result ? result.url ?? "" : "";
       const resultParams = resultUrl.includes("?")
@@ -192,7 +190,6 @@ function OAuthButton({
         // iOS intercepted the redirect — the server callback was never hit.
         // Forward the code to the server using the HTTPS callback endpoint.
         // The server token exchange uses the same redirect_uri we sent to Instagram.
-        console.log(`[OAuth:${platform}] forwarding code to server callback`);
         const redirectUris = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
         const serverCallbackUrl = redirectUris[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${config.callbackPath}`;
 
@@ -220,7 +217,6 @@ function OAuthButton({
       }
 
       if (urlError) {
-        console.log(`[OAuth:${platform}] provider error: ${urlError}`);
         const friendlyMsg =
           urlError === "access_denied"
             ? "You declined the permission request. Please try again and tap Allow."

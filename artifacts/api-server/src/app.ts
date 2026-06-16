@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import { rateLimit } from "express-rate-limit";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import {
@@ -11,6 +12,15 @@ import {
 import router from "./routes";
 import { publicLegalRouter } from "./routes/legal";
 import { logger } from "./lib/logger";
+
+// Strict rate limiter for public unauthenticated endpoints (waitlist signup, etc.)
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests — please try again later." },
+});
 
 const app: Express = express();
 
@@ -52,6 +62,10 @@ app.use(
       ) ?? process.env.CLERK_PUBLISHABLE_KEY ?? "",
   })),
 );
+
+app.use("/api/waitlist", publicLimiter);
+app.use("/api/oauth/instagram/callback", publicLimiter);
+app.use("/api/oauth/facebook/callback", publicLimiter);
 
 app.use("/", publicLegalRouter);
 app.use("/api", router);

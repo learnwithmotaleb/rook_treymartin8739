@@ -11,6 +11,7 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
 
@@ -32,9 +33,13 @@ const LEGAL_LINKS = [
   },
 ];
 
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0.0";
+const APP_BUILD =
+  String(Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? "1");
+
 const INFO_ROWS = [
-  { label: "App Version", value: "1.0.0" },
-  { label: "Build", value: "1" },
+  { label: "App Version", value: APP_VERSION },
+  { label: "Build", value: APP_BUILD },
   { label: "Support", value: "support@shieldid.app" },
   { label: "Privacy", value: "privacy@shieldid.app" },
 ];
