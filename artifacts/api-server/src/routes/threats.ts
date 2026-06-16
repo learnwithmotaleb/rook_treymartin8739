@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { eq, and, desc, inArray } from "drizzle-orm";
-import { db, threatsTable, threatActorsTable } from "@workspace/db";
+import { db, threatsTable, threatActorsTable, suppressedAccountsTable } from "@workspace/db";
 import { recalculateScore } from "../services/scoreService";
+import { normalizeSuppressUsername } from "../services/scanOrchestrator";
 
 
 const router: IRouter = Router();
@@ -148,10 +149,31 @@ router.patch("/threats/bulk-resolve", async (req, res): Promise<void> => {
   }
   const { ids } = parsed.data;
 
+  // Fetch platform+username before updating so we can write to suppression table
+  const threatsToResolve = await db
+    .select({
+      platform: threatsTable.platform,
+      suspiciousUsername: threatsTable.suspiciousUsername,
+    })
+    .from(threatsTable)
+    .where(and(eq(threatsTable.userId, userId), inArray(threatsTable.id, ids)));
+
   await db
     .update(threatsTable)
     .set({ resolved: true, resolvedAt: new Date() })
     .where(and(eq(threatsTable.userId, userId), inArray(threatsTable.id, ids)));
+
+  // Permanently suppress all resolved accounts so they never resurface in scans
+  const suppressions = threatsToResolve
+    .filter((t) => t.platform && t.suspiciousUsername)
+    .map((t) => ({
+      userId,
+      platform: t.platform!,
+      username: normalizeSuppressUsername(t.suspiciousUsername),
+    }));
+  if (suppressions.length > 0) {
+    await db.insert(suppressedAccountsTable).values(suppressions).onConflictDoNothing();
+  }
 
   recalculateScore(userId).catch((err) =>
     req.log.warn({ err }, "Score recalculation failed after bulk resolve")
@@ -188,6 +210,19 @@ router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
   if (!updated) {
     res.status(404).json({ error: "Threat not found" });
     return;
+  }
+
+  // Permanently suppress this account so it never resurfaces in future scans
+  if (updated.platform && updated.suspiciousUsername) {
+    await db
+      .insert(suppressedAccountsTable)
+      .values({
+        userId,
+        platform: updated.platform,
+        username: normalizeSuppressUsername(updated.suspiciousUsername),
+        resolveAction: action ?? undefined,
+      })
+      .onConflictDoNothing();
   }
 
   recalculateScore(userId).catch((err) =>

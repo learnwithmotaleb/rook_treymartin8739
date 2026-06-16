@@ -4,6 +4,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -207,6 +208,35 @@ export const insertThreatSchema = createInsertSchema(threatsTable).omit({
 });
 export type InsertThreat = z.infer<typeof insertThreatSchema>;
 export type Threat = typeof threatsTable.$inferSelect;
+
+/**
+ * Permanent per-user suppression list.
+ * Written when a threat is resolved (any action). Never auto-cleared.
+ * The scan pipeline reads this table first so already-dismissed accounts
+ * are filtered before any expensive API or AI work runs.
+ */
+export const suppressedAccountsTable = pgTable(
+  "suppressed_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    username: text("username").notNull(),
+    resolveAction: text("resolve_action"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("suppressed_accounts_user_platform_username_idx").on(
+      table.userId,
+      table.platform,
+      table.username
+    ),
+  ]
+);
 
 export const devicePushTokensTable = pgTable("device_push_tokens", {
   id: uuid("id").primaryKey().defaultRandom(),

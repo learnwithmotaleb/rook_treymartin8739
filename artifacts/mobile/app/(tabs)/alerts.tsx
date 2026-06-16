@@ -19,6 +19,7 @@ import Animated, { FadeInDown, Layout } from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
 import { useApp, Severity, type Threat } from "@/context/AppContext";
 import { ThreatCard } from "@/components/ThreatCard";
+import { PlatformIcon } from "@/components/PlatformIcon";
 
 type Filter = "all" | Severity;
 
@@ -55,9 +56,12 @@ function LockedThreatCard({ threat, colors }: { threat: Threat; colors: ReturnTy
               </Text>
             </View>
             {threat.platform ? (
-              <Text style={[lockedStyles.platformLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                {threat.platform.charAt(0).toUpperCase() + threat.platform.slice(1)}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <PlatformIcon platform={threat.platform} size={14} />
+                <Text style={[lockedStyles.platformLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {threat.platform.charAt(0).toUpperCase() + threat.platform.slice(1)}
+                </Text>
+              </View>
             ) : null}
           </View>
           <View style={[lockedStyles.lockBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>

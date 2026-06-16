@@ -15,13 +15,14 @@
  * 8. Mark scan complete with threat count
  */
 
-import { eq, and, ne, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { recalculateScore } from "./scoreService";
 import {
   db,
   scanJobsTable,
   connectedAccountsTable,
   threatsTable,
+  suppressedAccountsTable,
   usersTable,
   visualFingerprintsTable,
   type ScanJob,
@@ -54,6 +55,19 @@ import { computeHashesForUrls, compareImageToHashes } from "./photoHashService";
 import { sendScanCompleteNotification } from "./notificationService";
 import { linkThreatToActor } from "./threatActorService";
 import { deliverEvent } from "./webhookService";
+
+/** Strip leading @, lowercase, trim — used for suppression key normalization. */
+export function normalizeSuppressUsername(raw: string | null | undefined): string {
+  return (raw ?? "").replace(/^@/, "").toLowerCase().trim();
+}
+
+/** Build the canonical lookup key: "platform:username" (both normalized). */
+export function buildSuppressKey(
+  platform: string,
+  username: string | null | undefined
+): string {
+  return `${platform.toLowerCase()}:${normalizeSuppressUsername(username)}`;
+}
 
 const SCAN_STEPS = [
   { step: "Verifying connected accounts", progress: 8 },
@@ -518,6 +532,26 @@ async function runScanPipeline(
     .from(connectedAccountsTable)
     .where(eq(connectedAccountsTable.userId, userId));
 
+  // ── Step 0: Load permanent suppression set ────────────────────────────────
+  // Must happen before any discovery work so we never spend credits re-analyzing
+  // accounts the user has already dismissed. This is the authoritative list —
+  // it is never auto-cleared by the scan lifecycle.
+  const suppressedRows = await db
+    .select({
+      platform: suppressedAccountsTable.platform,
+      username: suppressedAccountsTable.username,
+    })
+    .from(suppressedAccountsTable)
+    .where(eq(suppressedAccountsTable.userId, userId));
+
+  const suppressionSet = new Set(
+    suppressedRows.map((r) => buildSuppressKey(r.platform, r.username))
+  );
+
+  if (suppressionSet.size > 0) {
+    logger.info({ count: suppressionSet.size, userId }, "Loaded permanent suppression set");
+  }
+
   await updateJobProgress(jobId, SCAN_STEPS[0].progress, SCAN_STEPS[0].step);
 
   // ── Step 2: Ingest real media from verified accounts ──────────────────────
@@ -617,9 +651,18 @@ async function runScanPipeline(
   // Real discovery for verified accounts via platform APIs
   for (const ingested of ingestedAccounts) {
     const realCandidates = await discoverRealImpersonators(ingested);
-    allCandidates.push(...realCandidates);
+    const unsuppressedReal = realCandidates.filter(
+      (c) => !suppressionSet.has(buildSuppressKey(c.platform, c.suspiciousUsername))
+    );
+    if (realCandidates.length !== unsuppressedReal.length) {
+      logger.info(
+        { platform: ingested.platform, suppressed: realCandidates.length - unsuppressedReal.length },
+        "Skipped suppressed real candidates (pre-filter)"
+      );
+    }
+    allCandidates.push(...unsuppressedReal);
     logger.info(
-      { platform: ingested.platform, found: realCandidates.length },
+      { platform: ingested.platform, found: unsuppressedReal.length },
       "Real impersonator discovery complete"
     );
   }
@@ -709,6 +752,13 @@ async function runScanPipeline(
 
     for (const wc of webCandidates) {
       const candidate = webCandidateToImpersonator(wc, ingestedAccounts);
+      if (suppressionSet.has(buildSuppressKey(candidate.platform, candidate.suspiciousUsername))) {
+        logger.info(
+          { username: candidate.suspiciousUsername, platform: candidate.platform },
+          "Skipped suppressed web candidate (pre-filter)"
+        );
+        continue;
+      }
       allCandidates.push(candidate);
     }
 
@@ -735,7 +785,7 @@ async function runScanPipeline(
   const simulatedPlatforms = connectedAccounts.map((a) => a.platform);
 
   if (allCandidates.length === 0 && isDemoUser && connectedAccounts.length > 0) {
-    const simulated = generateSimulatedCandidates(primaryUsername, simulatedPlatforms);
+    const simulated = generateSimulatedCandidates(primaryUsername, simulatedPlatforms, suppressionSet);
     allCandidates.push(...simulated);
     logger.info(
       { count: simulated.length },
@@ -877,42 +927,17 @@ async function runScanPipeline(
       )
     );
 
-  // Build a suppression set from threats the user has explicitly resolved
-  // (resolvedAt IS NOT NULL = user-dismissed; auto-retired threats from
-  // previous scans are set to resolved:true but resolvedAt stays null,
-  // so they remain re-discoverable on future scans).
-  // Any user-resolved threat — regardless of which action was chosen — is
-  // suppressed so the same account never re-surfaces and wastes credits.
-  const suppressedThreats = await db
-    .select({
-      platform: threatsTable.platform,
-      suspiciousUsername: threatsTable.suspiciousUsername,
-    })
-    .from(threatsTable)
-    .where(
-      and(
-        eq(threatsTable.userId, userId),
-        eq(threatsTable.resolved, true),
-        isNotNull(threatsTable.resolvedAt)
-      )
-    );
-
-  const suppressedKeys = new Set(
-    suppressedThreats
-      .filter((t) => t.platform && t.suspiciousUsername)
-      .map((t) => `${t.platform}:${t.suspiciousUsername!.toLowerCase()}`)
-  );
-
-  if (suppressedKeys.size > 0) {
-    logger.info({ count: suppressedKeys.size }, "Suppressed accounts excluded from new threat insertion");
-  }
-
+  // All candidates in allCandidates are already pre-filtered against the
+  // permanent suppressionSet (loaded at step 0). This safety check is a
+  // last-resort guard in case any candidate slipped through a future code path.
   const newThreats: (typeof threatsTable.$inferInsert)[] = [];
 
   for (const candidate of allCandidates) {
-    const suppressKey = `${candidate.platform}:${(candidate.suspiciousUsername ?? "").toLowerCase()}`;
-    if (suppressedKeys.has(suppressKey)) {
-      logger.info({ username: candidate.suspiciousUsername, platform: candidate.platform }, "Skipping suppressed candidate (approved/false_positive)");
+    if (suppressionSet.has(buildSuppressKey(candidate.platform, candidate.suspiciousUsername))) {
+      logger.warn(
+        { username: candidate.suspiciousUsername, platform: candidate.platform },
+        "Late-stage suppression catch — candidate was not pre-filtered (check discovery path)"
+      );
       continue;
     }
     const scored = buildThreatFromCandidate(candidate);

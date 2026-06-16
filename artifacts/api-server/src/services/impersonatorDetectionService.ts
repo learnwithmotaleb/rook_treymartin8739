@@ -145,9 +145,15 @@ export function scoreThreatSeverity(
  * Replace with real platform adapter + web search calls when credentials
  * are available.
  */
+/** Normalize a suspicious username for suppression key lookup: strip @, lowercase, trim. */
+function simSuppressKey(platform: string, username: string): string {
+  return `${platform.toLowerCase()}:${username.replace(/^@/, "").toLowerCase().trim()}`;
+}
+
 export function generateSimulatedCandidates(
   username: string,
-  platforms: string[]
+  platforms: string[],
+  suppressionSet?: Set<string>
 ): ImpersonatorCandidate[] {
   const candidates: ImpersonatorCandidate[] = [];
   const cleanUsername = username.replace(/^@/, "");
@@ -260,7 +266,10 @@ export function generateSimulatedCandidates(
     ],
   });
 
-  return candidates;
+  if (!suppressionSet) return candidates;
+  return candidates.filter(
+    (c) => !suppressionSet.has(simSuppressKey(c.platform, c.suspiciousUsername))
+  );
 }
 
 export function buildThreatFromCandidate(
