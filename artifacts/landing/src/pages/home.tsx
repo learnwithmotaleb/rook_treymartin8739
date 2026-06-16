@@ -841,7 +841,7 @@ export default function Home() {
               { icon: <Database className="w-5 h-5 text-primary" />, title: "Data Breach Alerts", desc: "Get notified the moment your email, passwords, or personal info surfaces in a new security breach — before hackers can exploit it." },
               { icon: <Activity className="w-5 h-5 text-primary" />, title: "Live Security Score", desc: "A continuously-updated health metric of your digital footprint, with prioritized action steps to strengthen your protection." },
               { icon: <Bell className="w-5 h-5 text-primary" />, title: "Instant Threat Alerts", desc: "One centralized alert feed. Review, dismiss, or auto-report threats in seconds — directly from your phone." },
-              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Monitor Instagram, Facebook, YouTube, LinkedIn, and Snapchat from one unified dashboard. X and TikTok coming soon." },
+              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Monitor Instagram, TikTok, X, Facebook, LinkedIn, YouTube, and Snapchat from one unified dashboard — all 7 major social platforms." },
             ].map((feature, i) => (
               <motion.div
                 key={i}
