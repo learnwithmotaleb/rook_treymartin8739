@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, ne } from "drizzle-orm";
 import { db, threatsTable, threatActorsTable, suppressedAccountsTable } from "@workspace/db";
 import { recalculateScore } from "../services/scoreService";
 import { normalizeSuppressUsername } from "../services/scanOrchestrator";
@@ -164,15 +164,30 @@ router.patch("/threats/bulk-resolve", async (req, res): Promise<void> => {
     .where(and(eq(threatsTable.userId, userId), inArray(threatsTable.id, ids)));
 
   // Permanently suppress all resolved accounts so they never resurface in scans
-  const suppressions = threatsToResolve
-    .filter((t) => t.platform && t.suspiciousUsername)
-    .map((t) => ({
-      userId,
-      platform: t.platform!,
-      username: normalizeSuppressUsername(t.suspiciousUsername),
-    }));
+  const accountPairs = threatsToResolve.filter((t) => t.platform && t.suspiciousUsername);
+  const suppressions = accountPairs.map((t) => ({
+    userId,
+    platform: t.platform!,
+    username: normalizeSuppressUsername(t.suspiciousUsername),
+  }));
   if (suppressions.length > 0) {
     await db.insert(suppressedAccountsTable).values(suppressions).onConflictDoNothing();
+  }
+
+  // Cascade: resolve any duplicate unresolved threats for the same accounts
+  // (handles race condition where a concurrent scan inserted duplicates)
+  for (const t of accountPairs) {
+    await db
+      .update(threatsTable)
+      .set({ resolved: true, resolvedAt: new Date() })
+      .where(
+        and(
+          eq(threatsTable.userId, userId),
+          eq(threatsTable.platform, t.platform!),
+          eq(threatsTable.suspiciousUsername, t.suspiciousUsername!),
+          eq(threatsTable.resolved, false)
+        )
+      );
   }
 
   recalculateScore(userId).catch((err) =>
@@ -223,6 +238,21 @@ router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
         resolveAction: action ?? undefined,
       })
       .onConflictDoNothing();
+
+    // Cascade: resolve any duplicate unresolved threats for the same account
+    // (handles race condition where a concurrent scan inserted duplicates)
+    await db
+      .update(threatsTable)
+      .set({ resolved: true, resolvedAt: new Date() })
+      .where(
+        and(
+          eq(threatsTable.userId, userId),
+          eq(threatsTable.platform, updated.platform),
+          eq(threatsTable.suspiciousUsername, updated.suspiciousUsername),
+          eq(threatsTable.resolved, false),
+          ne(threatsTable.id, threatId)
+        )
+      );
   }
 
   recalculateScore(userId).catch((err) =>
