@@ -32,6 +32,7 @@ import { useApp } from "@/context/AppContext";
 import { useLocalSearchParams } from "expo-router";
 import { GlassCard } from "@/components/GlassCard";
 import { useSubscription } from "@/lib/revenuecat";
+import { syncSubscriptionTier } from "@/lib/api";
 
 type Tier = "free" | "pro" | "premium";
 type Cycle = "monthly" | "yearly";
@@ -167,7 +168,7 @@ const confirmStyles = StyleSheet.create({
 export default function Subscription() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, completeOnboarding } = useApp();
+  const { user, completeOnboarding, refreshData } = useApp();
   const { fromOnboarding } = useLocalSearchParams<{ fromOnboarding?: string }>();
   const isFromOnboarding = fromOnboarding === "1";
 
@@ -245,9 +246,30 @@ export default function Subscription() {
     );
   };
 
+  const [devUpgrading, setDevUpgrading] = useState(false);
+
+  /** DEV ONLY — bypass RevenueCat and sync tier directly to the server. */
+  const handleDevUpgrade = async (tier: Tier) => {
+    setDevUpgrading(true);
+    try {
+      await syncSubscriptionTier(tier);
+      await refreshData();
+      Alert.alert("✓ Dev Mode", `Plan set to ${tier}`);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Failed to set tier");
+    } finally {
+      setDevUpgrading(false);
+    }
+  };
+
   const handleUpgrade = (meta: PlanMeta) => {
     const pkg = getPackage(meta.id, billingCycle);
     if (!pkg) {
+      // In dev/test mode, allow direct tier selection without App Store
+      if (__DEV__) {
+        handleDevUpgrade(meta.id);
+        return;
+      }
       Alert.alert(
         "Store not available",
         "In-app purchases require the App Store or Google Play. Please open this app from your device's app store to subscribe.",
@@ -264,8 +286,8 @@ export default function Subscription() {
     setConfirmPkg(null);
     try {
       await purchase(confirmPkg);
-      // App tier update via RC entitlements is handled by SubscriptionProvider;
-      // AppContext will re-sync on next data refresh.
+      // Sync AppContext with the new tier from the server
+      await refreshData();
     } catch (err: any) {
       // User cancelled — RC throws a specific error code; ignore it silently
       if (err?.userCancelled) return;
@@ -422,7 +444,7 @@ export default function Subscription() {
         {PLAN_META.map((meta) => {
           const isCurrent = meta.id === currentTier;
           const disabled = getPlanCtaDisabled(meta);
-          const isLoading = isPurchasing || rcIsLoading;
+          const isLoading = isPurchasing || rcIsLoading || devUpgrading;
           const price = getDisplayPrice(meta.id);
           const isPremium = meta.id === "premium";
 

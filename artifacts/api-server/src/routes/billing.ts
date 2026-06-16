@@ -274,7 +274,7 @@ router.post("/billing/revenuecat-sync", async (req, res): Promise<void> => {
   }
 
   const validTier = tier as "free" | "pro" | "premium";
-  const status = validTier === "free" ? "canceled" : "active";
+  const status = "active";
 
   await db
     .insert(subscriptionsTable)
