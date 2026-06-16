@@ -25,7 +25,9 @@ import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 try {
   initializeRevenueCat();
 } catch (err: any) {
-  Alert.alert("RevenueCat Unavailable", err?.message ?? "Unknown error");
+  // RC keys not set in this environment — purchases unavailable, app still works.
+  // Dev-mode tier upgrades go directly through the server bypass instead.
+  console.warn("[RevenueCat] Not configured:", err?.message);
 }
 
 // Keep the native splash screen up until our animated one takes over

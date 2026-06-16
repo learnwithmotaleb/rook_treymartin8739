@@ -15,6 +15,7 @@ import { setApiAuthToken, syncSubscriptionTier } from "@/lib/api";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useSubscription } from "@/lib/revenuecat";
 import Purchases from "react-native-purchases";
+import Constants from "expo-constants";
 
 function NativeTabLayout() {
   const { activeThreats } = useApp();
@@ -141,7 +142,7 @@ export default function TabLayout() {
   const { user: clerkUser } = useUser();
   const { login, logout, hasSeenOnboarding, isInitializing, isLoggedIn } = useApp();
   const colors = useColors();
-  const { tier } = useSubscription();
+  const { tier, customerInfo } = useSubscription();
   useNotifications(isLoggedIn);
 
   // Keep a stable ref to getToken so the effect below doesn't need it as a
@@ -177,10 +178,17 @@ export default function TabLayout() {
 
   // Sync the RevenueCat tier to the server whenever it changes so the server-
   // side scan-quota system reflects the user's actual subscription.
+  // Guards:
+  //   1. Skip if RC has no customer data (RC not configured at all).
+  //   2. Skip if running in Expo Go (storeClient) — RC runs in Preview API
+  //      Mode there and always reports "free" regardless of real purchases.
+  //      In Expo Go, use the paywall's dev-mode bypass to test tier changes.
   useEffect(() => {
     if (!isLoaded || isInitializing || !isSignedIn) return;
+    if (!customerInfo) return;
+    if (Constants.executionEnvironment === "storeClient") return;
     syncSubscriptionTier(tier).catch(() => {});
-  }, [tier, isLoaded, isInitializing, isSignedIn]);
+  }, [tier, isLoaded, isInitializing, isSignedIn, customerInfo]);
 
   // Render a blank screen (not null) while loading — returning null from a
   // layout component breaks expo-router's component tree on web and causes
