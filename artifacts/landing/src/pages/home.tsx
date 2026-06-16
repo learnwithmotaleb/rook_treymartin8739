@@ -250,7 +250,7 @@ function PhoneMockup() {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: C.danger, fontSize: 10, fontWeight: 600 }}>Impersonator Detected</div>
-          <div style={{ color: C.muted, fontSize: 8, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@alex_official_backup · Instagram</div>
+          <div style={{ color: C.muted, fontSize: 8, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@alex_official_backup · Facebook</div>
         </div>
         <span style={{ color: C.muted, fontSize: 8, flexShrink: 0 }}>2m</span>
       </motion.div>
@@ -298,8 +298,8 @@ function PhoneMockup() {
 
       {/* Threat rows */}
       {[
-        { sev: "HIGH", label: "Impersonator Detected", sub: "@alex_official_backup · Instagram", time: "2m", color: C.danger },
-        { sev: "MED", label: "Stolen Photo Found", sub: "@unofficial_fan_ig · TikTok", time: "18m", color: C.warning },
+        { sev: "HIGH", label: "Impersonator Detected", sub: "@alex_official_backup · Facebook", time: "2m", color: C.danger },
+        { sev: "MED", label: "Stolen Photo Found", sub: "Reverse image search result", time: "18m", color: C.warning },
         { sev: "LOW", label: "Data Exposure Alert", sub: "Email appeared in breach database", time: "1h", color: C.success },
       ].map((a, i) => (
         <div key={i} style={{ background: `${a.color}0C`, border: `1px solid ${a.color}28`, borderRadius: 12, padding: "9px 10px", display: "flex", alignItems: "center", gap: 8 }}>
@@ -358,11 +358,11 @@ function PhoneMockup() {
 
       {/* Platform card */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 10px", display: "flex", alignItems: "center", gap: 9 }}>
-        <div style={{ width: 26, height: 26, borderRadius: 7, background: "linear-gradient(135deg,#833AB4,#C13584,#E1306C)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <span style={{ color: "white", fontSize: 9, fontWeight: 900 }}>IG</span>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: "#1877F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <span style={{ color: "white", fontSize: 9, fontWeight: 900 }}>f</span>
         </div>
         <div>
-          <div style={{ color: C.text, fontSize: 10, fontWeight: 600 }}>Instagram Impersonator</div>
+          <div style={{ color: C.text, fontSize: 10, fontWeight: 600 }}>Facebook Impersonator</div>
           <div style={{ color: C.muted, fontSize: 8, marginTop: 1 }}>@alex_official_backup · Found 2m ago</div>
         </div>
       </div>
@@ -873,11 +873,30 @@ export default function Home() {
 
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
           <div className="relative z-10 flex flex-col gap-4">
-            <ThreatCard platform="Instagram" severity="High" type="Impersonator Detected" username="@●●●●_official_backup" timeAgo="2m ago" delay={0.1} />
-            <div className="ml-8">
-              <ThreatCard platform="TikTok" severity="Medium" type="Stolen Photo Upload" username="@●●●●_fans_page" timeAgo="18m ago" delay={0.3} />
-            </div>
-            <ThreatCard platform="X" severity="High" type="Phishing Link in Bio" username="@●●●●_support_team" timeAgo="1h ago" delay={0.5} />
+            <ThreatCard platform="Facebook" severity="High" type="Impersonator Detected" username="@●●●●_official_backup" timeAgo="2m ago" delay={0.1} />
+            {/* Coming-soon platform previews — clearly dimmed/labeled */}
+            {[
+              { platform: "Instagram", type: "Impersonator scan" },
+              { platform: "TikTok", type: "Stolen photo detection" },
+            ].map((item, i) => (
+              <motion.div
+                key={item.platform}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ duration: 0.5, delay: 0.3 + i * 0.2 }}
+                className={`glass-panel rounded-2xl p-4 flex items-center gap-3 opacity-40 ${i === 0 ? "ml-8" : ""}`}
+              >
+                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center border border-border text-muted-foreground text-xs font-bold shrink-0">
+                  {item.platform[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white">{item.platform}</div>
+                  <div className="text-xs text-muted-foreground">{item.type}</div>
+                </div>
+                <span className="text-[10px] font-medium text-white/40 border border-white/10 rounded px-2 py-0.5 shrink-0">Coming soon</span>
+              </motion.div>
+            ))}
           </div>
 
           <div className="relative z-10">

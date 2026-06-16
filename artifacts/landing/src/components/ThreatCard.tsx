@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
-import { AlertCircle, Clock, ShieldAlert } from "lucide-react";
-import { SiInstagram, SiTiktok, SiX } from "react-icons/si";
+import { Clock, ShieldAlert } from "lucide-react";
+import { SiFacebook } from "react-icons/si";
 
 export type ThreatSeverity = "High" | "Medium" | "Low";
 
 interface ThreatCardProps {
-  platform: "Instagram" | "TikTok" | "X";
+  platform: "Facebook";
   severity: ThreatSeverity;
   type: string;
   username: string;
@@ -16,9 +16,7 @@ interface ThreatCardProps {
 export function ThreatCard({ platform, severity, type, username, timeAgo, delay = 0 }: ThreatCardProps) {
   const getPlatformIcon = () => {
     switch (platform) {
-      case "Instagram": return <SiInstagram className="w-4 h-4" />;
-      case "TikTok": return <SiTiktok className="w-4 h-4" />;
-      case "X": return <SiX className="w-4 h-4" />;
+      case "Facebook": return <SiFacebook className="w-4 h-4" />;
     }
   };
 
@@ -79,7 +77,7 @@ export function ThreatCard({ platform, severity, type, username, timeAgo, delay 
           View Profile
         </button>
         <button className="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium py-2 rounded-lg transition-colors border border-red-500/20">
-          Auto-Report
+          Report
         </button>
       </div>
     </motion.div>
