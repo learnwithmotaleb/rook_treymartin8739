@@ -635,11 +635,11 @@ export default function Home() {
                 </div>
               </div>
               {[
-                { platform: "Facebook", status: "No matching profiles found", time: "1h ago", type: "clean", live: true },
-                { platform: "Instagram", status: "Coming soon", time: "", type: "soon", live: false },
-                { platform: "TikTok", status: "Coming soon", time: "", type: "soon", live: false },
-                { platform: "X (Twitter)", status: "Coming soon", time: "", type: "soon", live: false },
-                { platform: "LinkedIn", status: "Coming soon", time: "", type: "soon", live: false },
+                { platform: "Instagram", status: "2 username variants scanned", time: "2m ago", type: "clean" },
+                { platform: "TikTok", status: "Impersonator detected + reported", time: "11m ago", type: "threat" },
+                { platform: "X (Twitter)", status: "Profile photo match found", time: "34m ago", type: "threat" },
+                { platform: "Facebook", status: "No matching profiles found", time: "1h ago", type: "clean" },
+                { platform: "LinkedIn", status: "Name variant monitoring active", time: "2h ago", type: "clean" },
               ].map((item, i) => (
                 <motion.div
                   key={i}
@@ -647,18 +647,14 @@ export default function Home() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.08 }}
-                  className={`flex items-center gap-4 ${!item.live ? "opacity-40" : ""}`}
+                  className="flex items-center gap-4"
                 >
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${item.type === "threat" ? "bg-red-400" : item.type === "soon" ? "bg-white/20" : "bg-green-400"}`} />
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${item.type === "threat" ? "bg-red-400" : "bg-green-400"}`} />
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-semibold">{item.platform}</span>
                     <span className="text-sm text-muted-foreground"> — {item.status}</span>
                   </div>
-                  {item.live ? (
-                    <span className="text-xs text-white/25 shrink-0">{item.time}</span>
-                  ) : (
-                    <span className="text-[10px] font-medium text-white/20 border border-white/10 rounded px-1.5 py-0.5 shrink-0">Soon</span>
-                  )}
+                  <span className="text-xs text-white/25 shrink-0">{item.time}</span>
                 </motion.div>
               ))}
               <div className="pt-4 border-t border-white/[0.07]">
