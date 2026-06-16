@@ -1,13 +1,14 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { db, connectedAccountsTable, threatsTable } from "@workspace/db";
+import { db, connectedAccountsTable, threatsTable, suppressedAccountsTable } from "@workspace/db";
 import {
   reverseImageSearchForPhoto,
   isVisionConfigured,
 } from "../services/webSearchService";
 import { logger } from "../lib/logger";
 import { recalculateScore } from "../services/scoreService";
+import { buildSuppressKey, normalizeSuppressUsername } from "../services/scanOrchestrator";
 
 const router: IRouter = Router();
 
@@ -70,9 +71,27 @@ router.post("/photos/search", async (req, res): Promise<void> => {
       (m) => !ownKeys.has(`${m.platform}:${m.username.toLowerCase()}`)
     );
 
+    // Load suppression set — never re-create threats for accounts the user already resolved
+    const suppressedRows = await db
+      .select({ platform: suppressedAccountsTable.platform, username: suppressedAccountsTable.username })
+      .from(suppressedAccountsTable)
+      .where(eq(suppressedAccountsTable.userId, userId));
+    const suppressionSet = new Set(suppressedRows.map((r) => buildSuppressKey(r.platform, r.username)));
+
+    const unsuppressedMatches = externalMatches.filter(
+      (m) => !suppressionSet.has(buildSuppressKey(m.platform, normalizeSuppressUsername(m.username)))
+    );
+
+    if (externalMatches.length !== unsuppressedMatches.length) {
+      logger.info(
+        { suppressed: externalMatches.length - unsuppressedMatches.length, total: externalMatches.length },
+        "Photo search: skipped suppressed accounts"
+      );
+    }
+
     let threatsCreated = 0;
 
-    for (const match of externalMatches) {
+    for (const match of unsuppressedMatches) {
       try {
         const simPct = Math.round(match.similarity * 100);
         const platformLabel = match.platform.charAt(0).toUpperCase() + match.platform.slice(1);
