@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import {
   Shield, Globe, Bell, Lock, CheckCircle2, Activity, ScanFace,
-  Database, Eye, ChevronDown, AlertTriangle, Cpu, Bot, Brain,
-  Users, Clock, TrendingUp, X as XIcon,
+  Database, Eye, ChevronDown,
+  Users, Clock,
 } from "lucide-react";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { ThreatCard } from "@/components/ThreatCard";
@@ -25,44 +25,6 @@ const STATS = [
   { value: "1 in 10", label: "Adults targeted by impersonation", source: "FTC" },
 ];
 
-const THREATS_HAPPENING_NOW = [
-  "Someone is copying your profile photo to create a fake account right now.",
-  "A clone account may already be messaging your followers asking for money.",
-  "Your username variants are being registered while you read this.",
-  "Someone is using your face and name to sell products you've never endorsed.",
-  "Fake posts attributed to you are circulating on platforms you've never used.",
-];
-
-const WHY_NOW = [
-  {
-    icon: <Brain className="w-5 h-5 text-primary" />,
-    title: "AI-Generated Fake Profiles",
-    desc: "Anyone can create a convincing clone of your identity in under 60 seconds using freely available AI tools. Realistic photos. Believable bios. Your name.",
-  },
-  {
-    icon: <Cpu className="w-5 h-5 text-primary" />,
-    title: "Deepfake Technology",
-    desc: "AI-generated videos and voice clones make impersonation indistinguishable from the real thing — and accessible to anyone with a laptop.",
-  },
-  {
-    icon: <Bot className="w-5 h-5 text-primary" />,
-    title: "Bot Account Factories",
-    desc: "Automated systems create thousands of fake accounts per hour — each one tailored to impersonate real people at scale.",
-  },
-  {
-    icon: <Globe className="w-5 h-5 text-primary" />,
-    title: "Your Identity is Public Data",
-    desc: "Your photos, posts, bio, and personal details are publicly available across every major social platform. That's everything a scammer needs.",
-  },
-];
-
-const OUTCOMES = [
-  "Know the moment someone creates a profile using your name or photo.",
-  "Know when your images appear on platforms you've never used.",
-  "Know when fake accounts message your followers or contacts.",
-  "Know when your security score drops and exactly what caused it.",
-  "Take action in seconds — report to platforms with evidence-backed step-by-step guidance.",
-];
 
 const FAQS = [
   {
@@ -634,115 +596,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Problem Awareness ─────────────────────────────────────────────────── */}
-      <section className="py-28 px-6">
-        <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-80px" }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold mb-6">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Most people don't know they're at risk
-            </motion.div>
-            <motion.h2 variants={fadeUp} className="text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
-              Your digital identity is being{" "}
-              <span className="text-gradient-primary">exploited right now.</span>
-            </motion.h2>
-            <motion.p variants={fadeUp} className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Most people don't discover impersonation until a friend sends them a screenshot — or until the damage is already done. By then, fake accounts have hundreds of followers, scammed real people, and destroyed reputations that took years to build.
-            </motion.p>
-          </motion.div>
-
-          <div className="flex flex-col gap-4 mb-12">
-            {THREATS_HAPPENING_NOW.map((threat, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-30px" }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="flex items-start gap-4 p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-red-500/20 hover:bg-red-500/[0.03] transition-colors group"
-              >
-                <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-red-500/20 transition-colors">
-                  <XIcon className="w-4 h-4 text-red-400" />
-                </div>
-                <p className="text-base text-foreground/80 leading-relaxed">{threat}</p>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center p-8 rounded-3xl bg-gradient-to-b from-white/[0.04] to-transparent border border-white/[0.07]"
-          >
-            <p className="text-2xl font-bold mb-2">Most people only find out when it's too late.</p>
-            <p className="text-muted-foreground mb-6">The average victim discovers impersonation after 197 days. ShieldID detects it in minutes.</p>
-            <button
-              onClick={scrollToWaitlist}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold transition-colors"
-            >
-              Find Out If You're Already a Target
-            </button>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ── Why Now ───────────────────────────────────────────────────────────── */}
-      <section className="py-28 px-6 bg-black relative border-y border-white/5 overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:32px_32px]" />
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[600px] h-[400px] bg-primary/10 rounded-full blur-[120px] opacity-30 pointer-events-none" />
-
-        <div className="max-w-7xl mx-auto relative z-10">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-80px" }}
-            variants={stagger}
-            className="text-center mb-16"
-          >
-            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-6">
-              <TrendingUp className="w-3.5 h-3.5" />
-              This problem doubles every year
-            </motion.div>
-            <motion.h2 variants={fadeUp} className="text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
-              AI has made identity theft{" "}
-              <span className="text-gradient-primary">effortless.</span>
-            </motion.h2>
-            <motion.p variants={fadeUp} className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              The same technology that powers creativity is being weaponized to steal identities at a scale that was impossible just two years ago. This is not a future problem. It's happening now.
-            </motion.p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {WHY_NOW.map((item, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="glass-panel p-6 rounded-2xl flex flex-col gap-4 hover:bg-white/[0.04] transition-colors"
-              >
-                <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  {item.icon}
-                </div>
-                <h3 className="font-bold text-base">{item.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── Solution / Outcomes ───────────────────────────────────────────────── */}
-      <section className="py-28 px-6">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center">
+      <section className="py-16 px-6">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -757,21 +613,8 @@ export default function Home() {
               Know the moment your{" "}
               <span className="text-gradient-primary">identity is threatened.</span>
             </motion.h2>
-            <motion.p variants={fadeUp} className="text-lg text-muted-foreground mb-10 leading-relaxed">
-              ShieldID watches every corner of the internet so you don't have to. The moment something goes wrong, you're the first to know — with everything you need to stop it instantly.
-            </motion.p>
-            <motion.div variants={stagger} className="flex flex-col gap-4">
-              {OUTCOMES.map((outcome, i) => (
-                <motion.div key={i} variants={fadeUp} className="flex items-start gap-4">
-                  <div className="w-6 h-6 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                  </div>
-                  <p className="text-base font-medium">{outcome}</p>
-                </motion.div>
-              ))}
-            </motion.div>
-            <motion.p variants={fadeUp} className="mt-8 text-sm text-muted-foreground italic">
-              "Finding out 4 months later isn't protection. It's damage control."
+            <motion.p variants={fadeUp} className="text-lg text-muted-foreground leading-relaxed">
+              ShieldID scans for impersonators and stolen photos so you don't have to. The moment something goes wrong, you're the first to know — with everything you need to act immediately.
             </motion.p>
           </motion.div>
 
@@ -829,9 +672,9 @@ export default function Home() {
       </section>
 
       {/* ── Features Grid ─────────────────────────────────────────────────────── */}
-      <section className="py-24 px-6 relative bg-white/[0.01] border-y border-white/5">
+      <section className="py-16 px-6 relative bg-white/[0.01] border-y border-white/5">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center max-w-2xl mx-auto mb-16">
+          <div className="text-center max-w-2xl mx-auto mb-10">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
               Enterprise-grade protection. Built for everyone.
             </h2>
@@ -867,7 +710,7 @@ export default function Home() {
       </section>
 
       {/* ── Live Threat Demo ──────────────────────────────────────────────────── */}
-      <section className="py-28 px-6 bg-black relative border-b border-white/5 overflow-hidden">
+      <section className="py-16 px-6 bg-black relative border-b border-white/5 overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
         <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-primary/20 opacity-20 blur-[100px]" />
 
@@ -926,67 +769,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Testimonials ──────────────────────────────────────────────────────── */}
-      <section className="py-28 px-6 relative border-b border-white/5">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-4">Real stories · Real impact</p>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">They wish they'd known sooner.</h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                quote: "Someone cloned my Instagram and started messaging my followers asking for crypto investments. ShieldID caught the fake account within 10 minutes of it going live. It had already messaged 4 people. Without ShieldID, it could have been hundreds.",
-                name: "Sarah Jenkins", handle: "@sarahj_creates", role: "Content Creator · 48K followers", initials: "SJ",
-              },
-              {
-                quote: "My photos were being used to catfish people on three different dating apps. I had no idea for months. ShieldID found all three profiles in its first scan and helped me file takedown requests the same day. This is genuinely life-changing.",
-                name: "Marcus Thorne", handle: "@marcust_fitness", role: "Fitness Coach · 120K followers", initials: "MT",
-              },
-              {
-                quote: "As a consultant, my professional reputation is everything. An old breach had exposed my credentials and someone was using them to impersonate me on LinkedIn. ShieldID found it before any of my clients did. I can't put a price on that.",
-                name: "Elena Rostova", handle: "@elenaconsults", role: "Independent Consultant", initials: "ER",
-              },
-            ].map((t, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="glass-panel p-7 rounded-2xl flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex gap-1 mb-5 text-yellow-400">
-                    {[...Array(5)].map((_, j) => (
-                      <svg key={j} className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    ))}
-                  </div>
-                  <p className="text-sm text-foreground/85 leading-relaxed mb-6">"{t.quote}"</p>
-                </div>
-                <div className="flex items-center gap-3 mt-auto pt-4 border-t border-white/[0.06]">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-xs text-primary border border-primary/20">
-                    {t.initials}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-sm">{t.name}</div>
-                    <div className="text-xs text-muted-foreground">{t.handle} · {t.role}</div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── How It Works ──────────────────────────────────────────────────────── */}
-      <section id="how-it-works" className="py-28 px-6 bg-white/[0.01] border-b border-white/5">
+      <section id="how-it-works" className="py-16 px-6 bg-white/[0.01] border-b border-white/5">
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-4">Setup takes 2 minutes</p>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-20">Three steps to complete protection.</h2>
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-12">Three steps to complete protection.</h2>
 
           <div className="grid md:grid-cols-3 gap-8 relative">
             <div className="hidden md:block absolute top-10 left-[18%] right-[18%] h-px bg-gradient-to-r from-transparent via-border to-transparent" />
@@ -1017,9 +804,9 @@ export default function Home() {
       </section>
 
       {/* ── Pricing ───────────────────────────────────────────────────────────── */}
-      <section id="pricing" className="py-28 px-6 relative">
+      <section id="pricing" className="py-16 px-6 relative">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-4">Simple, transparent pricing</p>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">Protect your identity. Start free.</h2>
             <p className="text-muted-foreground text-lg">Lock in launch pricing today. Cancel anytime. No questions asked.</p>
@@ -1082,7 +869,7 @@ export default function Home() {
       </section>
 
       {/* ── Final CTA ─────────────────────────────────────────────────────────── */}
-      <section className="py-36 px-6 relative overflow-hidden border-t border-white/5">
+      <section className="py-20 px-6 relative overflow-hidden border-t border-white/5">
         <div className="absolute inset-0 flex items-center justify-center opacity-[0.07] pointer-events-none">
           <div className="w-[800px] h-[800px] border border-primary rounded-full absolute animate-[ping_5s_cubic-bezier(0,0,0.2,1)_infinite]" />
           <div className="w-[600px] h-[600px] border border-primary rounded-full absolute animate-[ping_5s_cubic-bezier(0,0,0.2,1)_infinite_1s]" />
@@ -1119,9 +906,9 @@ export default function Home() {
       </section>
 
       {/* ── FAQ (after final CTA) ─────────────────────────────────────────────── */}
-      <section id="faq" className="py-28 px-6 bg-white/[0.01] border-t border-white/5">
+      <section id="faq" className="py-16 px-6 bg-white/[0.01] border-t border-white/5">
         <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-4">Got questions</p>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Everything you need to know.</h2>
           </div>
