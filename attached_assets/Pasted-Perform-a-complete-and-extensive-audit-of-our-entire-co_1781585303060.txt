@@ -1,0 +1,72 @@
+Perform a complete and extensive audit of our entire codebase. Go through every file, 
+folder, module, component, function, and configuration. Deliver a structured report 
+covering the following categories:
+
+---
+
+## 1. ✅ DONE & SOLID
+List everything that is fully implemented, working correctly, and requires no further 
+attention. Be specific (file names, functions, components).
+
+---
+
+## 2. ⚠️ NEEDS POLISHING
+Identify code that works but could be improved. This includes:
+- Minor bugs or edge cases not handled
+- Inconsistent naming conventions
+- Functions that are too long or doing too much (violating single responsibility)
+- Hardcoded values that should be constants or env variables
+- Missing or incomplete error handling
+- Poorly structured logic that works but is fragile
+- Console logs, debug statements, or commented-out code left behind
+
+---
+
+## 3. 🚨 NEEDS ATTENTION (Broken / Incomplete / Critical)
+Flag anything that is:
+- Not yet implemented but referenced
+- Broken or throwing errors
+- Missing required logic
+- Causing performance issues
+- A security vulnerability (exposed keys, unvalidated inputs, etc.)
+- Blocking other features from working
+
+---
+
+## 4. 🗑️ REMOVE — Duplicate or Unused Logic
+Based on what we previously agreed to clean up, identify and REMOVE:
+- Duplicate functions or components that do the same thing
+- Dead code that is never called or imported
+- Redundant state variables or props being passed unnecessarily
+- Unused imports, dependencies, or files
+- Leftover legacy code from refactors we already completed
+- Any logic that has been replaced but not deleted
+
+After identifying duplicates/unused code, go ahead and delete them directly. 
+Confirm each removal with the file name and what was removed.
+
+---
+
+## 5. 📁 FILE & STRUCTURE REVIEW
+- Are files and folders organized logically?
+- Is anything in the wrong place?
+- Are there files that should be split or merged?
+- Is the project structure scalable and maintainable?
+
+---
+
+## 6. 📦 DEPENDENCIES & CONFIG
+- Are there unused packages in package.json (or equivalent)?
+- Are there conflicting or outdated dependencies?
+- Is the environment config (.env, config files) clean and complete?
+
+---
+
+## OUTPUT FORMAT
+For each issue found, provide:
+- 📄 File: [filename and path]
+- 🔎 Issue: [clear description]
+- ✅ Action: [what was done OR what needs to be done]
+
+Be thorough. Do not skip any file. Prioritize issues by severity. 
+Start the audit now and work through the entire project systematically.
