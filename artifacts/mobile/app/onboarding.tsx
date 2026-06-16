@@ -70,7 +70,7 @@ function WelcomeScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
         </Text>
 
         <View style={styles.platformRow}>
-          {(["instagram", "facebook", "x", "tiktok", "youtube"] as NonNullable<SocialPlatform>[]).map((p) => (
+          {(["instagram", "facebook", "x", "tiktok", "youtube", "linkedin", "snapchat"] as NonNullable<SocialPlatform>[]).map((p) => (
             <View key={p} style={[styles.platformPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <PlatformIcon platform={p} size={20} />
             </View>
@@ -193,7 +193,7 @@ function ConcernScreen({
 
 // ─── Step 3: Education ────────────────────────────────────────────────────────
 const STATS = [
-  { icon: "person-add", value: "5+", label: "Platforms monitored simultaneously", color: "#EF4444" },
+  { icon: "person-add", value: "7", label: "Platforms monitored simultaneously", color: "#EF4444" },
   { icon: "scan-circle", value: "Ongoing", label: "AI-powered monitoring across platforms", color: "#F59E0B" },
   { icon: "shield-checkmark", value: "Automated", label: "Alerts when potential threats are detected", color: "#8B5CF6" },
 ];
@@ -409,7 +409,7 @@ function PlatformsScreen({
 
       <View style={styles.platformGrid}>
         {ALL_PLATFORMS.map((p, idx) => {
-          const isComingSoon = p.id === "x" || p.id === "tiktok";
+          const isComingSoon = false;
           const isSelected = selected.includes(p.id);
           return (
             <Animated.View key={p.id} style={{
@@ -532,7 +532,7 @@ function ConnectScreen({
 
       <View style={styles.platformList}>
         {displayPlatforms.map((p) => {
-          const isComingSoon = p.id === "x" || p.id === "tiktok";
+          const isComingSoon = false;
           const isSelected = selected.has(p.id);
           if (isComingSoon) {
             return (

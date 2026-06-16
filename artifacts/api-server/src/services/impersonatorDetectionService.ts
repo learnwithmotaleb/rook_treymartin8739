@@ -43,6 +43,9 @@ export interface DetectedEvidence {
   stolenCaption?: string;
   yourPhotoUrl?: string;
   stolenPhotoUrl?: string;
+  stolenPageUrl?: string;
+  postContext?: "original_post" | "retweet" | "share" | "unknown";
+  originalPoster?: string;
 }
 
 export interface ImpersonatorCandidate {

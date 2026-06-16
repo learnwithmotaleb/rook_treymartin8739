@@ -36,6 +36,8 @@ export interface WebSearchCandidate {
   snippet: string;
   similarity: number;
   discoveryMethod: "username_variant" | "image_search" | "caption_search";
+  postContext?: "original_post" | "retweet" | "share" | "unknown";
+  originalPoster?: string;
 }
 
 interface GoogleSearchItem {
@@ -178,6 +180,28 @@ async function runGoogleSearch(query: string): Promise<GoogleSearchItem[]> {
     logger.warn({ err, query }, "Google CSE request failed");
     return [];
   }
+}
+
+/**
+ * Detect whether an X/Twitter page result represents an original post,
+ * a retweet, or a share — based on the page title Google returns.
+ *
+ * Standard retweet format Google indexes: "RT @username: tweet text"
+ * Quote tweets sometimes appear as "username on X: "RT @…""
+ */
+function detectXPostContext(title: string, snippet: string): {
+  context: "original_post" | "retweet" | "share" | "unknown";
+  originalPoster?: string;
+} {
+  const combined = `${title} ${snippet}`;
+  const rtMatch = combined.match(/\bRT @(\w+)/i);
+  if (rtMatch && rtMatch[1]) {
+    return { context: "retweet", originalPoster: rtMatch[1].toLowerCase() };
+  }
+  if (/\bQT @(\w+)/i.test(combined)) {
+    return { context: "share" };
+  }
+  return { context: "original_post" };
 }
 
 /** Extract a social media username from a Google result URL. */
@@ -443,6 +467,45 @@ async function searchByImageUrls(
       if (found.toLowerCase() === clean) continue; // your own profile
       if (!targetPlatforms.includes(platform)) continue;
 
+      // ── Retweet / share detection (X/Twitter only) ────────────────────────
+      // Google indexes retweet pages under the retweeter's profile URL, but
+      // the page title starts with "RT @originaluser:" — they are NOT the thief.
+      // Skip retweeters entirely; pivot to the original poster if detectable.
+      if (platform === "x") {
+        const { context, originalPoster } = detectXPostContext(
+          page.pageTitle ?? "",
+          ""
+        );
+        if (context === "retweet" || context === "share") {
+          logger.info(
+            { retweeter: found, originalPoster, pageUrl: page.url.slice(0, 80) },
+            "X photo match is a retweet — skipping retweeter"
+          );
+          // Pivot: flag the original poster, not the retweeter
+          if (originalPoster && originalPoster !== clean) {
+            const pivotKey = `x:${originalPoster}`;
+            if (!seen.has(pivotKey)) {
+              seen.add(pivotKey);
+              candidates.push({
+                username: originalPoster,
+                platform: "x",
+                profileUrl: `https://x.com/${originalPoster}`,
+                title: `@${originalPoster} on X (original poster)`,
+                snippet: `Your photo was found in a retweet. @${originalPoster} posted it originally.`,
+                similarity: 0.90,
+                discoveryMethod: "image_search",
+                postContext: "original_post",
+              });
+              logger.info(
+                { originalPoster, platform: "x" },
+                "Pivoted retweet match → flagging original poster instead"
+              );
+            }
+          }
+          continue; // Skip the retweeter as a threat
+        }
+      }
+
       const key = `${platform}:${found}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -455,6 +518,7 @@ async function searchByImageUrls(
         snippet: "Your photo was found on this profile via Google reverse image search",
         similarity: 0.95,
         discoveryMethod: "image_search",
+        postContext: "original_post",
       });
 
       logger.info(
@@ -486,6 +550,7 @@ async function searchByImageUrls(
         snippet: "Exact copy of your photo found at a different URL",
         similarity: 0.98,
         discoveryMethod: "image_search",
+        postContext: "original_post",
       });
 
       logger.info(
@@ -557,6 +622,19 @@ async function searchByCaptions(
       const { username: found, platform } = extracted;
       if (found === clean) continue;
 
+      // Skip X/Twitter results where the snippet shows "RT @" —
+      // the caption appeared in a retweet, not an original post by this account.
+      if (platform === "x") {
+        const { context } = detectXPostContext(item.title, item.snippet);
+        if (context === "retweet" || context === "share") {
+          logger.info(
+            { username: found, platform, snippet: item.snippet.slice(0, 60) },
+            "Skipping X retweet/share in caption search"
+          );
+          continue;
+        }
+      }
+
       const key = `${platform}:${found}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -569,6 +647,7 @@ async function searchByCaptions(
         snippet: item.snippet,
         similarity: 0.0, // caption match is its own strong signal
         discoveryMethod: "caption_search",
+        postContext: "original_post",
       });
     }
 

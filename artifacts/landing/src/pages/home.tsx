@@ -75,7 +75,7 @@ const FAQS = [
   },
   {
     q: "Which platforms do you monitor?",
-    a: "ShieldID actively monitors Instagram, Facebook, YouTube, LinkedIn, and Snapchat. X (Twitter) and TikTok support is coming soon. Our AI scans across all connected platforms simultaneously so you don't have to check each one manually.",
+    a: "ShieldID actively monitors Instagram, Facebook, X (Twitter), TikTok, YouTube, LinkedIn, and Snapchat — 7 platforms simultaneously. Our AI scans across all connected platforms so you don't have to check each one manually.",
   },
   {
     q: "Will you access my private messages or personal data?",
@@ -423,7 +423,7 @@ function PhoneMockup() {
       {/* Action buttons */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: "auto" }}>
         <div style={{ background: C.danger, borderRadius: 10, padding: "9px 0", color: "white", fontSize: 10, fontWeight: 700, textAlign: "center" }}>
-          Auto-Report
+          Report Guide
         </div>
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 0", color: C.text, fontSize: 10, fontWeight: 600, textAlign: "center" }}>
           Mark Resolved
@@ -564,7 +564,7 @@ export default function Home() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400" />
               </span>
-              AI identity protection across 5 major social platforms
+              AI identity protection across 7 major social platforms
             </motion.div>
 
             <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[1.05]">

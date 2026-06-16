@@ -152,7 +152,7 @@ export default function Dashboard() {
           ) : (
             <View style={styles.statsGrid}>
               <StatCard
-                label="Active Threats"
+                label="Threats Detected"
                 value={String(activeThreats)}
                 valueColor={activeThreats > 0 ? colors.danger : colors.success}
                 icon={

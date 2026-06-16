@@ -412,6 +412,8 @@ function webCandidateToImpersonator(
       type: "profile_photo",
       similarity: Math.round(profileImageSimilarity * 100),
       label: "Profile Photo Found via Image Search",
+      stolenPageUrl: wc.profileUrl,
+      postContext: wc.postContext ?? "original_post",
     });
   } else {
     evidence.push({
@@ -419,6 +421,8 @@ function webCandidateToImpersonator(
       type: "profile_photo",
       similarity: Math.round(wc.similarity * 100),
       label: "Username Pattern Match",
+      stolenPageUrl: wc.profileUrl,
+      postContext: wc.postContext ?? "original_post",
     });
   }
 
@@ -430,6 +434,8 @@ function webCandidateToImpersonator(
       label: isCaptionMatch
         ? "Caption Text Stolen Verbatim"
         : `${suspectedStolenCount} Potentially Stolen Photos`,
+      stolenPageUrl: wc.profileUrl,
+      postContext: wc.postContext ?? "original_post",
       ...(isCaptionMatch
         ? {
             yourCaption: "Your original post text",

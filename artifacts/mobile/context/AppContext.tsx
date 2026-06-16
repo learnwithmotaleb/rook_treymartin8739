@@ -74,6 +74,8 @@ export interface MatchedEvidence {
   stolenPhotoUrl?: string;
   stolenPageUrl?: string;
   label: string;
+  postContext?: "original_post" | "retweet" | "share" | "unknown";
+  originalPoster?: string;
 }
 
 export interface Threat {

@@ -440,6 +440,8 @@ export default function ThreatDetail() {
     yourPhotoUrl: "yourPhotoUrl" in e ? (e as any).yourPhotoUrl : undefined,
     stolenPhotoUrl: "stolenPhotoUrl" in e ? (e as any).stolenPhotoUrl : undefined,
     stolenPageUrl: "stolenPageUrl" in e ? (e as any).stolenPageUrl : undefined,
+    postContext: "postContext" in e ? (e as any).postContext : undefined,
+    originalPoster: "originalPoster" in e ? (e as any).originalPoster : undefined,
   }));
 
   const suspiciousUsername =

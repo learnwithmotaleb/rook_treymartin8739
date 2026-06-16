@@ -4,3 +4,4 @@
 - [RevenueCat tier sync pattern](revenuecat-tier-sync.md) — RC purchases are authoritative on-device; server quota uses DB; sync via POST /api/billing/revenuecat-sync called after purchase/restore and on tab mount.
 - [Avatar photo storage](avatar-photo-storage.md) — profile photos stored as base64 data URLs in avatarUrl column (sharp-compressed 160×160 JPEG); no object storage needed at current scale.
 - [Scheduled scan pattern](scheduled-scan-pattern.md) — schedulerService.ts polls every 15 min via setInterval.unref(); scanOrchestrator sets nextScanDue after completion (pro=+7d, premium=+1d); free tier skipped.
+- [X retweet false-positive guard](x-retweet-detection.md) — Google Vision indexes retweet pages under the retweeter's URL; detect via "RT @user:" in pageTitle; skip retweeter entirely, pivot to original poster instead.
