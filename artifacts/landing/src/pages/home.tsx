@@ -575,7 +575,7 @@ export default function Home() {
 
             <motion.p variants={fadeUp} className="text-lg text-muted-foreground max-w-lg leading-relaxed">
               1 in 10 people are being impersonated online. Most don't find out until their reputation is already damaged, their followers are scammed, and the fake account has thousands of followers.
-              <span className="text-white font-medium"> ShieldID finds them first.</span>
+              <span className="text-white font-medium"> ShieldID is AI-powered impersonator detection and photo monitoring — it finds threats before the damage is done.</span>
             </motion.p>
 
             <motion.div variants={fadeUp} id="hero-form" className="w-full max-w-md">
@@ -590,19 +590,19 @@ export default function Home() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3 mt-5">
-                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-sm font-medium text-white/50 select-none">
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
                     <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
                   </svg>
                   App Store
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-sm font-medium text-white/50 select-none">
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
                     <path d="M3.18 23.76a2 2 0 0 0 2.18-.43l.06-.06 12.23-7.07-2.66-2.67M1.5 1.87A2 2 0 0 0 1 3.28v17.44a2 2 0 0 0 .5 1.41l.07.07 9.77-9.77v-.23L1.5 1.87m20.25 8.36-2.62-1.52-2.93 2.93 2.93 2.93 2.65-1.52a2 2 0 0 0 0-3.82M3.18.24L15.41 7.3l-2.66 2.67L.44.44A2 2 0 0 1 3.18.24z" />
                   </svg>
                   Google Play
                 </div>
-                <span className="text-xs text-muted-foreground">· Coming Soon</span>
+                <span className="text-xs text-muted-foreground">— Join the waitlist above for early access when we launch</span>
               </div>
             </motion.div>
           </motion.div>
@@ -842,8 +842,8 @@ export default function Home() {
             {[
               { icon: <ScanFace className="w-5 h-5 text-primary" />, title: "AI Impersonator Detection", desc: "Our neural net scans profile photos, bios, and handles across major platforms to find clones before they can scam your followers." },
               { icon: <Eye className="w-5 h-5 text-primary" />, title: "Stolen Photo Monitoring", desc: "We track where your images appear across the web and social platforms — surfacing every unauthorized use of your face." },
-              { icon: <Database className="w-5 h-5 text-primary" />, title: "AI Scam Message Analyzer", desc: "Paste any suspicious message and our AI detects whether it's a phishing scam, impersonation attempt, or social engineering attack — in seconds." },
-              { icon: <Activity className="w-5 h-5 text-primary" />, title: "Live Security Score", desc: "A continuously-updated health metric of your digital identity, with prioritized action steps to strengthen your protection." },
+              { icon: <Database className="w-5 h-5 text-primary" />, title: "AI Threat Analysis", desc: "Every detected threat comes with a full AI breakdown: risk score, detected signals, and matched evidence — so you know exactly what you're dealing with and what to do next." },
+              { icon: <Activity className="w-5 h-5 text-primary" />, title: "Scheduled Monitoring", desc: "Pro and Premium users get automatic weekly or daily scans — no manual action needed. Your identity is watched even when you're not thinking about it." },
               { icon: <Bell className="w-5 h-5 text-primary" />, title: "Instant Threat Alerts", desc: "One centralized alert feed. Review, dismiss, or report threats directly from your phone — with full evidence and AI analysis." },
               { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Facebook monitoring is live now. Instagram, TikTok, X, LinkedIn, YouTube, and Snapchat are rolling out to early access users — all from one unified dashboard." },
             ].map((feature, i) => (
@@ -1008,11 +1008,11 @@ export default function Home() {
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <div className="glass-panel p-8 rounded-3xl flex flex-col">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Basic Shield</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Free</h3>
               <div className="text-4xl font-extrabold mb-1">$0</div>
               <div className="text-sm text-muted-foreground mb-8">Free forever</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {["1 connected account", "Basic impersonation alerts", "Weekly security digest", "Standard support"].map((f, i) => (
+                {["1 connected account", "Basic impersonation alerts", "Manual scans only", "Standard support"].map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
                     <CheckCircle2 className="w-4 h-4 text-muted-foreground/50 shrink-0 mt-0.5" />{f}
                   </li>
@@ -1027,7 +1027,7 @@ export default function Home() {
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
                 Most Popular
               </div>
-              <h3 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Pro Shield</h3>
+              <h3 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Pro</h3>
               <div className="text-4xl font-extrabold mb-1">$7.99</div>
               <div className="text-sm text-primary/70 mb-8 font-medium">per month · 7-day free trial</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
@@ -1043,7 +1043,7 @@ export default function Home() {
             </div>
 
             <div className="glass-panel p-8 rounded-3xl flex flex-col">
-              <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3">Premium Shield</h3>
+              <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3">Premium</h3>
               <div className="text-4xl font-extrabold mb-1">$14.99</div>
               <div className="text-sm text-muted-foreground mb-8">per month · 7-day free trial</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
