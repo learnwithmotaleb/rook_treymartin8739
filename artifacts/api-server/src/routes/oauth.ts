@@ -6,6 +6,14 @@ import { requireAuth } from "../middleware/requireAuth";
 
 const router: IRouter = Router();
 
+/** Thrown when a state token cannot be resolved in production (no demo fallback). */
+class StateResolutionError extends Error {
+  constructor() {
+    super("OAuth state missing or expired — please try connecting your account again from the app.");
+    this.name = "StateResolutionError";
+  }
+}
+
 const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? process.env["REPLIT_DEV_DOMAIN"]
   ?? "localhost";
@@ -79,7 +87,7 @@ async function resolveUserFromState(state: string | undefined): Promise<string> 
     }
   }
   if (process.env["NODE_ENV"] === "production") {
-    throw new Error("OAuth state resolution failed — no valid state token provided");
+    throw new StateResolutionError();
   }
   const { getOrCreateDemoUser } = await import("../lib/demoUser");
   const demo = await getOrCreateDemoUser();
@@ -256,8 +264,12 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
       profile.username
     ));
   } catch (err: any) {
-    req.log?.error({ err }, "Instagram OAuth callback error");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    if (err instanceof StateResolutionError) {
+      res.status(401).send(errorPage("Session Expired", err.message));
+      return;
+    }
+    req.log?.error({ err }, "Instagram OAuth callback error");
     res.status(500).send(errorPage("Connection Failed", err.message ?? "Unexpected error"));
   }
 });
@@ -346,6 +358,10 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     res.send(successPage("Facebook Connected!", `${profile.name} is now being monitored by ShieldID.`, profile.name));
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    if (err instanceof StateResolutionError) {
+      res.status(401).send(errorPage("Session Expired", err.message));
+      return;
+    }
     res.status(500).send(errorPage("Connection Failed", err.message));
   }
 });

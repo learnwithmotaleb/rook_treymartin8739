@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, subscriptionsTable, usersTable } from "@workspace/db";
 
@@ -48,21 +49,25 @@ router.get("/billing/subscription", async (req, res): Promise<void> => {
   res.json({ ...sub, limits });
 });
 
+const CheckoutBody = z.object({
+  tier: z.enum(["pro", "premium"]),
+  billingCycle: z.enum(["monthly", "yearly"]),
+});
+
 router.post("/billing/checkout", async (req, res): Promise<void> => {
   const userId = req.userId;
-  const { tier, billingCycle } = req.body as {
-    tier?: string;
-    billingCycle?: string;
-  };
 
-  if (!tier || !["pro", "premium"].includes(tier)) {
-    res.status(400).json({ error: "tier must be 'pro' or 'premium'" });
+  const parsed = CheckoutBody.safeParse(req.body);
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path[0];
+    if (field === "tier") {
+      res.status(400).json({ error: "tier must be 'pro' or 'premium'" });
+    } else {
+      res.status(400).json({ error: "billingCycle must be 'monthly' or 'yearly'" });
+    }
     return;
   }
-  if (!billingCycle || !["monthly", "yearly"].includes(billingCycle)) {
-    res.status(400).json({ error: "billingCycle must be 'monthly' or 'yearly'" });
-    return;
-  }
+  const { tier, billingCycle } = parsed.data;
 
   let stripe: Stripe;
   try {
@@ -264,16 +269,17 @@ router.post("/billing/webhook", async (req, res): Promise<void> => {
  * to keep the server-side subscription record (used for scan-quota checks)
  * in sync with the authoritative RevenueCat state on the device.
  */
+const RcSyncBody = z.object({ tier: z.enum(["free", "pro", "premium"]) });
+
 router.post("/billing/revenuecat-sync", async (req, res): Promise<void> => {
   const userId = req.userId;
-  const { tier } = req.body as { tier?: string };
 
-  if (!tier || !["free", "pro", "premium"].includes(tier)) {
+  const parsed = RcSyncBody.safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({ error: "tier must be 'free', 'pro', or 'premium'" });
     return;
   }
-
-  const validTier = tier as "free" | "pro" | "premium";
+  const { tier: validTier } = parsed.data;
   const status = "active";
 
   await db

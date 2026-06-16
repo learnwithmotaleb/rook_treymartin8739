@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, threatsTable, threatActorsTable } from "@workspace/db";
 import { recalculateScore } from "../services/scoreService";
@@ -132,14 +133,20 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
   res.json({ ...parseThreat(threat), ...(threatActor !== undefined ? { threatActor } : {}) });
 });
 
+const BulkResolveBody = z.object({ ids: z.array(z.string()).min(1) });
+const ResolveBody = z.object({
+  resolveAction: z.enum(["reported_to_platform", "approved", "false_positive", "resolved_manually"]).optional(),
+});
+
 router.patch("/threats/bulk-resolve", async (req, res): Promise<void> => {
   const userId = req.userId;
-  const { ids } = req.body as { ids?: string[] };
 
-  if (!Array.isArray(ids) || ids.length === 0) {
-    res.status(400).json({ error: "ids array is required" });
+  const parsed = BulkResolveBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "ids must be a non-empty array of strings" });
     return;
   }
+  const { ids } = parsed.data;
 
   await db
     .update(threatsTable)
@@ -159,10 +166,12 @@ router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
     ? req.params.threatId[0]
     : req.params.threatId;
 
-  const { resolveAction } = req.body as { resolveAction?: string };
-
-  const validActions = ["reported_to_platform", "approved", "false_positive", "resolved_manually"];
-  const action = resolveAction && validActions.includes(resolveAction) ? resolveAction : null;
+  const parsedResolve = ResolveBody.safeParse(req.body);
+  if (!parsedResolve.success) {
+    res.status(400).json({ error: parsedResolve.error.issues[0]?.message ?? "Invalid resolveAction" });
+    return;
+  }
+  const action = parsedResolve.data.resolveAction ?? null;
 
   const [updated] = await db
     .update(threatsTable)

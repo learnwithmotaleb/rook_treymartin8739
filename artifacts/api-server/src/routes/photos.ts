@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable, threatsTable } from "@workspace/db";
 import {
@@ -20,11 +21,17 @@ const MAX_BASE64_BYTES = 8 * 1024 * 1024; // 8 MB limit
  */
 router.post("/photos/search", async (req, res): Promise<void> => {
   const userId = req.userId;
-  const { imageUrl, imageBase64, localUri } = req.body as {
-    imageUrl?: string;
-    imageBase64?: string;
-    localUri?: string;
-  };
+
+  const parsedBody = z.object({
+    imageUrl: z.string().url().optional(),
+    imageBase64: z.string().optional(),
+    localUri: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsedBody.success) {
+    res.status(400).json({ error: "Invalid request body" });
+    return;
+  }
+  const { imageUrl, imageBase64, localUri } = parsedBody.data;
 
   if (!imageUrl && !imageBase64) {
     res.status(400).json({ error: "imageUrl or imageBase64 is required" });

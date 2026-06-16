@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable } from "@workspace/db";
 
@@ -35,22 +36,36 @@ router.get("/accounts", async (req, res): Promise<void> => {
   );
 });
 
+const PostAccountBody = z.object({
+  platform: z.string(),
+  username: z.string().min(1),
+  accessToken: z.string().optional(),
+});
+
+const PatchAccountBody = z.object({
+  accessToken: z.string().optional(),
+  displayName: z.string().optional(),
+  followers: z.number().int().nonnegative().optional(),
+  platformUserId: z.string().optional(),
+});
+
 router.post("/accounts", async (req, res): Promise<void> => {
   const userId = req.userId;
 
-  const { platform, username, accessToken } = req.body as {
-    platform?: string;
-    username?: string;
-    accessToken?: string;
-  };
-
-  if (!platform || !VALID_PLATFORMS.includes(platform)) {
-    res.status(400).json({ error: `Invalid platform. Must be one of: ${VALID_PLATFORMS.join(", ")}` });
+  const parsed = PostAccountBody.safeParse(req.body);
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path[0];
+    if (field === "username") {
+      res.status(400).json({ error: "username is required" });
+    } else {
+      res.status(400).json({ error: "platform and username are required" });
+    }
     return;
   }
+  const { platform, username, accessToken } = parsed.data;
 
-  if (!username) {
-    res.status(400).json({ error: "username is required" });
+  if (!VALID_PLATFORMS.includes(platform)) {
+    res.status(400).json({ error: `Invalid platform. Must be one of: ${VALID_PLATFORMS.join(", ")}` });
     return;
   }
 
@@ -127,12 +142,12 @@ router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
     ? req.params.accountId[0]
     : req.params.accountId;
 
-  const { accessToken, displayName, followers, platformUserId } = req.body as {
-    accessToken?: string;
-    displayName?: string;
-    followers?: number;
-    platformUserId?: string;
-  };
+  const parsedPatch = PatchAccountBody.safeParse(req.body);
+  if (!parsedPatch.success) {
+    res.status(400).json({ error: parsedPatch.error.issues[0]?.message ?? "Invalid request body" });
+    return;
+  }
+  const { accessToken, displayName, followers, platformUserId } = parsedPatch.data;
 
   const [updated] = await db
     .update(connectedAccountsTable)

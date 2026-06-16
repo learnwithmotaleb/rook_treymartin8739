@@ -70,7 +70,7 @@ catalogs:
       specifier: ^7.3.5
       version: 7.3.5
     zod:
-      specifier: ^3.25.76
+      specifier: 3.25.76
       version: 3.25.76
 
 overrides:
@@ -224,6 +224,9 @@ importers:
       stripe:
         specifier: ^22.1.1
         version: 22.1.1(@types/node@25.6.2)
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10

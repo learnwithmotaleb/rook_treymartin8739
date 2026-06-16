@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import {
@@ -77,14 +78,21 @@ router.get("/me", async (req, res): Promise<void> => {
   });
 });
 
+const PatchMeBody = z.object({
+  name: z.string().optional(),
+  username: z.string().optional(),
+  email: z.union([z.string(), z.null()]).optional(),
+}).strict();
+
 router.patch("/me", async (req, res): Promise<void> => {
   const userId = req.userId;
 
-  const { name, username, email } = req.body as {
-    name?: string;
-    username?: string;
-    email?: string;
-  };
+  const parsed = PatchMeBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" });
+    return;
+  }
+  const { name, username, email } = parsed.data;
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -105,7 +113,7 @@ router.patch("/me", async (req, res): Promise<void> => {
   }
 
   if (username !== undefined) updates.username = username.trim();
-  if (email !== undefined) updates.email = email.trim() || null;
+  if (email !== undefined) updates.email = email === null ? null : email.trim() || null;
 
   await db
     .update(usersTable)
@@ -122,12 +130,13 @@ router.patch("/me", async (req, res): Promise<void> => {
 
 router.patch("/me/avatar", async (req, res): Promise<void> => {
   const userId = req.userId;
-  const { imageBase64 } = req.body as { imageBase64?: string };
 
-  if (!imageBase64 || typeof imageBase64 !== "string") {
+  const parsed = z.object({ imageBase64: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({ error: "imageBase64 is required" });
     return;
   }
+  const { imageBase64 } = parsed.data;
 
   const raw = imageBase64.replace(/^data:image\/\w+;base64,/, "");
   const compressed = await sharp(Buffer.from(raw, "base64"))

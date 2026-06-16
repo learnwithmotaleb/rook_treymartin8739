@@ -64,8 +64,7 @@ app.use(
 );
 
 app.use("/api/waitlist", publicLimiter);
-app.use("/api/oauth/instagram/callback", publicLimiter);
-app.use("/api/oauth/facebook/callback", publicLimiter);
+app.use("/api/oauth/state", publicLimiter);
 
 app.use("/", publicLegalRouter);
 app.use("/api", router);
