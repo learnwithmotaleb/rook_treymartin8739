@@ -15,7 +15,7 @@
  * 8. Mark scan complete with threat count
  */
 
-import { eq, and, ne, inArray } from "drizzle-orm";
+import { eq, and, ne, inArray, isNotNull } from "drizzle-orm";
 import { recalculateScore } from "./scoreService";
 import {
   db,
@@ -877,9 +877,12 @@ async function runScanPipeline(
       )
     );
 
-  // Build a suppression set from threats the user has already resolved as
-  // "approved" or "false_positive". Candidates whose platform+username match
-  // an entry here are silently skipped so the same account never re-surfaces.
+  // Build a suppression set from threats the user has explicitly resolved
+  // (resolvedAt IS NOT NULL = user-dismissed; auto-retired threats from
+  // previous scans are set to resolved:true but resolvedAt stays null,
+  // so they remain re-discoverable on future scans).
+  // Any user-resolved threat — regardless of which action was chosen — is
+  // suppressed so the same account never re-surfaces and wastes credits.
   const suppressedThreats = await db
     .select({
       platform: threatsTable.platform,
@@ -890,7 +893,7 @@ async function runScanPipeline(
       and(
         eq(threatsTable.userId, userId),
         eq(threatsTable.resolved, true),
-        inArray(threatsTable.resolveAction, ["approved", "false_positive"])
+        isNotNull(threatsTable.resolvedAt)
       )
     );
 
