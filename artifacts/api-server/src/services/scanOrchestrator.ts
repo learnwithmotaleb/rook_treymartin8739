@@ -15,7 +15,7 @@
  * 8. Mark scan complete with threat count
  */
 
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import { recalculateScore } from "./scoreService";
 import {
   db,
@@ -877,9 +877,41 @@ async function runScanPipeline(
       )
     );
 
+  // Build a suppression set from threats the user has already resolved as
+  // "approved" or "false_positive". Candidates whose platform+username match
+  // an entry here are silently skipped so the same account never re-surfaces.
+  const suppressedThreats = await db
+    .select({
+      platform: threatsTable.platform,
+      suspiciousUsername: threatsTable.suspiciousUsername,
+    })
+    .from(threatsTable)
+    .where(
+      and(
+        eq(threatsTable.userId, userId),
+        eq(threatsTable.resolved, true),
+        inArray(threatsTable.resolveAction, ["approved", "false_positive"])
+      )
+    );
+
+  const suppressedKeys = new Set(
+    suppressedThreats
+      .filter((t) => t.platform && t.suspiciousUsername)
+      .map((t) => `${t.platform}:${t.suspiciousUsername!.toLowerCase()}`)
+  );
+
+  if (suppressedKeys.size > 0) {
+    logger.info({ count: suppressedKeys.size }, "Suppressed accounts excluded from new threat insertion");
+  }
+
   const newThreats: (typeof threatsTable.$inferInsert)[] = [];
 
   for (const candidate of allCandidates) {
+    const suppressKey = `${candidate.platform}:${(candidate.suspiciousUsername ?? "").toLowerCase()}`;
+    if (suppressedKeys.has(suppressKey)) {
+      logger.info({ username: candidate.suspiciousUsername, platform: candidate.platform }, "Skipping suppressed candidate (approved/false_positive)");
+      continue;
+    }
     const scored = buildThreatFromCandidate(candidate);
 
     let aiExplanation: string | null = null;
