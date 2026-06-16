@@ -716,30 +716,11 @@ export default function Home() {
 
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
           <div className="relative z-10 flex flex-col gap-4">
-            <ThreatCard platform="Facebook" severity="High" type="Impersonator Detected" username="@●●●●_official_backup" timeAgo="2m ago" delay={0.1} />
-            {/* Coming-soon platform previews — clearly dimmed/labeled */}
-            {[
-              { platform: "Instagram", type: "Impersonator scan" },
-              { platform: "TikTok", type: "Stolen photo detection" },
-            ].map((item, i) => (
-              <motion.div
-                key={item.platform}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.5, delay: 0.3 + i * 0.2 }}
-                className={`glass-panel rounded-2xl p-4 flex items-center gap-3 opacity-40 ${i === 0 ? "ml-8" : ""}`}
-              >
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center border border-border text-muted-foreground text-xs font-bold shrink-0">
-                  {item.platform[0]}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white">{item.platform}</div>
-                  <div className="text-xs text-muted-foreground">{item.type}</div>
-                </div>
-                <span className="text-[10px] font-medium text-white/40 border border-white/10 rounded px-2 py-0.5 shrink-0">Coming soon</span>
-              </motion.div>
-            ))}
+            <ThreatCard platform="Instagram" severity="High" type="Impersonator Detected" username="@●●●●_official_backup" timeAgo="2m ago" delay={0.1} />
+            <div className="ml-8">
+              <ThreatCard platform="TikTok" severity="Medium" type="Stolen Photo Upload" username="@●●●●_fans_page" timeAgo="18m ago" delay={0.3} />
+            </div>
+            <ThreatCard platform="X" severity="High" type="Phishing Link in Bio" username="@●●●●_support_team" timeAgo="1h ago" delay={0.5} />
           </div>
 
           <div className="relative z-10">

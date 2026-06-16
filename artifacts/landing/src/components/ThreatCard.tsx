@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
 import { Clock, ShieldAlert } from "lucide-react";
-import { SiFacebook } from "react-icons/si";
+import { SiInstagram, SiTiktok, SiX } from "react-icons/si";
 
 export type ThreatSeverity = "High" | "Medium" | "Low";
 
 interface ThreatCardProps {
-  platform: "Facebook";
+  platform: "Instagram" | "TikTok" | "X";
   severity: ThreatSeverity;
   type: string;
   username: string;
@@ -16,7 +16,9 @@ interface ThreatCardProps {
 export function ThreatCard({ platform, severity, type, username, timeAgo, delay = 0 }: ThreatCardProps) {
   const getPlatformIcon = () => {
     switch (platform) {
-      case "Facebook": return <SiFacebook className="w-4 h-4" />;
+      case "Instagram": return <SiInstagram className="w-4 h-4" />;
+      case "TikTok": return <SiTiktok className="w-4 h-4" />;
+      case "X": return <SiX className="w-4 h-4" />;
     }
   };
 
