@@ -5,6 +5,7 @@ import { db, connectedAccountsTable } from "@workspace/db";
 
 import { getSubscription } from "../services/subscriptionService";
 import { PLAN_CONFIG } from "../lib/planConfig";
+import { recomputeForUser } from "../services/identityAnchorService";
 
 const router: IRouter = Router();
 
@@ -134,6 +135,10 @@ router.post("/accounts", async (req, res): Promise<void> => {
     reelsIndexed: account.reelsIndexed,
     lastSynced: account.lastSynced?.toISOString() ?? null,
   });
+
+  // Recompute identity anchor after connecting a new account — the anchor
+  // gets a platform-count bonus even before the first scan completes.
+  recomputeForUser(userId).catch(() => {});
 });
 
 router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
@@ -273,6 +278,9 @@ router.delete("/accounts/:accountId", async (req, res): Promise<void> => {
   }
 
   res.sendStatus(204);
+
+  // Recompute identity anchor now that a platform has been removed.
+  recomputeForUser(userId).catch(() => {});
 });
 
 export default router;

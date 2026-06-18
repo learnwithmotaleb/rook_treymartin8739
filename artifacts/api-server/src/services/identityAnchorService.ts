@@ -35,6 +35,55 @@ import { logger } from "../lib/logger";
 // Hamming distance threshold for cross-platform match
 const CROSS_PLATFORM_THRESHOLD = 12;
 
+// ─── Username cross-reference scoring ─────────────────────────────────────────
+
+/**
+ * Normalise a social handle to its "core" — strip @ prefix, separators,
+ * and common decorators (official, real, backup, the, its, im, 1, 2).
+ */
+function normHandle(u: string): string {
+  return u
+    .toLowerCase()
+    .replace(/^@/, "")
+    .replace(/[._\-]/g, "")
+    .replace(/\b(official|real|backup|original|the|its|im|1|2|3)\b/g, "")
+    .trim();
+}
+
+/**
+ * Compute a 0-100 metadata match score for one platform's username against
+ * the other connected platforms' usernames.
+ *
+ * Heuristics:
+ *   100 — normalised cores are identical
+ *    80 — one core is a substring of the other (min length 3)
+ *    60 — cores share a common prefix of ≥ 3 chars
+ *    20 — no meaningful overlap
+ */
+function metadataMatchScoreForPlatform(
+  targetUsername: string,
+  otherUsernames: string[]
+): number {
+  if (otherUsernames.length === 0) return 50;
+  const coreA = normHandle(targetUsername);
+  if (coreA.length < 2) return 50;
+
+  const perPair = otherUsernames.map((u) => {
+    const coreB = normHandle(u);
+    if (coreB.length < 2) return 20;
+    if (coreA === coreB) return 100;
+    if (
+      (coreA.length >= 3 && coreB.includes(coreA)) ||
+      (coreB.length >= 3 && coreA.includes(coreB))
+    ) return 80;
+    const prefixLen = Math.min(coreA.length, coreB.length, 4);
+    if (prefixLen >= 3 && coreA.slice(0, prefixLen) === coreB.slice(0, prefixLen)) return 60;
+    return 20;
+  });
+
+  return Math.round(perPair.reduce((a, b) => a + b, 0) / perPair.length);
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ConfidenceTier = "UNVERIFIED" | "LOW" | "MEDIUM" | "HIGH" | "STRONG";
@@ -171,6 +220,7 @@ export async function computeIdentityAnchor(
           username,
           hashCount,
           visualMatchScore: 100,
+          // Only one platform — no cross-reference possible; neutral score
           metadataMatchScore: 50,
           verificationMethod: "single_platform",
         },
@@ -213,26 +263,42 @@ export async function computeIdentityAnchor(
 
     const visualMatchScore = Math.round(platformConsistency * 100);
 
+    // Compute real metadata match score from cross-platform username similarity
+    const otherUsernames = platforms
+      .filter(([pk]) => pk !== platformKey)
+      .map(([, d]) => d.username);
+    const metadataScore = metadataMatchScoreForPlatform(username, otherUsernames);
+
     platformScores.push({
       platform: platformKey,
       username,
       hashCount: hashes.length,
       visualMatchScore,
-      metadataMatchScore: 50, // baseline — elevated when bio cross-reference is implemented
+      metadataMatchScore: metadataScore,
       verificationMethod: anchorHashCount > 0 ? "visual_hash_consensus" : "single_platform",
     });
   }
 
   const avgConsistency = consistencySum / platformCount;
 
+  // Average metadata match score across all platforms
+  const avgMetadata =
+    platformScores.reduce((sum, p) => sum + p.metadataMatchScore, 0) /
+    platformScores.length;
+
   // Confidence formula:
-  //   base     = crossPlatformConsistency × 70
-  //   platform = (platforms - 1) × 8, capped at 20
-  //   hash     = anchor cluster size, capped at 10
-  const base = avgConsistency * 70;
+  //   base      = crossPlatformConsistency × 60  (photo hash anchor)
+  //   metadata  = normalised metadataMatch × 10  (username cross-reference)
+  //   platform  = (platforms - 1) × 8, capped at 20
+  //   hash      = anchor cluster size, capped at 10
+  const base = avgConsistency * 60;
+  const metadataBonus = Math.round((avgMetadata / 100) * 10);
   const platformBonus = Math.min(20, (platformCount - 1) * 8);
   const hashBonus = Math.min(10, anchorHashCount);
-  const overallConfidence = Math.min(100, Math.round(base + platformBonus + hashBonus));
+  const overallConfidence = Math.min(
+    100,
+    Math.round(base + metadataBonus + platformBonus + hashBonus)
+  );
 
   // Verified platform count = platforms with ≥50% visual match score
   const verifiedPlatformCount = platformScores.filter(

@@ -37,7 +37,7 @@ const FAQS = [
   },
   {
     q: "Which platforms do you monitor?",
-    a: "ShieldID currently supports Facebook, with Instagram, X (Twitter), TikTok, LinkedIn, YouTube, and Snapchat coming soon. We're rolling out platforms in stages to ensure detection quality — early access users will get each new platform the moment it launches.",
+    a: "ShieldID monitors Instagram, X (Twitter), TikTok, Facebook, LinkedIn, YouTube, and Snapchat — all live now. Connect any of your accounts and your first scan runs immediately.",
   },
   {
     q: "Will you access my private messages or personal data?",
@@ -526,7 +526,7 @@ export default function Home() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400" />
               </span>
-              Facebook monitoring live · Instagram, X, TikTok &amp; more coming soon
+              Instagram, X, TikTok, Facebook &amp; more · All platforms live now
             </motion.div>
 
             <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[1.05]">
@@ -684,7 +684,7 @@ export default function Home() {
               { icon: <Database className="w-5 h-5 text-primary" />, title: "AI Threat Analysis", desc: "Every detected threat comes with a full AI breakdown: risk score, detected signals, and matched evidence — so you know exactly what you're dealing with and what to do next." },
               { icon: <Activity className="w-5 h-5 text-primary" />, title: "Scheduled Monitoring", desc: "Pro and Premium users get automatic weekly or daily scans — no manual action needed. Your identity is watched even when you're not thinking about it." },
               { icon: <Bell className="w-5 h-5 text-primary" />, title: "Instant Threat Alerts", desc: "One centralized alert feed. Review, dismiss, or report threats directly from your phone — with full evidence and AI analysis." },
-              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Facebook monitoring is live now. Instagram, TikTok, X, LinkedIn, YouTube, and Snapchat are rolling out to early access users — all from one unified dashboard." },
+              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Instagram, X, TikTok, Facebook, LinkedIn, YouTube, and Snapchat — all monitored from one unified dashboard. Connect all your accounts in under two minutes." },
             ].map((feature, i) => (
               <motion.div
                 key={i}

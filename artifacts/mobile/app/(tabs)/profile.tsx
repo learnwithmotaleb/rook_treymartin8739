@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,6 +20,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { getIdentityBadge, type IdentityBadge } from "@/lib/api";
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free Plan",
@@ -83,9 +84,30 @@ export default function ProfileScreen() {
   const { user, logout } = useApp();
   const { signOut, getToken } = useAuth();
   const { signOut: clerkSignOut } = useClerk();
+  const navigation = useNavigation();
+  const hasMounted = useRef(false);
 
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [identityBadge, setIdentityBadge] = useState<IdentityBadge | null>(null);
+
+  const loadIdentityBadge = () => {
+    getIdentityBadge()
+      .then((b) => { if (b) setIdentityBadge(b); })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadIdentityBadge();
+  }, []);
+
+  useEffect(() => {
+    const unsub = navigation.addListener("focus", () => {
+      if (!hasMounted.current) { hasMounted.current = true; return; }
+      loadIdentityBadge();
+    });
+    return unsub;
+  }, [navigation]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -288,6 +310,65 @@ export default function ProfileScreen() {
             )}
           </GlassCard>
         </TouchableOpacity>
+
+        {/* Identity Verification */}
+        {identityBadge && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                Identity Verification
+              </Text>
+            </View>
+            <GlassCard style={[styles.identityCard, { borderColor: identityBadge.badge.color + "33" }]}>
+              <View style={styles.identityRow}>
+                <View style={[styles.identityIconWrap, { backgroundColor: identityBadge.badge.color + "18" }]}>
+                  <Ionicons name="shield-checkmark" size={22} color={identityBadge.badge.color} />
+                </View>
+                <View style={styles.identityInfo}>
+                  <View style={styles.identityTopRow}>
+                    <Text style={[styles.identityLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                      {identityBadge.badge.label}
+                    </Text>
+                    <View style={[styles.identityTierPill, { backgroundColor: identityBadge.badge.color + "22", borderColor: identityBadge.badge.color + "44" }]}>
+                      <Text style={[styles.identityTierText, { color: identityBadge.badge.color, fontFamily: "Inter_700Bold" }]}>
+                        {identityBadge.confidenceTier}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.identityDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {identityBadge.badge.description}
+                  </Text>
+                  {/* Confidence progress bar */}
+                  <View style={[styles.identityBarTrack, { backgroundColor: colors.border }]}>
+                    <View
+                      style={[
+                        styles.identityBarFill,
+                        {
+                          width: `${identityBadge.overallConfidence}%`,
+                          backgroundColor: identityBadge.badge.color,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.identityScore, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {identityBadge.overallConfidence}/100 confidence
+                    {identityBadge.verifiedPlatformCount > 0
+                      ? ` · ${identityBadge.verifiedPlatformCount} platform${identityBadge.verifiedPlatformCount !== 1 ? "s" : ""} verified`
+                      : ""}
+                  </Text>
+                </View>
+              </View>
+              {identityBadge.confidenceTier === "UNVERIFIED" || identityBadge.confidenceTier === "LOW" ? (
+                <View style={[styles.identityHint, { borderTopColor: colors.border }]}>
+                  <Ionicons name="information-circle-outline" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.identityHintText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Connect more accounts and run a scan to strengthen your score
+                  </Text>
+                </View>
+              ) : null}
+            </GlassCard>
+          </>
+        )}
 
         {/* Settings */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
@@ -529,6 +610,27 @@ const styles = StyleSheet.create({
   settingsValue: { fontSize: 13 },
 
   version: { fontSize: 12, textAlign: "center", marginTop: 12 },
+
+  identityCard: { borderWidth: 1, gap: 0 },
+  identityRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  identityIconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  identityInfo: { flex: 1, gap: 4 },
+  identityTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  identityLabel: { fontSize: 15, flex: 1 },
+  identityTierPill: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1,
+  },
+  identityTierText: { fontSize: 10 },
+  identityDesc: { fontSize: 12, lineHeight: 17 },
+  identityBarTrack: { height: 4, borderRadius: 2, overflow: "hidden", marginTop: 4 },
+  identityBarFill: { height: 4, borderRadius: 2 },
+  identityScore: { fontSize: 11, marginTop: 2 },
+  identityHint: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingTop: 12, marginTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  identityHintText: { flex: 1, fontSize: 12, lineHeight: 17 },
 
   deleteOverlay: { flex: 1, backgroundColor: "#00000099", alignItems: "center", justifyContent: "center", padding: 24 },
   deleteSheet: { width: "100%", maxWidth: 380, borderRadius: 20, borderWidth: 1, padding: 28, alignItems: "center", gap: 16 },

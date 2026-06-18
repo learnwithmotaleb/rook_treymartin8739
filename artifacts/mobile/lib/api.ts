@@ -402,3 +402,19 @@ export async function syncSubscriptionTier(
     body: JSON.stringify({ tier }),
   });
 }
+
+export interface IdentityBadge {
+  confidenceTier: "UNVERIFIED" | "LOW" | "MEDIUM" | "HIGH" | "STRONG";
+  overallConfidence: number;
+  verifiedPlatformCount: number;
+  verifiedPlatforms: string[];
+  badge: { tier: string; label: string; description: string; color: string };
+}
+
+export async function getIdentityBadge(): Promise<IdentityBadge | null> {
+  try {
+    return await apiFetch<IdentityBadge>("/identity/badge");
+  } catch {
+    return null;
+  }
+}
