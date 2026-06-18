@@ -42,8 +42,8 @@ const PRODUCTS = [
     displayName: "ShieldID Pro — Monthly",
     title: "ShieldID Pro Monthly",
     prices: [
-      { amount_micros: 14990000, currency: "USD" },
-      { amount_micros: 13990000, currency: "EUR" },
+      { amount_micros: 11990000, currency: "USD" },  // $11.99
+      { amount_micros: 10990000, currency: "EUR" },  // €10.99
     ],
     entitlement: "pro",
     offeringKey: "pro",
@@ -58,8 +58,8 @@ const PRODUCTS = [
     displayName: "ShieldID Pro — Yearly",
     title: "ShieldID Pro Yearly",
     prices: [
-      { amount_micros: 119990000, currency: "USD" },
-      { amount_micros: 109990000, currency: "EUR" },
+      { amount_micros: 95880000, currency: "USD" },  // $95.88 ($7.99/mo, save 33%)
+      { amount_micros: 87880000, currency: "EUR" },  // €87.88
     ],
     entitlement: "pro",
     offeringKey: "pro",
@@ -74,8 +74,8 @@ const PRODUCTS = [
     displayName: "ShieldID Premium — Monthly",
     title: "ShieldID Premium Monthly",
     prices: [
-      { amount_micros: 49990000, currency: "USD" },
-      { amount_micros: 45990000, currency: "EUR" },
+      { amount_micros: 24990000, currency: "USD" },  // $24.99
+      { amount_micros: 22990000, currency: "EUR" },  // €22.99
     ],
     entitlement: "premium",
     offeringKey: "premium",
@@ -90,8 +90,8 @@ const PRODUCTS = [
     displayName: "ShieldID Premium — Yearly",
     title: "ShieldID Premium Yearly",
     prices: [
-      { amount_micros: 399990000, currency: "USD" },
-      { amount_micros: 369990000, currency: "EUR" },
+      { amount_micros: 203880000, currency: "USD" }, // $203.88 ($16.99/mo, save 32%)
+      { amount_micros: 185880000, currency: "EUR" }, // €185.88
     ],
     entitlement: "premium",
     offeringKey: "premium",

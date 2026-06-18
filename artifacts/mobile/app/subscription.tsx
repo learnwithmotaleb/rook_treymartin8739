@@ -60,6 +60,7 @@ const PLAN_META: PlanMeta[] = [
     badge: "Most Popular",
     ctaColor: "#3B82F6",
     differentiators: [
+      { icon: "people", text: "3 connected accounts" },
       { icon: "scan", text: "15 manual scans / month" },
       { icon: "calendar", text: "Weekly automated monitoring" },
       { icon: "time", text: "7-day threat history" },
@@ -75,10 +76,11 @@ const PLAN_META: PlanMeta[] = [
     badge: "Best Value",
     ctaColor: undefined,
     differentiators: [
-      { icon: "infinite", text: "Unlimited scans & accounts" },
+      { icon: "infinite", text: "Unlimited accounts & scans" },
       { icon: "flash", text: "Daily automated monitoring" },
       { icon: "calendar", text: "30-day threat history" },
-      { icon: "analytics", text: "Priority processing + early access" },
+      { icon: "analytics", text: "Advanced risk scoring + early access" },
+      { icon: "document-text", text: "Downloadable threat reports" },
     ],
   },
 ];
@@ -198,8 +200,8 @@ export default function Subscription() {
   // Fallback prices shown while RC offerings are loading (or in Expo Go test mode)
   const FALLBACK_PRICES: Record<Tier, { monthly: string; yearlyPerMonth: string; yearlyTotal: string }> = {
     free: { monthly: "$0", yearlyPerMonth: "$0", yearlyTotal: "$0" },
-    pro: { monthly: "$9.99", yearlyPerMonth: "$6.99", yearlyTotal: "$83.99" },
-    premium: { monthly: "$19.99", yearlyPerMonth: "$13.99", yearlyTotal: "$167.99" },
+    pro: { monthly: "$11.99", yearlyPerMonth: "$7.99", yearlyTotal: "$95.88" },
+    premium: { monthly: "$24.99", yearlyPerMonth: "$16.99", yearlyTotal: "$203.88" },
   };
 
   /** Derive display price string from RC package, with fallback */

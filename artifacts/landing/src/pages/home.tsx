@@ -811,10 +811,10 @@ export default function Home() {
                 Most Popular
               </div>
               <h3 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Pro</h3>
-              <div className="text-4xl font-extrabold mb-1">$7.99</div>
+              <div className="text-4xl font-extrabold mb-1">$11.99</div>
               <div className="text-sm text-primary/70 mb-8 font-medium">per month · 7-day free trial</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {["3 connected accounts", "AI-powered scanning", "Stolen photo detection", "Weekly automated scans", "Priority support"].map((f, i) => (
+                {["3 connected accounts", "AI-powered scanning", "Stolen photo detection", "Weekly automated scans", "Real-time alerts + full evidence"].map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm font-medium">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />{f}
                   </li>
@@ -827,10 +827,10 @@ export default function Home() {
 
             <div className="glass-panel p-8 rounded-3xl flex flex-col">
               <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3">Premium</h3>
-              <div className="text-4xl font-extrabold mb-1">$14.99</div>
+              <div className="text-4xl font-extrabold mb-1">$24.99</div>
               <div className="text-sm text-muted-foreground mb-8">per month · 7-day free trial</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {["Unlimited accounts", "Daily automated scans", "Priority scan processing", "Dedicated account manager", "API access"].map((f, i) => (
+                {["Unlimited accounts & scans", "Daily automated monitoring", "30-day threat history", "Advanced risk scoring + early access", "Downloadable threat reports"].map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm">
                     <CheckCircle2 className="w-4 h-4 text-purple-400/60 shrink-0 mt-0.5" />
                     <span className="text-foreground/90">{f}</span>
