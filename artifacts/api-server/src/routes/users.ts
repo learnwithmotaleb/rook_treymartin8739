@@ -64,7 +64,6 @@ router.get("/me", async (req, res): Promise<void> => {
     username: user.username,
     avatarInitials: user.avatarInitials,
     avatarUrl: user.avatarUrl ?? null,
-    isPremium: user.isPremium,
     tier: sub.tier,
     securityScore: freshScore,
     scoreTrend: user.scoreTrend,

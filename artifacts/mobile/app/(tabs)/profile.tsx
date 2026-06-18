@@ -90,7 +90,7 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const tier = user.tier ?? (user.isPremium ? "premium" : "free");
+  const tier = user.tier ?? "free";
   const tierLabel = TIER_LABELS[tier] ?? "Free Plan";
   const isPaid = tier === "pro" || tier === "premium";
 

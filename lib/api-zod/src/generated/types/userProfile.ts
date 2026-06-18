@@ -12,7 +12,6 @@ export interface UserProfile {
   email: string;
   username: string;
   avatarInitials: string;
-  isPremium: boolean;
   securityScore: number;
   scoreTrend: number;
   monitored: number;

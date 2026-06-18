@@ -20,6 +20,7 @@ import {
   threatsTable,
   scanJobsTable,
   usersTable,
+  subscriptionsTable,
   threatActorsTable,
 } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth";
@@ -219,9 +220,9 @@ router.post("/v1/scans", ...apiKeyMiddleware, async (req, res): Promise<void> =>
   const userId = req.apiKeyUserId!;
 
   try {
-    // Look up the user to get their plan tier
+    // Look up the user and their subscription tier
     const [user] = await db
-      .select({ id: usersTable.id, isPremium: usersTable.isPremium })
+      .select({ id: usersTable.id })
       .from(usersTable)
       .where(eq(usersTable.id, userId));
 
@@ -230,7 +231,12 @@ router.post("/v1/scans", ...apiKeyMiddleware, async (req, res): Promise<void> =>
       return;
     }
 
-    const planTier = user.isPremium ? "premium" : "free";
+    const [sub] = await db
+      .select({ tier: subscriptionsTable.tier })
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.userId, userId));
+
+    const planTier = (sub?.tier ?? "free") as "free" | "pro" | "premium";
     const job = await startScan(userId, planTier);
 
     res.status(202).json({

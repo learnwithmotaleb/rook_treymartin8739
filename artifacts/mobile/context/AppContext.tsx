@@ -116,7 +116,6 @@ export interface User {
   avatarUrl: string | null;
   securityScore: number;
   scoreTrend: number;
-  isPremium: boolean;
   tier: "free" | "pro" | "premium";
   connectedAccounts: ConnectedAccount[];
   monitored: number;
@@ -136,7 +135,6 @@ const DEFAULT_USER: User = {
   avatarUrl: null,
   securityScore: 0,
   scoreTrend: 0,
-  isPremium: false,
   tier: "free",
   connectedAccounts: [],
   monitored: 0,
@@ -246,7 +244,6 @@ function mapProfileToUser(
     avatarUrl: (profile as any).avatarUrl ?? null,
     securityScore: profile.securityScore,
     scoreTrend: profile.scoreTrend,
-    isPremium: profile.isPremium,
     tier: (profile.tier as "free" | "pro" | "premium") ?? "free",
     monitored: profile.monitored,
     lastScan: profile.lastScan,

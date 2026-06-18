@@ -73,7 +73,6 @@ async function getOrCreateUserByClerkId(
       email,
       username: `@${name.toLowerCase().replace(/\s+/g, "")}`,
       avatarInitials: initials,
-      isPremium: false,
       securityScore: 72,
       scoreTrend: 0,
     })

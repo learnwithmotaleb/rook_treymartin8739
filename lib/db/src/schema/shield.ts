@@ -17,7 +17,6 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   username: text("username").notNull(),
   avatarInitials: text("avatar_initials").notNull().default(""),
-  isPremium: boolean("is_premium").notNull().default(false),
   securityScore: integer("security_score").notNull().default(72),
   scoreTrend: integer("score_trend").notNull().default(0),
   nextScanDue: timestamp("next_scan_due", { withTimezone: true }),

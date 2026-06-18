@@ -190,7 +190,7 @@ export default function AlertsScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const isFree = !user.isPremium && user.tier === "free";
+  const isFree = user.tier === "free";
 
   const filtered = threats.filter((t) => {
     if (t.resolved) return false;

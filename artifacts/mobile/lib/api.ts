@@ -90,7 +90,6 @@ export interface UserProfile {
   email: string;
   username: string;
   avatarInitials: string;
-  isPremium: boolean;
   tier: Tier;
   securityScore: number;
   scoreTrend: number;

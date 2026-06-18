@@ -44,7 +44,6 @@ export async function getOrCreateDemoUser(): Promise<User> {
       name: "Alex Johnson",
       username: "@alexjohnson",
       avatarInitials: "AJ",
-      isPremium: false,
       securityScore: 72,
       scoreTrend: 12,
     })
