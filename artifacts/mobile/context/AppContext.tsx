@@ -207,6 +207,7 @@ function mapSummaryToThreat(t: ThreatSummary): Threat {
     threatScore: t.threatScore,
     suspiciousUsername: t.suspiciousUsername ?? "",
     matchedMediaCount: t.matchedMediaCount,
+    highConfidence: t.highConfidence ?? false,
     evidence: [],
     scoreBreakdown: {
       mediaSimilarity: 0,

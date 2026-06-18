@@ -649,10 +649,75 @@ async function runScanPipeline(
 
   await sleep(300);
 
+  // Compute per-user Hamming threshold early — needed for both the pre-search
+  // actor corpus fast-path and the per-candidate photo comparison in Step 6.
+  // This is user-level calibration from feedback history; it does not depend
+  // on any ingestion data so it can run before discovery steps start.
+  const userHammingThreshold = await computeUserThreshold(userId, isFirstScan);
+  const userMatchThreshold = Math.max(0, 1 - userHammingThreshold / 64);
+
   // ── Step 4: Platform variant search for impersonators ────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[3].progress, SCAN_STEPS[3].step);
 
   const allCandidates: ImpersonatorCandidate[] = [];
+
+  // ── Pre-web-search: Threat Actor Corpus Fast-Path ─────────────────────────
+  // Compare the user's own photo hashes against known threat actor clusters.
+  // When a match is found it means a confirmed multi-victim actor is using
+  // photos similar to this user's — we synthesise a candidate immediately
+  // and skip expensive web-search discovery for that actor.
+  // Only fires for real users (not demo) with at least one stored photo hash.
+  if (!isDemoUser && allUserHashes.length > 0) {
+    const seenActorIds = new Set<string>();
+    for (const userHash of allUserHashes.slice(0, 20)) {
+      const actorMatch = await findActorByHash(userHash, userHammingThreshold);
+      if (!actorMatch) continue;
+      if (seenActorIds.has(actorMatch.actor.id)) continue; // dedup across hashes
+      if (actorMatch.actor.victimCount < 2) continue; // require multi-victim actors
+
+      seenActorIds.add(actorMatch.actor.id);
+
+      let platformSet: string[] = [];
+      try { platformSet = JSON.parse(actorMatch.actor.platformSetJson ?? "[]"); } catch { /* empty */ }
+      const targetPlatform = platformSet[0] ?? "instagram";
+      const targetUsername = actorMatch.actor.canonicalUsername ?? "unknown.account";
+
+      if (suppressionSet.has(buildSuppressKey(targetPlatform, targetUsername))) continue;
+
+      const actorSim = actorMatch.similarity;
+      allCandidates.push({
+        suspiciousUsername: targetUsername,
+        platform: targetPlatform,
+        source: "image_search",
+        signals: {
+          mediaOverlapRatio: actorSim * 0.9,
+          captionOverlapRatio: 0,
+          profileImageSimilarity: actorSim,
+          bioSimilarity: 0,
+          usernameSimilarity: 0,
+          behaviorScore: 0.5,
+        },
+        evidence: [{
+          id: `actor_fp_${actorMatch.actor.id}`,
+          type: "profile_photo",
+          similarity: Math.round(actorSim * 100),
+          label: `Known Actor — ${Math.round(actorSim * 100)}% pHash Match (${actorMatch.actor.victimCount} victim${actorMatch.actor.victimCount !== 1 ? "s" : ""})`,
+        }],
+        matchedMediaCount: 1,
+        detectedSignals: [
+          `Known threat actor: "${targetUsername}" — targeted ${actorMatch.actor.victimCount} user${actorMatch.actor.victimCount !== 1 ? "s" : ""} (pHash distance: ${actorMatch.distance}/64, confidence: ${actorMatch.actor.confidenceScore}%)`,
+        ],
+      });
+
+      logger.info(
+        { actorId: actorMatch.actor.id, username: targetUsername, distance: actorMatch.distance, victimCount: actorMatch.actor.victimCount },
+        "Pre-search actor fast-path: corpus match found from user photo hash"
+      );
+    }
+    if (seenActorIds.size > 0) {
+      logger.info({ matchCount: seenActorIds.size }, "Pre-search actor fast-path complete — candidates added before web search");
+    }
+  }
 
   // Real discovery for verified accounts via platform APIs
   for (const ingested of ingestedAccounts) {
@@ -816,10 +881,8 @@ async function runScanPipeline(
     logger.info({ userId, loaded: userHashes.length }, "Loaded user dHashes from persistent store");
   }
 
-  // Per-user Hamming threshold: calibrated from false_positive feedback history.
-  // Users who dismiss many false alarms get a wider threshold automatically.
-  const userHammingThreshold = await computeUserThreshold(userId, isFirstScan);
-  const userMatchThreshold = Math.max(0, 1 - userHammingThreshold / 64);
+  // (userHammingThreshold and userMatchThreshold are computed before Step 4 above
+  // so they are available for the pre-search actor corpus fast-path.)
 
   // Load AI embedding vectors (built in background above, or from a prior scan)
   const userEmbeddings = await loadUserEmbeddings(userId);
