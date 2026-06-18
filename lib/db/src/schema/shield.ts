@@ -496,3 +496,93 @@ export const phashFeedbackTable = pgTable("phash_feedback", {
 });
 
 export type PhashFeedback = typeof phashFeedbackTable.$inferSelect;
+
+// ─── Cross-platform Identity Verification ─────────────────────────────────────
+
+/**
+ * Per-user canonical identity anchor.
+ * Built by hashing profile/post photos across all connected accounts and
+ * computing cross-platform Hamming similarity to form a consensus fingerprint.
+ *
+ * Updated fire-and-forget after every scan completion.
+ * Companies integrating the API can read this to verify their user's identity
+ * across all claimed social accounts without storing any photos.
+ */
+export const userIdentityProfilesTable = pgTable("user_identity_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" })
+    .unique(),
+  /**
+   * JSON string[] — consensus hash set derived from cross-platform agreement.
+   * Only hashes confirmed across ≥2 platforms are included.
+   */
+  canonicalHashClusterJson: text("canonical_hash_cluster_json")
+    .notNull()
+    .default("[]"),
+  /** 0–100 cross-platform visual consistency score. */
+  overallConfidence: integer("overall_confidence").notNull().default(0),
+  /** Number of platforms where identity is verified. */
+  verifiedPlatformCount: integer("verified_platform_count").notNull().default(0),
+  /** Total hashes in the canonical anchor cluster. */
+  anchorHashCount: integer("anchor_hash_count").notNull().default(0),
+  /** UNVERIFIED | LOW | MEDIUM | HIGH | STRONG */
+  confidenceTier: text("confidence_tier").notNull().default("UNVERIFIED"),
+  lastComputedAt: timestamp("last_computed_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type UserIdentityProfile =
+  typeof userIdentityProfilesTable.$inferSelect;
+export type InsertUserIdentityProfile =
+  typeof userIdentityProfilesTable.$inferInsert;
+
+/**
+ * Per-platform verification record for a user.
+ * One row per (userId, platform) — upserted after every scan.
+ *
+ * visualMatchScore = % of this platform's hashes within Hamming threshold of
+ *   the canonical anchor cluster.
+ * metadataMatchScore = cross-reference consistency (bio links, handle mentions).
+ */
+export const platformVerificationsTable = pgTable(
+  "platform_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    username: text("username").notNull(),
+    /** 0–100: fraction of this platform's hashes matching the anchor cluster. */
+    visualMatchScore: integer("visual_match_score").notNull().default(0),
+    /** 0–100: bio/link consistency with other platforms (future: cross-ref). */
+    metadataMatchScore: integer("metadata_match_score").notNull().default(50),
+    /** How many photo hashes back this platform's verification. */
+    hashCount: integer("hash_count").notNull().default(0),
+    /** visual_hash_consensus | single_platform | unverified */
+    verificationMethod: text("verification_method")
+      .notNull()
+      .default("unverified"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("platform_verifications_user_platform_idx").on(
+      table.userId,
+      table.platform
+    ),
+  ]
+);
+
+export type PlatformVerification =
+  typeof platformVerificationsTable.$inferSelect;

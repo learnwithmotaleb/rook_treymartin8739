@@ -56,6 +56,7 @@ import {
   findActorByHash,
   computeUserThreshold,
 } from "./phashIntelligenceService";
+import { recomputeForUser as recomputeIdentityAnchor } from "./identityAnchorService";
 import { sendScanCompleteNotification } from "./notificationService";
 import { linkThreatToActor } from "./threatActorService";
 import { deliverEvent } from "./webhookService";
@@ -620,6 +621,11 @@ async function runScanPipeline(
   }));
   const allUserHashes = await storeUserPhotoHashes(userId, photoHashInputs);
   logger.info({ userId, total: allUserPhotoUrls.length, hashed: allUserHashes.length }, "User photo hashes ready");
+
+  // Fire-and-forget: recompute cross-platform identity anchor.
+  // Every scan that ingests new photos improves the anchor's confidence and
+  // per-platform verification scores — no scan completion needed to wait on this.
+  recomputeIdentityAnchor(userId).catch(() => {});
 
   // Build AI embedding vectors for user photos (up to 20, profile photos first)
   // These catch cropped/filtered/re-uploaded copies that dHash misses.
