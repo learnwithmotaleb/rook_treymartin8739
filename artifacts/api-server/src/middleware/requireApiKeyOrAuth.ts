@@ -3,13 +3,19 @@
  *
  * Accepts either:
  *   a) A valid Clerk session (sets req.userId via the standard requireAuth flow)
- *   b) A valid ShieldID API key (Bearer sid_live_xxxx, sets req.userId from the key owner)
+ *   b) A valid ShieldID API key via:
+ *        Authorization: Bearer sid_live_xxxx
+ *      or
+ *        X-ShieldID-API-Key: sid_live_xxxx
  *
  * Used on B2B endpoints like /api/identity/* so both end-user apps and server-to-server
  * integrations can call the same endpoints without separate route handlers.
  *
- * Precedence: Clerk session is checked first. If no Clerk auth is present, the
- * Bearer token is checked. If both fail, 401 is returned with a clear message.
+ * Precedence:
+ *   1. Clerk session (checked first — no DB call if Clerk is present)
+ *   2. Authorization: Bearer sid_live_xxx
+ *   3. X-ShieldID-API-Key: sid_live_xxx header
+ *   4. 401 with clear message indicating accepted auth methods
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -18,6 +24,60 @@ import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { db, usersTable, apiKeysTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+
+/** Extract a sid_live_ key from either Authorization: Bearer or X-ShieldID-API-Key header. */
+function extractApiKey(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer sid_live_")) {
+    return authHeader.slice(7).trim();
+  }
+  const customHeader = req.headers["x-shieldid-api-key"];
+  if (typeof customHeader === "string" && customHeader.startsWith("sid_live_")) {
+    return customHeader.trim();
+  }
+  return null;
+}
+
+async function resolveApiKey(
+  rawKey: string,
+  res: Response,
+  req: Request,
+  next: NextFunction
+): Promise<boolean> {
+  const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+
+  const [key] = await db
+    .select({
+      id: apiKeysTable.id,
+      userId: apiKeysTable.userId,
+      revokedAt: apiKeysTable.revokedAt,
+    })
+    .from(apiKeysTable)
+    .where(eq(apiKeysTable.keyHash, keyHash));
+
+  if (!key) {
+    res.status(401).json({ error: "invalid_api_key", message: "API key not found" });
+    return true; // handled
+  }
+
+  if (key.revokedAt) {
+    res.status(401).json({ error: "revoked_api_key", message: "This API key has been revoked" });
+    return true; // handled
+  }
+
+  req.userId = key.userId;
+  req.apiKeyId = key.id;
+  req.apiKeyUserId = key.userId;
+
+  // Throttled lastUsedAt update (fire-and-forget)
+  db.update(apiKeysTable)
+    .set({ lastUsedAt: new Date() })
+    .where(eq(apiKeysTable.id, key.id))
+    .catch((err) => logger.warn({ err }, "requireApiKeyOrAuth: lastUsedAt update failed"));
+
+  next();
+  return true; // handled
+}
 
 export async function requireApiKeyOrAuth(
   req: Request,
@@ -38,13 +98,13 @@ export async function requireApiKeyOrAuth(
         req.userId = user.id;
         return next();
       }
-      // Clerk auth present but user not in DB → let requireAuth create the user
-      // Fall through to standard requireAuth behavior would be complex here;
-      // instead, create the user JIT.
+
+      // Clerk auth present but user not yet in DB — JIT provision
       const sessionClaims = auth.sessionClaims as Record<string, unknown> | undefined;
-      const name = (sessionClaims?.["name"] as string | undefined)
-        ?? (sessionClaims?.["email"] as string | undefined)?.split("@")[0]
-        ?? "Shield User";
+      const name =
+        (sessionClaims?.["name"] as string | undefined) ??
+        (sessionClaims?.["email"] as string | undefined)?.split("@")[0] ??
+        "Shield User";
       const email = (sessionClaims?.["email"] as string | undefined) ?? null;
       const initials = name
         .split(" ")
@@ -68,49 +128,26 @@ export async function requireApiKeyOrAuth(
 
       if (newUser) {
         req.userId = newUser.id;
-        logger.info({ clerkUserId, userId: newUser.id }, "requireApiKeyOrAuth: JIT user created");
+        logger.info(
+          { clerkUserId, userId: newUser.id },
+          "requireApiKeyOrAuth: JIT user created"
+        );
         return next();
       }
     }
 
-    // ── Path 2: API key bearer token ──────────────────────────────────────
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith("Bearer sid_live_")) {
-      const rawKey = authHeader.slice(7).trim();
-      const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
-
-      const [key] = await db
-        .select({ id: apiKeysTable.id, userId: apiKeysTable.userId, revokedAt: apiKeysTable.revokedAt })
-        .from(apiKeysTable)
-        .where(eq(apiKeysTable.keyHash, keyHash));
-
-      if (!key) {
-        res.status(401).json({ error: "invalid_api_key", message: "API key not found" });
-        return;
-      }
-
-      if (key.revokedAt) {
-        res.status(401).json({ error: "revoked_api_key", message: "This API key has been revoked" });
-        return;
-      }
-
-      req.userId = key.userId;
-      req.apiKeyId = key.id;
-      req.apiKeyUserId = key.userId;
-
-      // Throttled lastUsedAt update (fire-and-forget)
-      db.update(apiKeysTable)
-        .set({ lastUsedAt: new Date() })
-        .where(eq(apiKeysTable.id, key.id))
-        .catch((err) => logger.warn({ err }, "requireApiKeyOrAuth: lastUsedAt update failed"));
-
-      return next();
+    // ── Path 2: API key (Authorization: Bearer or X-ShieldID-API-Key) ────────
+    const rawKey = extractApiKey(req);
+    if (rawKey) {
+      const handled = await resolveApiKey(rawKey, res, req, next);
+      if (handled) return;
     }
 
     // ── Neither auth method succeeded ─────────────────────────────────────
     res.status(401).json({
       error: "Unauthorized",
-      message: "Provide a Clerk session cookie or Authorization: Bearer sid_live_<key>",
+      message:
+        "Authenticate via Clerk session, Authorization: Bearer sid_live_<key>, or X-ShieldID-API-Key: sid_live_<key>",
     });
   } catch (err) {
     logger.error({ err }, "requireApiKeyOrAuth error");
