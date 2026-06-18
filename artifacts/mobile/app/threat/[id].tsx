@@ -451,10 +451,21 @@ export default function ThreatDetail() {
       : "") ??
     "";
 
-  const detectedSignals =
+  // Filter machine-readable tags from the human-visible signals list.
+  // These tags are used by the pipeline/UI logic above but should not appear
+  // as raw text in the "Detected Signals" card.
+  const MACHINE_SIGNAL_PREFIXES = [
+    "confirmedVictims:",
+    "crossUserEscalation",
+    "sharedThreatActor",
+  ];
+  const detectedSignals = (
     detail?.detectedSignals && detail.detectedSignals.length > 0
       ? detail.detectedSignals
-      : generateDetectedSignals(breakdown, String(threat.type));
+      : generateDetectedSignals(breakdown, String(threat.type))
+  ).filter(
+    (s) => !MACHINE_SIGNAL_PREFIXES.some((pfx) => s.startsWith(pfx))
+  );
   const aiExplanation =
     detail?.aiExplanation ||
     generateAiExplanation(
@@ -626,6 +637,35 @@ export default function ThreatDetail() {
           </View>
           <ScoreGauge score={threat.threatScore} />
         </View>
+
+        {/* Collective Intelligence Badge */}
+        {detail?.threatActor && detail.threatActor.victimCount >= 2 && (
+          <View
+            style={[
+              styles.collectiveBadge,
+              { backgroundColor: colors.primary + "18", borderColor: colors.primary + "44" },
+            ]}
+          >
+            <MaterialCommunityIcons name="shield-account-outline" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[styles.collectiveBadgeTitle, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}
+              >
+                Confirmed by {detail.threatActor.victimCount} ShieldID users
+              </Text>
+              <Text
+                style={[styles.collectiveBadgeSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+              >
+                Multiple users flagged this actor · Corpus confidence {detail.threatActor.confidenceScore}%
+              </Text>
+            </View>
+            <View style={[styles.collectivePill, { backgroundColor: colors.primary + "33" }]}>
+              <Text style={[styles.collectivePillText, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+                {detail.threatActor.victimCount}×
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Visual Evidence */}
         {evidence.length > 0 && (
@@ -914,6 +954,25 @@ const styles = StyleSheet.create({
   signalItem: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   signalDot: { width: 6, height: 6, borderRadius: 3, marginTop: 7 },
   signalText: { fontSize: 14, flex: 1, lineHeight: 20 },
+
+  collectiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  collectiveBadgeTitle: { fontSize: 14, marginBottom: 2 },
+  collectiveBadgeSubtitle: { fontSize: 12, lineHeight: 16 },
+  collectivePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  collectivePillText: { fontSize: 14 },
 
   actions: { gap: 10 },
   primaryBtn: {

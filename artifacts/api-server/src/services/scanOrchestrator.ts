@@ -15,7 +15,7 @@
  * 8. Mark scan complete with threat count
  */
 
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, isNotNull, asc } from "drizzle-orm";
 import { recalculateScore } from "./scoreService";
 import {
   db,
@@ -24,6 +24,7 @@ import {
   threatsTable,
   suppressedAccountsTable,
   usersTable,
+  userPhotoHashesTable,
   type ScanJob,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -32,6 +33,7 @@ import type { Tier } from "../lib/planConfig";
 import {
   generateSimulatedCandidates,
   buildThreatFromCandidate,
+  computeTemporalScore,
   type ImpersonatorCandidate,
   type SignalData,
   type DetectedEvidence,
@@ -509,6 +511,7 @@ function webCandidateToImpersonator(
     evidence,
     detectedSignals,
     matchedMediaCount: suspectedStolenCount,
+    suspiciousPostDate: wc.datePublished,
   };
 }
 
@@ -627,6 +630,26 @@ async function runScanPipeline(
   const allUserHashes = await storeUserPhotoHashes(userId, photoHashInputs);
   logger.info({ userId, total: allUserPhotoUrls.length, hashed: allUserHashes.length }, "User photo hashes ready");
 
+  // Load the earliest known publish date from the user's photo library.
+  // Used by computeTemporalScore() to detect post-dating (impersonators always
+  // post copies AFTER the victim's original upload date).
+  // Returns null when no photos have publishedAt set — gracefully skipped.
+  let earliestUserPhotoPublishedAt: Date | null = null;
+  try {
+    const [earliest] = await db
+      .select({ publishedAt: userPhotoHashesTable.publishedAt })
+      .from(userPhotoHashesTable)
+      .where(and(
+        eq(userPhotoHashesTable.userId, userId),
+        isNotNull(userPhotoHashesTable.publishedAt)
+      ))
+      .orderBy(asc(userPhotoHashesTable.publishedAt))
+      .limit(1);
+    earliestUserPhotoPublishedAt = earliest?.publishedAt ?? null;
+  } catch {
+    // Non-fatal: temporal scoring will be skipped for this scan
+  }
+
   // Fire-and-forget: recompute cross-platform identity anchor.
   // Every scan that ingests new photos improves the anchor's confidence and
   // per-platform verification scores — no scan completion needed to wait on this.
@@ -706,6 +729,8 @@ async function runScanPipeline(
         matchedMediaCount: 1,
         detectedSignals: [
           `Known threat actor: "${targetUsername}" — targeted ${actorMatch.actor.victimCount} user${actorMatch.actor.victimCount !== 1 ? "s" : ""} (pHash distance: ${actorMatch.distance}/64, confidence: ${actorMatch.actor.confidenceScore}%)`,
+          // Machine-readable collective intelligence signal — parsed in threat building loop
+          `confirmedVictims:${actorMatch.actor.victimCount}`,
         ],
       });
 
@@ -932,7 +957,9 @@ async function runScanPipeline(
             actorSim * 0.9
           );
           candidate.detectedSignals.push(
-            `Known threat actor: "${actorMatch.actor.canonicalUsername}" — targeted ${actorMatch.actor.victimCount} user${actorMatch.actor.victimCount !== 1 ? "s" : ""} (pHash distance: ${actorMatch.distance}/64, confidence: ${actorMatch.actor.confidenceScore}%)`
+            `Known threat actor: "${actorMatch.actor.canonicalUsername}" — targeted ${actorMatch.actor.victimCount} user${actorMatch.actor.victimCount !== 1 ? "s" : ""} (pHash distance: ${actorMatch.distance}/64, confidence: ${actorMatch.actor.confidenceScore}%)`,
+            // Machine-readable collective intelligence signal — parsed in threat building loop
+            `confirmedVictims:${actorMatch.actor.victimCount}`
           );
           const profileEvidence = candidate.evidence.find((e) => e.type === "profile_photo");
           if (profileEvidence && actorSim > profileEvidence.similarity / 100) {
@@ -1079,6 +1106,45 @@ async function runScanPipeline(
       candidate.detectedSignals.push("sharedThreatActor");
     }
 
+    // ── Cross-user escalation ─────────────────────────────────────────────
+    // Parse the machine-readable confirmedVictims signal written by both
+    // actor fast-path locations. If ≥3 users confirmed this actor, escalate
+    // severity one tier (Low→Medium, Medium→High) and tag the reason.
+    const confirmedVictimsSignal = candidate.detectedSignals.find((s) =>
+      s.startsWith("confirmedVictims:")
+    );
+    const confirmedVictims = confirmedVictimsSignal
+      ? parseInt(confirmedVictimsSignal.split(":")[1] ?? "0", 10)
+      : 0;
+    const scoredSeverity = scored.severity;
+    const escalatedSeverity: "high" | "medium" | "low" =
+      confirmedVictims >= 3 && scoredSeverity === "low" ? "medium"
+      : confirmedVictims >= 3 && scoredSeverity === "medium" ? "high"
+      : scoredSeverity;
+    if (confirmedVictims >= 3 && escalatedSeverity !== scoredSeverity) {
+      candidate.detectedSignals.push(
+        "crossUserEscalation",
+        `confirmedVictimsEscalation: severity escalated ${scoredSeverity}→${escalatedSeverity} (${confirmedVictims} ShieldID users confirmed this actor)`
+      );
+    }
+
+    // ── Temporal signal ───────────────────────────────────────────────────
+    // computeTemporalScore() returns 0 when either date is missing (graceful
+    // skip). Non-zero means we have concrete post-dating evidence.
+    const temporalModifier = computeTemporalScore(
+      earliestUserPhotoPublishedAt,
+      candidate.suspiciousPostDate
+    );
+    if (temporalModifier > 0) {
+      candidate.detectedSignals.push(
+        `postDatingConfirmed: suspicious content posted after your original upload (+${temporalModifier} to threat score)`
+      );
+    } else if (temporalModifier < 0) {
+      candidate.detectedSignals.push(
+        `preDating: suspicious content predates your upload (contra-indicator, ${temporalModifier} to threat score)`
+      );
+    }
+
     // Actor corpus fast-path: guarantee High severity + minimum score floor.
     // Known bad-actors verified by collective intelligence skip normal scoring
     // and are always surfaced as High-priority threats. Normal scoring may
@@ -1086,10 +1152,11 @@ async function runScanPipeline(
     // values), so we enforce the floor here unconditionally.
     const effectiveSeverity: "high" | "medium" | "low" = hasActorMatch
       ? "high"
-      : scored.severity;
+      : escalatedSeverity;
+    const baseScore = Math.max(0, scored.breakdown.total + temporalModifier);
     const effectiveScore = hasActorMatch
-      ? Math.max(scored.breakdown.total, 75)
-      : scored.breakdown.total;
+      ? Math.max(baseScore, 75)
+      : baseScore;
 
     // Tag high-confidence threats:
     // – any actor corpus match (cross-user verified), regardless of scan number

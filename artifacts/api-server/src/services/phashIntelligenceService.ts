@@ -19,11 +19,12 @@
  *   Detection quality compounds with user count — no photos stored.
  */
 
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import {
   db,
   threatActorsTable,
   phashFeedbackTable,
+  threatsTable,
   type ThreatActor,
 } from "@workspace/db";
 import { hammingDistance } from "./photoHashService";
@@ -174,6 +175,38 @@ export async function recordPhashFeedback(
     logger.info({ userId, outcome, candidateUsername }, "pHash feedback recorded");
   } catch (err) {
     logger.warn({ err, userId }, "pHash feedback write failed (non-fatal)");
+  }
+
+  // Corpus protection: when a user marks a threat as false positive, reduce the
+  // linked threat actor's confidence score to prevent bad data from polluting
+  // the collective intelligence corpus.
+  // This runs fire-and-forget — a single error must never block the resolve flow.
+  if (outcome === "false_positive" && threatId) {
+    (async () => {
+      try {
+        const [threat] = await db
+          .select({ threatActorId: threatsTable.threatActorId })
+          .from(threatsTable)
+          .where(eq(threatsTable.id, threatId));
+
+        if (!threat?.threatActorId) return;
+
+        // Decrement by 5 points, floor at 0
+        await db
+          .update(threatActorsTable)
+          .set({
+            confidenceScore: sql`GREATEST(0, ${threatActorsTable.confidenceScore} - 5)`,
+          })
+          .where(eq(threatActorsTable.id, threat.threatActorId));
+
+        logger.info(
+          { threatActorId: threat.threatActorId, userId },
+          "False positive feedback: actor confidence score decremented (corpus protection)"
+        );
+      } catch (err) {
+        logger.warn({ err, threatId }, "Actor confidence decrement failed (non-fatal)");
+      }
+    })().catch(() => {});
   }
 }
 

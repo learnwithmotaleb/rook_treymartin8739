@@ -38,17 +38,58 @@ export interface WebSearchCandidate {
   discoveryMethod: "username_variant" | "image_search" | "caption_search";
   postContext?: "original_post" | "retweet" | "share" | "unknown";
   originalPoster?: string;
+  /**
+   * ISO-8601 date string for when the suspicious account posted this content.
+   * Extracted from Google result pagemap metatags (article:published_time, date, etc.).
+   * Used for temporal signal: real impersonators always post AFTER the victim.
+   */
+  datePublished?: string;
 }
 
 interface GoogleSearchItem {
   link: string;
   title: string;
   snippet: string;
+  /** Structured page data — present when Google indexes schema.org or OG meta tags. */
+  pagemap?: {
+    metatags?: Array<Record<string, string>>;
+    newsarticle?: Array<{ datepublished?: string }>;
+    article?: Array<{ datepublished?: string }>;
+  };
 }
 
 interface GoogleSearchResponse {
   items?: GoogleSearchItem[];
   error?: { code: number; message: string };
+}
+
+/**
+ * Extract a publish date from a Google CSE result item.
+ * Tries standard metatag keys in priority order.
+ * Returns undefined when no date is found (graceful degradation).
+ */
+function extractDatePublished(item: GoogleSearchItem): string | undefined {
+  const metatags = item.pagemap?.metatags?.[0];
+  if (metatags) {
+    const keys = [
+      "article:published_time",
+      "og:article:published_time",
+      "datePublished",
+      "date",
+      "dc.date",
+      "dc:date",
+      "pubdate",
+    ];
+    for (const key of keys) {
+      const val = metatags[key];
+      if (val && val.length > 0) return val;
+    }
+  }
+  // newsarticle / article schema.org pagemap
+  const schemaDate =
+    item.pagemap?.newsarticle?.[0]?.datepublished ??
+    item.pagemap?.article?.[0]?.datepublished;
+  return schemaDate ?? undefined;
 }
 
 const GOOGLE_CSE_ENDPOINT = "https://www.googleapis.com/customsearch/v1";
@@ -263,6 +304,7 @@ async function searchByUsernameVariants(
         snippet: item.snippet,
         similarity,
         discoveryMethod: "username_variant",
+        datePublished: extractDatePublished(item),
       });
     }
 
@@ -661,6 +703,7 @@ async function searchByCaptions(
         similarity: 0.0, // caption match is its own strong signal
         discoveryMethod: "caption_search",
         postContext: "original_post",
+        datePublished: extractDatePublished(item),
       });
     }
 

@@ -162,6 +162,15 @@ export interface ThreatDetail extends ThreatSummary {
   };
   detectedSignals: string[];
   resolvedAt: string | null;
+  /** Collective intelligence data from the shared threat actor corpus. */
+  threatActor?: {
+    id: string;
+    victimCount: number;
+    platformSpread: string[];
+    firstSeen: string;
+    lastSeen: string;
+    confidenceScore: number;
+  };
 }
 
 export async function getMe(): Promise<UserProfile> {

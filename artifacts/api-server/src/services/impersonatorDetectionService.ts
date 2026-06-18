@@ -65,6 +65,13 @@ export interface ImpersonatorCandidate {
   detectedSignals: string[];
   matchedMediaCount: number;
   suspiciousProfileImageUrl?: string;
+  /**
+   * ISO-8601 date string extracted from the Google result when the suspicious
+   * account posted this content. Used by computeTemporalScore() to check
+   * whether the suspicious post postdates the victim's original upload.
+   * Undefined when Google doesn't expose a publish date (graceful skip).
+   */
+  suspiciousPostDate?: string;
 }
 
 export interface ScoredThreat {
@@ -149,6 +156,47 @@ export function scoreThreatSeverity(
   if (total >= 70) return "high";
   if (total >= 45) return "medium";
   return "low";
+}
+
+/**
+ * Temporal signal scorer: impersonators always post stolen content AFTER the victim.
+ *
+ * Returns a score modifier in the range [-10, +15]:
+ *   +15  — suspicious post is clearly later (≥2 days after victim's upload)
+ *    0   — same-day or within 1 day (neutral; could be live-streaming both accounts)
+ *   -10  — suspicious post predates the victim's upload (strong contra-indicator)
+ *    0   — either date is missing (graceful skip — no penalty for lack of data)
+ *
+ * Uses "days" precision to avoid false precision from timezone differences.
+ */
+export function computeTemporalScore(
+  victimPublishedAt: Date | null | undefined,
+  suspiciousPostDate: string | null | undefined
+): number {
+  if (!victimPublishedAt || !suspiciousPostDate) return 0;
+
+  let suspicious: Date;
+  try {
+    suspicious = new Date(suspiciousPostDate);
+    if (isNaN(suspicious.getTime())) return 0;
+  } catch {
+    return 0;
+  }
+
+  const victimMs = victimPublishedAt.getTime();
+  const suspiciousMs = suspicious.getTime();
+  const deltaDays = Math.round((suspiciousMs - victimMs) / (1000 * 60 * 60 * 24));
+
+  if (deltaDays >= 2) {
+    // Suspicious account posted this after the victim — classic impersonation signal
+    return 15;
+  }
+  if (deltaDays <= -1) {
+    // Suspicious account posted BEFORE the victim — strong contra-indicator
+    return -10;
+  }
+  // Same-day (deltaDays 0 or 1) — neutral, within margin of timezone/clock error
+  return 0;
 }
 
 /**

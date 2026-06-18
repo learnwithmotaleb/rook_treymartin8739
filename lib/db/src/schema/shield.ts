@@ -447,6 +447,13 @@ export const userPhotoHashesTable = pgTable(
     embeddingJson: text("embedding_json"),
     /** CDN URL at time of indexing — for reference/refresh only. */
     sourceUrl: text("source_url"),
+    /**
+     * When the user originally published this photo on the platform.
+     * Stored at indexing time from platform API metadata.
+     * Null when the platform doesn't expose publish dates.
+     * Used for temporal signal: impersonators always post copies AFTER the victim.
+     */
+    publishedAt: timestamp("published_at", { withTimezone: true }),
     indexedAt: timestamp("indexed_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
