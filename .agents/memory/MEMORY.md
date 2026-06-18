@@ -6,3 +6,4 @@
 - [Avatar photo storage](avatar-photo-storage.md) — profile photos stored as base64 data URLs in avatarUrl column (sharp-compressed 160×160 JPEG); no object storage needed at current scale.
 - [Scheduled scan pattern](scheduled-scan-pattern.md) — schedulerService.ts polls every 15 min via setInterval.unref(); scanOrchestrator sets nextScanDue after completion (pro=+7d, premium=+1d); free tier skipped.
 - [X retweet false-positive guard](x-retweet-detection.md) — Google Vision indexes retweet pages under the retweeter's URL; detect via "RT @user:" in pageTitle; skip retweeter entirely, pivot to original poster instead.
+- [pHash intelligence layer](phash-intelligence-layer.md) — cross-user learning via user_photo_hashes + phash_feedback + threat_actors.pHashClusterJson; fast path checks actor clusters before GPT-4o; resolve actions auto-tune per-user Hamming threshold.

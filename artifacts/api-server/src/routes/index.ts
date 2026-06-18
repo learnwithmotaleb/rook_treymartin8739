@@ -15,6 +15,7 @@ import adminRouter from "./admin";
 import v1Router from "./v1";
 import waitlistRouter from "./waitlist";
 import photosRouter from "./photos";
+import intelligenceRouter from "./intelligence";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(aiAnalysisRouter);
 router.use(billingRouter);
 router.use(notificationsRouter);
 router.use(photosRouter);
+router.use(intelligenceRouter);
 
 export default router;

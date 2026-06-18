@@ -16,6 +16,7 @@ import {
   threatsTable,
   type ThreatActor,
 } from "@workspace/db";
+import { enrichActorWithHash } from "./phashIntelligenceService";
 import { logger } from "../lib/logger";
 
 // ─── Levenshtein (reused from scanOrchestrator, no external dep) ──────────────
@@ -64,10 +65,19 @@ function computeConfidence(victimCount: number, platforms: string[]): number {
  *   - Same platform + Levenshtein distance ≤ 3 on suspicious username
  *   - Levenshtein distance ≤ 1 (near-exact match) regardless of platform
  */
+/**
+ * Link a threat to a shared threat actor and optionally enrich that actor's
+ * pHash cluster with the impersonator's visual fingerprint.
+ *
+ * @param impersonatorDHash - 16-char hex dHash of the impersonator's profile
+ *   picture; when provided it is added to the actor's pHash cluster so future
+ *   scans can match this actor by hash alone (zero AI calls).
+ */
 export async function linkThreatToActor(
   threatId: string,
   suspiciousUsername: string,
-  platform: string | null
+  platform: string | null,
+  impersonatorDHash?: string | null
 ): Promise<ThreatActor | null> {
   if (!suspiciousUsername) return null;
 
@@ -127,8 +137,15 @@ export async function linkThreatToActor(
           .set({ threatActorId: updated.id })
           .where(eq(threatsTable.id, threatId));
 
+        // Enrich actor's pHash cluster with impersonator's visual fingerprint.
+        // This is the core learning step: next user who encounters this actor
+        // gets an instant cluster-match instead of a GPT-4o call.
+        if (impersonatorDHash) {
+          enrichActorWithHash(updated.id, impersonatorDHash).catch(() => {});
+        }
+
         logger.info(
-          { threatId, actorId: updated.id, victimCount: newVictimCount, confidence: newConfidence },
+          { threatId, actorId: updated.id, victimCount: newVictimCount, confidence: newConfidence, hashProvided: Boolean(impersonatorDHash) },
           "Linked threat to existing actor"
         );
         return updated;
@@ -155,8 +172,13 @@ export async function linkThreatToActor(
           .set({ threatActorId: created.id })
           .where(eq(threatsTable.id, threatId));
 
+        // Seed the new actor's cluster with the impersonator's hash.
+        if (impersonatorDHash) {
+          enrichActorWithHash(created.id, impersonatorDHash).catch(() => {});
+        }
+
         logger.info(
-          { threatId, actorId: created.id, username: cleanUsername },
+          { threatId, actorId: created.id, username: cleanUsername, hashProvided: Boolean(impersonatorDHash) },
           "Created new threat actor"
         );
         return created;

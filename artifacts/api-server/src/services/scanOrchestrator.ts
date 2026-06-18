@@ -24,7 +24,6 @@ import {
   threatsTable,
   suppressedAccountsTable,
   usersTable,
-  visualFingerprintsTable,
   type ScanJob,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -51,7 +50,12 @@ import {
   isVisionConfigured as isVisionSearchConfigured,
   type WebSearchCandidate,
 } from "./webSearchService";
-import { computeHashesForUrls, compareImageToHashes } from "./photoHashService";
+import { computeDHash, compareHashToHashes } from "./photoHashService";
+import { storeUserPhotoHashes, loadUserDHashes } from "./userPhotoHashService";
+import {
+  findActorByHash,
+  computeUserThreshold,
+} from "./phashIntelligenceService";
 import { sendScanCompleteNotification } from "./notificationService";
 import { linkThreatToActor } from "./threatActorService";
 import { deliverEvent } from "./webhookService";
@@ -595,9 +599,10 @@ async function runScanPipeline(
 
   await updateJobProgress(jobId, SCAN_STEPS[2].progress, SCAN_STEPS[2].step);
 
-  // Compute pHash fingerprints for all ingested user photos
-  // These are used in Step 6 to compare against suspected impersonator profile pictures
-  const allUserHashes: string[] = [];
+  // Compute and persist pHash fingerprints for user's own photos.
+  // storeUserPhotoHashes checks the DB first — photos already hashed from a
+  // prior scan are returned immediately (no re-download).  The persistent
+  // user_photo_hashes table means hashes survive CDN URL rotation between scans.
   const allUserPhotoUrls: string[] = [];
   for (const ingested of ingestedAccounts) {
     const photoUrls: string[] = [
@@ -606,25 +611,15 @@ async function runScanPipeline(
         .filter((m) => m.type === "image" && m.url)
         .map((m) => m.url),
     ];
-    if (photoUrls.length > 0) {
-      logger.info(
-        { platform: ingested.platform, photoCount: photoUrls.length },
-        "Computing pHash fingerprints for user photos"
-      );
-      const hashes = await computeHashesForUrls(photoUrls, 50);
-      allUserHashes.push(...hashes);
-      allUserPhotoUrls.push(...photoUrls);
-    }
+    allUserPhotoUrls.push(...photoUrls);
   }
 
-  // Persist pHash fingerprints so they survive between scans
-  if (allUserHashes.length > 0) {
-    await db
-      .update(visualFingerprintsTable)
-      .set({ styleEmbeddingJson: JSON.stringify(allUserHashes) })
-      .where(eq(visualFingerprintsTable.userId, userId));
-    logger.info({ userId, hashCount: allUserHashes.length }, "Stored photo pHash fingerprints");
-  }
+  const photoHashInputs = allUserPhotoUrls.map((url) => ({
+    platformMediaId: `url:${encodeURIComponent(url).slice(0, 200)}`,
+    url,
+  }));
+  const allUserHashes = await storeUserPhotoHashes(userId, photoHashInputs);
+  logger.info({ userId, total: allUserPhotoUrls.length, hashed: allUserHashes.length }, "User photo hashes ready");
 
   // Build AI embedding vectors for user photos (up to 20, profile photos first)
   // These catch cropped/filtered/re-uploaded copies that dHash misses.
@@ -801,46 +796,93 @@ async function runScanPipeline(
   // ── Step 6: Visual media analysis — pHash profile picture comparison ─────
   await updateJobProgress(jobId, SCAN_STEPS[5].progress, SCAN_STEPS[5].step);
 
-  // Load user hashes: prefer freshly computed ones, fall back to DB-persisted from prior scan
+  // Load user hashes — prefer the freshly returned set from storeUserPhotoHashes above.
+  // Fall back to loadUserDHashes (fast DB query, no network) when this scan had
+  // no ingestable accounts (e.g. all tokens revoked, demo user).
   let userHashes = [...allUserHashes];
   if (userHashes.length === 0) {
-    const [fingerprint] = await db
-      .select()
-      .from(visualFingerprintsTable)
-      .where(eq(visualFingerprintsTable.userId, userId));
-    if (fingerprint?.styleEmbeddingJson) {
-      try {
-        const stored = JSON.parse(fingerprint.styleEmbeddingJson) as unknown;
-        if (Array.isArray(stored)) userHashes = stored as string[];
-      } catch {
-        // ignore malformed JSON
-      }
-    }
+    userHashes = await loadUserDHashes(userId);
+    logger.info({ userId, loaded: userHashes.length }, "Loaded user dHashes from persistent store");
   }
+
+  // Per-user Hamming threshold: calibrated from false_positive feedback history.
+  // Users who dismiss many false alarms get a wider threshold automatically.
+  const userHammingThreshold = await computeUserThreshold(userId);
+  const userMatchThreshold = Math.max(0, 1 - userHammingThreshold / 64);
 
   // Load AI embedding vectors (built in background above, or from a prior scan)
   const userEmbeddings = await loadUserEmbeddings(userId);
 
   const candidatesWithImages = allCandidates.filter((c) => c.suspiciousProfileImageUrl);
-  logger.info(
-    {
-      userHashes: userHashes.length,
-      userEmbeddings: userEmbeddings.length,
-      candidatesWithImages: candidatesWithImages.length,
-    },
-    "Running photo comparison (pHash + AI embeddings) for candidate profile pictures"
-  );
+  // candidateDHashMap: tracks each candidate's computed dHash so we can
+  // (a) skip re-downloading when comparing to user hashes, and
+  // (b) pass the hash to linkThreatToActor for cross-user cluster enrichment.
+  const candidateDHashMap = new Map<string, string>(); // key = `${platform}:${username}`
 
-  if (candidatesWithImages.length > 0 && (userHashes.length > 0 || userEmbeddings.length > 0)) {
+  if (candidatesWithImages.length > 0) {
+    logger.info(
+      {
+        userHashes: userHashes.length,
+        userEmbeddings: userEmbeddings.length,
+        candidatesWithImages: candidatesWithImages.length,
+        userHammingThreshold,
+      },
+      "Running photo comparison (pHash fast-path + AI embeddings) for candidate profile pictures"
+    );
+
     for (const candidate of candidatesWithImages) {
       if (!candidate.suspiciousProfileImageUrl) continue;
+      const candidateKey = `${candidate.platform}:${candidate.suspiciousUsername}`;
 
-      // Layer 1: dHash — fast, catches exact/near-exact copies
-      if (userHashes.length > 0) {
-        const hashResult = await compareImageToHashes(
-          candidate.suspiciousProfileImageUrl,
-          userHashes
-        );
+      // Download the candidate image ONCE and compute its dHash.
+      // All subsequent comparisons reuse this hash — no second download.
+      const candidateDHash = await computeDHash(candidate.suspiciousProfileImageUrl);
+      if (candidateDHash) {
+        candidateDHashMap.set(candidateKey, candidateDHash);
+      }
+
+      // ── Fast path: check known threat actor clusters ────────────────────────
+      // Zero AI cost.  If this impersonator's hash matches a cluster built from
+      // a previous user's scan, we get instant high-confidence detection without
+      // calling GPT-4o.  The cluster grows with every confirmed threat — the
+      // more users, the faster and cheaper detection becomes for everyone.
+      if (candidateDHash) {
+        const actorMatch = await findActorByHash(candidateDHash, userHammingThreshold);
+        if (actorMatch) {
+          const actorSim = actorMatch.similarity;
+          if (actorSim > candidate.signals.profileImageSimilarity) {
+            candidate.signals.profileImageSimilarity = actorSim;
+          }
+          candidate.signals.mediaOverlapRatio = Math.max(
+            candidate.signals.mediaOverlapRatio,
+            actorSim * 0.9
+          );
+          candidate.detectedSignals.push(
+            `Known threat actor: "${actorMatch.actor.canonicalUsername}" — targeted ${actorMatch.actor.victimCount} user${actorMatch.actor.victimCount !== 1 ? "s" : ""} (pHash distance: ${actorMatch.distance}/64, confidence: ${actorMatch.actor.confidenceScore}%)`
+          );
+          const profileEvidence = candidate.evidence.find((e) => e.type === "profile_photo");
+          if (profileEvidence && actorSim > profileEvidence.similarity / 100) {
+            profileEvidence.similarity = Math.round(actorSim * 100);
+            profileEvidence.label = `Known Actor — ${Math.round(actorSim * 100)}% pHash Match (${actorMatch.actor.victimCount} victim${actorMatch.actor.victimCount !== 1 ? "s" : ""})`;
+          }
+          logger.info(
+            {
+              username: candidate.suspiciousUsername,
+              actorId: actorMatch.actor.id,
+              distance: actorMatch.distance,
+              victimCount: actorMatch.actor.victimCount,
+              confidence: actorMatch.actor.confidenceScore,
+            },
+            "Fast-path actor match via pHash cluster"
+          );
+        }
+      }
+
+      // ── Layer 1: dHash vs user's own photo hashes ───────────────────────────
+      // Uses the pre-computed candidateDHash — no second image download.
+      // Threshold is per-user (adjusted from false_positive feedback history).
+      if (candidateDHash && userHashes.length > 0) {
+        const hashResult = compareHashToHashes(candidateDHash, userHashes, userMatchThreshold);
 
         if (hashResult.similarity > candidate.signals.profileImageSimilarity) {
           candidate.signals.profileImageSimilarity = hashResult.similarity;
@@ -866,8 +908,10 @@ async function runScanPipeline(
         }
       }
 
-      // Layer 2: AI embedding similarity — catches cropped/filtered/re-uploaded versions
-      // Only run if we have stored embeddings and dHash didn't already give a strong match
+      // ── Layer 2: AI embedding similarity ───────────────────────────────────
+      // Only run when: we have embeddings AND dHash + actor-fast-path didn't
+      // already yield a strong signal (≥85%).  This catches cropped/filtered
+      // re-uploads that fool dHash but not semantic similarity.
       const currentSim = candidate.signals.profileImageSimilarity;
       if (userEmbeddings.length > 0 && currentSim < 0.85) {
         try {
@@ -960,6 +1004,7 @@ async function runScanPipeline(
       }
     }
 
+    const candidateKey = `${candidate.platform}:${candidate.suspiciousUsername}`;
     newThreats.push({
       userId,
       scanJobId: jobId,
@@ -976,6 +1021,9 @@ async function runScanPipeline(
       evidenceJson: JSON.stringify(candidate.evidence),
       scoreBreakdownJson: JSON.stringify(scored.breakdown),
       detectedSignalsJson: JSON.stringify(candidate.detectedSignals),
+      // Store the impersonator's dHash so linkThreatToActor can enrich the
+      // actor's pHash cluster — enabling fast-path detection for future users.
+      impersonatorDHash: candidateDHashMap.get(candidateKey) ?? null,
       resolved: false,
     });
   }
@@ -997,16 +1045,20 @@ async function runScanPipeline(
           platform: threatsTable.platform,
           severity: threatsTable.severity,
           threatScore: threatsTable.threatScore,
+          impersonatorDHash: threatsTable.impersonatorDHash,
         });
 
       if (inserted) {
         insertedThreatIds.push(inserted.id);
 
-        // Link to shared threat actor (zero API cost — pure DB logic)
+        // Link to shared threat actor and enrich its pHash cluster.
+        // The cluster grows with each confirmed threat, enabling instant
+        // fast-path matches for future users who encounter the same actor.
         linkThreatToActor(
           inserted.id,
           inserted.suspiciousUsername ?? "",
-          inserted.platform
+          inserted.platform,
+          inserted.impersonatorDHash  // seeds / grows the actor's hash cluster
         ).catch((err) =>
           logger.warn({ err, threatId: inserted.id }, "Threat actor linking failed (non-fatal)")
         );

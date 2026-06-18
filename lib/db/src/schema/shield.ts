@@ -196,6 +196,12 @@ export const threatsTable = pgTable("threats", {
   resolved: boolean("resolved").notNull().default(false),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   resolveAction: text("resolve_action"),
+  /**
+   * dHash of the impersonator's profile picture, computed during scan Step 6.
+   * Written at threat-creation time so linkThreatToActor can enrich the
+   * actor's pHash cluster without a second image download.
+   */
+  impersonatorDHash: text("impersonator_d_hash"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -411,3 +417,82 @@ export const waitlistSignupsTable = pgTable("waitlist_signups", {
 });
 
 export type WaitlistSignup = typeof waitlistSignupsTable.$inferSelect;
+
+// ─── pHash intelligence tables ────────────────────────────────────────────────
+
+/**
+ * Stores each user's own computed dHash fingerprints, one row per photo.
+ *
+ * Hashes are computed once and reused across all subsequent scans — no
+ * re-downloading from CDN on every run.  Stable even after CDN URL rotation.
+ * Unique on (userId, platformMediaId) so concurrent scans are safe.
+ */
+export const userPhotoHashesTable = pgTable(
+  "user_photo_hashes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").references(() => connectedAccountsTable.id, {
+      onDelete: "set null",
+    }),
+    /** Stable identifier: platform media ID or `url:<url>` fallback. */
+    platformMediaId: text("platform_media_id").notNull(),
+    /** 16-char hex dHash — computed once, never changes for the same image. */
+    dHash: text("d_hash").notNull(),
+    /** JSON float[] — semantic embedding vector (nullable; computed async). */
+    embeddingJson: text("embedding_json"),
+    /** CDN URL at time of indexing — for reference/refresh only. */
+    sourceUrl: text("source_url"),
+    indexedAt: timestamp("indexed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("user_photo_hashes_user_media_idx").on(
+      table.userId,
+      table.platformMediaId
+    ),
+  ]
+);
+
+export type UserPhotoHash = typeof userPhotoHashesTable.$inferSelect;
+export type InsertUserPhotoHash = typeof userPhotoHashesTable.$inferInsert;
+
+/**
+ * Records user resolve-action feedback for each threat.
+ * Drives per-user Hamming distance threshold tuning:
+ *   false_positive → widen threshold (fewer false alarms)
+ *   true_positive  → threshold stays tight (real threats are being found)
+ */
+export const phashFeedbackTable = pgTable("phash_feedback", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  /** The threat this feedback is attached to (nullable if threat was deleted). */
+  threatId: uuid("threat_id").references(() => threatsTable.id, {
+    onDelete: "set null",
+  }),
+  /** The impersonator's dHash that triggered (or didn't trigger) the match. */
+  candidateDHash: text("candidate_d_hash"),
+  candidateUsername: text("candidate_username"),
+  platform: text("platform"),
+  /**
+   * Outcome of the user's resolve action:
+   *   true_positive     — real threat, correctly detected
+   *   false_positive    — not a real threat (widen threshold)
+   *   approved_contact  — known contact, permanently suppress (no threshold change)
+   *   resolved_manually — handled outside the app (no threshold signal)
+   */
+  outcome: text("outcome").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type PhashFeedback = typeof phashFeedbackTable.$inferSelect;

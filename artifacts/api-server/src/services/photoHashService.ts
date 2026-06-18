@@ -30,7 +30,10 @@ export interface PhotoHashResult {
   similarity: number;
   hammingDistance: number;
   matched: boolean;
+  /** The stored user hash that best matched the candidate. */
   matchedHash?: string;
+  /** The candidate's own computed dHash — exposed so callers can reuse it. */
+  candidateHash?: string;
 }
 
 /**
@@ -188,5 +191,42 @@ export async function compareImageToHashes(
     hammingDistance: bestDistance,
     matched: bestSimilarity >= matchThreshold,
     matchedHash: bestHash,
+    candidateHash,
+  };
+}
+
+/**
+ * Compare a pre-computed dHash against a set of stored user photo hashes.
+ * Use this when the candidate hash was already computed (avoids a second download).
+ */
+export function compareHashToHashes(
+  candidateHash: string,
+  storedHashes: string[],
+  matchThreshold = 0.84
+): PhotoHashResult {
+  if (!candidateHash || storedHashes.length === 0) {
+    return { similarity: 0, hammingDistance: 64, matched: false, candidateHash };
+  }
+
+  let bestSimilarity = 0;
+  let bestDistance = 64;
+  let bestHash: string | undefined;
+
+  for (const storedHash of storedHashes) {
+    const dist = hammingDistance(candidateHash, storedHash);
+    const sim = Math.max(0, 1 - dist / 64);
+    if (sim > bestSimilarity) {
+      bestSimilarity = sim;
+      bestDistance = dist;
+      bestHash = storedHash;
+    }
+  }
+
+  return {
+    similarity: bestSimilarity,
+    hammingDistance: bestDistance,
+    matched: bestSimilarity >= matchThreshold,
+    matchedHash: bestHash,
+    candidateHash,
   };
 }

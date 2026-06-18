@@ -4,6 +4,10 @@ import { eq, and, desc, inArray, ne } from "drizzle-orm";
 import { db, threatsTable, threatActorsTable, suppressedAccountsTable } from "@workspace/db";
 import { recalculateScore } from "../services/scoreService";
 import { normalizeSuppressUsername } from "../services/scanOrchestrator";
+import {
+  recordPhashFeedback,
+  type FeedbackOutcome,
+} from "../services/phashIntelligenceService";
 
 
 const router: IRouter = Router();
@@ -226,6 +230,23 @@ router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Threat not found" });
     return;
   }
+
+  // Map resolve action to a pHash feedback outcome so the learning system
+  // can adjust this user's detection threshold over time.
+  const feedbackOutcome: FeedbackOutcome =
+    action === "false_positive" ? "false_positive"
+    : action === "approved" ? "approved_contact"
+    : action === "reported_to_platform" ? "true_positive"
+    : "resolved_manually";
+
+  recordPhashFeedback(
+    userId,
+    threatId,
+    updated.impersonatorDHash ?? null,
+    updated.suspiciousUsername ?? null,
+    updated.platform ?? null,
+    feedbackOutcome
+  ).catch(() => {});
 
   // Permanently suppress this account so it never resurfaces in future scans
   if (updated.platform && updated.suspiciousUsername) {
