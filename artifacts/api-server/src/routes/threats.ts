@@ -42,6 +42,10 @@ function parseThreat(t: typeof threatsTable.$inferSelect) {
 }
 
 function parseThreatSummary(t: typeof threatsTable.$inferSelect) {
+  const signals = safeParseJson<string[]>(t.detectedSignalsJson, []);
+  const highConfidence =
+    signals.includes("firstScanHighConfidence") ||
+    signals.includes("sharedThreatActor");
   return {
     id: t.id,
     type: t.type,
@@ -53,6 +57,7 @@ function parseThreatSummary(t: typeof threatsTable.$inferSelect) {
     matchedMediaCount: t.matchedMediaCount,
     suspiciousUsername: t.suspiciousUsername,
     resolved: t.resolved,
+    highConfidence,
     createdAt: t.createdAt.toISOString(),
   };
 }
@@ -76,7 +81,11 @@ router.get("/threats", async (req, res): Promise<void> => {
     offset?: string;
   };
 
-  const conditions = [eq(threatsTable.userId, userId)];
+  const conditions = [
+    eq(threatsTable.userId, userId),
+    // Never surface threats that are pending confirmation from a second scan
+    eq(threatsTable.hiddenUntilScan, false),
+  ];
 
   if (severity && ["high", "medium", "low"].includes(severity)) {
     conditions.push(eq(threatsTable.severity, severity));

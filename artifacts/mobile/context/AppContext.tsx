@@ -95,6 +95,7 @@ export interface Threat {
   evidence: MatchedEvidence[];
   scoreBreakdown: ThreatScoreBreakdown;
   detectedSignals: string[];
+  highConfidence?: boolean;
 }
 
 export interface ConnectedAccount {

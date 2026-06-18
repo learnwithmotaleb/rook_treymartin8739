@@ -57,10 +57,20 @@ export function ThreatCard({ threat, compact }: ThreatCardProps) {
             >
               {threat.title}
             </Text>
-            <View style={[styles.scoreChip, { backgroundColor: scoreColor + "22" }]}>
-              <Text style={[styles.scoreText, { color: scoreColor, fontFamily: "Inter_700Bold" }]}>
-                {threat.threatScore}
-              </Text>
+            <View style={styles.headerRight}>
+              {threat.highConfidence && (
+                <View style={[styles.verifiedBadge, { backgroundColor: colors.success + "22" }]}>
+                  <MaterialCommunityIcons name="shield-check" size={10} color={colors.success} />
+                  <Text style={[styles.verifiedText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
+                    Verified
+                  </Text>
+                </View>
+              )}
+              <View style={[styles.scoreChip, { backgroundColor: scoreColor + "22" }]}>
+                <Text style={[styles.scoreText, { color: scoreColor, fontFamily: "Inter_700Bold" }]}>
+                  {threat.threatScore}
+                </Text>
+              </View>
             </View>
           </View>
           <Text
@@ -125,6 +135,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    flexShrink: 0,
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+  verifiedText: { fontSize: 9 },
   title: { fontSize: 14, flex: 1 },
   scoreChip: {
     paddingHorizontal: 7,

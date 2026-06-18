@@ -21,6 +21,7 @@ export const usersTable = pgTable("users", {
   scoreTrend: integer("score_trend").notNull().default(0),
   nextScanDue: timestamp("next_scan_due", { withTimezone: true }),
   avatarUrl: text("avatar_url"),
+  scanCount: integer("scan_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -202,6 +203,7 @@ export const threatsTable = pgTable("threats", {
    * actor's pHash cluster without a second image download.
    */
   impersonatorDHash: text("impersonator_d_hash"),
+  hiddenUntilScan: boolean("hidden_until_scan").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

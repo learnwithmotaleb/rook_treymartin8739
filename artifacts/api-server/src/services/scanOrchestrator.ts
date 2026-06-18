@@ -528,6 +528,11 @@ async function runScanPipeline(
 
   if (!user) throw new Error(`User not found: ${userId}`);
 
+  // First scan: scanCount === 0. Used to apply high-precision mode throughout
+  // the pipeline — tighter Hamming threshold, profile-photo hard filter, and
+  // suppression of Low-severity results until a second scan confirms them.
+  const isFirstScan = (user.scanCount ?? 0) === 0;
+
   // Demo user has no Clerk ID — simulation mode is only allowed for demo users.
   // Real authenticated users always get genuine scan results (even if empty).
   const isDemoUser = !user.clerkId;
@@ -813,7 +818,7 @@ async function runScanPipeline(
 
   // Per-user Hamming threshold: calibrated from false_positive feedback history.
   // Users who dismiss many false alarms get a wider threshold automatically.
-  const userHammingThreshold = await computeUserThreshold(userId);
+  const userHammingThreshold = await computeUserThreshold(userId, isFirstScan);
   const userMatchThreshold = Math.max(0, 1 - userHammingThreshold / 64);
 
   // Load AI embedding vectors (built in background above, or from a prior scan)
@@ -990,7 +995,36 @@ async function runScanPipeline(
       );
       continue;
     }
-    const scored = buildThreatFromCandidate(candidate);
+    const scored = buildThreatFromCandidate(candidate, isFirstScan);
+
+    // Threat zeroed out by first-scan precision gate — skip it entirely
+    if (scored.breakdown.total === 0 && !candidate.simulated) {
+      logger.info(
+        { username: candidate.suspiciousUsername, platform: candidate.platform },
+        "First-scan precision gate: candidate excluded (no strong visual signal)"
+      );
+      continue;
+    }
+
+    // Tag known-actor matches so the mobile app can show a collective badge.
+    // The actor signal is already in detectedSignals as a "Known threat actor: …"
+    // string — add a machine-readable marker alongside it.
+    const hasActorMatch = candidate.detectedSignals.some((s) =>
+      s.startsWith("Known threat actor:")
+    );
+    if (hasActorMatch) {
+      candidate.detectedSignals.push("sharedThreatActor");
+    }
+
+    // Tag high-confidence threats on the first scan (score ≥ 75) so the card
+    // can show a "Verified" badge.
+    if (isFirstScan && scored.breakdown.total >= 75) {
+      candidate.detectedSignals.push("firstScanHighConfidence");
+    }
+
+    // Low-severity threats on the first scan are stored but hidden from the
+    // feed. They surface if the same account still appears on scan #2+.
+    const hiddenUntilScan = isFirstScan && scored.severity === "low";
 
     let aiExplanation: string | null = null;
     if (scored.severity === "high") {
@@ -1030,6 +1064,7 @@ async function runScanPipeline(
       // Store the impersonator's dHash so linkThreatToActor can enrich the
       // actor's pHash cluster — enabling fast-path detection for future users.
       impersonatorDHash: candidateDHashMap.get(candidateKey) ?? null,
+      hiddenUntilScan,
       resolved: false,
     });
   }
@@ -1097,6 +1132,13 @@ async function runScanPipeline(
       completedAt: new Date(),
     })
     .where(eq(scanJobsTable.id, jobId));
+
+  // Increment scan counter — tracks how many completed scans this user has had.
+  // This is the gate for first-scan precision mode on the next pipeline run.
+  db.update(usersTable)
+    .set({ scanCount: (user.scanCount ?? 0) + 1 })
+    .where(eq(usersTable.id, userId))
+    .catch((err) => logger.warn({ err }, "Failed to increment scanCount"));
 
   // Schedule next automated scan based on tier
   const daysUntilNext = planTier === "premium" ? 1 : planTier === "pro" ? 7 : null;

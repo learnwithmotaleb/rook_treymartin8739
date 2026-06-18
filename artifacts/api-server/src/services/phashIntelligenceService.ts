@@ -186,7 +186,10 @@ export async function recordPhashFeedback(
  *
  * Falls back to DEFAULT_HAMMING_THRESHOLD on error.
  */
-export async function computeUserThreshold(userId: string): Promise<number> {
+export async function computeUserThreshold(
+  userId: string,
+  isFirstScan = false
+): Promise<number> {
   try {
     const feedback = await db
       .select({ outcome: phashFeedbackTable.outcome })
@@ -197,9 +200,11 @@ export async function computeUserThreshold(userId: string): Promise<number> {
     const tp = feedback.filter((f) => f.outcome === "true_positive").length;
     const adjustment = fp * 2 - tp;
     const clamped = Math.max(-8, Math.min(8, adjustment));
-    return DEFAULT_HAMMING_THRESHOLD + clamped;
+    const computed = DEFAULT_HAMMING_THRESHOLD + clamped;
+    // First scan uses a tighter gate — only near-identical hashes qualify
+    return isFirstScan ? Math.min(computed, 6) : computed;
   } catch {
-    return DEFAULT_HAMMING_THRESHOLD;
+    return isFirstScan ? 6 : DEFAULT_HAMMING_THRESHOLD;
   }
 }
 

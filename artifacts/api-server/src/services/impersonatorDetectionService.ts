@@ -82,7 +82,8 @@ export interface ScoredThreat {
 }
 
 export function calculateThreatScore(
-  signals: SignalData
+  signals: SignalData,
+  isFirstScan = false
 ): ThreatScoreBreakdown {
   const mediaSimilarity = Math.round(
     Math.min(signals.mediaOverlapRatio, 1.0) * 40
@@ -107,6 +108,28 @@ export function calculateThreatScore(
     bioSimilarity +
     usernameSimilarity +
     behavioral;
+
+  // First-scan precision gate: require at least one strong visual signal.
+  // Username-only or bio-only matches are suppressed on the first pass to
+  // minimise false positives while the user's photo fingerprint is still
+  // being established. Specifically: if neither the profile photo nor the
+  // media library shows meaningful overlap (≥40%), the candidate is excluded
+  // regardless of text-based similarity scores.
+  if (
+    isFirstScan &&
+    signals.profileImageSimilarity < 0.40 &&
+    signals.mediaOverlapRatio < 0.40
+  ) {
+    return {
+      mediaSimilarity,
+      contentReuse,
+      profileSimilarity,
+      bioSimilarity,
+      usernameSimilarity,
+      behavioral,
+      total: 0,
+    };
+  }
 
   return {
     mediaSimilarity,
@@ -273,9 +296,10 @@ export function generateSimulatedCandidates(
 }
 
 export function buildThreatFromCandidate(
-  candidate: ImpersonatorCandidate
+  candidate: ImpersonatorCandidate,
+  isFirstScan = false
 ): Omit<ScoredThreat, "candidate"> & { candidate: ImpersonatorCandidate } {
-  const breakdown = calculateThreatScore(candidate.signals);
+  const breakdown = calculateThreatScore(candidate.signals, isFirstScan);
   const severity = scoreThreatSeverity(breakdown.total);
 
   const isStolen = candidate.source === "media_similarity" || candidate.source === "image_search";
