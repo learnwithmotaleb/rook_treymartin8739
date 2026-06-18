@@ -109,17 +109,18 @@ export function calculateThreatScore(
     usernameSimilarity +
     behavioral;
 
-  // First-scan precision gate: require at least one strong visual signal.
-  // Username-only or bio-only matches are suppressed on the first pass to
-  // minimise false positives while the user's photo fingerprint is still
-  // being established. Specifically: if neither the profile photo nor the
-  // media library shows meaningful overlap (≥40%), the candidate is excluded
-  // regardless of text-based similarity scores.
-  if (
-    isFirstScan &&
-    signals.profileImageSimilarity < 0.40 &&
-    signals.mediaOverlapRatio < 0.40
-  ) {
+  // First-scan precision gate: require at least one strong independent signal.
+  // On the first scan, username-only, bio-only, or weak-photo candidates are
+  // excluded so the user's feed only shows high-confidence results.
+  //
+  // Exclusion condition: profile image < 40% similarity AND no other single
+  // weighted component independently reaches ≥ 25 pts.
+  //
+  // Signal max values: mediaSimilarity → 40 pts, contentReuse → 20 pts,
+  // profileSimilarity → 15 pts, bio → 10, username → 10, behavioral → 5.
+  // Therefore mediaSimilarity is the ONLY signal that can independently hit 25.
+  // A candidate passes if: profileImageSimilarity ≥ 0.40 OR mediaSimilarity ≥ 25.
+  if (isFirstScan && signals.profileImageSimilarity < 0.40 && mediaSimilarity < 25) {
     return {
       mediaSimilarity,
       contentReuse,

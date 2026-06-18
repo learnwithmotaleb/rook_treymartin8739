@@ -1079,18 +1079,32 @@ async function runScanPipeline(
       candidate.detectedSignals.push("sharedThreatActor");
     }
 
-    // Tag high-confidence threats on the first scan (score ≥ 75) so the card
-    // can show a "Verified" badge.
-    if (isFirstScan && scored.breakdown.total >= 75) {
+    // Actor corpus fast-path: guarantee High severity + minimum score floor.
+    // Known bad-actors verified by collective intelligence skip normal scoring
+    // and are always surfaced as High-priority threats. Normal scoring may
+    // produce Medium on a first scan (tight Hamming ≤6 but moderate signal
+    // values), so we enforce the floor here unconditionally.
+    const effectiveSeverity: "high" | "medium" | "low" = hasActorMatch
+      ? "high"
+      : scored.severity;
+    const effectiveScore = hasActorMatch
+      ? Math.max(scored.breakdown.total, 75)
+      : scored.breakdown.total;
+
+    // Tag high-confidence threats:
+    // – any actor corpus match (cross-user verified), regardless of scan number
+    // – first-scan candidates that score ≥ 75 on their own signals
+    if (hasActorMatch || (isFirstScan && effectiveScore >= 75)) {
       candidate.detectedSignals.push("firstScanHighConfidence");
     }
 
     // Low-severity threats on the first scan are stored but hidden from the
     // feed. They surface if the same account still appears on scan #2+.
-    const hiddenUntilScan = isFirstScan && scored.severity === "low";
+    // Actor corpus matches are never hidden — they are already high-confidence.
+    const hiddenUntilScan = isFirstScan && effectiveSeverity === "low";
 
     let aiExplanation: string | null = null;
-    if (scored.severity === "high") {
+    if (effectiveSeverity === "high") {
       try {
         aiExplanation = await generateThreatExplanation(
           {
@@ -1108,21 +1122,24 @@ async function runScanPipeline(
     }
 
     const candidateKey = `${candidate.platform}:${candidate.suspiciousUsername}`;
+    const effectiveBreakdown = hasActorMatch
+      ? { ...scored.breakdown, total: effectiveScore }
+      : scored.breakdown;
     newThreats.push({
       userId,
       scanJobId: jobId,
       type: scored.type,
-      severity: scored.severity,
+      severity: effectiveSeverity,
       platform: candidate.platform,
       title: scored.title,
       description: scored.description,
       details: scored.details,
       aiExplanation,
-      threatScore: scored.breakdown.total,
+      threatScore: effectiveScore,
       suspiciousUsername: candidate.suspiciousUsername,
       matchedMediaCount: candidate.matchedMediaCount,
       evidenceJson: JSON.stringify(candidate.evidence),
-      scoreBreakdownJson: JSON.stringify(scored.breakdown),
+      scoreBreakdownJson: JSON.stringify(effectiveBreakdown),
       detectedSignalsJson: JSON.stringify(candidate.detectedSignals),
       // Store the impersonator's dHash so linkThreatToActor can enrich the
       // actor's pHash cluster — enabling fast-path detection for future users.
