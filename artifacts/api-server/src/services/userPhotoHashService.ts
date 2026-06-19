@@ -33,6 +33,13 @@ export interface PhotoHashInput {
   platformMediaId: string;
   url: string;
   accountId?: string;
+  /** ISO publish date of the original photo — used for temporal post-dating detection. */
+  publishedAt?: Date;
+}
+
+export interface DatedPhotoHash {
+  dHash: string;
+  publishedAt: Date | null;
 }
 
 // ─── Load ─────────────────────────────────────────────────────────────────────
@@ -118,6 +125,7 @@ export async function storeUserPhotoHashes(
         platformMediaId: photo.platformMediaId,
         dHash,
         sourceUrl: photo.url,
+        publishedAt: photo.publishedAt ?? null,
       })
       .onConflictDoNothing();
 
@@ -135,6 +143,24 @@ export async function storeUserPhotoHashes(
   }
 
   return Array.from(existingMap.values());
+}
+
+/**
+ * Load dHash + publishedAt pairs for all of a user's indexed photos.
+ * Used to identify the matched victim photo's original publish date for
+ * temporal post-dating scoring (compare against suspicious post date).
+ */
+export async function loadUserPhotoHashesWithDates(
+  userId: string
+): Promise<DatedPhotoHash[]> {
+  const rows = await db
+    .select({
+      dHash: userPhotoHashesTable.dHash,
+      publishedAt: userPhotoHashesTable.publishedAt,
+    })
+    .from(userPhotoHashesTable)
+    .where(eq(userPhotoHashesTable.userId, userId));
+  return rows.map((r) => ({ dHash: r.dHash, publishedAt: r.publishedAt }));
 }
 
 /**

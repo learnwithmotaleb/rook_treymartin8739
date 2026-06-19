@@ -269,18 +269,30 @@ export function classifyThreatSeverity(
  *
  * Uses "days" precision to avoid false precision from timezone differences.
  */
+export interface TemporalScoreResult {
+  /** Score modifier to add/subtract from the threat score. */
+  modifier: number;
+  /**
+   * Signed day delta: suspicious post date minus victim publish date.
+   * Positive = post-dating (suspicious posted after victim).
+   * Negative = pre-dating (suspicious posted before victim).
+   * null when either date is missing or unparseable.
+   */
+  deltaDays: number | null;
+}
+
 export function computeTemporalScore(
   victimPublishedAt: Date | null | undefined,
   suspiciousPostDate: string | null | undefined
-): number {
-  if (!victimPublishedAt || !suspiciousPostDate) return 0;
+): TemporalScoreResult {
+  if (!victimPublishedAt || !suspiciousPostDate) return { modifier: 0, deltaDays: null };
 
   let suspicious: Date;
   try {
     suspicious = new Date(suspiciousPostDate);
-    if (isNaN(suspicious.getTime())) return 0;
+    if (isNaN(suspicious.getTime())) return { modifier: 0, deltaDays: null };
   } catch {
-    return 0;
+    return { modifier: 0, deltaDays: null };
   }
 
   const victimMs = victimPublishedAt.getTime();
@@ -289,14 +301,14 @@ export function computeTemporalScore(
 
   if (deltaDays >= 2) {
     // Suspicious account posted this after the victim — classic impersonation signal
-    return 15;
+    return { modifier: 15, deltaDays };
   }
   if (deltaDays <= -1) {
     // Suspicious account posted BEFORE the victim — strong contra-indicator
-    return -10;
+    return { modifier: -10, deltaDays };
   }
   // Same-day (deltaDays 0 or 1) — neutral, within margin of timezone/clock error
-  return 0;
+  return { modifier: 0, deltaDays };
 }
 
 /**

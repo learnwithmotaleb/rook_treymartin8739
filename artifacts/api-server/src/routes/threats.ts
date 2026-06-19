@@ -12,13 +12,45 @@ import {
 
 const router: IRouter = Router();
 
+/**
+ * Handles both the legacy string-array format and the current structured format
+ * for detectedSignalsJson.
+ *
+ * Legacy format:  string[]  (stored before structured-key migration)
+ * Current format: { flags: string[], confirmedVictims?: number,
+ *                   crossUserEscalation?: boolean, postDatingDays?: number }
+ */
+interface StructuredSignals {
+  flags: string[];
+  confirmedVictims?: number;
+  crossUserEscalation?: boolean;
+  postDatingDays?: number;
+}
+
+function parseSignals(raw: string | null): StructuredSignals {
+  if (!raw) return { flags: [] };
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      // Legacy format — plain string array
+      return { flags: parsed as string[] };
+    }
+    if (typeof parsed === "object" && parsed !== null && Array.isArray(parsed.flags)) {
+      return parsed as StructuredSignals;
+    }
+    return { flags: [] };
+  } catch {
+    return { flags: [] };
+  }
+}
+
 function parseThreat(t: typeof threatsTable.$inferSelect) {
   const evidence = safeParseJson<unknown[]>(t.evidenceJson, []);
   const scoreBreakdown = safeParseJson<Record<string, number>>(
     t.scoreBreakdownJson,
     {}
   );
-  const detectedSignals = safeParseJson<string[]>(t.detectedSignalsJson, []);
+  const signals = parseSignals(t.detectedSignalsJson);
 
   return {
     id: t.id,
@@ -34,7 +66,10 @@ function parseThreat(t: typeof threatsTable.$inferSelect) {
     matchedMediaCount: t.matchedMediaCount,
     evidence,
     scoreBreakdown,
-    detectedSignals,
+    detectedSignals: signals.flags,
+    confirmedVictims: signals.confirmedVictims ?? null,
+    crossUserEscalation: signals.crossUserEscalation ?? false,
+    postDatingDays: signals.postDatingDays ?? null,
     resolved: t.resolved,
     resolvedAt: t.resolvedAt?.toISOString() ?? null,
     createdAt: t.createdAt.toISOString(),
@@ -42,10 +77,10 @@ function parseThreat(t: typeof threatsTable.$inferSelect) {
 }
 
 function parseThreatSummary(t: typeof threatsTable.$inferSelect) {
-  const signals = safeParseJson<string[]>(t.detectedSignalsJson, []);
+  const signals = parseSignals(t.detectedSignalsJson);
   const highConfidence =
-    signals.includes("firstScanHighConfidence") ||
-    signals.includes("sharedThreatActor");
+    signals.flags.includes("firstScanHighConfidence") ||
+    signals.flags.includes("sharedThreatActor");
   return {
     id: t.id,
     type: t.type,

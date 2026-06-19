@@ -15,7 +15,7 @@
  * 8. Mark scan complete with threat count
  */
 
-import { eq, and, ne, isNotNull, asc } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { recalculateScore } from "./scoreService";
 import {
   db,
@@ -24,7 +24,6 @@ import {
   threatsTable,
   suppressedAccountsTable,
   usersTable,
-  userPhotoHashesTable,
   type ScanJob,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -55,14 +54,14 @@ import {
   type WebSearchCandidate,
 } from "./webSearchService";
 import { computeDHash, compareHashToHashes } from "./photoHashService";
-import { storeUserPhotoHashes, loadUserDHashes } from "./userPhotoHashService";
+import { storeUserPhotoHashes, loadUserDHashes, loadUserPhotoHashesWithDates, type DatedPhotoHash } from "./userPhotoHashService";
 import {
   findActorByHash,
   computeUserThreshold,
 } from "./phashIntelligenceService";
 import { recomputeForUser as recomputeIdentityAnchor } from "./identityAnchorService";
 import { sendScanCompleteNotification } from "./notificationService";
-import { linkThreatToActor } from "./threatActorService";
+import { linkThreatToActor, findActorByUsername } from "./threatActorService";
 import { deliverEvent } from "./webhookService";
 
 /** Strip leading @, lowercase, trim — used for suppression key normalization. */
@@ -620,43 +619,29 @@ async function runScanPipeline(
   // storeUserPhotoHashes checks the DB first — photos already hashed from a
   // prior scan are returned immediately (no re-download).  The persistent
   // user_photo_hashes table means hashes survive CDN URL rotation between scans.
-  const allUserPhotoUrls: string[] = [];
+  // Build hash inputs from structured media items to preserve each photo's
+  // postedAt timestamp — this is threaded into the DB so temporal scoring can
+  // compare a suspicious account's post date against the exact matched victim photo.
+  const photoHashInputs: Array<{ platformMediaId: string; url: string; publishedAt?: Date }> = [];
   for (const ingested of ingestedAccounts) {
-    const photoUrls: string[] = [
-      ...(ingested.profileImageUrl ? [ingested.profileImageUrl] : []),
-      ...ingested.mediaItems
-        .filter((m) => m.type === "image" && m.url)
-        .map((m) => m.url),
-    ];
-    allUserPhotoUrls.push(...photoUrls);
+    if (ingested.profileImageUrl) {
+      photoHashInputs.push({
+        platformMediaId: `url:${encodeURIComponent(ingested.profileImageUrl).slice(0, 200)}`,
+        url: ingested.profileImageUrl,
+      });
+    }
+    for (const item of ingested.mediaItems) {
+      if (item.type === "image" && item.url) {
+        photoHashInputs.push({
+          platformMediaId: `url:${encodeURIComponent(item.url).slice(0, 200)}`,
+          url: item.url,
+          publishedAt: item.postedAt,
+        });
+      }
+    }
   }
-
-  const photoHashInputs = allUserPhotoUrls.map((url) => ({
-    platformMediaId: `url:${encodeURIComponent(url).slice(0, 200)}`,
-    url,
-  }));
   const allUserHashes = await storeUserPhotoHashes(userId, photoHashInputs);
-  logger.info({ userId, total: allUserPhotoUrls.length, hashed: allUserHashes.length }, "User photo hashes ready");
-
-  // Load the earliest known publish date from the user's photo library.
-  // Used by computeTemporalScore() to detect post-dating (impersonators always
-  // post copies AFTER the victim's original upload date).
-  // Returns null when no photos have publishedAt set — gracefully skipped.
-  let earliestUserPhotoPublishedAt: Date | null = null;
-  try {
-    const [earliest] = await db
-      .select({ publishedAt: userPhotoHashesTable.publishedAt })
-      .from(userPhotoHashesTable)
-      .where(and(
-        eq(userPhotoHashesTable.userId, userId),
-        isNotNull(userPhotoHashesTable.publishedAt)
-      ))
-      .orderBy(asc(userPhotoHashesTable.publishedAt))
-      .limit(1);
-    earliestUserPhotoPublishedAt = earliest?.publishedAt ?? null;
-  } catch {
-    // Non-fatal: temporal scoring will be skipped for this scan
-  }
+  logger.info({ userId, total: photoHashInputs.length, hashed: allUserHashes.length }, "User photo hashes ready");
 
   // Fire-and-forget: recompute cross-platform identity anchor.
   // Every scan that ingests new photos improves the anchor's confidence and
@@ -671,7 +656,7 @@ async function runScanPipeline(
     .filter((u): u is string => Boolean(u));
   const embeddingTargetUrls = [
     ...profilePhotoUrls,
-    ...allUserPhotoUrls.filter((u) => !profilePhotoUrls.includes(u)),
+    ...photoHashInputs.map((p) => p.url).filter((u) => !profilePhotoUrls.includes(u)),
   ].slice(0, 20);
 
   buildUserPhotoEmbeddings(userId, embeddingTargetUrls, 20).catch((err) =>
@@ -911,10 +896,21 @@ async function runScanPipeline(
   // ── Step 6: Visual media analysis — pHash profile picture comparison ─────
   await updateJobProgress(jobId, SCAN_STEPS[5].progress, SCAN_STEPS[5].step);
 
-  // Load user hashes — prefer the freshly returned set from storeUserPhotoHashes above.
-  // Fall back to loadUserDHashes (fast DB query, no network) when this scan had
-  // no ingestable accounts (e.g. all tokens revoked, demo user).
-  let userHashes = [...allUserHashes];
+  // Load dHash+publishedAt pairs for all of the user's indexed photos.
+  // These drive both hash comparison (dHash string) and temporal post-dating
+  // detection (publishedAt of the specific photo that matched the candidate).
+  let userHashDates: DatedPhotoHash[] = [];
+  try {
+    userHashDates = await loadUserPhotoHashesWithDates(userId);
+  } catch {
+    // Non-fatal: temporal scoring will be skipped for this scan
+  }
+
+  // For Hamming comparison, prefer freshly-computed hashes from this scan.
+  // Fall back to DB-loaded dHashes if no new photos were hashed this scan.
+  let userHashes: string[] = allUserHashes.length > 0
+    ? [...allUserHashes]
+    : userHashDates.map((h) => h.dHash);
   if (userHashes.length === 0) {
     userHashes = await loadUserDHashes(userId);
     logger.info({ userId, loaded: userHashes.length }, "Loaded user dHashes from persistent store");
@@ -931,6 +927,9 @@ async function runScanPipeline(
   // (a) skip re-downloading when comparing to user hashes, and
   // (b) pass the hash to linkThreatToActor for cross-user cluster enrichment.
   const candidateDHashMap = new Map<string, string>(); // key = `${platform}:${username}`
+  // Per-candidate: tracks the publishedAt of the specific victim photo that matched
+  // so temporal scoring compares against the exact original, not the earliest-ever photo.
+  const candidateMatchedDateMap = new Map<string, Date | null>(); // key = `${platform}:${username}`
 
   if (candidatesWithImages.length > 0) {
     logger.info(
@@ -1016,6 +1015,14 @@ async function runScanPipeline(
             profileEvidence.similarity = Math.round(hashResult.similarity * 100);
             profileEvidence.label = `Profile Photo — ${Math.round(hashResult.similarity * 100)}% Match (pHash verified)`;
           }
+          // Record the matched victim photo's publish date so the temporal scoring
+          // block can compare against the specific original, not the library-earliest.
+          if (hashResult.matchedHash) {
+            const matchedEntry = userHashDates.find((h) => h.dHash === hashResult.matchedHash);
+            if (matchedEntry?.publishedAt) {
+              candidateMatchedDateMap.set(candidateKey, matchedEntry.publishedAt);
+            }
+          }
           logger.info(
             { username: candidate.suspiciousUsername, similarity: Math.round(hashResult.similarity * 100), distance: hashResult.hammingDistance },
             "pHash profile picture match confirmed"
@@ -1100,6 +1107,7 @@ async function runScanPipeline(
       continue;
     }
     const scored = buildThreatFromCandidate(candidate, isFirstScan);
+    const candidateKey = `${candidate.platform}:${candidate.suspiciousUsername}`;
 
     // Threat zeroed out by first-scan precision gate — skip it entirely
     if (scored.breakdown.total === 0 && !candidate.simulated) {
@@ -1121,15 +1129,25 @@ async function runScanPipeline(
     }
 
     // ── Cross-user escalation ─────────────────────────────────────────────
-    // Parse the machine-readable confirmedVictims signal written by both
-    // actor fast-path locations. If ≥3 users confirmed this actor, escalate
-    // severity one tier (Low→Medium, Medium→High) and tag the reason.
-    const confirmedVictimsSignal = candidate.detectedSignals.find((s) =>
-      s.startsWith("confirmedVictims:")
-    );
-    const confirmedVictims = confirmedVictimsSignal
-      ? parseInt(confirmedVictimsSignal.split(":")[1] ?? "0", 10)
-      : 0;
+    // Query threatActorsTable directly for this candidate — authoritative source
+    // for victimCount regardless of which fast-path branch ran. Falls back to
+    // string-tag parsing only when the DB lookup itself throws.
+    let confirmedVictims = 0;
+    try {
+      const actorRecord = await findActorByUsername(
+        candidate.suspiciousUsername,
+        candidate.platform
+      );
+      confirmedVictims = actorRecord?.victimCount ?? 0;
+    } catch {
+      // Non-fatal: fall back to fast-path string tag
+      const confirmedVictimsSignal = candidate.detectedSignals.find((s) =>
+        s.startsWith("confirmedVictims:")
+      );
+      confirmedVictims = confirmedVictimsSignal
+        ? parseInt(confirmedVictimsSignal.split(":")[1] ?? "0", 10)
+        : 0;
+    }
     const scoredSeverity = scored.severity;
     const escalatedSeverity: "high" | "medium" | "low" =
       confirmedVictims >= 3 && scoredSeverity === "low" ? "medium"
@@ -1143,19 +1161,23 @@ async function runScanPipeline(
     }
 
     // ── Temporal signal ───────────────────────────────────────────────────
-    // computeTemporalScore() returns 0 when either date is missing (graceful
-    // skip). Non-zero means we have concrete post-dating evidence.
-    const temporalModifier = computeTemporalScore(
-      earliestUserPhotoPublishedAt,
+    // Use the matched victim photo's own publishedAt (the specific photo the
+    // candidate copied), not the library-earliest heuristic.  Falls back to
+    // null gracefully when no hash match was found for this candidate.
+    const victimMatchedDate = candidateMatchedDateMap.get(candidateKey) ?? null;
+    const { modifier: temporalModifier, deltaDays: temporalDeltaDays } = computeTemporalScore(
+      victimMatchedDate,
       candidate.suspiciousPostDate
     );
     if (temporalModifier > 0) {
       candidate.detectedSignals.push(
-        `postDatingConfirmed: suspicious content posted after your original upload (+${temporalModifier} to threat score)`
+        `postDatingConfirmed: suspicious content posted after your original upload (+${temporalModifier} to threat score)`,
+        `postDatingDays:${temporalDeltaDays}`
       );
     } else if (temporalModifier < 0) {
       candidate.detectedSignals.push(
-        `preDating: suspicious content predates your upload (contra-indicator, ${temporalModifier} to threat score)`
+        `preDating: suspicious content predates your upload (contra-indicator, ${temporalModifier} to threat score)`,
+        `postDatingDays:${temporalDeltaDays}`
       );
     }
 
@@ -1211,7 +1233,6 @@ async function runScanPipeline(
       }
     }
 
-    const candidateKey = `${candidate.platform}:${candidate.suspiciousUsername}`;
     const effectiveBreakdown = hasActorMatch
       ? { ...scored.breakdown, total: effectiveScore }
       : scored.breakdown;
@@ -1230,7 +1251,18 @@ async function runScanPipeline(
       matchedMediaCount: candidate.matchedMediaCount,
       evidenceJson: JSON.stringify(candidate.evidence),
       scoreBreakdownJson: JSON.stringify(effectiveBreakdown),
-      detectedSignalsJson: JSON.stringify(candidate.detectedSignals),
+      detectedSignalsJson: JSON.stringify({
+        flags: candidate.detectedSignals.filter(
+          (s) =>
+            !s.startsWith("confirmedVictims:") &&
+            s !== "crossUserEscalation" &&
+            !s.startsWith("postDatingDays:")
+        ),
+        ...(confirmedVictims > 0 && { confirmedVictims }),
+        ...(confirmedVictims >= 3 &&
+          escalatedSeverity !== scoredSeverity && { crossUserEscalation: true }),
+        ...(temporalDeltaDays !== null && { postDatingDays: temporalDeltaDays }),
+      }),
       // Store the impersonator's dHash so linkThreatToActor can enrich the
       // actor's pHash cluster — enabling fast-path detection for future users.
       impersonatorDHash: candidateDHashMap.get(candidateKey) ?? null,

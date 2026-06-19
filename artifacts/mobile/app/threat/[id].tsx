@@ -458,6 +458,7 @@ export default function ThreatDetail() {
     "confirmedVictims:",
     "crossUserEscalation",
     "sharedThreatActor",
+    "postDatingDays:",
   ];
   const detectedSignals = (
     detail?.detectedSignals && detail.detectedSignals.length > 0

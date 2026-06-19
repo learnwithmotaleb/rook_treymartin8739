@@ -238,3 +238,45 @@ export async function backfillThreatActors(dryRun = false): Promise<{ linked: nu
 
   return { linked, skipped };
 }
+
+/**
+ * Look up an existing threat actor by username + platform without modifying it.
+ * Used for deterministic escalation checks: if an actor already exists for
+ * this candidate (from any prior victim's scan), surface their victimCount
+ * directly rather than relying on fast-path string tags.
+ */
+export async function findActorByUsername(
+  suspiciousUsername: string,
+  platform: string
+): Promise<ThreatActor | null> {
+  if (!suspiciousUsername) return null;
+  const cleanUsername = suspiciousUsername.replace(/^@/, "").toLowerCase();
+
+  try {
+    const actors = await db
+      .select()
+      .from(threatActorsTable)
+      .limit(500);
+
+    let bestMatch: ThreatActor | null = null;
+    let bestDistance = Infinity;
+
+    for (const actor of actors) {
+      if (!actor.canonicalUsername) continue;
+      const dist = usernameSimilarityDistance(cleanUsername, actor.canonicalUsername);
+      const samePlatform = (
+        JSON.parse(actor.platformSetJson ?? "[]") as string[]
+      ).includes(platform);
+      const isMatch = (samePlatform && dist <= 3) || dist <= 1;
+      if (isMatch && dist < bestDistance) {
+        bestMatch = actor;
+        bestDistance = dist;
+      }
+    }
+
+    return bestMatch;
+  } catch (err) {
+    logger.warn({ err, suspiciousUsername }, "findActorByUsername failed (non-fatal)");
+    return null;
+  }
+}
