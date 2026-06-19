@@ -263,14 +263,12 @@ export function classifyThreatSeverity(
  *
  * Returns a score modifier in the range [-10, +15]:
  *   +15  — suspicious post is clearly later (≥2 days after victim's upload)
- *   -10  — suspicious post is same-day or earlier (not post-dating — contra-indicator)
+ *    0   — suspicious post is exactly 1 day later (within clock/timezone jitter)
+ *   -10  — suspicious post is same-day (deltaDays = 0) or pre-dates victim upload
  *    0   — either date is missing (graceful skip — no penalty for lack of data)
  *
- * Same-day is treated as a contra-indicator: a real impersonator copies AFTER
- * the victim posts. A concurrent same-day post (deltaDays 0 or 1) indicates
- * the suspicious account predates or mirrors — not steals.
- *
- * Uses "days" precision to avoid false precision from timezone differences.
+ * Uses Math.floor (not round) so the ≥2 day threshold is only crossed by a
+ * genuine 48+ hour gap, avoiding false +15 boosts from overnight uploads.
  */
 export interface TemporalScoreResult {
   /** Score modifier to add/subtract from the threat score. */
@@ -300,14 +298,20 @@ export function computeTemporalScore(
 
   const victimMs = victimPublishedAt.getTime();
   const suspiciousMs = suspicious.getTime();
-  const deltaDays = Math.round((suspiciousMs - victimMs) / (1000 * 60 * 60 * 24));
+  // Math.floor: only award +15 for a genuine 48+ hour gap; avoids false boosts
+  // from posts uploaded late in the day being compared to early-morning originals.
+  const deltaDays = Math.floor((suspiciousMs - victimMs) / (1000 * 60 * 60 * 24));
 
   if (deltaDays >= 2) {
     // Suspicious account posted clearly after the victim — classic post-dating signal
     return { modifier: 15, deltaDays };
   }
-  // Same-day, next-day, or pre-dating: suspicious account did NOT copy later.
-  // Real impersonators always post AFTER the victim's original upload.
+  if (deltaDays === 1) {
+    // One day after — within timezone/clock margin, treat as neutral
+    return { modifier: 0, deltaDays };
+  }
+  // Same-day (deltaDays = 0) or pre-dating (negative): suspicious account did
+  // NOT copy content posted later by the victim — strong contra-indicator.
   return { modifier: -10, deltaDays };
 }
 
