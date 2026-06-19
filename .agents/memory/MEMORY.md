@@ -9,3 +9,4 @@
 - [pHash intelligence layer](phash-intelligence-layer.md) — cross-user learning via user_photo_hashes + phash_feedback + threat_actors.pHashClusterJson; fast path checks actor clusters before GPT-4o; resolve actions auto-tune per-user Hamming threshold.
 - [Identity anchor service](identity-anchor-layer.md) — user_identity_profiles + platform_verifications tables; recomputeForUser() fires after every scan; requireApiKeyOrAuth accepts Clerk OR sid_live_ bearer; /api/identity/* endpoints for B2B.
 - [First-scan precision mode](first-scan-precision.md) — users.scan_count gates isFirstScan; tighter Hamming ≤6; profile-photo hard filter; Low threats hidden; "firstScanHighConfidence"/"sharedThreatActor" in detectedSignalsJson drives ThreatCard badge.
+- [Dual-score detection engine](dual-score-detection.md) — identityMatchScore + impersonationConfidenceScore; actor corpus matches bypass all caps; all thresholds in scanConfig.ts.

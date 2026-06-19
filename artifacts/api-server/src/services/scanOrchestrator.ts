@@ -34,10 +34,12 @@ import {
   generateSimulatedCandidates,
   buildThreatFromCandidate,
   computeTemporalScore,
+  classifyThreatSeverity,
   type ImpersonatorCandidate,
   type SignalData,
   type DetectedEvidence,
 } from "./impersonatorDetectionService";
+import { getPlatformPriority, getPlatformWeightMultiplier } from "./scanConfig";
 import {
   updateFingerprint,
   buildUserPhotoEmbeddings,
@@ -540,10 +542,16 @@ async function runScanPipeline(
   // Real authenticated users always get genuine scan results (even if empty).
   const isDemoUser = !user.clerkId;
 
-  const connectedAccounts = await db
+  const connectedAccountsRaw = await db
     .select()
     .from(connectedAccountsTable)
     .where(eq(connectedAccountsTable.userId, userId));
+
+  // Sort by platform priority so higher-risk platforms (Instagram, Facebook)
+  // are ingested and searched first — urgent threats surface faster.
+  const connectedAccounts = [...connectedAccountsRaw].sort(
+    (a, b) => getPlatformPriority(a.platform) - getPlatformPriority(b.platform)
+  );
 
   // ── Step 0: Load permanent suppression set ────────────────────────────────
   // Must happen before any discovery work so we never spend credits re-analyzing
@@ -894,6 +902,12 @@ async function runScanPipeline(
     );
   }
 
+  // Sort candidate pool by platform priority — higher-priority platforms
+  // scored first so the most critical results are computed and stored early.
+  allCandidates.sort(
+    (a, b) => getPlatformPriority(a.platform) - getPlatformPriority(b.platform)
+  );
+
   // ── Step 6: Visual media analysis — pHash profile picture comparison ─────
   await updateJobProgress(jobId, SCAN_STEPS[5].progress, SCAN_STEPS[5].step);
 
@@ -1145,15 +1159,24 @@ async function runScanPipeline(
       );
     }
 
+    // ── Platform weight multiplier ────────────────────────────────────────────
+    // Instagram/Facebook impersonators cause greater real-world harm; apply a
+    // small score boost so they rank above equivalent threats on lower-priority
+    // platforms. Multiplier is defined in scanConfig.ts.
+    const platformMultiplier = getPlatformWeightMultiplier(candidate.platform);
+
     // Actor corpus fast-path: guarantee High severity + minimum score floor.
     // Known bad-actors verified by collective intelligence skip normal scoring
     // and are always surfaced as High-priority threats. Normal scoring may
     // produce Medium on a first scan (tight Hamming ≤6 but moderate signal
     // values), so we enforce the floor here unconditionally.
+    // Actor corpus matches bypass classifyThreatSeverity caps (trusted corpus).
     const effectiveSeverity: "high" | "medium" | "low" = hasActorMatch
       ? "high"
       : escalatedSeverity;
-    const baseScore = Math.max(0, scored.breakdown.total + temporalModifier);
+    const baseScore = Math.round(
+      Math.min(100, Math.max(0, scored.breakdown.total + temporalModifier) * platformMultiplier)
+    );
     const effectiveScore = hasActorMatch
       ? Math.max(baseScore, 75)
       : baseScore;
@@ -1211,6 +1234,9 @@ async function runScanPipeline(
       // Store the impersonator's dHash so linkThreatToActor can enrich the
       // actor's pHash cluster — enabling fast-path detection for future users.
       impersonatorDHash: candidateDHashMap.get(candidateKey) ?? null,
+      // Dual sub-scores for precision classification and UI display
+      identityMatchScore: scored.breakdown.identityMatchScore,
+      impersonationConfidenceScore: scored.breakdown.impersonationConfidenceScore,
       hiddenUntilScan,
       resolved: false,
     });

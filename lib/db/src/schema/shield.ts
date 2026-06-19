@@ -203,6 +203,16 @@ export const threatsTable = pgTable("threats", {
    * actor's pHash cluster without a second image download.
    */
   impersonatorDHash: text("impersonator_d_hash"),
+  /**
+   * Identity Match Score (0-100): how closely the account resembles the target.
+   * Derived from profile photo + bio + username sub-components, scaled to 0-100.
+   */
+  identityMatchScore: integer("identity_match_score").notNull().default(0),
+  /**
+   * Impersonation Confidence Score (0-100): how clearly the act is intentional.
+   * Derived from media reuse + content reuse + behavioral, scaled to 0-100.
+   */
+  impersonationConfidenceScore: integer("impersonation_confidence_score").notNull().default(0),
   hiddenUntilScan: boolean("hidden_until_scan").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -1,9 +1,20 @@
 /**
  * Impersonator Detection Service
  *
- * Implements the threat scoring formula from the ShieldID product spec:
- *   threatScore = mediaSimilarity(40) + contentReuse(20) + profileSimilarity(15)
- *               + bioSimilarity(10) + usernameSimilarity(10) + behavioral(5)
+ * Implements a two-dimensional threat scoring model:
+ *
+ *   Identity Match Score (0-100) — how closely the account resembles the target
+ *     = profilePhoto(25) + bioSimilarity(10) + usernameSimilarity(10) → scaled to 0-100
+ *
+ *   Impersonation Confidence Score (0-100) — how clearly the act is intentional
+ *     = mediaOverlap(35) + contentReuse(15) + behavioral(5) → scaled to 0-100
+ *
+ *   Combined Threat Score (0-100)
+ *     = profilePhoto(25) + mediaOverlap(35) + contentReuse(15)
+ *       + bioSimilarity(10) + usernameSimilarity(10) + behavioral(5)
+ *
+ * High severity requires: combined ≥70 AND profile photo ≥50% AND
+ *   matched media ≥2 AND both sub-scores ≥50/100.
  *
  * In production, this service receives real signal data from:
  * - Image embedding cosine similarity (via CLIP or similar)
@@ -11,9 +22,10 @@
  * - Platform API search results
  * - Behavioral anomaly detection
  *
- * In demo/simulation mode (no OAuth tokens), it generates realistic
- * synthetic threats seeded by username and platform combinations.
+ * All thresholds and weights are in scanConfig.ts — do not hardcode here.
  */
+
+import { SCAN_CONFIG } from "./scanConfig";
 
 export interface SignalData {
   mediaOverlapRatio: number;
@@ -32,6 +44,18 @@ export interface ThreatScoreBreakdown {
   usernameSimilarity: number;
   behavioral: number;
   total: number;
+  /**
+   * Identity Match Score (0-100): how closely the account resembles the target.
+   * Computed from profileSimilarity + bioSimilarity + usernameSimilarity,
+   * scaled to 0-100. Low = different identity; High = near-identical identity.
+   */
+  identityMatchScore: number;
+  /**
+   * Impersonation Confidence Score (0-100): how clearly the act is intentional.
+   * Computed from mediaOverlap + contentReuse + behavioral, scaled to 0-100.
+   * Low = coincidental; High = deliberate content theft.
+   */
+  impersonationConfidenceScore: number;
 }
 
 export interface DetectedEvidence {
@@ -92,22 +116,26 @@ export function calculateThreatScore(
   signals: SignalData,
   isFirstScan = false
 ): ThreatScoreBreakdown {
+  const { weights, firstScan } = SCAN_CONFIG;
+
   const mediaSimilarity = Math.round(
-    Math.min(signals.mediaOverlapRatio, 1.0) * 40
+    Math.min(signals.mediaOverlapRatio, 1.0) * weights.mediaOverlap
   );
   const contentReuse = Math.round(
-    Math.min(signals.captionOverlapRatio, 1.0) * 20
+    Math.min(signals.captionOverlapRatio, 1.0) * weights.contentReuse
   );
   const profileSimilarity = Math.round(
-    Math.min(signals.profileImageSimilarity, 1.0) * 15
+    Math.min(signals.profileImageSimilarity, 1.0) * weights.profilePhoto
   );
   const bioSimilarity = Math.round(
-    Math.min(signals.bioSimilarity, 1.0) * 10
+    Math.min(signals.bioSimilarity, 1.0) * weights.bioSimilarity
   );
   const usernameSimilarity = Math.round(
-    Math.min(signals.usernameSimilarity, 1.0) * 10
+    Math.min(signals.usernameSimilarity, 1.0) * weights.usernameSimilarity
   );
-  const behavioral = Math.round(Math.min(signals.behaviorScore, 1.0) * 5);
+  const behavioral = Math.round(
+    Math.min(signals.behaviorScore, 1.0) * weights.behavioral
+  );
   const total =
     mediaSimilarity +
     contentReuse +
@@ -116,18 +144,30 @@ export function calculateThreatScore(
     usernameSimilarity +
     behavioral;
 
-  // First-scan precision gate: require at least one strong independent signal.
-  // On the first scan, username-only, bio-only, or weak-photo candidates are
-  // excluded so the user's feed only shows high-confidence results.
-  //
-  // Exclusion condition: profile image < 40% similarity AND no other single
-  // weighted component independently reaches ≥ 25 pts.
-  //
-  // Signal max values: mediaSimilarity → 40 pts, contentReuse → 20 pts,
-  // profileSimilarity → 15 pts, bio → 10, username → 10, behavioral → 5.
-  // Therefore mediaSimilarity is the ONLY signal that can independently hit 25.
-  // A candidate passes if: profileImageSimilarity ≥ 0.40 OR mediaSimilarity ≥ 25.
-  if (isFirstScan && signals.profileImageSimilarity < 0.40 && mediaSimilarity < 25) {
+  // ── Dual sub-scores ────────────────────────────────────────────────────────
+  // Identity Match: how closely the account resembles the target identity.
+  // Components: profileSimilarity + bioSimilarity + usernameSimilarity → /45 → 0-100
+  const rawIdentity = profileSimilarity + bioSimilarity + usernameSimilarity;
+  const identityMatchScore = Math.round(
+    (rawIdentity / SCAN_CONFIG.identityMatchMaxRaw) * 100
+  );
+
+  // Impersonation Confidence: how clearly the act is intentional.
+  // Components: mediaOverlap + contentReuse + behavioral → /55 → 0-100
+  const rawImpersonation = mediaSimilarity + contentReuse + behavioral;
+  const impersonationConfidenceScore = Math.round(
+    (rawImpersonation / SCAN_CONFIG.impersonationMaxRaw) * 100
+  );
+
+  // ── First-scan precision gate ──────────────────────────────────────────────
+  // On the first scan, exclude username-only / bio-only / weak-photo candidates
+  // so the feed only surfaces high-confidence results.
+  // Gate: profileImageSimilarity < threshold AND mediaSimilarity below floor.
+  if (
+    isFirstScan &&
+    signals.profileImageSimilarity < firstScan.minProfileImageSimilarity &&
+    mediaSimilarity < firstScan.minMediaSimilarityPoints
+  ) {
     return {
       mediaSimilarity,
       contentReuse,
@@ -135,6 +175,8 @@ export function calculateThreatScore(
       bioSimilarity,
       usernameSimilarity,
       behavioral,
+      identityMatchScore,
+      impersonationConfidenceScore,
       total: 0,
     };
   }
@@ -146,16 +188,74 @@ export function calculateThreatScore(
     bioSimilarity,
     usernameSimilarity,
     behavioral,
+    identityMatchScore,
+    impersonationConfidenceScore,
     total,
   };
 }
 
+/**
+ * Raw combined score → base severity tier (no caps or gates).
+ * Use `classifyThreatSeverity` for full classification with all guards applied.
+ */
 export function scoreThreatSeverity(
   total: number
 ): "high" | "medium" | "low" {
-  if (total >= 70) return "high";
-  if (total >= 45) return "medium";
+  if (total >= SCAN_CONFIG.severity.highMin) return "high";
+  if (total >= SCAN_CONFIG.severity.mediumMin) return "medium";
   return "low";
+}
+
+/**
+ * Full threat severity classification with strict false-positive filters.
+ *
+ * Applies three gates on top of the raw combined score:
+ *   1. Profile photo cap — weak photo similarity bounds the max severity
+ *   2. Multi-image validation — High requires profile + ≥1 additional image
+ *   3. Dual score gate — both Identity Match AND Impersonation Confidence
+ *      must clear their thresholds for High
+ *
+ * These gates only constrain downward (they never promote a lower tier).
+ * Actor corpus matches and escalations can still override this result in the
+ * scan pipeline (trusted collective intelligence bypasses photo caps).
+ */
+export function classifyThreatSeverity(
+  breakdown: ThreatScoreBreakdown,
+  profileImageSimilarity: number,
+  matchedMediaCount: number
+): "high" | "medium" | "low" {
+  const { profilePhoto, multiImageGate, dualScoreGate } = SCAN_CONFIG;
+
+  // Gate 0: absolute profile photo floor — very weak match → Low regardless
+  if (profileImageSimilarity < profilePhoto.lowCapThreshold) {
+    return "low";
+  }
+
+  // Start from the combined score tier
+  let severity = scoreThreatSeverity(breakdown.total);
+
+  // Gate 1: profile photo medium cap — below threshold, max is Medium
+  if (profileImageSimilarity < profilePhoto.mediumCapThreshold) {
+    if (severity === "high") severity = "medium";
+    return severity;
+  }
+
+  // Gates 2 & 3 only constrain High — Medium and Low pass through
+  if (severity === "high") {
+    // Gate 2: multi-image validation — profile-only match is not High
+    if (matchedMediaCount < multiImageGate.minMatchedMediaForHigh) {
+      return "medium";
+    }
+    // Gate 3: dual score gate — both dimensions must be strong enough
+    if (
+      breakdown.identityMatchScore < dualScoreGate.minIdentityMatchForHigh ||
+      breakdown.impersonationConfidenceScore < dualScoreGate.minImpersonationConfForHigh
+    ) {
+      return "medium";
+    }
+  }
+
+  return severity;
 }
 
 /**
@@ -349,7 +449,13 @@ export function buildThreatFromCandidate(
   isFirstScan = false
 ): Omit<ScoredThreat, "candidate"> & { candidate: ImpersonatorCandidate } {
   const breakdown = calculateThreatScore(candidate.signals, isFirstScan);
-  const severity = scoreThreatSeverity(breakdown.total);
+  // Use full classifyThreatSeverity (not raw scoreThreatSeverity) to apply
+  // profile photo caps, multi-image gate, and dual score gate.
+  const severity = classifyThreatSeverity(
+    breakdown,
+    candidate.signals.profileImageSimilarity,
+    candidate.matchedMediaCount
+  );
 
   const isStolen = candidate.source === "media_similarity" || candidate.source === "image_search";
   const type = isStolen ? "stolen_photo" : "impersonator";
