@@ -1,0 +1,393 @@
+
+
+
+
+OBJECTIVE
+
+
+
+Shift the system from "finding possible matches" to "finding highly probable impersonators."
+
+
+
+Implement the following architecture:
+
+
+
+---
+
+
+
+1. SEPARATE SCORING SYSTEMS
+
+
+
+---
+
+
+
+Create two independent scores:
+
+
+
+A. Identity Match Score (0-100)
+
+
+
+Measures how closely a discovered account resembles the target identity.
+
+
+
+Signals may include:
+
+
+
+* Face similarity
+
+* Profile image similarity
+
+* Username similarity
+
+* Display name similarity
+
+* Bio similarity
+
+
+
+B. Impersonation Confidence Score (0-100)
+
+
+
+Measures how likely the account is intentionally impersonating the target.
+
+
+
+Signals may include:
+
+
+
+* Stolen profile photo
+
+* Additional matching images
+
+* Username cloning
+
+* Display name cloning
+
+* Bio cloning
+
+* Multi-image reuse patterns
+
+
+
+Store both scores separately.
+
+
+
+---
+
+
+
+2. STRICT FALSE-POSITIVE FILTERS
+
+
+
+---
+
+
+
+Before an account can be classified as High Risk:
+
+
+
+Require ALL of the following:
+
+
+
+1. Profile picture similarity above configurable threshold.
+
+
+
+2. At least one additional matching image found on the candidate profile.
+
+
+
+3. Strong identity match score.
+
+
+
+4. Strong impersonation confidence score.
+
+
+
+Accounts missing these requirements should not be classified as High Risk.
+
+
+
+Instead classify as:
+
+
+
+
+
+* Low Risk
+
+* Medium Risk
+
+
+
+Implement configurable thresholds.
+
+
+
+---
+
+
+
+3. PROFILE PHOTO PRIORITY
+
+
+
+---
+
+
+
+Treat profile image matching as the strongest signal in the system.
+
+
+
+Increase weighting substantially compared to other signals.
+
+
+
+If profile image similarity is weak:
+
+
+
+Cap maximum risk classification regardless of username or bio similarity.
+
+
+
+---
+
+
+
+4. MULTI-IMAGE VALIDATION
+
+
+
+---
+
+
+
+Add support for image count validation.
+
+
+
+Examples:
+
+
+
+Profile Match Only:
+
+
+
+* Low confidence
+
+
+
+Profile Match + 1 Additional Match:
+
+
+
+* High confidence candidate
+
+
+
+Profile Match + 2+ Additional Matches:
+
+
+
+* Very high confidence candidate
+
+
+
+
+
+---
+
+
+
+5. PLATFORM PRIORITY ENGINE
+
+
+
+---
+
+
+
+Implement platform weighting.
+
+
+
+Default priority:
+
+
+
+1. Instagram
+
+2. Facebook
+
+3. X 
+
+4. TikTok 
+
+5. Other supported platforms
+
+
+
+Scans should search and evaluate higher-priority platforms first.
+
+
+
+ 
+
+
+
+
+
+The weighting should influence final risk calculations.
+
+
+
+---
+
+
+
+6. DISCOVERY PIPELINE IMPROVEMENTS
+
+
+
+---
+
+
+
+Modify candidate generation.
+
+
+
+Generate broader candidate pools before scoring.
+
+
+
+Include:
+
+
+
+* username variations
+
+* display name variations
+
+* profile image matches
+
+* bio matches
+
+
+
+Then run scoring against the candidate pool.
+
+
+
+Scoring should occur AFTER discovery.
+
+
+
+--
+
+
+
+ 
+
+
+
+---
+
+
+
+8. DATABASE UPDATES
+
+
+
+---
+
+
+
+Extend existing scan result schema.
+
+ 
+
+
+
+Do not remove existing fields.
+
+
+
+---
+
+
+
+ 
+
+
+
+---
+
+
+
+10. CONFIGURATION SYSTEM
+
+
+
+---
+
+
+
+Create centralized configuration values.
+
+
+
+Allow easy adjustment of:
+
+
+
+Profile image thresholds
+
+
+
+Face similarity thresholds
+
+
+
+Risk score thresholds
+
+
+
+Platform weights
+
+
+
+Classification rules
+
+
+
+Image match requirements
+
+
+
+Do not hardcode values throughout the codebase.
+
+
+
+---
+
+ 
