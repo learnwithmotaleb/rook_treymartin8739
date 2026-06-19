@@ -102,16 +102,21 @@ const PLATFORM_PATTERNS: Record<
   instagram: {
     host: "instagram.com",
     extract: (url) => {
+      // Reject CDN/lookaside subdomains — only trust instagram.com and www.instagram.com
+      if (url.hostname !== "instagram.com" && url.hostname !== "www.instagram.com") return null;
       const parts = url.pathname.split("/").filter(Boolean);
       const user = parts[0];
       if (!user || ["p", "reel", "explore", "stories", "tv"].includes(user))
         return null;
+      // Reject content sub-pages: /user/tagged/, /user/reels/, etc.
+      if (parts[1] && ["tagged", "reels", "channel"].includes(parts[1])) return null;
       return user;
     },
   },
   tiktok: {
     host: "tiktok.com",
     extract: (url) => {
+      if (url.hostname !== "tiktok.com" && url.hostname !== "www.tiktok.com") return null;
       const parts = url.pathname.split("/").filter(Boolean);
       const userPart = parts.find((p) => p.startsWith("@"));
       return userPart ? userPart.replace("@", "") : null;
@@ -120,6 +125,9 @@ const PLATFORM_PATTERNS: Record<
   x: {
     host: "x.com",
     extract: (url) => {
+      // Exact match only — prevents lookaside.fbsbx.com matching via substring "x.com"
+      if (url.hostname !== "x.com" && url.hostname !== "www.x.com" &&
+          url.hostname !== "twitter.com" && url.hostname !== "www.twitter.com") return null;
       const parts = url.pathname.split("/").filter(Boolean);
       const user = parts[0];
       if (!user || ["i", "home", "explore", "notifications", "messages"].includes(user))
@@ -130,6 +138,7 @@ const PLATFORM_PATTERNS: Record<
   facebook: {
     host: "facebook.com",
     extract: (url) => {
+      if (url.hostname !== "facebook.com" && url.hostname !== "www.facebook.com") return null;
       if (url.searchParams.has("id")) return null;
       const parts = url.pathname.split("/").filter(Boolean);
       const user = parts[0];
@@ -137,6 +146,9 @@ const PLATFORM_PATTERNS: Record<
         !user ||
         ["pages", "groups", "events", "watch", "marketplace", "gaming"].includes(user)
       )
+        return null;
+      // Reject content sub-pages — these are posts/media, not the account profile
+      if (parts[1] && ["videos", "photos", "posts", "reels", "about", "reviews"].includes(parts[1]))
         return null;
       return user;
     },
@@ -294,17 +306,20 @@ function detectXPostContext(title: string, snippet: string): {
  *
  * Applied to Vision API pagesWithMatchingImages results before username extraction.
  */
-function isVideoContentUrl(url: string): boolean {
+function isContentPageUrl(url: string): boolean {
   // TikTok video posts: tiktok.com/@user/video/12345
   if (/tiktok\.com\/@[^/]+\/video\//i.test(url)) return true;
   // YouTube watch pages, Shorts, live streams, embeds
   if (/youtube\.com\/(watch|shorts|live|embed)\b/i.test(url)) return true;
   if (/youtu\.be\//i.test(url)) return true;
-  // Instagram Reels posts — already filtered by extractUsernameFromUrl
-  // but add belt-and-suspenders since /reel/ URLs appear in Vision results
+  // Instagram Reels and individual posts — not profile pages
   if (/instagram\.com\/reel\//i.test(url)) return true;
-  // Facebook watch/video
+  if (/instagram\.com\/p\//i.test(url)) return true;
+  // Facebook top-level video/watch hubs
   if (/facebook\.com\/(watch|video)\b/i.test(url)) return true;
+  // Facebook per-account content pages (videos, photos, posts, reels sub-paths)
+  // e.g. facebook.com/beberexha/videos/12345 or facebook.com/IFLScience/photos/abc
+  if (/facebook\.com\/[^/?#]+\/(videos|photos|posts|reels)\//i.test(url)) return true;
   // Twitch clips and VODs
   if (/twitch\.tv\/[^/]+\/(clip|videos)\b/i.test(url)) return true;
   return false;
@@ -712,10 +727,10 @@ async function searchByImageUrls(
       // Skip video content pages — a creator mentioning you in a video (reaction,
       // commentary, news) is NOT an impersonator. The photo appears in a thumbnail
       // or embed, not as a stolen profile picture.
-      if (isVideoContentUrl(page.url)) {
+      if (isContentPageUrl(page.url)) {
         logger.info(
           { url: page.url.slice(0, 80) },
-          "Skipping video content page from image search (not an impersonation signal)"
+          "Skipping content page from image search (video/photo post, not a profile)"
         );
         continue;
       }
