@@ -108,8 +108,10 @@ export default function ScanScreen() {
     (t) => !t.resolved && t.type === "stolen_photo"
   ).length;
 
+  const canScan = hasAccounts || photoCount > 0;
+
   const handleScan = () => {
-    if (isScanning || !hasAccounts) return;
+    if (isScanning || !canScan) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLastResult(null);
     startScan();
@@ -452,8 +454,8 @@ export default function ScanScreen() {
         )}
 
         {/* ── Bottom action area ── */}
-        {!hasAccounts && isIdle ? (
-          /* No accounts */
+        {!canScan && isIdle ? (
+          /* No accounts AND no photos */
           <GlassCard
             style={[styles.ctaCard, { borderColor: colors.border }]}
           >
@@ -471,7 +473,7 @@ export default function ScanScreen() {
                 { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
               ]}
             >
-              Connect an account first
+              Nothing to scan yet
             </Text>
             <Text
               style={[
@@ -482,16 +484,28 @@ export default function ScanScreen() {
                 },
               ]}
             >
-              Link at least one social account so ShieldID knows who to protect.
+              Connect a social account or upload photos to Photo Monitor — either one lets you start scanning.
             </Text>
             <TouchableOpacity
               style={[styles.ctaBtn, { backgroundColor: colors.primary }]}
               activeOpacity={0.85}
-              onPress={() => router.push("/connect-account" as any)}
+              onPress={() => router.push("/photo-monitor" as any)}
             >
-              <Ionicons name="link" size={16} color="#fff" />
+              <Ionicons name="image" size={16} color="#fff" />
               <Text
                 style={[styles.ctaBtnText, { fontFamily: "Inter_600SemiBold" }]}
+              >
+                Upload a Photo
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.ctaBtnSecondary, { borderColor: colors.border }]}
+              activeOpacity={0.85}
+              onPress={() => router.push("/connect-account" as any)}
+            >
+              <Ionicons name="link" size={16} color={colors.foreground} />
+              <Text
+                style={[styles.ctaBtnSecondaryText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
               >
                 Connect Account
               </Text>
@@ -554,6 +568,28 @@ export default function ScanScreen() {
         ) : (
           /* Scan button */
           <>
+            {/* Soft nudge: photo-only mode — suggest connecting an account */}
+            {!hasAccounts && photoCount > 0 && isIdle && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => router.push("/connect-account" as any)}
+              >
+                <GlassCard style={[styles.nudgeCard, { borderColor: colors.primary + "33" }]}>
+                  <View style={[styles.nudgeIcon, { backgroundColor: colors.primary + "18" }]}>
+                    <Ionicons name="link" size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.nudgeBody}>
+                    <Text style={[styles.nudgeTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                      Photo scan ready
+                    </Text>
+                    <Text style={[styles.nudgeSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      Connect a social account to also catch impersonators & fake profiles
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+                </GlassCard>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               activeOpacity={1}
               onPressIn={() => {
@@ -634,12 +670,11 @@ export default function ScanScreen() {
                   },
                 ]}
               >
-                Scans {user.connectedAccounts.length} connected account
-                {user.connectedAccounts.length !== 1 ? "s" : ""} for
-                impersonators &amp; fake profiles
-                {photoCount > 0
-                  ? ` · checks ${photoCount} indexed photo${photoCount !== 1 ? "s" : ""} for misuse`
-                  : ""}
+                {hasAccounts && photoCount > 0
+                  ? `Scans ${user.connectedAccounts.length} account${user.connectedAccounts.length !== 1 ? "s" : ""} · checks ${photoCount} photo${photoCount !== 1 ? "s" : ""} for misuse`
+                  : hasAccounts
+                  ? `Scans ${user.connectedAccounts.length} connected account${user.connectedAccounts.length !== 1 ? "s" : ""} for impersonators & fake profiles`
+                  : `Checks ${photoCount} photo${photoCount !== 1 ? "s" : ""} for unauthorized use across the web`}
               </Text>
             )}
           </>
@@ -794,6 +829,36 @@ const styles = StyleSheet.create({
     borderRadius: 28,
   },
   ctaBtnText: { fontSize: 15, color: "#fff" },
+  ctaBtnSecondary: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 13,
+    borderRadius: 28,
+    borderWidth: 1,
+  },
+  ctaBtnSecondaryText: { fontSize: 15 },
+
+  /* Photo-only nudge */
+  nudgeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    width: "100%",
+    paddingVertical: 14,
+  },
+  nudgeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nudgeBody: { flex: 1, gap: 2 },
+  nudgeTitle: { fontSize: 14 },
+  nudgeSub: { fontSize: 12, lineHeight: 17, opacity: 0.85 },
 
   /* Scan button */
   scanBtn: {
