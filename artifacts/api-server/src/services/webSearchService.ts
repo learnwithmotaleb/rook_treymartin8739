@@ -143,9 +143,11 @@ const PLATFORM_PATTERNS: Record<
   },
 };
 
-// Common impersonation suffixes ordered by risk
+// Common impersonation suffixes ordered by real-world frequency
+// (cast wide — scoring engine will down-weight low-signal username matches)
 const IMPERSONATION_SUFFIXES = [
   ".official",
+  "_official",
   "_real",
   "0fficial",
   ".creator",
@@ -153,6 +155,23 @@ const IMPERSONATION_SUFFIXES = [
   ".verified",
   "_original",
   ".fanpage",
+  "official",       // no separator: @userofficial
+  ".real",
+  "_verified",
+  "._real",
+  ".backup",
+  "_fan",
+  ".v2",
+  "_2",
+  "2",              // @user2 — very common impersonator pattern
+  "_news",
+  "_updates",
+  "_page",
+  ".page",
+  "_tv",
+  ".tv",
+  "_model",
+  "_content",
 ];
 
 /** Username variant + caption search requires CSE (key + cx). */
@@ -227,22 +246,68 @@ async function runGoogleSearch(query: string): Promise<GoogleSearchItem[]> {
  * Detect whether an X/Twitter page result represents an original post,
  * a retweet, or a share — based on the page title Google returns.
  *
- * Standard retweet format Google indexes: "RT @username: tweet text"
- * Quote tweets sometimes appear as "username on X: "RT @…""
+ * Patterns handled:
+ *   "RT @username: tweet text"          → standard retweet
+ *   "QT @username:"                     → quote tweet (old format)
+ *   "user on X: "@other_user: text""    → quote tweet (title embeds quoted handle)
+ *   "Retweeted" in title/snippet        → explicit retweet marker
+ *   "@user Retweeted" in combined       → retweet marker with subject
  */
 function detectXPostContext(title: string, snippet: string): {
   context: "original_post" | "retweet" | "share" | "unknown";
   originalPoster?: string;
 } {
   const combined = `${title} ${snippet}`;
+
+  // Standard retweet: "RT @username: ..."
   const rtMatch = combined.match(/\bRT @(\w+)/i);
-  if (rtMatch && rtMatch[1]) {
+  if (rtMatch?.[1]) {
     return { context: "retweet", originalPoster: rtMatch[1].toLowerCase() };
   }
-  if (/\bQT @(\w+)/i.test(combined)) {
-    return { context: "share" };
+
+  // Explicit QT marker: "QT @username:"
+  const qtMatch = combined.match(/\bQT @(\w+)/i);
+  if (qtMatch?.[1]) {
+    return { context: "share", originalPoster: qtMatch[1].toLowerCase() };
   }
+
+  // Quote tweet title format: `user on X: "@other_user: their tweet text"`
+  // Google page title wraps the outer tweet, so the quoted handle appears
+  // after an opening curly/straight quote followed by @handle:
+  const quoteInTitle = title.match(/["""'']@(\w+):/);
+  if (quoteInTitle?.[1]) {
+    return { context: "share", originalPoster: quoteInTitle[1].toLowerCase() };
+  }
+
+  // "Retweeted" keyword anywhere — rare but unambiguous
+  if (/\bretweeted\b/i.test(combined)) {
+    return { context: "retweet" };
+  }
+
   return { context: "original_post" };
+}
+
+/**
+ * Returns true when a URL points to a video post/page rather than a user profile.
+ * These pages often surface a creator's photo in a video thumbnail, making them
+ * look like stolen-photo candidates when they are just reaction/commentary videos.
+ *
+ * Applied to Vision API pagesWithMatchingImages results before username extraction.
+ */
+function isVideoContentUrl(url: string): boolean {
+  // TikTok video posts: tiktok.com/@user/video/12345
+  if (/tiktok\.com\/@[^/]+\/video\//i.test(url)) return true;
+  // YouTube watch pages, Shorts, live streams, embeds
+  if (/youtube\.com\/(watch|shorts|live|embed)\b/i.test(url)) return true;
+  if (/youtu\.be\//i.test(url)) return true;
+  // Instagram Reels posts — already filtered by extractUsernameFromUrl
+  // but add belt-and-suspenders since /reel/ URLs appear in Vision results
+  if (/instagram\.com\/reel\//i.test(url)) return true;
+  // Facebook watch/video
+  if (/facebook\.com\/(watch|video)\b/i.test(url)) return true;
+  // Twitch clips and VODs
+  if (/twitch\.tv\/[^/]+\/(clip|videos)\b/i.test(url)) return true;
+  return false;
 }
 
 /** Extract a social media username from a Google result URL. */
@@ -502,6 +567,17 @@ async function searchByImageUrls(
     // pagesWithMatchingImages = Google confirmed your photo appears on this page.
     // These are the only reliable impersonation signals — the image IS there.
     for (const page of pagesWithMatch) {
+      // Skip video content pages — a creator mentioning you in a video (reaction,
+      // commentary, news) is NOT an impersonator. The photo appears in a thumbnail
+      // or embed, not as a stolen profile picture.
+      if (isVideoContentUrl(page.url)) {
+        logger.info(
+          { url: page.url.slice(0, 80) },
+          "Skipping video content page from image search (not an impersonation signal)"
+        );
+        continue;
+      }
+
       const extracted = extractUsernameFromUrl(page.url);
       if (!extracted) continue;
 
@@ -748,8 +824,8 @@ export interface SearchImpersonatorsOptions {
 // Controls how many photos and captions are sent to external APIs per scan.
 // Lower tiers use fewer API calls to minimize cost while still providing value.
 
-const TIER_IMAGE_LIMIT: Record<string, number> = { free: 1, pro: 3, premium: 5 };
-const TIER_CAPTION_LIMIT: Record<string, number> = { free: 1, pro: 2, premium: 3 };
+const TIER_IMAGE_LIMIT: Record<string, number> = { free: 2, pro: 5, premium: 8 };
+const TIER_CAPTION_LIMIT: Record<string, number> = { free: 1, pro: 3, premium: 5 };
 
 /** Remove duplicate URLs before sending to Vision API. */
 function deduplicateUrls(urls: string[]): string[] {
@@ -801,10 +877,11 @@ export async function searchForImpersonators(
   const seen = new Set<string>();
   const allCandidates: WebSearchCandidate[] = [];
 
-  // Username variant search: only check platforms the user is NOT already on.
-  const targetPlatforms = Object.keys(PLATFORM_PATTERNS).filter(
-    (p) => !connectedPlatforms.includes(p)
-  );
+  // Username variant and caption search: target ALL platforms, including connected ones.
+  // Impersonators frequently create accounts on the same platform as their victim
+  // (e.g., @user_real on Instagram when @user is the real account).
+  // The own-username filter inside each strategy already skips exact matches.
+  const targetPlatforms = Object.keys(PLATFORM_PATTERNS);
 
   // Image search: always targets ALL platforms — photo theft can happen on the same platform.
   const allPlatforms = Object.keys(PLATFORM_PATTERNS);
