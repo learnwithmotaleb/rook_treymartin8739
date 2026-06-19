@@ -68,7 +68,8 @@ router.post("/scan", async (req, res): Promise<void> => {
     return;
   }
 
-  const job = await startScan(userId, planTier);
+  const bypassCache = req.body?.bypassCache === true;
+  const job = await startScan(userId, planTier, { bypassCache });
   res.status(201).json({
     ...serializeJob(job),
     quota: {

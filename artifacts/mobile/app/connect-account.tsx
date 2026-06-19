@@ -286,6 +286,7 @@ export default function ConnectAccount() {
     : null;
   const [selectedPlatform, setSelectedPlatform] = useState<NonNullable<AppPlatform> | null>(initialPlatform);
   const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [oauthDone, setOauthDone] = useState(false);
   const [step, setStep] = useState<"pick" | "connect">(
@@ -339,7 +340,7 @@ export default function ConnectAccount() {
           { text: "OK", onPress: () => router.back() },
         ]);
       } else {
-        await addAccount(selectedPlatform, trimmed, undefined);
+        await addAccount(selectedPlatform, trimmed, undefined, displayName.trim() || undefined);
         Alert.alert(
           "Account Added",
           `${config?.label} account @${trimmed} added for monitoring. Tap "Sign in with ${config?.label}" to verify ownership.`,
@@ -357,6 +358,7 @@ export default function ConnectAccount() {
     setSelectedPlatform(platform);
     setStep("connect");
     setUsername("");
+    setDisplayName("");
     setOauthDone(false);
   };
 
@@ -562,7 +564,7 @@ export default function ConnectAccount() {
                 </View>
               )}
 
-              {/* Username input */}
+              {/* Username + display name inputs */}
               {!isExistingAccount && (
                 <GlassCard style={styles.usernameSection}>
                   <Text style={[styles.usernameLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
@@ -582,8 +584,7 @@ export default function ConnectAccount() {
                       placeholderTextColor={colors.mutedForeground}
                       autoCapitalize="none"
                       autoCorrect={false}
-                      returnKeyType="done"
-                      onSubmitEditing={handleSubmit}
+                      returnKeyType="next"
                     />
                     {username.length > 0 && (
                       <TouchableOpacity onPress={() => setUsername("")}>
@@ -591,10 +592,30 @@ export default function ConnectAccount() {
                       </TouchableOpacity>
                     )}
                   </View>
+
+                  <Text style={[styles.usernameLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold", marginTop: 14 }]}>
+                    Your real name <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>(optional)</Text>
+                  </Text>
+                  <View style={[styles.usernameInput, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                    <TextInput
+                      style={[styles.usernameField, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
+                      value={displayName}
+                      onChangeText={setDisplayName}
+                      placeholder="e.g. Sophie Rain"
+                      placeholderTextColor={colors.mutedForeground}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onSubmitEditing={handleSubmit}
+                    />
+                    {displayName.length > 0 && (
+                      <TouchableOpacity onPress={() => setDisplayName("")}>
+                        <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                   <Text style={[styles.usernameSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    {config.businessAccountNote
-                      ? "Works with any account type — no switch to Business or Creator needed"
-                      : "Manual accounts are monitored but not ownership-verified"}
+                    Helps find impersonators who use your real name instead of your handle
                   </Text>
                 </GlassCard>
               )}

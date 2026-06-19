@@ -169,7 +169,7 @@ interface AppContextType {
   startScan: () => void;
   resolveThreat: (id: string, action?: string) => Promise<void>;
   refreshData: () => Promise<void>;
-  addAccount: (platform: string, username: string, accessToken?: string) => Promise<ConnectedAccount>;
+  addAccount: (platform: string, username: string, accessToken?: string, displayName?: string) => Promise<ConnectedAccount>;
   removeAccount: (id: string) => Promise<void>;
   updateAccount: (id: string, updates: { accessToken?: string; displayName?: string; followers?: number; platformUserId?: string }) => Promise<ConnectedAccount>;
   addIndexedPhotos: (photos: Array<{uri: string; base64?: string}>, source?: "camera_roll" | "account", accountId?: string) => void;
@@ -467,7 +467,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       : Promise.resolve();
 
     try {
-      const job = await apiStartScan();
+      const job = await apiStartScan({ bypassCache: true });
 
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
@@ -558,8 +558,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const addAccount = useCallback(async (platform: string, username: string, accessToken?: string): Promise<ConnectedAccount> => {
-    const account = await apiAddAccount(platform, username, accessToken);
+  const addAccount = useCallback(async (platform: string, username: string, accessToken?: string, displayName?: string): Promise<ConnectedAccount> => {
+    const account = await apiAddAccount(platform, username, accessToken, displayName);
     const mapped = mapAccountToConnected(account);
     setUser((prev) => ({
       ...prev,

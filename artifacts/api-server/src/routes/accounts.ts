@@ -41,6 +41,7 @@ const PostAccountBody = z.object({
   platform: z.string(),
   username: z.string().min(1),
   accessToken: z.string().optional(),
+  displayName: z.string().optional(),
 });
 
 const PatchAccountBody = z.object({
@@ -63,7 +64,7 @@ router.post("/accounts", async (req, res): Promise<void> => {
     }
     return;
   }
-  const { platform, username, accessToken } = parsed.data;
+  const { platform, username, accessToken, displayName } = parsed.data;
 
   if (!VALID_PLATFORMS.includes(platform)) {
     res.status(400).json({ error: `Invalid platform. Must be one of: ${VALID_PLATFORMS.join(", ")}` });
@@ -108,6 +109,7 @@ router.post("/accounts", async (req, res): Promise<void> => {
       userId,
       platform,
       username,
+      displayName: displayName ?? null,
       accessToken: accessToken ?? null,
       verified: !!accessToken,
       followers: 0,

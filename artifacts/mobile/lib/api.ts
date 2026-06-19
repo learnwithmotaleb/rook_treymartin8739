@@ -205,8 +205,11 @@ export async function getOAuthState(): Promise<string> {
   return result.state;
 }
 
-export async function startScan(): Promise<ScanJob> {
-  return apiFetch<ScanJob>("/scan", { method: "POST" });
+export async function startScan(options: { bypassCache?: boolean } = {}): Promise<ScanJob> {
+  return apiFetch<ScanJob>("/scan", {
+    method: "POST",
+    body: JSON.stringify({ bypassCache: options.bypassCache ?? false }),
+  });
 }
 
 export async function getScanStatus(jobId: string): Promise<ScanJob> {
@@ -250,11 +253,12 @@ export async function bulkResolveThreats(ids: string[]): Promise<void> {
 export async function addAccount(
   platform: string,
   username: string,
-  accessToken?: string
+  accessToken?: string,
+  displayName?: string
 ): Promise<AccountProfile> {
   return apiFetch<AccountProfile>("/accounts", {
     method: "POST",
-    body: JSON.stringify({ platform, username, accessToken }),
+    body: JSON.stringify({ platform, username, accessToken, displayName }),
   });
 }
 

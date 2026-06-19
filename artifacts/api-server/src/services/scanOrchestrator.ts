@@ -100,7 +100,11 @@ const IMPERSONATION_SUFFIXES = [
   ".fanpage",
 ];
 
-export async function startScan(userId: string, planTier: Tier = "free"): Promise<ScanJob> {
+export async function startScan(
+  userId: string,
+  planTier: Tier = "free",
+  options: { bypassCache?: boolean } = {}
+): Promise<ScanJob> {
   const [job] = await db
     .insert(scanJobsTable)
     .values({
@@ -115,9 +119,9 @@ export async function startScan(userId: string, planTier: Tier = "free"): Promis
 
   if (!job) throw new Error("Failed to create scan job");
 
-  logger.info({ jobId: job.id, userId }, "Scan job created, starting pipeline");
+  logger.info({ jobId: job.id, userId, bypassCache: options.bypassCache }, "Scan job created, starting pipeline");
 
-  runScanPipeline(job.id, userId, planTier).catch((err) => {
+  runScanPipeline(job.id, userId, planTier, options.bypassCache ?? false).catch((err) => {
     logger.error({ err, jobId: job.id }, "Scan pipeline failed");
     db.update(scanJobsTable)
       .set({ status: "failed", completedAt: new Date() })
@@ -521,7 +525,8 @@ function webCandidateToImpersonator(
 async function runScanPipeline(
   jobId: string,
   userId: string,
-  planTier: Tier = "free"
+  planTier: Tier = "free",
+  bypassCache: boolean = false
 ): Promise<void> {
   logger.info({ jobId, userId }, "Starting scan pipeline");
 
@@ -832,7 +837,7 @@ async function runScanPipeline(
     );
 
     let webCandidates: WebSearchCandidate[];
-    const cachedResult = isDemoUser
+    const cachedResult = isDemoUser || bypassCache
       ? null
       : await getCached<WebSearchCandidate[]>(scanCacheKey);
 
