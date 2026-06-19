@@ -263,9 +263,12 @@ export function classifyThreatSeverity(
  *
  * Returns a score modifier in the range [-10, +15]:
  *   +15  — suspicious post is clearly later (≥2 days after victim's upload)
- *    0   — same-day or within 1 day (neutral; could be live-streaming both accounts)
- *   -10  — suspicious post predates the victim's upload (strong contra-indicator)
+ *   -10  — suspicious post is same-day or earlier (not post-dating — contra-indicator)
  *    0   — either date is missing (graceful skip — no penalty for lack of data)
+ *
+ * Same-day is treated as a contra-indicator: a real impersonator copies AFTER
+ * the victim posts. A concurrent same-day post (deltaDays 0 or 1) indicates
+ * the suspicious account predates or mirrors — not steals.
  *
  * Uses "days" precision to avoid false precision from timezone differences.
  */
@@ -300,15 +303,12 @@ export function computeTemporalScore(
   const deltaDays = Math.round((suspiciousMs - victimMs) / (1000 * 60 * 60 * 24));
 
   if (deltaDays >= 2) {
-    // Suspicious account posted this after the victim — classic impersonation signal
+    // Suspicious account posted clearly after the victim — classic post-dating signal
     return { modifier: 15, deltaDays };
   }
-  if (deltaDays <= -1) {
-    // Suspicious account posted BEFORE the victim — strong contra-indicator
-    return { modifier: -10, deltaDays };
-  }
-  // Same-day (deltaDays 0 or 1) — neutral, within margin of timezone/clock error
-  return { modifier: 0, deltaDays };
+  // Same-day, next-day, or pre-dating: suspicious account did NOT copy later.
+  // Real impersonators always post AFTER the victim's original upload.
+  return { modifier: -10, deltaDays };
 }
 
 /**
