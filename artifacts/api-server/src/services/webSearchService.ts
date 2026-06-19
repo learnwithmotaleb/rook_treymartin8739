@@ -198,6 +198,11 @@ export function isVisionConfigured(): boolean {
   return !!(process.env["GOOGLE_SEARCH_API_KEY"]);
 }
 
+// ─── CSE health flag ──────────────────────────────────────────────────────────
+// Tracks whether CSE is returning 403 (API not enabled on the GCP project).
+// When true, directVariantProbe is activated as a CSE-independent fallback.
+let cseFailing = false;
+
 // ─── Cloud Vision WEB_DETECTION types ────────────────────────────────────────
 
 interface VisionWebPage {
@@ -240,12 +245,23 @@ async function runGoogleSearch(query: string): Promise<GoogleSearchItem[]> {
     const res = await fetch(url.toString());
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as GoogleSearchResponse;
-      logger.warn(
-        { status: res.status, message: body.error?.message, query },
-        "Google CSE returned non-OK status"
-      );
+      if (res.status === 403) {
+        if (!cseFailing) {
+          logger.warn(
+            { message: body.error?.message },
+            "CSE returning 403 — Custom Search JSON API not enabled on this GCP project. Fix: console.cloud.google.com → APIs & Services → Library → enable 'Custom Search JSON API'. Activating direct platform URL probe fallback."
+          );
+        }
+        cseFailing = true;
+      } else {
+        logger.warn(
+          { status: res.status, message: body.error?.message, query },
+          "Google CSE returned non-OK status"
+        );
+      }
       return [];
     }
+    cseFailing = false;
     const data = (await res.json()) as GoogleSearchResponse;
     return data.items ?? [];
   } catch (err) {
@@ -452,6 +468,135 @@ async function searchByUsernameVariants(
     await new Promise<void>((r) => setTimeout(r, 1100));
   }
 
+  return candidates;
+}
+
+// ─── Strategy 1a-fallback: Direct platform URL probe ─────────────────────────
+//
+// When CSE is unavailable (403 / not enabled), this strategy constructs profile
+// URLs for username variants and probes them directly via HTTP — no API key
+// needed. Returns a candidate for every variant whose profile page exists.
+
+const DIRECT_PROBE_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+// Platform-specific notes on direct probing:
+//   X (Twitter) — SSR renders "<DisplayName> (@handle) / X" in <title> for real profiles.
+//                  Non-existent profiles return an empty/generic title with no username.
+//                  Reliable existence detection: check if variant appears in first 4KB of HTML.
+//   Instagram    — Returns HTTP 429 (Too Many Requests) from all data-center IPs immediately.
+//                  Cannot probe reliably without residential proxies. Skip.
+//   TikTok       — Full SPA. Serves the same generic "TikTok - Make Your Day" HTML for
+//                  both real and non-existent profiles. No SSR signals. Skip.
+const DIRECT_PROBE_URL_BUILDERS: Record<string, (u: string) => string> = {
+  x: (u) => `https://x.com/${u}`,
+};
+
+async function directVariantProbe(
+  username: string,
+  targetPlatforms: string[],
+  seen: Set<string>
+): Promise<WebSearchCandidate[]> {
+  const clean = username.toLowerCase().replace(/^@/, "");
+
+  // Build the full variant list: normalized handle forms + suffix patterns
+  const handleForms = generateHandleVariants(clean);
+  const suffixForms = IMPERSONATION_SUFFIXES.map((s) => `${clean}${s}`);
+  const allVariants = [...new Set([...handleForms, ...suffixForms])].filter(
+    (v) => v !== clean && v.length >= 3 && !/\s/.test(v)
+  );
+
+  const probeTargets = targetPlatforms.filter((p) => DIRECT_PROBE_URL_BUILDERS[p]);
+  const candidates: WebSearchCandidate[] = [];
+
+  logger.info(
+    { username: clean, variants: allVariants.length, platforms: probeTargets },
+    "Direct platform URL probe starting (CSE fallback)"
+  );
+
+  // Flatten all (platform × variant) pairs then run with concurrency = 8
+  type ProbePair = { platform: string; variant: string };
+  const pairs: ProbePair[] = [];
+  for (const platform of probeTargets) {
+    for (const variant of allVariants) {
+      const key = `${platform}:${variant}`;
+      if (!seen.has(key)) pairs.push({ platform, variant });
+    }
+  }
+
+  const CONCURRENCY = 8;
+  for (let i = 0; i < pairs.length; i += CONCURRENCY) {
+    const batch = pairs.slice(i, i + CONCURRENCY);
+
+    await Promise.all(
+      batch.map(async ({ platform, variant }) => {
+        const buildUrl = DIRECT_PROBE_URL_BUILDERS[platform]!;
+        const profileUrl = buildUrl(variant);
+
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 5000);
+
+          const resp = await fetch(profileUrl, {
+            method: "GET",
+            redirect: "follow",
+            signal: ctrl.signal,
+            headers: {
+              "User-Agent": DIRECT_PROBE_UA,
+              Accept: "text/html,application/xhtml+xml",
+            },
+          }).finally(() => clearTimeout(timer));
+
+          if (resp.status !== 200) return;
+
+          // Read first 4KB of SSR'd HTML — enough to capture the <title> tag.
+          // X (Twitter) SSR-renders "<DisplayName> (@handle) / X" in <title> for real profiles.
+          // Non-existent accounts serve a generic page with no username in the title.
+          const reader = resp.body?.getReader();
+          let html = "";
+          if (reader) {
+            let bytes = 0;
+            while (bytes < 4096) {
+              const { value, done } = await reader.read();
+              if (done || !value) break;
+              html += new TextDecoder().decode(value);
+              bytes += value.length;
+            }
+            await reader.cancel().catch(() => {});
+          }
+
+          // Profile must explicitly reference the variant username in the SSR'd HTML.
+          // This passes for real X accounts (@handle in title) and fails for non-existent ones.
+          if (!html.toLowerCase().includes(variant.toLowerCase())) return;
+
+          const key = `${platform}:${variant}`;
+          seen.add(key);
+          candidates.push({
+            username: variant,
+            platform,
+            profileUrl,
+            title: `${variant} on ${platform}`,
+            snippet: `Discovered via direct profile URL probe`,
+            similarity: variant.startsWith(clean) || variant.includes(clean) ? 0.82 : 0.58,
+            discoveryMethod: "username_variant",
+          });
+          logger.info({ variant, platform }, "Direct probe: active profile found");
+        } catch {
+          // Timeout / network error — skip silently
+        }
+      })
+    );
+
+    // Small pause between batches to avoid hammering platforms
+    if (i + CONCURRENCY < pairs.length) {
+      await new Promise<void>((r) => setTimeout(r, 350));
+    }
+  }
+
+  logger.info(
+    { found: candidates.length, probed: pairs.length, username: clean },
+    "Direct platform URL probe complete"
+  );
   return candidates;
 }
 
@@ -1056,7 +1201,7 @@ export async function searchForImpersonators(
   // Image search: always targets ALL platforms — photo theft can happen on the same platform.
   const allPlatforms = Object.keys(PLATFORM_PATTERNS);
 
-  const hasVariantTargets = targetPlatforms.length > 0 && cseEnabled;
+  const hasVariantTargets = targetPlatforms.length > 0; // probe always available
   const hasImageTargets = cappedPhotoUrls.length > 0 && visionEnabled;
   const hasCaptionTargets = cappedCaptions.length > 0 && cseEnabled;
   const hasNameTargets = cseEnabled && (!!displayName || generateHandleVariants(clean).length > 0);
@@ -1089,8 +1234,18 @@ export async function searchForImpersonators(
         trackApiCall({ userId, provider: "google_cse", operation: "username_variant_search" });
       }
     }
+    // If CSE returned 403 during this scan, fall back to direct URL probe
+    if (cseFailing && variantCandidates.length === 0) {
+      const probeTargets = targetPlatforms.filter((p) => p !== "facebook");
+      const probeCandidates = await directVariantProbe(clean, probeTargets, seen);
+      allCandidates.push(...probeCandidates);
+    }
   } else if (!cseEnabled) {
-    logger.info({}, "GOOGLE_SEARCH_CX not set — username variant search skipped");
+    // No CSE configured at all — go straight to direct probe
+    logger.info({}, "GOOGLE_SEARCH_CX not set — using direct platform URL probe");
+    const probeTargets = targetPlatforms.filter((p) => p !== "facebook");
+    const probeCandidates = await directVariantProbe(clean, probeTargets, seen);
+    allCandidates.push(...probeCandidates);
   }
 
   // ── Strategy 1b: Display name + normalized handle search (CSE) ───────────
