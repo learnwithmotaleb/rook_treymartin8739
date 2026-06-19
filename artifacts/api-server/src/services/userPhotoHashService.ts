@@ -164,6 +164,22 @@ export async function loadUserPhotoHashesWithDates(
 }
 
 /**
+ * Load source URLs for all of a user's indexed photos.
+ * Used to feed Photo Monitor uploads into Vision API reverse image search
+ * even when no platform OAuth is connected (unverified accounts).
+ * Returns only rows where sourceUrl is non-null.
+ */
+export async function loadUserPhotoUrls(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ sourceUrl: userPhotoHashesTable.sourceUrl })
+    .from(userPhotoHashesTable)
+    .where(eq(userPhotoHashesTable.userId, userId));
+  return rows
+    .map((r) => r.sourceUrl)
+    .filter((u): u is string => typeof u === "string" && u.startsWith("http"));
+}
+
+/**
  * Attach an embedding vector to an existing hash row.
  * Called from the async AI embedding pipeline once vectors are ready.
  */

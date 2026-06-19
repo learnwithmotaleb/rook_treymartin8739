@@ -324,12 +324,41 @@ function extractUsernameFromUrl(link: string): { username: string; platform: str
   return null;
 }
 
-// ─── Strategy 1: Username variant search ─────────────────────────────────────
+// ─── Strategy 1a: Username variant search ────────────────────────────────────
+
+/**
+ * Compute normalized handle variants to broaden the search net.
+ * Examples:
+ *   "sophieraiin"  → "sophierain" (de-duplicate consecutive identical chars)
+ *   "sophie.rain"  → "sophierain" (strip separators)
+ *   "sophie_rain"  → "sophierain"
+ */
+function generateHandleVariants(username: string): string[] {
+  const clean = username.toLowerCase().replace(/^@/, "");
+  const variants = new Set<string>();
+
+  // De-duplicate consecutive identical characters: sophieraiin → sophierain
+  const deduped = clean.replace(/(.)\1+/g, "$1");
+  if (deduped !== clean && deduped.length >= 3) variants.add(deduped);
+
+  // Strip separators: sophie.rain / sophie_rain → sophierain
+  const stripped = clean.replace(/[._\-]/g, "");
+  if (stripped !== clean && stripped.length >= 3) variants.add(stripped);
+
+  // Deduped + stripped
+  const dedupedStripped = deduped.replace(/[._\-]/g, "");
+  if (dedupedStripped !== clean && dedupedStripped !== stripped && dedupedStripped.length >= 3) {
+    variants.add(dedupedStripped);
+  }
+
+  return [...variants];
+}
 
 async function searchByUsernameVariants(
   username: string,
   targetPlatforms: string[],
-  seen: Set<string>
+  seen: Set<string>,
+  suffixLimit = 5
 ): Promise<WebSearchCandidate[]> {
   const candidates: WebSearchCandidate[] = [];
   const clean = username.toLowerCase();
@@ -338,7 +367,42 @@ async function searchByUsernameVariants(
     .map((p) => `site:${PLATFORM_PATTERNS[p]!.host}`)
     .join(" OR ");
 
-  for (const suffix of IMPERSONATION_SUFFIXES.slice(0, 5)) {
+  // ── Bare handle search — always runs regardless of suffixLimit ──────────────
+  // Finds accounts that cite, tag, or mirror the original handle on any platform.
+  // e.g. "sophieraiin" site:instagram.com → returns profile pages mentioning her
+  {
+    const query = `"${clean}" (${siteFilter})`;
+    logger.info({ query, username: clean }, "Bare handle search");
+    const results = await runGoogleSearch(query);
+    for (const item of results) {
+      const extracted = extractUsernameFromUrl(item.link);
+      if (!extracted) continue;
+      const { username: found, platform } = extracted;
+      if (found === clean) continue;
+      const key = `${platform}:${found}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push({
+        username: found,
+        platform,
+        profileUrl: item.link,
+        title: item.title,
+        snippet: item.snippet,
+        similarity: found.startsWith(clean) || found.includes(clean) ? 0.75 : 0.4,
+        discoveryMethod: "username_variant",
+        datePublished: extractDatePublished(item),
+      });
+    }
+    await new Promise<void>((r) => setTimeout(r, 1100));
+  }
+
+  // ── Suffix variant searches (tier-limited) ────────────────────────────────
+  // OLD CODE had !found.startsWith(clean) && !found.includes(clean) filter here.
+  // REMOVED: that filter silently dropped real impersonators whose handles are
+  // typo-variants (e.g. "sophierain_official" when real handle is "sophieraiin").
+  // The scoring engine assigns low usernameSimilarity for those — enough to
+  // surface them for review without false-positives reaching High severity.
+  for (const suffix of IMPERSONATION_SUFFIXES.slice(0, suffixLimit)) {
     const variant = `${clean}${suffix}`;
     const query = `"${variant}" (${siteFilter})`;
 
@@ -350,16 +414,13 @@ async function searchByUsernameVariants(
       if (!extracted) continue;
 
       const { username: found, platform } = extracted;
-      if (found === clean) continue; // that's the user themselves
+      if (found === clean) continue;
 
       const key = `${platform}:${found}`;
       if (seen.has(key)) continue;
       seen.add(key);
 
-      // Must contain the original username to qualify as a variant
-      if (!found.startsWith(clean) && !found.includes(clean)) continue;
-
-      const similarity = found.startsWith(clean) ? 0.85 : 0.6;
+      const similarity = found.startsWith(clean) || found.includes(clean) ? 0.85 : 0.55;
 
       candidates.push({
         username: found,
@@ -375,6 +436,87 @@ async function searchByUsernameVariants(
 
     await new Promise<void>((r) => setTimeout(r, 1100));
   }
+
+  return candidates;
+}
+
+// ─── Strategy 1b: Display name + normalized handle search ────────────────────
+//
+// Impersonators of celebrities/influencers almost always claim the person's
+// REAL NAME (e.g. "Sophie Rain") rather than copying their exact handle.
+// This strategy searches for the display name and/or normalized handle forms
+// per platform, finding accounts that a manual human search would find first.
+
+const NAME_SEARCH_PLATFORMS = ["instagram", "facebook", "x", "tiktok"] as const;
+
+async function searchByDisplayNameAndHandle(
+  displayName: string | null,
+  username: string,
+  seen: Set<string>
+): Promise<WebSearchCandidate[]> {
+  const candidates: WebSearchCandidate[] = [];
+  const clean = username.toLowerCase().replace(/^@/, "");
+  const normalizedVariants = generateHandleVariants(clean);
+
+  // Queries to run per platform:
+  const searchTerms: string[] = [];
+  if (displayName && displayName.trim().length >= 3) {
+    searchTerms.push(`"${displayName.trim()}"`);
+  }
+  for (const variant of normalizedVariants) {
+    searchTerms.push(`"${variant}"`);
+  }
+  if (searchTerms.length === 0) return [];
+
+  for (const platformKey of NAME_SEARCH_PLATFORMS) {
+    const config = PLATFORM_PATTERNS[platformKey];
+    if (!config) continue;
+    const siteStr = `site:${config.host}`;
+
+    for (const term of searchTerms) {
+      const query = `${term} ${siteStr}`;
+      logger.info({ query, username: clean }, "Display name / handle normalization search");
+      const results = await runGoogleSearch(query);
+
+      for (const item of results) {
+        const extracted = extractUsernameFromUrl(item.link);
+        if (!extracted) continue;
+
+        const { username: found, platform } = extracted;
+        if (found === clean) continue; // skip the real account
+        if (found === "") continue;
+
+        const key = `${platform}:${found}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        // Similarity: whether found handle overlaps with original
+        const similarity = found.includes(clean) || clean.includes(found)
+          ? 0.70
+          : normalizedVariants.some((v) => found.includes(v) || v.includes(found))
+          ? 0.60
+          : 0.40;
+
+        candidates.push({
+          username: found,
+          platform,
+          profileUrl: item.link,
+          title: item.title,
+          snippet: item.snippet,
+          similarity,
+          discoveryMethod: "username_variant",
+          datePublished: extractDatePublished(item),
+        });
+      }
+
+      await new Promise<void>((r) => setTimeout(r, 1100));
+    }
+  }
+
+  logger.info(
+    { count: candidates.length, displayName, normalizedVariants },
+    "Display name / handle normalization search complete"
+  );
 
   return candidates;
 }
@@ -810,6 +952,13 @@ export interface SearchImpersonatorsOptions {
   planTier?: "free" | "pro" | "premium";
   /** User ID — used for per-call cost logging. */
   userId?: string;
+  /**
+   * Display name (real name) of the user, e.g. "Sophie Rain".
+   * Used by Strategy 1b (name search) to find accounts claiming to be this
+   * person regardless of their handle. Most impersonators use the real name,
+   * not the handle, so this is the highest-signal CSE strategy.
+   */
+  displayName?: string;
 }
 
 /**
@@ -854,6 +1003,7 @@ export async function searchForImpersonators(
   let captions: string[] = [];
   let planTier: "free" | "pro" | "premium" = "free";
   let userId: string | undefined;
+  let displayName: string | undefined;
 
   if (typeof usernameOrOptions === "string") {
     username = usernameOrOptions;
@@ -865,11 +1015,16 @@ export async function searchForImpersonators(
     captions = usernameOrOptions.captions ?? [];
     planTier = usernameOrOptions.planTier ?? "free";
     userId = usernameOrOptions.userId;
+    displayName = usernameOrOptions.displayName;
   }
 
   // Apply tier-based limits — cap images and captions before any API call
   const imageLimit = TIER_IMAGE_LIMIT[planTier] ?? 1;
   const captionLimit = TIER_CAPTION_LIMIT[planTier] ?? 1;
+  // Tier-based suffix limit: free=5 (current baseline), pro=15, premium=all
+  const TIER_SUFFIX_LIMIT: Record<string, number> = { free: 5, pro: 15, premium: 24 };
+  const suffixLimit = TIER_SUFFIX_LIMIT[planTier] ?? 5;
+
   const cappedPhotoUrls = deduplicateUrls(photoUrls).slice(0, imageLimit);
   const cappedCaptions = captions.slice(0, captionLimit);
 
@@ -889,8 +1044,9 @@ export async function searchForImpersonators(
   const hasVariantTargets = targetPlatforms.length > 0 && cseEnabled;
   const hasImageTargets = cappedPhotoUrls.length > 0 && visionEnabled;
   const hasCaptionTargets = cappedCaptions.length > 0 && cseEnabled;
+  const hasNameTargets = cseEnabled && (!!displayName || generateHandleVariants(clean).length > 0);
 
-  if (!hasVariantTargets && !hasImageTargets && !hasCaptionTargets) {
+  if (!hasVariantTargets && !hasImageTargets && !hasCaptionTargets && !hasNameTargets) {
     logger.info(
       { username: clean, planTier, imageLimit, captionLimit, visionEnabled, cseEnabled },
       "No web search strategies available — skipping"
@@ -899,25 +1055,45 @@ export async function searchForImpersonators(
   }
 
   logger.info(
-    { username: clean, planTier, imageLimit, captionLimit, photoUrlCount: cappedPhotoUrls.length },
+    { username: clean, planTier, imageLimit, captionLimit, suffixLimit, photoUrlCount: cappedPhotoUrls.length, displayName },
     "Starting web impersonator search"
   );
 
-  // ── Strategy 1: Username variants (CSE) ───────────────────────────────────
+  // ── Strategy 1a: Username suffix variants (CSE, tier-limited) ────────────
+  // Includes a bare-handle search that always runs, plus suffix queries capped
+  // by tier. The old startsWith/includes filter has been removed — the scoring
+  // engine assigns low usernameSimilarity for non-matching handles rather than
+  // silently discarding them.
   if (cseEnabled && targetPlatforms.length > 0) {
-    const variantCandidates = await searchByUsernameVariants(clean, targetPlatforms, seen);
+    const variantCandidates = await searchByUsernameVariants(clean, targetPlatforms, seen, suffixLimit);
     allCandidates.push(...variantCandidates);
-    // Track CSE cost: 5 suffix queries × 1 call each
+    // Track CSE cost: bare handle (1) + suffix queries
     if (userId) {
-      const cseCallCount = Math.min(5, IMPERSONATION_SUFFIXES.length);
+      const cseCallCount = 1 + Math.min(suffixLimit, IMPERSONATION_SUFFIXES.length);
       for (let i = 0; i < cseCallCount; i++) {
         trackApiCall({ userId, provider: "google_cse", operation: "username_variant_search" });
       }
     }
   } else if (!cseEnabled) {
     logger.info({}, "GOOGLE_SEARCH_CX not set — username variant search skipped");
-  } else {
-    logger.info({ username: clean }, "All platforms connected — username variant search skipped (Vision still runs)");
+  }
+
+  // ── Strategy 1b: Display name + normalized handle search (CSE) ───────────
+  // Most impersonators claim the person's real name, not their exact handle.
+  // This is the highest-signal text-search strategy for creators/celebrities.
+  // Also catches handle typo-variants: "sophieraiin" → "sophierain".
+  if (hasNameTargets) {
+    const nameCandidates = await searchByDisplayNameAndHandle(
+      displayName ?? null,
+      clean,
+      seen
+    );
+    allCandidates.push(...nameCandidates);
+    if (userId) {
+      for (let i = 0; i < nameCandidates.length; i++) {
+        trackApiCall({ userId, provider: "google_cse", operation: "name_handle_search" });
+      }
+    }
   }
 
   // ── Strategy 2: Cloud Vision reverse image search (tier-limited) ──────────

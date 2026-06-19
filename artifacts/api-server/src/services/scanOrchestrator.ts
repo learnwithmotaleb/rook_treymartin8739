@@ -54,7 +54,7 @@ import {
   type WebSearchCandidate,
 } from "./webSearchService";
 import { computeDHash, compareHashToHashes } from "./photoHashService";
-import { storeUserPhotoHashes, loadUserDHashes, loadUserPhotoHashesWithDates, type DatedPhotoHash } from "./userPhotoHashService";
+import { storeUserPhotoHashes, loadUserDHashes, loadUserPhotoHashesWithDates, loadUserPhotoUrls, type DatedPhotoHash } from "./userPhotoHashService";
 import {
   findActorByHash,
   computeUserThreshold,
@@ -786,9 +786,21 @@ async function runScanPipeline(
         .slice(0, 8)
     );
 
+    // For unverified / manually-connected accounts that produced no ingested
+    // photos, fall back to Photo Monitor uploads stored in user_photo_hashes.
+    // This ensures Vision reverse-image search fires even when there is no OAuth.
+    const indexedPhotoUrls: string[] =
+      profilePhotoUrls.length === 0 && postPhotoUrls.length === 0
+        ? await loadUserPhotoUrls(userId).catch(() => [])
+        : [];
+
     // Profile photos first so Strategy 2 (reverse image search) always has
     // at least one URL to work with, even when post photos aren't accessible.
-    const allPhotoUrls = [...profilePhotoUrls, ...postPhotoUrls].slice(0, 10);
+    const allPhotoUrls = [
+      ...profilePhotoUrls,
+      ...postPhotoUrls,
+      ...indexedPhotoUrls,
+    ].slice(0, 10);
 
     const allCaptions = ingestedAccounts.flatMap((a) =>
       a.mediaItems
@@ -797,8 +809,20 @@ async function runScanPipeline(
         .slice(0, 5)
     );
 
+    // Display name — used by Strategy 1b (name search) to find accounts
+    // claiming the person's real name regardless of their handle.
+    // Falls back to null when no display name is stored (e.g. unverified accounts).
+    const primaryDisplayName =
+      connectedAccounts[0]?.displayName ?? null;
+
     logger.info(
-      { profilePhotos: profilePhotoUrls.length, postPhotos: postPhotoUrls.length, captions: allCaptions.length },
+      {
+        profilePhotos: profilePhotoUrls.length,
+        postPhotos: postPhotoUrls.length,
+        indexedPhotos: indexedPhotoUrls.length,
+        captions: allCaptions.length,
+        displayName: primaryDisplayName ?? "(none)",
+      },
       "Web search inputs prepared"
     );
 
@@ -831,6 +855,7 @@ async function runScanPipeline(
         captions: allCaptions,
         planTier,
         userId,
+        displayName: primaryDisplayName ?? undefined,
       });
 
       // Cache results so subsequent scans within 72h skip the APIs

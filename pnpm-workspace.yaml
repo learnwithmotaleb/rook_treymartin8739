@@ -45,6 +45,10 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # Security: undici >=7.28.0 patches GHSA-vmh5-mc38-953g (TLS cert bypass via SOCKS5 ProxyAgent)
+  # Affects the production API server via expo-server-sdk; expo-server-sdk@6.1.0 is latest,
+  # so this override is the only available remediation path.
+  'expo-server-sdk>undici': '>=7.28.0'
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
