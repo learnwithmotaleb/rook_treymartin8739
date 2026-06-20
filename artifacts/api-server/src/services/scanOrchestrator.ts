@@ -432,6 +432,9 @@ function webCandidateToImpersonator(
 
   const evidence: DetectedEvidence[] = [];
 
+  // User's own profile photo URL — used as "Your Photo" in evidence display
+  const userProfilePhotoUrl = bestIngested?.profileImageUrl ?? undefined;
+
   if (isImageMatch) {
     evidence.push({
       id: `web_${wc.platform}_${wc.username}_img`,
@@ -439,6 +442,8 @@ function webCandidateToImpersonator(
       similarity: Math.round(profileImageSimilarity * 100),
       label: "Profile Photo Found via Image Search",
       stolenPageUrl: wc.profileUrl,
+      stolenPhotoUrl: wc.imageUrl ?? undefined,
+      yourPhotoUrl: userProfilePhotoUrl,
       postContext: wc.postContext ?? "original_post",
     });
   } else {
@@ -448,6 +453,7 @@ function webCandidateToImpersonator(
       similarity: Math.round(wc.similarity * 100),
       label: "Username Pattern Match",
       stolenPageUrl: wc.profileUrl,
+      yourPhotoUrl: userProfilePhotoUrl,
       postContext: wc.postContext ?? "original_post",
     });
   }
@@ -461,6 +467,7 @@ function webCandidateToImpersonator(
         ? "Caption Text Stolen Verbatim"
         : `${suspectedStolenCount} Potentially Stolen Photos`,
       stolenPageUrl: wc.profileUrl,
+      yourPhotoUrl: userProfilePhotoUrl,
       postContext: wc.postContext ?? "original_post",
       ...(isCaptionMatch
         ? {
@@ -517,6 +524,8 @@ function webCandidateToImpersonator(
     detectedSignals,
     matchedMediaCount: suspectedStolenCount,
     suspiciousPostDate: wc.datePublished,
+    // Map the web search candidate's image URL so pHash comparison fires in Step 6
+    suspiciousProfileImageUrl: wc.imageUrl ?? undefined,
   };
 }
 

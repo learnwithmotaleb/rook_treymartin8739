@@ -45,7 +45,7 @@ const FAQS = [
   },
   {
     q: "How quickly will I be notified if a threat is found?",
-    a: "ShieldID runs continuous scans and delivers push notifications directly to your phone the moment a potential threat is detected. You'll know within minutes — not months.",
+    a: "ShieldID runs automated, scheduled scans and delivers push notifications directly to your phone when a potential threat is detected. Pro users get weekly automated scans, Premium users get daily — you'll know within hours, not months.",
   },
   {
     q: "What happens when ShieldID finds an impersonator?",
@@ -225,8 +225,8 @@ function PhoneMockup() {
           </svg>
         </div>
         <div>
-          <div style={{ color: C.success, fontSize: 10, fontWeight: 600 }}>Email Secure</div>
-          <div style={{ color: C.muted, fontSize: 8, marginTop: 2 }}>No breach records found</div>
+          <div style={{ color: C.success, fontSize: 10, fontWeight: 600 }}>All Clear</div>
+          <div style={{ color: C.muted, fontSize: 8, marginTop: 2 }}>No impersonators detected</div>
         </div>
       </div>
     </motion.div>
@@ -262,7 +262,7 @@ function PhoneMockup() {
       {[
         { sev: "HIGH", label: "Impersonator Detected", sub: "@alex_official_backup · Facebook", time: "2m", color: C.danger },
         { sev: "MED", label: "Stolen Photo Found", sub: "Reverse image search result", time: "18m", color: C.warning },
-        { sev: "LOW", label: "Data Exposure Alert", sub: "Email appeared in breach database", time: "1h", color: C.success },
+        { sev: "LOW", label: "Username Variant Found", sub: "@yourname_official · LinkedIn", time: "1h", color: C.success },
       ].map((a, i) => (
         <div key={i} style={{ background: `${a.color}0C`, border: `1px solid ${a.color}28`, borderRadius: 12, padding: "9px 10px", display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: 4, background: a.color, flexShrink: 0 }} />

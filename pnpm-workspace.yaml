@@ -49,6 +49,12 @@ overrides:
   # Affects the production API server via expo-server-sdk; expo-server-sdk@6.1.0 is latest,
   # so this override is the only available remediation path.
   'expo-server-sdk>undici': '>=7.28.0'
+  # Security: ws >=8.21.0 patches GHSA-3h5q-q39x-f9x3 (Memory exhaustion DoS via fragments/chunks)
+  # Transitive dep through Expo Metro bundler and webpack dev server; blanket override to safe range.
+  'ws': '>=8.21.0'
+  # Security: undici >=6.27.0 patches GHSA-g8m3-5g58-fq7m (WebSocket DoS via fragment count bypass)
+  # Remaining undici path not covered by expo-server-sdk scoped override above.
+  'undici': '>=6.27.0'
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'

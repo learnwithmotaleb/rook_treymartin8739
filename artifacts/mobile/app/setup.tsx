@@ -253,8 +253,7 @@ export default function Setup() {
               { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
             ]}
           >
-            ShieldID will scan these platforms every 24 hours and alert you to
-            suspicious activity.
+            ShieldID will scan these platforms for impersonators and alert you immediately. Pro & Premium subscribers get automated weekly or daily scans.
           </Text>
         </View>
 
