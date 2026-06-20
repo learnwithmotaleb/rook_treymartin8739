@@ -14,13 +14,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useNavigation } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import Animated, { FadeInDown, Layout } from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
 import { useApp, Severity, type Threat } from "@/context/AppContext";
 import { ThreatCard } from "@/components/ThreatCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 
+type Tab = "active" | "resolved";
 type Filter = "all" | Severity;
 
 const FILTERS: { label: string; value: Filter }[] = [
@@ -29,6 +30,88 @@ const FILTERS: { label: string; value: Filter }[] = [
   { label: "Medium", value: "medium" },
   { label: "Low", value: "low" },
 ];
+
+const RESOLVE_ACTION_META: Record<string, { label: string; color: string; icon: string; isReal: boolean }> = {
+  reported_to_platform: { label: "Reported", color: "#EF4444", icon: "flag",          isReal: true  },
+  resolved_manually:    { label: "Removed",  color: "#F97316", icon: "shield-checkmark", isReal: true  },
+  false_positive:       { label: "False Positive", color: "#6B7280", icon: "close-circle", isReal: false },
+  approved:             { label: "Approved", color: "#3B82F6", icon: "checkmark-circle", isReal: false },
+};
+
+function ResolutionBadge({ action, colors }: { action: string | null; colors: ReturnType<typeof useColors> }) {
+  const meta = action ? RESOLVE_ACTION_META[action] : null;
+  if (!meta) return null;
+  const badgeColor = meta.isReal ? meta.color : colors.mutedForeground;
+  return (
+    <View style={[resolutionStyles.badge, { backgroundColor: badgeColor + "18", borderColor: badgeColor + "44" }]}>
+      <Ionicons name={meta.icon as any} size={11} color={badgeColor} />
+      <Text style={[resolutionStyles.badgeText, { color: badgeColor, fontFamily: "Inter_600SemiBold" }]}>
+        {meta.label}
+      </Text>
+    </View>
+  );
+}
+
+function ResolvedThreatRow({ threat, colors }: { threat: Threat; colors: ReturnType<typeof useColors> }) {
+  const severityColor =
+    threat.severity === "high" ? colors.danger :
+    threat.severity === "medium" ? colors.warning : colors.success;
+  const severityLabel =
+    threat.severity === "high" ? "HIGH" : threat.severity === "medium" ? "MED" : "LOW";
+  const meta = threat.resolveAction ? RESOLVE_ACTION_META[threat.resolveAction] : null;
+  const isReal = meta?.isReal ?? false;
+  const accentColor = isReal ? colors.danger : colors.mutedForeground;
+  const resolvedDate = threat.resolvedAt
+    ? new Date(threat.resolvedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : null;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={() => router.push(`/threat/${threat.id}` as any)}
+      style={[resolvedStyles.row, { backgroundColor: colors.card, borderColor: accentColor + "22" }]}
+    >
+      <View style={[resolvedStyles.accentBar, { backgroundColor: accentColor + "60" }]} />
+      <View style={resolvedStyles.body}>
+        <View style={resolvedStyles.topRow}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+            <View style={[resolvedStyles.severityPill, { backgroundColor: severityColor + "18", borderColor: severityColor + "40" }]}>
+              <Text style={[resolvedStyles.severityText, { color: severityColor, fontFamily: "Inter_700Bold" }]}>
+                {severityLabel}
+              </Text>
+            </View>
+            {threat.platform && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <PlatformIcon platform={threat.platform} size={13} />
+                <Text style={[resolvedStyles.platformText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {threat.platform.charAt(0).toUpperCase() + threat.platform.slice(1)}
+                </Text>
+              </View>
+            )}
+          </View>
+          <ResolutionBadge action={threat.resolveAction} colors={colors} />
+        </View>
+
+        <Text style={[resolvedStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]} numberOfLines={1}>
+          {threat.title}
+        </Text>
+
+        <View style={resolvedStyles.bottomRow}>
+          {threat.suspiciousUsername ? (
+            <Text style={[resolvedStyles.username, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {threat.suspiciousUsername}
+            </Text>
+          ) : null}
+          {resolvedDate && (
+            <Text style={[resolvedStyles.date, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {resolvedDate}
+            </Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 const FREE_VISIBLE_THREATS = 5;
 
@@ -168,10 +251,17 @@ export default function AlertsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { threats, refreshData, user, resolveThreat } = useApp();
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<Tab>(params.tab === "resolved" ? "resolved" : "active");
   const [filter, setFilter] = useState<Filter>("all");
   const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
   const hasMounted = useRef(false);
+
+  // When the dashboard taps "Resolutions", deep-link opens this screen on the resolved tab.
+  useEffect(() => {
+    if (params.tab === "resolved") setTab("resolved");
+  }, [params.tab]);
 
   // Refresh user profile + threats every time this tab comes into focus so
   // that tier/premium changes (e.g. after a subscription upgrade) are reflected
@@ -192,14 +282,30 @@ export default function AlertsScreen() {
 
   const isFree = user.tier === "free";
 
-  const filtered = threats.filter((t) => {
+  const activeFiltered = threats.filter((t) => {
     if (t.resolved) return false;
     if (filter === "all") return true;
     return t.severity === filter;
   });
+  const filtered = activeFiltered; // alias used by handleClearAll
 
-  const visibleThreats = isFree ? filtered.slice(0, FREE_VISIBLE_THREATS) : filtered;
-  const lockedThreats = isFree ? filtered.slice(FREE_VISIBLE_THREATS) : [];
+  const resolvedThreats = threats
+    .filter((t) => t.resolved)
+    .sort((a, b) => {
+      const dateA = a.resolvedAt ? new Date(a.resolvedAt).getTime() : 0;
+      const dateB = b.resolvedAt ? new Date(b.resolvedAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+  const confirmedImpersonators = resolvedThreats.filter(
+    (t) => t.resolveAction === "reported_to_platform" || t.resolveAction === "resolved_manually"
+  ).length;
+  const falsePositives = resolvedThreats.filter(
+    (t) => t.resolveAction === "false_positive" || t.resolveAction === "approved"
+  ).length;
+
+  const visibleThreats = isFree ? activeFiltered.slice(0, FREE_VISIBLE_THREATS) : activeFiltered;
+  const lockedThreats = isFree ? activeFiltered.slice(FREE_VISIBLE_THREATS) : [];
 
   const filterColor = (f: Filter) => {
     if (f === "high") return colors.danger;
@@ -250,6 +356,15 @@ export default function AlertsScreen() {
     []
   );
 
+  const renderResolved = useCallback(
+    ({ item, index }: { item: Threat; index: number }) => (
+      <Animated.View entering={FadeInDown.delay(index * 60).springify()}>
+        <ResolvedThreatRow threat={item} colors={colors} />
+      </Animated.View>
+    ),
+    [colors]
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
@@ -259,11 +374,11 @@ export default function AlertsScreen() {
           </Text>
           <View style={[styles.countBadge, { backgroundColor: colors.primary + "22" }]}>
             <Text style={[styles.countText, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
-              {filtered.length}
+              {tab === "resolved" ? resolvedThreats.length : activeFiltered.length}
             </Text>
           </View>
         </View>
-        {filtered.length > 0 && (
+        {tab === "active" && filtered.length > 0 && (
           <TouchableOpacity
             onPress={handleClearAll}
             disabled={clearingAll}
@@ -281,101 +396,145 @@ export default function AlertsScreen() {
         )}
       </View>
 
-      <View style={{ borderBottomColor: colors.border, borderBottomWidth: 1 }}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}
-        >
-          {FILTERS.map((f) => {
-            const isActive = filter === f.value;
-            const fc = filterColor(f.value);
-            return (
-              <TouchableOpacity
-                key={f.value}
-                style={[
-                  styles.filterPill,
-                  isActive && { backgroundColor: fc + "22" },
-                ]}
-                onPress={() => setFilter(f.value)}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    {
-                      color: isActive ? fc : colors.mutedForeground,
-                      fontFamily: isActive ? "Inter_600SemiBold" : "Inter_500Medium",
-                    },
-                  ]}
-                >
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+      {/* Tab switcher: Active | Resolved */}
+      <View style={[styles.tabRow, { borderBottomColor: colors.border }]}>
+        {(["active", "resolved"] as Tab[]).map((t) => {
+          const isActive = tab === t;
+          return (
+            <TouchableOpacity
+              key={t}
+              style={[styles.tabBtn, isActive && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+              onPress={() => setTab(t)}
+            >
+              <Text style={[styles.tabLabel, { color: isActive ? colors.primary : colors.mutedForeground, fontFamily: isActive ? "Inter_600SemiBold" : "Inter_500Medium" }]}>
+                {t === "active" ? "Active" : "Resolved"}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      <FlatList
-        data={visibleThreats}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: bottomPad + 100 },
-        ]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
-        }
-        ListFooterComponent={
-          <>
-            {lockedThreats.length > 0 && (
-              <View style={styles.lockedSection}>
-                <PaywallBanner threats={lockedThreats} colors={colors} />
-                {lockedThreats.map((t, index) => (
-                  <Animated.View key={t.id} entering={FadeInDown.delay((visibleThreats.length + index) * 80).springify()}>
-                    <LockedThreatCard threat={t} colors={colors} />
-                  </Animated.View>
-                ))}
-              </View>
-            )}
-          </>
-        }
-        ListEmptyComponent={
-          lockedThreats.length > 0 ? null : (
-            <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.empty}>
-              <View style={[styles.emptyIcon, { backgroundColor: colors.success + "22" }]}>
-                <Ionicons name="shield-checkmark" size={48} color={colors.success} />
-              </View>
-              <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                All Clear
-              </Text>
-              <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                {filter === "all"
-                  ? "No active threats detected. Run a scan to check for new impersonators."
-                  : `No ${filter}-severity threats detected. You're fully protected.`}
-              </Text>
-              {filter === "all" && (
-                <TouchableOpacity
-                  style={[styles.runScanBtn, { backgroundColor: colors.primary }]}
-                  onPress={() => router.push("/(tabs)/scan" as any)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="scan" size={18} color="#FFFFFF" />
-                  <Text style={[styles.runScanBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                    Run a Scan
+      {tab === "active" ? (
+        <>
+          <View style={{ borderBottomColor: colors.border, borderBottomWidth: 1 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              {FILTERS.map((f) => {
+                const isActive = filter === f.value;
+                const fc = filterColor(f.value);
+                return (
+                  <TouchableOpacity
+                    key={f.value}
+                    style={[styles.filterPill, isActive && { backgroundColor: fc + "22" }]}
+                    onPress={() => setFilter(f.value)}
+                  >
+                    <Text style={[styles.filterText, { color: isActive ? fc : colors.mutedForeground, fontFamily: isActive ? "Inter_600SemiBold" : "Inter_500Medium" }]}>
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          <FlatList
+            data={visibleThreats}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={[styles.list, { paddingBottom: bottomPad + 100 }]}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+            ListFooterComponent={
+              <>
+                {lockedThreats.length > 0 && (
+                  <View style={styles.lockedSection}>
+                    <PaywallBanner threats={lockedThreats} colors={colors} />
+                    {lockedThreats.map((t, index) => (
+                      <Animated.View key={t.id} entering={FadeInDown.delay((visibleThreats.length + index) * 80).springify()}>
+                        <LockedThreatCard threat={t} colors={colors} />
+                      </Animated.View>
+                    ))}
+                  </View>
+                )}
+              </>
+            }
+            ListEmptyComponent={
+              lockedThreats.length > 0 ? null : (
+                <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.empty}>
+                  <View style={[styles.emptyIcon, { backgroundColor: colors.success + "22" }]}>
+                    <Ionicons name="shield-checkmark" size={48} color={colors.success} />
+                  </View>
+                  <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>All Clear</Text>
+                  <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {filter === "all"
+                      ? "No active threats detected. Run a scan to check for new impersonators."
+                      : `No ${filter}-severity threats detected. You're fully protected.`}
                   </Text>
-                </TouchableOpacity>
-              )}
-            </Animated.View>
-          )
-        }
-      />
+                  {filter === "all" && (
+                    <TouchableOpacity style={[styles.runScanBtn, { backgroundColor: colors.primary }]} onPress={() => router.push("/(tabs)/scan" as any)} activeOpacity={0.85}>
+                      <Ionicons name="scan" size={18} color="#FFFFFF" />
+                      <Text style={[styles.runScanBtnText, { fontFamily: "Inter_600SemiBold" }]}>Run a Scan</Text>
+                    </TouchableOpacity>
+                  )}
+                </Animated.View>
+              )
+            }
+          />
+        </>
+      ) : (
+        <>
+          {resolvedThreats.length > 0 && (
+            <View style={[resolvedStyles.summary, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+              <View style={resolvedStyles.summaryItem}>
+                <View style={[resolvedStyles.summaryDot, { backgroundColor: colors.danger }]} />
+                <Text style={[resolvedStyles.summaryLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  {confirmedImpersonators}
+                </Text>
+                <Text style={[resolvedStyles.summaryDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Confirmed
+                </Text>
+              </View>
+              <View style={[resolvedStyles.summaryDivider, { backgroundColor: colors.border }]} />
+              <View style={resolvedStyles.summaryItem}>
+                <View style={[resolvedStyles.summaryDot, { backgroundColor: colors.mutedForeground }]} />
+                <Text style={[resolvedStyles.summaryLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  {falsePositives}
+                </Text>
+                <Text style={[resolvedStyles.summaryDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Not a threat
+                </Text>
+              </View>
+              <View style={[resolvedStyles.summaryDivider, { backgroundColor: colors.border }]} />
+              <View style={resolvedStyles.summaryItem}>
+                <View style={[resolvedStyles.summaryDot, { backgroundColor: colors.primary }]} />
+                <Text style={[resolvedStyles.summaryLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  {resolvedThreats.length}
+                </Text>
+                <Text style={[resolvedStyles.summaryDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Total
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <FlatList
+            data={resolvedThreats}
+            keyExtractor={(item) => item.id}
+            renderItem={renderResolved}
+            contentContainerStyle={[styles.list, { paddingBottom: bottomPad + 100 }]}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+            ListEmptyComponent={
+              <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.empty}>
+                <View style={[styles.emptyIcon, { backgroundColor: colors.primary + "22" }]}>
+                  <Ionicons name="checkmark-done-circle" size={48} color={colors.primary} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>No Resolutions Yet</Text>
+                <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  When you mark a threat as resolved, it will appear here with its category so you can track every confirmed impersonator.
+                </Text>
+              </Animated.View>
+            }
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -390,29 +549,23 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderBottomWidth: 1,
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   headerTitle: { fontSize: 24 },
-  countBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
-  },
+  countBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
   countText: { fontSize: 13 },
-  filterRow: {
+  tabRow: {
     flexDirection: "row",
-    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+  },
+  tabBtn: {
     paddingVertical: 12,
-    gap: 8,
+    paddingHorizontal: 4,
+    marginRight: 24,
   },
-  filterPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
+  tabLabel: { fontSize: 14 },
+  filterRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  filterPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   filterText: { fontSize: 14 },
   list: { padding: 20, gap: 12 },
   lockedSection: { gap: 12, marginTop: 4 },
@@ -424,26 +577,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 16,
   },
-  emptyIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  emptyIcon: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: 22 },
   emptySub: { fontSize: 15, textAlign: "center", lineHeight: 22 },
   clearAllText: { fontSize: 14 },
-  runScanBtn: {
+  runScanBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, marginTop: 8 },
+  runScanBtnText: { fontSize: 15, color: "#FFFFFF" },
+});
+
+const resolutionStyles = StyleSheet.create({
+  badge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  badgeText: { fontSize: 11, letterSpacing: 0.3 },
+});
+
+const resolvedStyles = StyleSheet.create({
+  summary: {
+    flexDirection: "row",
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 24,
-    marginTop: 8,
+    borderBottomWidth: 1,
+    gap: 0,
   },
-  runScanBtnText: { fontSize: 15, color: "#FFFFFF" },
+  summaryItem: { flex: 1, alignItems: "center", gap: 3 },
+  summaryDivider: { width: 1, alignSelf: "stretch", marginVertical: 4 },
+  summaryDot: { width: 7, height: 7, borderRadius: 4, marginBottom: 2 },
+  summaryLabel: { fontSize: 18 },
+  summaryDesc: { fontSize: 11 },
+  row: {
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    overflow: "hidden",
+  },
+  accentBar: { width: 4, alignSelf: "stretch" },
+  body: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, gap: 6 },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  severityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, borderWidth: 1 },
+  severityText: { fontSize: 10, letterSpacing: 0.6 },
+  platformText: { fontSize: 11 },
+  title: { fontSize: 14, lineHeight: 20 },
+  bottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  username: { fontSize: 12 },
+  date: { fontSize: 12 },
 });
 
 const lockedStyles = StyleSheet.create({

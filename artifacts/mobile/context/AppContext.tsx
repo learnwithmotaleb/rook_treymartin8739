@@ -88,6 +88,8 @@ export interface Threat {
   details: string;
   time: string;
   resolved: boolean;
+  resolveAction: string | null;
+  resolvedAt: string | null;
   aiExplanation: string;
   threatScore: number;
   suspiciousUsername: string;
@@ -162,6 +164,7 @@ interface AppContextType {
   isLoading: boolean;
   activeThreats: number;
   fakeAccounts: number;
+  resolvedCount: number;
   leakedPasswords: number;
   login: (name: string, email: string) => void;
   logout: () => void;
@@ -203,6 +206,8 @@ function mapSummaryToThreat(t: ThreatSummary): Threat {
     details: "",
     time: formatRelativeTime(t.createdAt),
     resolved: t.resolved,
+    resolveAction: t.resolveAction ?? null,
+    resolvedAt: t.resolvedAt ?? null,
     aiExplanation: "",
     threatScore: t.threatScore,
     suspiciousUsername: t.suspiciousUsername ?? "",
@@ -614,6 +619,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const leakedPasswords = mergedThreats.filter(
     (t) => !t.resolved && t.type === "leaked_password"
   ).length;
+  const resolvedCount = mergedThreats.filter((t) => t.resolved).length;
 
   return (
     <AppContext.Provider
@@ -630,6 +636,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         activeThreats,
         fakeAccounts,
+        resolvedCount,
         leakedPasswords,
         login,
         logout,

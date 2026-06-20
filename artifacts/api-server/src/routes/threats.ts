@@ -92,6 +92,8 @@ function parseThreatSummary(t: typeof threatsTable.$inferSelect) {
     matchedMediaCount: t.matchedMediaCount,
     suspiciousUsername: t.suspiciousUsername,
     resolved: t.resolved,
+    resolveAction: t.resolveAction ?? null,
+    resolvedAt: t.resolvedAt?.toISOString() ?? null,
     highConfidence,
     createdAt: t.createdAt.toISOString(),
   };

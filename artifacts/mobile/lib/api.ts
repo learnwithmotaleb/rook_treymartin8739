@@ -135,6 +135,8 @@ export interface ThreatSummary {
   matchedMediaCount: number;
   suspiciousUsername: string | null;
   resolved: boolean;
+  resolveAction: string | null;
+  resolvedAt: string | null;
   highConfidence?: boolean;
   createdAt: string;
 }

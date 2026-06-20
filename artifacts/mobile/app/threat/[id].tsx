@@ -3,7 +3,9 @@ import {
   Alert,
   Image,
   Linking,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -350,6 +352,7 @@ export default function ThreatDetail() {
   const [detail, setDetail] = useState<ThreatDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(false);
+  const [showResolveModal, setShowResolveModal] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -489,6 +492,7 @@ export default function ThreatDetail() {
 
   const performResolve = async (action: string) => {
     if (resolving) return;
+    setShowResolveModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setResolving(true);
     try {
@@ -505,29 +509,7 @@ export default function ThreatDetail() {
 
   const handleResolve = () => {
     if (resolving) return;
-    Alert.alert(
-      "How did you handle this?",
-      "Your response helps ShieldID improve its detection accuracy.",
-      [
-        {
-          text: "I reported it to the platform",
-          onPress: () => performResolve("reported_to_platform"),
-        },
-        {
-          text: "I know & approved this account",
-          onPress: () => performResolve("approved"),
-        },
-        {
-          text: "False positive — not a real threat",
-          onPress: () => performResolve("false_positive"),
-        },
-        {
-          text: "Already resolved manually",
-          onPress: () => performResolve("resolved_manually"),
-        },
-        { text: "Cancel", style: "cancel" },
-      ]
-    );
+    setShowResolveModal(true);
   };
 
   const handleReport = () => {
@@ -599,6 +581,128 @@ export default function ThreatDetail() {
           <View style={{ width: 30 }} />
         )}
       </View>
+
+      {/* Resolution category bottom-sheet modal */}
+      <Modal
+        visible={showResolveModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowResolveModal(false)}
+      >
+        <Pressable style={resolveModalStyles.backdrop} onPress={() => setShowResolveModal(false)}>
+          <Pressable onPress={() => {}} style={[resolveModalStyles.sheet, { backgroundColor: colors.card }]}>
+            <View style={[resolveModalStyles.handle, { backgroundColor: colors.border }]} />
+
+            <Text style={[resolveModalStyles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              How did you handle this?
+            </Text>
+            <Text style={[resolveModalStyles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Your response helps ShieldID learn and improve detection accuracy.
+            </Text>
+
+            {/* Real impersonator section */}
+            <View style={[resolveModalStyles.section, { borderColor: colors.danger + "30" }]}>
+              <View style={resolveModalStyles.sectionHeader}>
+                <Ionicons name="warning" size={13} color={colors.danger} />
+                <Text style={[resolveModalStyles.sectionLabel, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
+                  Real Impersonator
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[resolveModalStyles.option, { borderColor: colors.border }]}
+                onPress={() => performResolve("reported_to_platform")}
+                activeOpacity={0.75}
+              >
+                <View style={[resolveModalStyles.optionIcon, { backgroundColor: colors.danger + "18" }]}>
+                  <Ionicons name="flag" size={18} color={colors.danger} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    Reported to the platform
+                  </Text>
+                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Flagged via Instagram, X, TikTok, or another platform's report system
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[resolveModalStyles.option, { borderColor: colors.border }]}
+                onPress={() => performResolve("resolved_manually")}
+                activeOpacity={0.75}
+              >
+                <View style={[resolveModalStyles.optionIcon, { backgroundColor: colors.warning + "18" }]}>
+                  <Ionicons name="shield-checkmark" size={18} color={colors.warning} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    Removed or handled manually
+                  </Text>
+                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Account was taken down, impersonator stopped, or you handled it directly
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Not a threat section */}
+            <View style={[resolveModalStyles.section, { borderColor: colors.border }]}>
+              <View style={resolveModalStyles.sectionHeader}>
+                <Ionicons name="checkmark-circle" size={13} color={colors.success} />
+                <Text style={[resolveModalStyles.sectionLabel, { color: colors.success, fontFamily: "Inter_700Bold" }]}>
+                  Not a Threat
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[resolveModalStyles.option, { borderColor: colors.border }]}
+                onPress={() => performResolve("approved")}
+                activeOpacity={0.75}
+              >
+                <View style={[resolveModalStyles.optionIcon, { backgroundColor: colors.primary + "18" }]}>
+                  <Ionicons name="person-circle" size={18} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    I know and trust this account
+                  </Text>
+                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    This is a fan page, a friend, or an account you've authorized
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[resolveModalStyles.option, { borderColor: colors.border }]}
+                onPress={() => performResolve("false_positive")}
+                activeOpacity={0.75}
+              >
+                <View style={[resolveModalStyles.optionIcon, { backgroundColor: colors.mutedForeground + "18" }]}>
+                  <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    False detection
+                  </Text>
+                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    ShieldID flagged this incorrectly — helps us reduce future false alarms
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[resolveModalStyles.cancelBtn, { borderColor: colors.border }]}
+              onPress={() => setShowResolveModal(false)}
+            >
+              <Text style={[resolveModalStyles.cancelText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -998,4 +1102,68 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   secondaryBtnText: { fontSize: 15 },
+});
+
+const resolveModalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 40,
+    gap: 16,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 4,
+  },
+  title: { fontSize: 18, textAlign: "center" },
+  subtitle: { fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: -8 },
+  section: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    gap: 0,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  sectionLabel: { fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase" },
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+  },
+  optionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optionTitle: { fontSize: 14, marginBottom: 2 },
+  optionDesc: { fontSize: 12, lineHeight: 16 },
+  cancelBtn: {
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  cancelText: { fontSize: 15 },
 });

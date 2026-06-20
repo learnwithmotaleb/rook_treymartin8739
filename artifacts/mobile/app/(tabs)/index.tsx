@@ -27,14 +27,16 @@ function StatCard({
   value,
   valueColor,
   icon,
+  onPress,
 }: {
   label: string;
   value: string;
   valueColor?: string;
   icon: React.ReactNode;
+  onPress?: () => void;
 }) {
   const colors = useColors();
-  return (
+  const inner = (
     <GlassCard style={styles.statCard}>
       {icon}
       <Text style={[styles.statValue, { color: valueColor ?? colors.foreground, fontFamily: "Inter_700Bold" }]}>
@@ -45,6 +47,14 @@ function StatCard({
       </Text>
     </GlassCard>
   );
+  if (onPress) {
+    return (
+      <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ flex: 1 }}>
+        {inner}
+      </TouchableOpacity>
+    );
+  }
+  return inner;
 }
 
 export default function Dashboard() {
@@ -54,7 +64,7 @@ export default function Dashboard() {
     user,
     threats,
     activeThreats,
-    fakeAccounts,
+    resolvedCount,
     indexedPhotos,
     refreshData,
     isLoading,
@@ -164,16 +174,17 @@ export default function Dashboard() {
                 }
               />
               <StatCard
-                label="Fake Accounts"
-                value={String(fakeAccounts)}
-                valueColor={fakeAccounts > 0 ? colors.warning : colors.success}
+                label="Resolutions"
+                value={resolvedCount > 0 ? String(resolvedCount) : "—"}
+                valueColor={resolvedCount > 0 ? colors.success : colors.mutedForeground}
                 icon={
                   <Ionicons
-                    name="search"
+                    name="checkmark-circle"
                     size={24}
-                    color={fakeAccounts > 0 ? colors.warning : colors.success}
+                    color={resolvedCount > 0 ? colors.success : colors.mutedForeground}
                   />
                 }
+                onPress={() => router.push({ pathname: "/(tabs)/alerts", params: { tab: "resolved" } } as any)}
               />
               <StatCard
                 label="Platforms Monitored"
