@@ -4,23 +4,19 @@
  * Implements a two-dimensional threat scoring model:
  *
  *   Identity Match Score (0-100) — how closely the account resembles the target
- *     = profilePhoto(25) + bioSimilarity(10) + usernameSimilarity(10) → scaled to 0-100
+ *     = profilePhoto(20) + bioSimilarity(5) + usernameSimilarity(10) → scaled to 0-100
  *
  *   Impersonation Confidence Score (0-100) — how clearly the act is intentional
- *     = mediaOverlap(35) + contentReuse(15) + behavioral(5) → scaled to 0-100
+ *     = mediaOverlap(35) + contentReuse(15) + accountTrust(10) + temporalReuse(5) → scaled to 0-100
  *
  *   Combined Threat Score (0-100)
- *     = profilePhoto(25) + mediaOverlap(35) + contentReuse(15)
- *       + bioSimilarity(10) + usernameSimilarity(10) + behavioral(5)
+ *     = profilePhoto(20) + mediaOverlap(35) + contentReuse(15)
+ *       + bioSimilarity(5) + usernameSimilarity(10) + accountTrust(10) + temporalReuse(5)
  *
- * High severity requires: combined ≥70 AND profile photo ≥50% AND
- *   matched media ≥2 AND both sub-scores ≥50/100.
- *
- * In production, this service receives real signal data from:
- * - Image embedding cosine similarity (via CLIP or similar)
- * - Caption/text overlap analysis
- * - Platform API search results
- * - Behavioral anomaly detection
+ * Phase 9 — High severity requires meeting at least one of:
+ *   Option A: profileImageSimilarity ≥ 80% AND matchedMedia ≥ 2
+ *   Option B: matchedMedia ≥ 3 AND combined score ≥ 70
+ *   If neither is met, maximum severity is Medium (prevents username-only High threats).
  *
  * All thresholds and weights are in scanConfig.ts — do not hardcode here.
  */
@@ -28,12 +24,20 @@
 import { SCAN_CONFIG } from "./scanConfig";
 
 export interface SignalData {
-  mediaOverlapRatio: number;
+  mediaOverlapRatio: number;       // actual overlap ratio (Phase 3: real dHash comparison)
   captionOverlapRatio: number;
   profileImageSimilarity: number;
   bioSimilarity: number;
   usernameSimilarity: number;
-  behaviorScore: number;
+  /** Account trust score (0=very suspicious, 1=trustworthy). Inverted for scoring. */
+  accountTrustScore: number;
+  /**
+   * Phase 4 — Temporal reuse ratio (0–1).
+   * Fraction of matched images where the suspicious account posted AFTER the victim.
+   * 0 = no post-dating evidence; 1 = all matched images post-date the victim's originals.
+   * Defaults to 0 when temporal data is unavailable (graceful degradation).
+   */
+  temporalReuseRatio: number;
 }
 
 export interface ThreatScoreBreakdown {
@@ -42,18 +46,21 @@ export interface ThreatScoreBreakdown {
   profileSimilarity: number;
   bioSimilarity: number;
   usernameSimilarity: number;
-  behavioral: number;
+  /** Contribution from low-trust account signals (0–10 points). */
+  accountTrust: number;
+  /** Contribution from temporal post-dating evidence (0–5 points). */
+  temporalReuse: number;
   total: number;
   /**
    * Identity Match Score (0-100): how closely the account resembles the target.
    * Computed from profileSimilarity + bioSimilarity + usernameSimilarity,
-   * scaled to 0-100. Low = different identity; High = near-identical identity.
+   * scaled to 0-100.
    */
   identityMatchScore: number;
   /**
    * Impersonation Confidence Score (0-100): how clearly the act is intentional.
-   * Computed from mediaOverlap + contentReuse + behavioral, scaled to 0-100.
-   * Low = coincidental; High = deliberate content theft.
+   * Computed from mediaOverlap + contentReuse + accountTrust + temporalReuse,
+   * scaled to 0-100.
    */
   impersonationConfidenceScore: number;
 }
@@ -70,6 +77,12 @@ export interface DetectedEvidence {
   stolenPageUrl?: string;
   postContext?: "original_post" | "retweet" | "share" | "unknown";
   originalPoster?: string;
+  /** Date the victim originally posted this photo (for temporal evidence display). */
+  victimPublishedAt?: string;
+  /** Date the suspicious account posted this photo (for temporal evidence display). */
+  suspiciousPublishedAt?: string;
+  /** Positive delta days when suspicious posted after victim (post-dating confirmation). */
+  postDatingDays?: number;
 }
 
 export interface ImpersonatorCandidate {
@@ -96,6 +109,14 @@ export interface ImpersonatorCandidate {
    * Undefined when Google doesn't expose a publish date (graceful skip).
    */
   suspiciousPostDate?: string;
+  /** Phase 6: account quality signals collected during candidate media fetch. */
+  accountQuality?: {
+    followers: number;
+    following?: number;
+    totalPosts?: number;
+    accountAgeDays?: number;
+    engagementRate?: number;
+  };
 }
 
 export interface ScoredThreat {
@@ -133,28 +154,35 @@ export function calculateThreatScore(
   const usernameSimilarity = Math.round(
     Math.min(signals.usernameSimilarity, 1.0) * weights.usernameSimilarity
   );
-  const behavioral = Math.round(
-    Math.min(signals.behaviorScore, 1.0) * weights.behavioral
+  // accountTrust: inverted — low trust = more suspicious = higher contribution
+  const accountTrust = Math.round(
+    (1 - Math.min(Math.max(signals.accountTrustScore, 0), 1.0)) * weights.accountTrust
   );
+  // temporalReuse: direct — higher ratio of post-dated matches = stronger signal
+  const temporalReuse = Math.round(
+    Math.min(signals.temporalReuseRatio, 1.0) * weights.temporalReuse
+  );
+
   const total =
     mediaSimilarity +
     contentReuse +
     profileSimilarity +
     bioSimilarity +
     usernameSimilarity +
-    behavioral;
+    accountTrust +
+    temporalReuse;
 
   // ── Dual sub-scores ────────────────────────────────────────────────────────
   // Identity Match: how closely the account resembles the target identity.
-  // Components: profileSimilarity + bioSimilarity + usernameSimilarity → /45 → 0-100
+  // Components: profileSimilarity + bioSimilarity + usernameSimilarity → /35 → 0-100
   const rawIdentity = profileSimilarity + bioSimilarity + usernameSimilarity;
   const identityMatchScore = Math.round(
     (rawIdentity / SCAN_CONFIG.identityMatchMaxRaw) * 100
   );
 
   // Impersonation Confidence: how clearly the act is intentional.
-  // Components: mediaOverlap + contentReuse + behavioral → /55 → 0-100
-  const rawImpersonation = mediaSimilarity + contentReuse + behavioral;
+  // Components: mediaOverlap + contentReuse + accountTrust + temporalReuse → /65 → 0-100
+  const rawImpersonation = mediaSimilarity + contentReuse + accountTrust + temporalReuse;
   const impersonationConfidenceScore = Math.round(
     (rawImpersonation / SCAN_CONFIG.impersonationMaxRaw) * 100
   );
@@ -174,7 +202,8 @@ export function calculateThreatScore(
       profileSimilarity,
       bioSimilarity,
       usernameSimilarity,
-      behavioral,
+      accountTrust,
+      temporalReuse,
       identityMatchScore,
       impersonationConfidenceScore,
       total: 0,
@@ -187,7 +216,8 @@ export function calculateThreatScore(
     profileSimilarity,
     bioSimilarity,
     usernameSimilarity,
-    behavioral,
+    accountTrust,
+    temporalReuse,
     identityMatchScore,
     impersonationConfidenceScore,
     total,
@@ -209,22 +239,27 @@ export function scoreThreatSeverity(
 /**
  * Full threat severity classification with strict false-positive filters.
  *
- * Applies three gates on top of the raw combined score:
- *   1. Profile photo cap — weak photo similarity bounds the max severity
- *   2. Multi-image validation — High requires profile + ≥1 additional image
- *   3. Dual score gate — both Identity Match AND Impersonation Confidence
- *      must clear their thresholds for High
+ * Phase 9 consolidates severity gates into a clean OR-condition:
  *
- * These gates only constrain downward (they never promote a lower tier).
- * Actor corpus matches and escalations can still override this result in the
- * scan pipeline (trusted collective intelligence bypasses photo caps).
+ *   Option A: profile photo ≥ 80% AND ≥ 2 matched media
+ *   Option B: ≥ 3 matched media AND combined score ≥ 70
+ *
+ * If neither option is met, the maximum severity is Medium — no matter
+ * how high the combined score is. This prevents username-similarity-only
+ * accounts from reaching High.
+ *
+ * Profile photo floor cap (Gate 0) is still applied to prevent very weak
+ * photo matches from reaching Medium inappropriately.
+ *
+ * Actor corpus matches and cross-user escalation can still override this
+ * result in the scan pipeline (trusted collective intelligence bypasses caps).
  */
 export function classifyThreatSeverity(
   breakdown: ThreatScoreBreakdown,
   profileImageSimilarity: number,
   matchedMediaCount: number
 ): "high" | "medium" | "low" {
-  const { profilePhoto, multiImageGate, dualScoreGate } = SCAN_CONFIG;
+  const { profilePhoto, highSeverityGate } = SCAN_CONFIG;
 
   // Gate 0: absolute profile photo floor — very weak match → Low regardless
   if (profileImageSimilarity < profilePhoto.lowCapThreshold) {
@@ -240,16 +275,26 @@ export function classifyThreatSeverity(
     return severity;
   }
 
-  // Gates 2 & 3 only constrain High — Medium and Low pass through
+  // Phase 9: High severity requires meeting at least ONE of two evidence gates.
+  // A candidate should NEVER be High based only on username/bio similarity.
   if (severity === "high") {
-    // Gate 2: multi-image validation — profile-only match is not High
-    if (matchedMediaCount < multiImageGate.minMatchedMediaForHigh) {
+    const optionA =
+      profileImageSimilarity >= highSeverityGate.optionA.minProfileSimilarity &&
+      matchedMediaCount >= highSeverityGate.optionA.minMatchedMedia;
+
+    const optionB =
+      matchedMediaCount >= highSeverityGate.optionB.minMatchedMedia &&
+      breakdown.total >= highSeverityGate.optionB.minCombinedScore;
+
+    if (!optionA && !optionB) {
+      // Not enough visual evidence — downgrade to Medium
       return "medium";
     }
-    // Gate 3: dual score gate — both dimensions must be strong enough
+
+    // Additional dual-score gate: both identity and impersonation must be strong
     if (
-      breakdown.identityMatchScore < dualScoreGate.minIdentityMatchForHigh ||
-      breakdown.impersonationConfidenceScore < dualScoreGate.minImpersonationConfForHigh
+      breakdown.identityMatchScore < SCAN_CONFIG.dualScoreGate.minIdentityMatchForHigh ||
+      breakdown.impersonationConfidenceScore < SCAN_CONFIG.dualScoreGate.minImpersonationConfForHigh
     ) {
       return "medium";
     }
@@ -266,9 +311,6 @@ export function classifyThreatSeverity(
  *    0   — suspicious post is exactly 1 day later (within clock/timezone jitter)
  *   -10  — suspicious post is same-day (deltaDays = 0) or pre-dates victim upload
  *    0   — either date is missing (graceful skip — no penalty for lack of data)
- *
- * Uses Math.floor (not round) so the ≥2 day threshold is only crossed by a
- * genuine 48+ hour gap, avoiding false +15 boosts from overnight uploads.
  */
 export interface TemporalScoreResult {
   /** Score modifier to add/subtract from the threat score. */
@@ -298,42 +340,68 @@ export function computeTemporalScore(
 
   const victimMs = victimPublishedAt.getTime();
   const suspiciousMs = suspicious.getTime();
-  // Math.floor: only award +15 for a genuine 48+ hour gap; avoids false boosts
-  // from posts uploaded late in the day being compared to early-morning originals.
   const deltaDays = Math.floor((suspiciousMs - victimMs) / (1000 * 60 * 60 * 24));
 
-  if (deltaDays >= 2) {
-    // Suspicious account posted clearly after the victim — classic post-dating signal
-    return { modifier: 15, deltaDays };
-  }
-  if (deltaDays === 1) {
-    // One day after — within timezone/clock margin, treat as neutral
-    return { modifier: 0, deltaDays };
-  }
-  // Same-day (deltaDays = 0) or pre-dating (negative): suspicious account did
-  // NOT copy content posted later by the victim — strong contra-indicator.
+  if (deltaDays >= 2) return { modifier: 15, deltaDays };
+  if (deltaDays === 1) return { modifier: 0, deltaDays };
   return { modifier: -10, deltaDays };
+}
+
+/**
+ * Compute an account trust score (0–1) from observable quality signals.
+ *
+ * Lower score = less trustworthy = more suspicious as an impersonator.
+ * Used to populate SignalData.accountTrustScore.
+ *
+ * @param followers     - Follower count of the suspicious account
+ * @param following     - Following count (optional; ratio signals bot behaviour)
+ * @param totalPosts    - Total post count (optional; very new accounts have few posts)
+ * @param accountAgeDays - Account age in days (optional; new accounts are more suspicious)
+ */
+export function computeAccountTrustScore(
+  followers: number,
+  following?: number,
+  totalPosts?: number,
+  accountAgeDays?: number
+): number {
+  let score = 0.60; // neutral baseline for unknown-age accounts
+
+  // Follower count signal — impersonators typically have few followers early on
+  if (followers < 50)   score -= 0.30;
+  else if (followers < 200)  score -= 0.20;
+  else if (followers < 500)  score -= 0.15;
+  else if (followers < 1000) score -= 0.08;
+  else if (followers > 10000) score += 0.10; // established account is less likely to be a new impersonator
+
+  // Following ratio — bots and new impersonators follow many to get follows back
+  if (following !== undefined && followers > 0) {
+    const ratio = following / Math.max(followers, 1);
+    if (ratio > 5) score -= 0.15;    // following 5x more than followers
+    else if (ratio > 2) score -= 0.08;
+  }
+
+  // Total posts — fresh impersonator accounts have very few posts
+  if (totalPosts !== undefined) {
+    if (totalPosts < 5)  score -= 0.15;
+    else if (totalPosts < 15) score -= 0.08;
+    else if (totalPosts > 100) score += 0.05; // active account
+  }
+
+  // Account age — very new accounts are suspicious
+  if (accountAgeDays !== undefined) {
+    if (accountAgeDays < 7)  score -= 0.25;
+    else if (accountAgeDays < 30) score -= 0.15;
+    else if (accountAgeDays < 90) score -= 0.05;
+    else if (accountAgeDays > 365) score += 0.08; // established account
+  }
+
+  return Math.max(0, Math.min(1, score));
 }
 
 /**
  * Simulation mode: generates synthetic impersonator candidates when no
  * real platform API credentials are available.
- *
- * Produces TWO distinct candidate types to accurately reflect real-world
- * detection patterns:
- *
- * 1. USERNAME VARIANT — an account with a slight username modification
- *    (e.g. @user.official). Discovered via username_search.
- *
- * 2. VISUAL MATCH — an account with a COMPLETELY DIFFERENT username that
- *    was found via image search or pHash comparison. This is the most
- *    important case the user highlighted: real impersonators often pick
- *    random handles and rely entirely on stolen photos, not name similarity.
- *
- * Replace with real platform adapter + web search calls when credentials
- * are available.
  */
-/** Normalize a suspicious username for suppression key lookup: strip @, lowercase, trim. */
 function simSuppressKey(platform: string, username: string): string {
   return `${platform.toLowerCase()}:${username.replace(/^@/, "").toLowerCase().trim()}`;
 }
@@ -360,7 +428,8 @@ export function generateSimulatedCandidates(
     profileImageSimilarity: 0.86,
     bioSimilarity: 0.70,
     usernameSimilarity: 0.88,
-    behaviorScore: 0.74,
+    accountTrustScore: 0.18,   // very suspicious: new, low-follower account
+    temporalReuseRatio: 0.82,  // most matched images post-date the victim
   };
   candidates.push({
     suspiciousUsername: `@${cleanUsername}${variantSuffix}`,
@@ -382,15 +451,18 @@ export function generateSimulatedCandidates(
         label: "Post Photo Reuse",
         yourCaption: "Content from your verified account",
         stolenCaption: "Reposted without credit",
+        postDatingDays: 14,
       },
       {
         id: "sim_v_3",
         type: "reel_thumbnail",
         similarity: 82,
         label: "Reel Thumbnail Stolen",
+        postDatingDays: 9,
       },
     ],
     matchedMediaCount: 11,
+    accountQuality: { followers: 312, following: 2100, totalPosts: 8, accountAgeDays: 22 },
     detectedSignals: [
       "11 public photos reused across posts",
       `Username pattern: added '${variantSuffix.replace(".", "")}' suffix`,
@@ -398,12 +470,11 @@ export function generateSimulatedCandidates(
       "Fake giveaway language detected in bio",
       "Account created within the last 30 days",
       "7 captions duplicated verbatim",
+      "Post-dating confirmed: 9 of 11 matched images posted after your original uploads",
     ],
   });
 
   // ── Candidate 2: Visual-only match — completely different username ──────────
-  // This simulates what the image_search / pHash strategy catches:
-  // an account that stole photos but chose a totally unrelated handle.
   const randomHandles = [
     "lifestyle_collective_",
     "dailyvibes_hq",
@@ -411,7 +482,6 @@ export function generateSimulatedCandidates(
     "trending.moments_",
     "creator.spotlight24",
   ];
-  // Seed deterministically from username so it's stable across rescans
   const seedIndex = cleanUsername.charCodeAt(0) % randomHandles.length;
   const randomHandle = randomHandles[seedIndex] ?? "lifestyle_collective_";
 
@@ -420,8 +490,9 @@ export function generateSimulatedCandidates(
     captionOverlapRatio: 0.18,
     profileImageSimilarity: 0.91,
     bioSimilarity: 0.12,
-    usernameSimilarity: 0.0,  // completely different — that's the point
-    behaviorScore: 0.68,
+    usernameSimilarity: 0.0,
+    accountTrustScore: 0.22,   // suspicious: low followers, following many
+    temporalReuseRatio: 0.75,  // majority of matched images post-date victim
   };
   candidates.push({
     suspiciousUsername: `@${randomHandle}`,
@@ -441,9 +512,11 @@ export function generateSimulatedCandidates(
         type: "post_photo",
         similarity: 85,
         label: "8 Photos Reused (Image Search)",
+        postDatingDays: 21,
       },
     ],
     matchedMediaCount: 8,
+    accountQuality: { followers: 148, following: 3400, totalPosts: 12, accountAgeDays: 11 },
     detectedSignals: [
       "Detected via reverse image search — username has NO similarity",
       "Profile photo pHash match: 91% identical (Hamming distance: 6/64)",
@@ -451,6 +524,7 @@ export function generateSimulatedCandidates(
       "Account bio is unrelated — no name overlap",
       "Monetizing your content via third-party link in bio",
       "Recently created account with rapid follower growth",
+      "Post-dating confirmed: content posted 21 days after your original uploads",
     ],
   });
 
@@ -465,44 +539,46 @@ export function buildThreatFromCandidate(
   isFirstScan = false
 ): Omit<ScoredThreat, "candidate"> & { candidate: ImpersonatorCandidate } {
   const breakdown = calculateThreatScore(candidate.signals, isFirstScan);
-  // Use full classifyThreatSeverity (not raw scoreThreatSeverity) to apply
-  // profile photo caps, multi-image gate, and dual score gate.
   const severity = classifyThreatSeverity(
     breakdown,
     candidate.signals.profileImageSimilarity,
     candidate.matchedMediaCount
   );
 
-  const isStolen = candidate.source === "media_similarity" || candidate.source === "image_search";
+  const isStolen =
+    candidate.source === "image_search" || candidate.source === "media_similarity";
+
+  const photoSim = Math.round(candidate.signals.profileImageSimilarity * 100);
+  const mediaOverlap = Math.round(candidate.signals.mediaOverlapRatio * 100);
+
   const type = isStolen ? "stolen_photo" : "impersonator";
+  const title =
+    severity === "high"
+      ? isStolen
+        ? `Photo Theft Detected — ${photoSim}% Match`
+        : `High-Risk Impersonator — ${photoSim}% Profile Match`
+      : severity === "medium"
+        ? `Suspicious Account Found — ${mediaOverlap}% Media Overlap`
+        : `Low-Risk Username Variant Found`;
 
-  const title = isStolen
-    ? `Stolen Photos Detected on ${capitalize(candidate.platform)}`
-    : `Impersonator on ${capitalize(candidate.platform)}`;
+  const description =
+    severity === "high"
+      ? `Account ${candidate.suspiciousUsername} on ${candidate.platform} is stealing your photos and impersonating your identity. Immediate action recommended.`
+      : severity === "medium"
+        ? `Account ${candidate.suspiciousUsername} on ${candidate.platform} shows suspicious overlap with your content. Review recommended.`
+        : `Account ${candidate.suspiciousUsername} on ${candidate.platform} uses a variant of your handle. Low risk — monitor for escalation.`;
 
-  const description = isStolen
-    ? `${candidate.suspiciousUsername} is using ${candidate.matchedMediaCount} of your photos on ${capitalize(candidate.platform)}`
-    : `${candidate.suspiciousUsername} is impersonating you on ${capitalize(candidate.platform)}`;
+  const matchedLabel =
+    candidate.matchedMediaCount > 0
+      ? `, ${candidate.matchedMediaCount} matched media items`
+      : "";
 
-  const details = isStolen
-    ? candidate.source === "image_search"
-      ? `A ${capitalize(candidate.platform)} account (${candidate.suspiciousUsername}) was discovered via reverse image search — their username has NO similarity to yours, but ${candidate.matchedMediaCount} of your photos were found on their profile. This is the hardest class of impersonator to detect without visual scanning.`
-      : `A ${capitalize(candidate.platform)} account was found using ${candidate.matchedMediaCount} of your publicly posted photos. This account appears to be operating a fake creator page using your content.`
-    : candidate.source === "caption_search"
-      ? `A ${capitalize(candidate.platform)} account (${candidate.suspiciousUsername}) was found reusing your caption text verbatim. Their username may not resemble yours, but the duplicated text content is a strong signal of content theft.`
-      : `An account was found on ${capitalize(candidate.platform)} using a similar username and your profile media. They have been flagged by ShieldID's visual fingerprint system.`;
+  const temporalLabel =
+    candidate.signals.temporalReuseRatio > 0.5
+      ? ` Post-dating confirmed on majority of matches.`
+      : "";
 
-  return {
-    candidate,
-    breakdown,
-    severity,
-    type,
-    title,
-    description,
-    details,
-  };
-}
+  const details = `${Math.round(candidate.signals.profileImageSimilarity * 100)}% profile photo similarity${matchedLabel}. Platform: ${candidate.platform}. Trust score: ${Math.round(candidate.signals.accountTrustScore * 100)}%.${temporalLabel}`;
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return { candidate, breakdown, severity, type, title, description, details };
 }

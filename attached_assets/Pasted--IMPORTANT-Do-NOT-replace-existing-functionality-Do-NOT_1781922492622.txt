@@ -1,0 +1,745 @@
+
+
+
+
+IMPORTANT:
+
+
+
+Do NOT replace existing functionality.
+
+
+
+Do NOT rebuild the detection engine.
+
+
+
+Do NOT remove any existing logic.
+
+
+
+Instead, improve the existing pipeline while maintaining cost efficiency and scalability.
+
+
+
+
+
+
+
+Current problem:
+
+
+
+The system is good at scoring suspicious accounts AFTER discovery.
+
+
+
+The system is NOT discovering enough obvious impersonator accounts.
+
+
+
+The objective is:
+
+
+
+1. Increase impersonator discovery rate
+
+2. Increase confidence of findings
+
+3. Reduce false positives
+
+4. Keep infrastructure costs minimal
+
+5. Avoid adding expensive recurring AI costs
+
+
+
+
+
+
+
+---
+
+
+
+PHASE 1
+
+EXPAND USERNAME DISCOVERY ENGINE
+
+--------------------------------
+
+
+
+Current implementation only generates approximately 8 username variants.
+
+
+
+This misses many real-world impersonators.
+
+
+
+Build a Username Mutation Engine.
+
+
+
+Generate 100-300 realistic username variants.
+
+
+
+Include:
+
+
+
+Suffix mutations:
+
+
+
+* official
+
+* real
+
+* backup
+
+* creator
+
+* media
+
+* live
+
+* vip
+
+* updates
+
+* support
+
+* team
+
+* fans
+
+
+
+Prefix mutations:
+
+
+
+* real
+
+* official
+
+* the
+
+* its
+
+* team
+
+* support
+
+
+
+Character substitutions:
+
+
+
+o -> 0
+
+i -> 1
+
+e -> 3
+
+a -> 4
+
+s -> 5
+
+
+
+Examples:
+
+
+
+johnsmith
+
+johnsmith_
+
+john_smith
+
+john.smith
+
+johnsmith1
+
+johnsmith01
+
+johnsmith.vip
+
+officialjohnsmith
+
+therealjohnsmith
+
+johnsm1th
+
+j0hnsmith
+
+
+
+Generate a ranked probability score.
+
+
+
+Search highest-probability variants first.
+
+
+
+---
+
+
+
+PHASE 2
+
+CANDIDATE MEDIA COLLECTION
+
+--------------------------
+
+
+
+Current system primarily evaluates profile photos.
+
+
+
+This is insufficient.
+
+
+
+Most impersonators steal multiple posts.
+
+
+
+When a candidate account is discovered:
+
+
+
+Collect:
+
+
+
+* profile photo
+
+* latest 12 image posts
+
+* latest captions
+
+* display name
+
+* bio
+
+
+
+Store:
+
+
+
+candidate_media
+
+candidate_captions
+
+candidate_profile_image
+
+
+
+Media should become first-class evidence.
+
+
+
+---
+
+
+
+PHASE 3
+
+REAL MEDIA OVERLAP DETECTION
+
+----------------------------
+
+
+
+Current implementation estimates stolen content.
+
+
+
+Remove estimation.
+
+
+
+Calculate actual overlap.
+
+
+
+For every candidate image:
+
+
+
+Generate:
+
+
+
+* dHash
+
+* pHash
+
+
+
+Compare against:
+
+
+
+user_photo_hashes
+
+
+
+Return:
+
+
+
+{
+
+candidateImages,
+
+matchedImages,
+
+overlapPercentage,
+
+matchedPhotoIds
+
+}
+
+
+
+Example:
+
+
+
+12 candidate images
+
+4 matched images
+
+33% overlap
+
+
+
+Use actual evidence.
+
+
+
+Do not estimate overlap.
+
+
+
+---
+
+
+
+PHASE 4
+
+TEMPORAL REPOST DETECTION
+
+-------------------------
+
+
+
+For every matched image:
+
+
+
+Compare:
+
+
+
+victimPublishedAt
+
+candidatePublishedAt
+
+
+
+Calculate:
+
+
+
+daysAfterOriginal
+
+
+
+Scoring:
+
+
+
+Candidate posted after victim:
+
+Positive signal
+
+
+
+Candidate posted before victim:
+
+Negative signal
+
+
+
+Create:
+
+
+
+temporalReuseScore
+
+
+
+Multiple post-dating matches should significantly increase confidence.
+
+
+
+---
+
+
+
+
+
+
+
+---
+
+
+
+PHASE 6
+
+ACCOUNT QUALITY ANALYSIS
+
+------------------------
+
+
+
+Add account intelligence scoring.
+
+
+
+Collect:
+
+
+
+accountAgeDays
+
+totalPosts
+
+followers
+
+following
+
+
+
+Calculate:
+
+
+
+engagementRate
+
+
+
+Detect:
+
+
+
+* purchased followers
+
+* fake engagement
+
+* low-engagement impersonator patterns
+
+* newly created accounts
+
+
+
+Create:
+
+
+
+accountTrustScore
+
+
+
+Lower trust score increases suspicion.
+
+
+
+---
+
+
+
+PHASE 7
+
+PLATFORM PRIORITY ENGINE
+
+------------------------
+
+
+
+Most impersonation occurs on:
+
+
+
+1. Instagram
+
+2. X
+
+3. Facebook
+
+4. TikTok 
+
+5. Snapchat
+
+
+
+Allocate discovery budget:
+
+
+
+Instagram: 60%
+
+X: 20% 
+
+Facebook: 10%
+
+TikTok: 5% 
+
+Other: 5%
+
+
+
+Run Instagram discovery first.
+
+
+
+Only expand to lower-priority platforms after Instagram search completes.
+
+
+
+---
+
+
+
+PHASE 8
+
+SCORING REBALANCE
+
+-----------------
+
+
+
+Current scoring relies too heavily on username similarity.
+
+
+
+Replace with:
+
+
+
+Media Reuse: 35
+
+
+
+Profile Photo Match: 20
+
+
+
+Content Reuse: 15
+
+
+
+Username Similarity: 10
+
+
+
+Bio Similarity: 5
+
+
+
+Temporal Reuse: 5
+
+
+
+Account Trust Signals: 10
+
+
+
+Total: 100
+
+
+
+The strongest evidence should be actual stolen content.
+
+
+
+Not username similarity.
+
+
+
+---
+
+
+
+PHASE 9
+
+STRICT FALSE POSITIVE PROTECTION
+
+--------------------------------
+
+
+
+A candidate should NEVER be High Severity based only on username similarity.
+
+
+
+High Severity requires:
+
+
+
+Option A:
+
+
+
+Profile photo similarity >= 80
+
+AND
+
+Matched media >= 2
+
+
+
+OR
+
+
+
+Option B:
+
+
+
+Matched media >= 3
+
+
+
+AND
+
+
+
+Combined score >= 70
+
+
+
+If neither condition is met:
+
+
+
+Maximum severity = Medium
+
+
+
+This prevents false positives.
+
+
+
+---
+
+
+
+PHASE 10
+
+THREAT EXPLAINABILITY
+
+---------------------
+
+
+
+Threat results should expose evidence.
+
+
+
+Example:
+
+
+
+{
+
+"matchedImages": 4,
+
+"overlapPercentage": 33,
+
+"profilePhotoSimilarity": 92,
+
+"usernameSimilarity": 87,
+
+"daysAfterOriginal": 14,
+
+"accountAgeDays": 21,
+
+"engagementRate": 0.3
+
+}
+
+
+
+Users should clearly understand why the threat was detected.
+
+
+
+---
+
+
+
+## IMPORTANT
+
+
+
+Do NOT remove:
+
+
+
+* dHash
+
+* GPT comparisons
+
+* Google Vision reverse image search
+
+* Threat actor clustering
+
+* Existing severity pipeline
+
+* Existing suppression lists
+
+* Existing threat intelligence
+
+
+
+Layer these improvements on top of the existing architecture.
+
+
+
+Priority order:
+
+
+
+1. Username discovery expansion
+
+2. Candidate media collection
+
+3. Real media overlap detection
+
+4. Temporal repost analysis
+
+5. Account quality scoring 
+
+
+
+Keep infrastructure costs low.
+
+
+
+Do not introduce expensive per-image AI inference pipelines unless absolutely necessary.
+
+
+
+The goal is to dramatically improve impersonator discovery while maintaining MVP economics.

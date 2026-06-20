@@ -26,6 +26,7 @@
 
 import { logger } from "../lib/logger";
 import { trackApiCall } from "./costTracker";
+import { generateUsernameMutations } from "./usernameMutationService";
 
 export interface WebSearchCandidate {
   username: string;
@@ -155,36 +156,10 @@ const PLATFORM_PATTERNS: Record<
   },
 };
 
-// Common impersonation suffixes ordered by real-world frequency
-// (cast wide — scoring engine will down-weight low-signal username matches)
-const IMPERSONATION_SUFFIXES = [
-  ".official",
-  "_official",
-  "_real",
-  "0fficial",
-  ".creator",
-  "_backup",
-  ".verified",
-  "_original",
-  ".fanpage",
-  "official",       // no separator: @userofficial
-  ".real",
-  "_verified",
-  "._real",
-  ".backup",
-  "_fan",
-  ".v2",
-  "_2",
-  "2",              // @user2 — very common impersonator pattern
-  "_news",
-  "_updates",
-  "_page",
-  ".page",
-  "_tv",
-  ".tv",
-  "_model",
-  "_content",
-];
+// Username variant discovery now uses the mutation engine (usernameMutationService).
+// The IMPERSONATION_SUFFIXES list has been replaced — see generateUsernameMutations()
+// which generates 100-300 ranked variants covering suffix, prefix, char-sub, separator,
+// and number patterns. The engine is called per-search with a tier-based limit.
 
 /** Username variant + caption search requires CSE (key + cx). */
 export function isConfigured(): boolean {
@@ -358,31 +333,16 @@ function extractUsernameFromUrl(link: string): { username: string; platform: str
 // ─── Strategy 1a: Username variant search ────────────────────────────────────
 
 /**
- * Compute normalized handle variants to broaden the search net.
- * Examples:
- *   "sophieraiin"  → "sophierain" (de-duplicate consecutive identical chars)
- *   "sophie.rain"  → "sophierain" (strip separators)
- *   "sophie_rain"  → "sophierain"
+ * Build normalized handle variants for bare-handle searches.
+ * Uses the mutation engine's normalization category: de-dup consecutive chars,
+ * strip separators. These are searched first as they find the victim's own profile
+ * mentions — and indirectly surface who is tagging/copying their handle.
  */
 function generateHandleVariants(username: string): string[] {
-  const clean = username.toLowerCase().replace(/^@/, "");
-  const variants = new Set<string>();
-
-  // De-duplicate consecutive identical characters: sophieraiin → sophierain
-  const deduped = clean.replace(/(.)\1+/g, "$1");
-  if (deduped !== clean && deduped.length >= 3) variants.add(deduped);
-
-  // Strip separators: sophie.rain / sophie_rain → sophierain
-  const stripped = clean.replace(/[._\-]/g, "");
-  if (stripped !== clean && stripped.length >= 3) variants.add(stripped);
-
-  // Deduped + stripped
-  const dedupedStripped = deduped.replace(/[._\-]/g, "");
-  if (dedupedStripped !== clean && dedupedStripped !== stripped && dedupedStripped.length >= 3) {
-    variants.add(dedupedStripped);
-  }
-
-  return [...variants];
+  const mutations = generateUsernameMutations(username, 20);
+  return mutations
+    .filter((m) => m.patternType === "normalization")
+    .map((m) => m.variant);
 }
 
 async function searchByUsernameVariants(
@@ -427,17 +387,20 @@ async function searchByUsernameVariants(
     await new Promise<void>((r) => setTimeout(r, 1100));
   }
 
-  // ── Suffix variant searches (tier-limited) ────────────────────────────────
-  // OLD CODE had !found.startsWith(clean) && !found.includes(clean) filter here.
-  // REMOVED: that filter silently dropped real impersonators whose handles are
-  // typo-variants (e.g. "sophierain_official" when real handle is "sophieraiin").
-  // The scoring engine assigns low usernameSimilarity for those — enough to
-  // surface them for review without false-positives reaching High severity.
-  for (const suffix of IMPERSONATION_SUFFIXES.slice(0, suffixLimit)) {
-    const variant = `${clean}${suffix}`;
+  // ── Mutation engine variant searches (tier-limited) ───────────────────────
+  // Phase 1: use ranked mutations from the mutation engine instead of the old
+  // fixed suffix list. Higher-probability patterns (e.g. .official, _real, real*)
+  // are searched first. The limit is tier-controlled (free=5, pro=15, premium=24).
+  //
+  // The old startsWith/includes filter was removed: the scoring engine assigns
+  // low usernameSimilarity for typo-variants, preventing false-positive High alerts.
+  const mutations = generateUsernameMutations(clean, suffixLimit + 10);
+  const variantsToSearch = mutations.slice(0, suffixLimit).map((m) => m.variant);
+
+  for (const variant of variantsToSearch) {
     const query = `"${variant}" (${siteFilter})`;
 
-    logger.info({ query, username: clean }, "Username variant search");
+    logger.info({ query, username: clean, variant }, "Username mutation variant search");
     const results = await runGoogleSearch(query);
 
     for (const item of results) {
@@ -499,10 +462,10 @@ async function directVariantProbe(
 ): Promise<WebSearchCandidate[]> {
   const clean = username.toLowerCase().replace(/^@/, "");
 
-  // Build the full variant list: normalized handle forms + suffix patterns
-  const handleForms = generateHandleVariants(clean);
-  const suffixForms = IMPERSONATION_SUFFIXES.map((s) => `${clean}${s}`);
-  const allVariants = [...new Set([...handleForms, ...suffixForms])].filter(
+  // Build the full variant list from the mutation engine — top 30 variants covers
+  // all normalization forms + most common suffix/prefix patterns for the direct probe.
+  const mutationVariants = generateUsernameMutations(clean, 30).map((m) => m.variant);
+  const allVariants = [...new Set(mutationVariants)].filter(
     (v) => v !== clean && v.length >= 3 && !/\s/.test(v)
   );
 
@@ -1229,7 +1192,7 @@ export async function searchForImpersonators(
     allCandidates.push(...variantCandidates);
     // Track CSE cost: bare handle (1) + suffix queries
     if (userId) {
-      const cseCallCount = 1 + Math.min(suffixLimit, IMPERSONATION_SUFFIXES.length);
+      const cseCallCount = 1 + suffixLimit; // 1 bare-handle + N mutation variant searches
       for (let i = 0; i < cseCallCount; i++) {
         trackApiCall({ userId, provider: "google_cse", operation: "username_variant_search" });
       }

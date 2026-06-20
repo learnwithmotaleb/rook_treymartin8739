@@ -33,11 +33,13 @@ import {
   generateSimulatedCandidates,
   buildThreatFromCandidate,
   computeTemporalScore,
+  computeAccountTrustScore,
   classifyThreatSeverity,
   type ImpersonatorCandidate,
   type SignalData,
   type DetectedEvidence,
 } from "./impersonatorDetectionService";
+import { getTopVariants } from "./usernameMutationService";
 import { getPlatformPriority, getPlatformWeightMultiplier } from "./scanConfig";
 import {
   updateFingerprint,
@@ -88,17 +90,10 @@ const SCAN_STEPS = [
   { step: "Finalizing results", progress: 98 },
 ] as const;
 
-// Username variant patterns used for impersonator discovery
-const IMPERSONATION_SUFFIXES = [
-  ".official",
-  "_real",
-  ".creator",
-  "0fficial",
-  "_backup",
-  ".verified",
-  "_original",
-  ".fanpage",
-];
+// Platform API discovery uses top-ranked mutations from the username mutation engine.
+// Limit is intentionally conservative: each variant = one platform API call.
+// The web search engine (webSearchService) runs many more variants via CSE.
+const PLATFORM_API_VARIANT_LIMIT = 20;
 
 export async function startScan(
   userId: string,
@@ -248,26 +243,39 @@ async function discoverRealImpersonators(
   const cleanUsername = ingestedData.username.replace(/^@/, "");
   const candidates: ImpersonatorCandidate[] = [];
 
-  for (const suffix of IMPERSONATION_SUFFIXES) {
-    const variantUsername = `${cleanUsername}${suffix}`;
+  // Phase 1: use the full mutation engine instead of the old 8-suffix list.
+  // Top 20 ranked variants are searched (conservative limit — each = one API call).
+  const variantsToSearch = getTopVariants(cleanUsername, PLATFORM_API_VARIANT_LIMIT);
 
+  logger.info(
+    { platform: ingestedData.platform, username: cleanUsername, variantCount: variantsToSearch.length },
+    "Starting platform API variant discovery with mutation engine"
+  );
+
+  for (const variantUsername of variantsToSearch) {
     try {
       const found = await adapter.searchByUsername(variantUsername, ingestedData.accessToken);
 
       for (const candidate of found) {
         if (candidate.username.toLowerCase() === cleanUsername.toLowerCase()) continue;
 
-        // Build signal scores from what we know
+        // Username similarity vs the original handle
         const usernameSimilarity = computeUsernameSimilarity(cleanUsername, candidate.username);
 
-        // Media similarity: we can't do pixel comparison without embeddings,
-        // so we use a conservative heuristic based on how many photos the suspicious
-        // account has vs. how many they could have stolen
+        // Phase 6: account trust score from observable quality signals.
+        // We have followers from CandidateAccount; following/age not available from
+        // platform API for candidate accounts (requires their auth token).
+        // Lower trust = more suspicious = higher threat contribution.
+        const accountTrustScore = computeAccountTrustScore(candidate.followers);
+
+        // Media overlap: we cannot fetch the candidate's post feed without their
+        // auth token, so we use a conservative quality-weighted heuristic.
+        // Phase 3 (real dHash comparison) applies to web/Vision candidates below
+        // where we do have actual image URLs from Google Vision.
         const suspectedStolenCount = Math.min(
           Math.round(ingestedData.photos * 0.3),
           candidate.followers > 1000 ? 8 : 3
         );
-
         const mediaOverlapRatio = ingestedData.photos > 0
           ? Math.min(suspectedStolenCount / ingestedData.photos, 0.85)
           : 0.3;
@@ -278,7 +286,8 @@ async function discoverRealImpersonators(
           profileImageSimilarity: usernameSimilarity > 0.7 ? 0.75 : 0.4,
           bioSimilarity: usernameSimilarity > 0.7 ? 0.55 : 0.25,
           usernameSimilarity,
-          behaviorScore: candidate.followers < 500 ? 0.8 : 0.4,
+          accountTrustScore,
+          temporalReuseRatio: 0, // Phase 4: temporal data not available from platform API search
         };
 
         const evidence: DetectedEvidence[] = [
@@ -303,16 +312,20 @@ async function discoverRealImpersonators(
           });
         }
 
+        const trustLabel = accountTrustScore < 0.30
+          ? "Very low-trust account — high suspicion"
+          : accountTrustScore < 0.50
+          ? "Low-trust account — recently created or few followers"
+          : "Established account — monitor for escalation";
+
         const detectedSignals: string[] = [
-          `Username variant: "${candidate.username}" matches pattern`,
+          `Username variant: "${candidate.username}" matches mutation pattern`,
           `Username similarity: ${Math.round(usernameSimilarity * 100)}%`,
           `Account has ${candidate.followers} followers`,
           ingestedData.photos > 0
             ? `Up to ${suspectedStolenCount} of your ${ingestedData.photos} photos may be reused`
             : "No media baseline for comparison yet",
-          candidate.followers < 500
-            ? "Recently created or low-activity account"
-            : "Established account — higher risk",
+          trustLabel,
           `Found via username variant scan on ${ingestedData.platform}`,
         ];
 
@@ -325,10 +338,11 @@ async function discoverRealImpersonators(
           detectedSignals,
           matchedMediaCount: suspectedStolenCount,
           suspiciousProfileImageUrl: candidate.profileImageUrl,
+          accountQuality: { followers: candidate.followers },
         });
 
         logger.info(
-          { variantUsername: candidate.username, platform: ingestedData.platform },
+          { variantUsername: candidate.username, platform: ingestedData.platform, accountTrustScore },
           "Real impersonator candidate found"
         );
       }
@@ -339,9 +353,14 @@ async function discoverRealImpersonators(
       );
     }
 
-    // Small delay between API calls to respect rate limits
+    // Respect platform API rate limits
     await sleep(200);
   }
+
+  logger.info(
+    { platform: ingestedData.platform, candidates: candidates.length, variantsSearched: variantsToSearch.length },
+    "Platform API variant discovery complete"
+  );
 
   return candidates;
 }
@@ -421,13 +440,17 @@ function webCandidateToImpersonator(
     ? Math.max(1, Math.round(userPhotos * 0.25 * wc.similarity))
     : 3;
 
+  // Phase 6: web candidates discovered without platform API data — use a neutral
+  // account trust baseline (0.40 = slightly suspicious; unknown new account).
+  // Full account trust scoring requires followers/age data only available from API.
   const signals: SignalData = {
     mediaOverlapRatio,
     captionOverlapRatio,
     profileImageSimilarity,
     bioSimilarity: isImageMatch ? 0.10 : wc.similarity * 0.5,
     usernameSimilarity: isImageMatch || isCaptionMatch ? 0.0 : wc.similarity,
-    behaviorScore: 0.65,
+    accountTrustScore: 0.40,        // conservative neutral for web-discovered candidates
+    temporalReuseRatio: 0,          // Phase 4: populated later when Vision returns dated images
   };
 
   const evidence: DetectedEvidence[] = [];
@@ -725,7 +748,8 @@ async function runScanPipeline(
           profileImageSimilarity: actorSim,
           bioSimilarity: 0,
           usernameSimilarity: 0,
-          behaviorScore: 0.5,
+          accountTrustScore: 0.20,    // known bad actor = very low trust
+          temporalReuseRatio: 0,
         },
         evidence: [{
           id: `actor_fp_${actorMatch.actor.id}`,
@@ -1145,8 +1169,29 @@ async function runScanPipeline(
       );
       continue;
     }
-    const scored = buildThreatFromCandidate(candidate, isFirstScan);
+
+    // Phase 4 — Multi-image temporal ratio pre-pass.
+    // Populate temporalReuseRatio BEFORE buildThreatFromCandidate so the 5-pt
+    // temporalReuse weight in the scoring function reflects confirmed post-dating.
+    // (The +15/-10 modifier in the block below is an additional bonus on top.)
     const candidateKey = `${candidate.platform}:${candidate.suspiciousUsername}`;
+    const victimMatchedDatePrepass = candidateMatchedDateMap.get(candidateKey) ?? null;
+    if (victimMatchedDatePrepass || candidate.suspiciousPostDate) {
+      const { modifier: prepassModifier } = computeTemporalScore(
+        victimMatchedDatePrepass,
+        candidate.suspiciousPostDate
+      );
+      if (prepassModifier > 0) {
+        // Confirmed post-dating: set ratio to 1.0 → full 5 pts from temporalReuse weight
+        candidate.signals.temporalReuseRatio = 1.0;
+      } else if (prepassModifier < 0) {
+        // Pre-dating contra-indicator: 0.0 → no temporal contribution
+        candidate.signals.temporalReuseRatio = 0.0;
+      }
+      // prepassModifier === 0 (within jitter): leave at default 0 (neutral)
+    }
+
+    const scored = buildThreatFromCandidate(candidate, isFirstScan);
 
     // Threat zeroed out by first-scan precision gate — skip it entirely
     if (scored.breakdown.total === 0 && !candidate.simulated) {
