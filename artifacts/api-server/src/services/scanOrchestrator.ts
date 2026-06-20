@@ -91,9 +91,9 @@ const SCAN_STEPS = [
 ] as const;
 
 // Platform API discovery uses top-ranked mutations from the username mutation engine.
-// Limit is intentionally conservative: each variant = one platform API call.
+// Variants are fired in parallel so this limit has minimal latency impact.
 // The web search engine (webSearchService) runs many more variants via CSE.
-const PLATFORM_API_VARIANT_LIMIT = 20;
+const PLATFORM_API_VARIANT_LIMIT = 10;
 
 export async function startScan(
   userId: string,
@@ -252,109 +252,118 @@ async function discoverRealImpersonators(
     "Starting platform API variant discovery with mutation engine"
   );
 
-  for (const variantUsername of variantsToSearch) {
-    try {
-      const found = await adapter.searchByUsername(variantUsername, ingestedData.accessToken);
+  // Fire all variant lookups in parallel — eliminates the old 200ms-per-variant
+  // sequential sleep (20 variants × 200ms = 4s → now effectively 0).
+  // Promise.allSettled so a single failed lookup doesn't abort the rest.
+  const variantResults = await Promise.allSettled(
+    variantsToSearch.map((variantUsername) =>
+      adapter
+        .searchByUsername(variantUsername, ingestedData.accessToken)
+        .then((found) => ({ variantUsername, found }))
+    )
+  );
 
-      for (const candidate of found) {
-        if (candidate.username.toLowerCase() === cleanUsername.toLowerCase()) continue;
-
-        // Username similarity vs the original handle
-        const usernameSimilarity = computeUsernameSimilarity(cleanUsername, candidate.username);
-
-        // Phase 6: account trust score from observable quality signals.
-        // We have followers from CandidateAccount; following/age not available from
-        // platform API for candidate accounts (requires their auth token).
-        // Lower trust = more suspicious = higher threat contribution.
-        const accountTrustScore = computeAccountTrustScore(candidate.followers);
-
-        // Media overlap: we cannot fetch the candidate's post feed without their
-        // auth token, so we use a conservative quality-weighted heuristic.
-        // Phase 3 (real dHash comparison) applies to web/Vision candidates below
-        // where we do have actual image URLs from Google Vision.
-        const suspectedStolenCount = Math.min(
-          Math.round(ingestedData.photos * 0.3),
-          candidate.followers > 1000 ? 8 : 3
-        );
-        const mediaOverlapRatio = ingestedData.photos > 0
-          ? Math.min(suspectedStolenCount / ingestedData.photos, 0.85)
-          : 0.3;
-
-        const signals: SignalData = {
-          mediaOverlapRatio,
-          captionOverlapRatio: mediaOverlapRatio * 0.6,
-          profileImageSimilarity: usernameSimilarity > 0.7 ? 0.75 : 0.4,
-          bioSimilarity: usernameSimilarity > 0.7 ? 0.55 : 0.25,
-          usernameSimilarity,
-          accountTrustScore,
-          temporalReuseRatio: 0, // Phase 4: temporal data not available from platform API search
-        };
-
-        const evidence: DetectedEvidence[] = [
-          {
-            id: `real_${candidate.platformUserId}_profile`,
-            type: "profile_photo",
-            similarity: Math.round(signals.profileImageSimilarity * 100),
-            label: "Profile Photo Similarity",
-            yourPhotoUrl: ingestedData.profileImageUrl,
-            stolenPhotoUrl: candidate.profileImageUrl,
-          },
-        ];
-
-        if (suspectedStolenCount > 0) {
-          evidence.push({
-            id: `real_${candidate.platformUserId}_media`,
-            type: "post_photo",
-            similarity: Math.round(signals.mediaOverlapRatio * 100),
-            label: `${suspectedStolenCount} Photos Potentially Reused`,
-            yourPhotoUrl: ingestedData.profileImageUrl,
-            stolenPhotoUrl: candidate.profileImageUrl,
-          });
-        }
-
-        const trustLabel = accountTrustScore < 0.30
-          ? "Very low-trust account — high suspicion"
-          : accountTrustScore < 0.50
-          ? "Low-trust account — recently created or few followers"
-          : "Established account — monitor for escalation";
-
-        const detectedSignals: string[] = [
-          `Username variant: "${candidate.username}" matches mutation pattern`,
-          `Username similarity: ${Math.round(usernameSimilarity * 100)}%`,
-          `Account has ${candidate.followers} followers`,
-          ingestedData.photos > 0
-            ? `Up to ${suspectedStolenCount} of your ${ingestedData.photos} photos may be reused`
-            : "No media baseline for comparison yet",
-          trustLabel,
-          `Found via username variant scan on ${ingestedData.platform}`,
-        ];
-
-        candidates.push({
-          suspiciousUsername: `@${candidate.username}`,
-          platform: ingestedData.platform,
-          source: "username_search",
-          signals,
-          evidence,
-          detectedSignals,
-          matchedMediaCount: suspectedStolenCount,
-          suspiciousProfileImageUrl: candidate.profileImageUrl,
-          accountQuality: { followers: candidate.followers },
-        });
-
-        logger.info(
-          { variantUsername: candidate.username, platform: ingestedData.platform, accountTrustScore },
-          "Real impersonator candidate found"
-        );
-      }
-    } catch (err) {
+  for (const result of variantResults) {
+    if (result.status === "rejected") {
       logger.warn(
-        { err, variantUsername, platform: ingestedData.platform },
+        { err: result.reason, platform: ingestedData.platform },
         "Username variant check failed, skipping"
       );
+      continue;
     }
 
-    // Respect platform API rate limits
-    await sleep(200);
+    const { variantUsername, found } = result.value;
+
+    for (const candidate of found) {
+      if (candidate.username.toLowerCase() === cleanUsername.toLowerCase()) continue;
+
+      // Username similarity vs the original handle
+      const usernameSimilarity = computeUsernameSimilarity(cleanUsername, candidate.username);
+
+      // Phase 6: account trust score from observable quality signals.
+      // We have followers from CandidateAccount; following/age not available from
+      // platform API for candidate accounts (requires their auth token).
+      // Lower trust = more suspicious = higher threat contribution.
+      const accountTrustScore = computeAccountTrustScore(candidate.followers);
+
+      // Media overlap: we cannot fetch the candidate's post feed without their
+      // auth token, so we use a conservative quality-weighted heuristic.
+      // Phase 3 (real dHash comparison) applies to web/Vision candidates below
+      // where we do have actual image URLs from Google Vision.
+      const suspectedStolenCount = Math.min(
+        Math.round(ingestedData.photos * 0.3),
+        candidate.followers > 1000 ? 8 : 3
+      );
+      const mediaOverlapRatio = ingestedData.photos > 0
+        ? Math.min(suspectedStolenCount / ingestedData.photos, 0.85)
+        : 0.3;
+
+      const signals: SignalData = {
+        mediaOverlapRatio,
+        captionOverlapRatio: mediaOverlapRatio * 0.6,
+        profileImageSimilarity: usernameSimilarity > 0.7 ? 0.75 : 0.4,
+        bioSimilarity: usernameSimilarity > 0.7 ? 0.55 : 0.25,
+        usernameSimilarity,
+        accountTrustScore,
+        temporalReuseRatio: 0, // Phase 4: temporal data not available from platform API search
+      };
+
+      const evidence: DetectedEvidence[] = [
+        {
+          id: `real_${candidate.platformUserId}_profile`,
+          type: "profile_photo",
+          similarity: Math.round(signals.profileImageSimilarity * 100),
+          label: "Profile Photo Similarity",
+          yourPhotoUrl: ingestedData.profileImageUrl,
+          stolenPhotoUrl: candidate.profileImageUrl,
+        },
+      ];
+
+      if (suspectedStolenCount > 0) {
+        evidence.push({
+          id: `real_${candidate.platformUserId}_media`,
+          type: "post_photo",
+          similarity: Math.round(signals.mediaOverlapRatio * 100),
+          label: `${suspectedStolenCount} Photos Potentially Reused`,
+          yourPhotoUrl: ingestedData.profileImageUrl,
+          stolenPhotoUrl: candidate.profileImageUrl,
+        });
+      }
+
+      const trustLabel = accountTrustScore < 0.30
+        ? "Very low-trust account — high suspicion"
+        : accountTrustScore < 0.50
+        ? "Low-trust account — recently created or few followers"
+        : "Established account — monitor for escalation";
+
+      const detectedSignals: string[] = [
+        `Username variant: "${candidate.username}" matches mutation pattern`,
+        `Username similarity: ${Math.round(usernameSimilarity * 100)}%`,
+        `Account has ${candidate.followers} followers`,
+        ingestedData.photos > 0
+          ? `Up to ${suspectedStolenCount} of your ${ingestedData.photos} photos may be reused`
+          : "No media baseline for comparison yet",
+        trustLabel,
+        `Found via username variant scan on ${ingestedData.platform}`,
+      ];
+
+      candidates.push({
+        suspiciousUsername: `@${candidate.username}`,
+        platform: ingestedData.platform,
+        source: "username_search",
+        signals,
+        evidence,
+        detectedSignals,
+        matchedMediaCount: suspectedStolenCount,
+        suspiciousProfileImageUrl: candidate.profileImageUrl,
+        accountQuality: { followers: candidate.followers },
+      });
+
+      logger.info(
+        { variantUsername: candidate.username, platform: ingestedData.platform, accountTrustScore },
+        "Real impersonator candidate found"
+      );
+    }
   }
 
   logger.info(
@@ -627,7 +636,7 @@ async function runScanPipeline(
   for (const account of verifiedAccounts) {
     const ingested = await ingestPlatformMedia(account);
     if (ingested) ingestedAccounts.push(ingested);
-    await sleep(300);
+    await sleep(100);
   }
 
   // Aggregate totals (real + cached for unverified)
@@ -699,8 +708,6 @@ async function runScanPipeline(
   buildUserPhotoEmbeddings(userId, embeddingTargetUrls, 20).catch((err) =>
     logger.warn({ err }, "Background AI embedding generation failed (non-fatal)")
   );
-
-  await sleep(300);
 
   // Compute per-user Hamming threshold early — needed for both the pre-search
   // actor corpus fast-path and the per-candidate photo comparison in Step 6.
@@ -896,8 +903,9 @@ async function runScanPipeline(
         displayName: primaryDisplayName ?? undefined,
       });
 
-      // Cache results so subsequent scans within 72h skip the APIs
-      if (!isDemoUser) {
+      // Cache results only when candidates were found — never cache empty results
+      // so the next scan can retry the APIs instead of serving a stale zero.
+      if (!isDemoUser && webCandidates.length > 0) {
         setCache(scanCacheKey, webCandidates).catch(() => {});
       }
     }
@@ -928,7 +936,7 @@ async function runScanPipeline(
     );
   } else {
     // Brief pause to maintain realistic scan timing even when web search is off
-    await sleep(600);
+    await sleep(200);
   }
 
   // Simulation for accounts with no real candidates from any source.
@@ -1141,7 +1149,7 @@ async function runScanPipeline(
     } else {
       logger.info({ userId }, "No user photo fingerprints available — comparison skipped");
     }
-    await sleep(400);
+    await sleep(100);
   }
 
   // Retire stale unresolved threats from previous scans
@@ -1360,7 +1368,7 @@ async function runScanPipeline(
 
   // ── Step 7: AI threat explanation ─────────────────────────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[6].progress, SCAN_STEPS[6].step);
-  await sleep(600);
+  await sleep(150);
 
   const insertedThreatIds: string[] = [];
 
@@ -1409,7 +1417,7 @@ async function runScanPipeline(
 
   // ── Step 8: Complete ──────────────────────────────────────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[7].progress, SCAN_STEPS[7].step);
-  await sleep(400);
+  await sleep(100);
 
   await db
     .update(scanJobsTable)
