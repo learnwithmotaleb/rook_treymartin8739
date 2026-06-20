@@ -1152,17 +1152,15 @@ async function runScanPipeline(
     await sleep(100);
   }
 
-  // Retire stale unresolved threats from previous scans
-  await db
-    .update(threatsTable)
-    .set({ resolved: true })
-    .where(
-      and(
-        eq(threatsTable.userId, userId),
-        eq(threatsTable.resolved, false),
-        ne(threatsTable.scanJobId, jobId)
-      )
-    );
+  // NOTE: Bulk retirement removed.
+  // Old behaviour wiped ALL previous threats at scan start, so interrupted scans
+  // or scans that returned fewer results (API limits, CSE coverage gaps) silently
+  // deleted legitimate finds from prior runs.
+  //
+  // New behaviour: threats accumulate and are only retired when the same
+  // account is *re-found* in the current scan (see post-insert step below).
+  // Threats not found in this scan persist until the user resolves them manually
+  // or a future scan positively confirms the account is gone.
 
   // All candidates in allCandidates are already pre-filtered against the
   // permanent suppressionSet (loaded at step 0). This safety check is a
@@ -1413,6 +1411,32 @@ async function runScanPipeline(
         }
       }
     }
+  }
+
+  // ── Targeted retirement: retire OLD records only for accounts re-found this scan ──
+  // For each account the current scan discovered, mark the previous unresolved record
+  // as resolved (different scanJobId) so the feed shows only the freshest data.
+  // Accounts NOT found in this scan keep their old record — they persist until the
+  // user resolves them manually.
+  if (allCandidates.length > 0) {
+    for (const candidate of allCandidates) {
+      await db
+        .update(threatsTable)
+        .set({ resolved: true })
+        .where(
+          and(
+            eq(threatsTable.userId, userId),
+            eq(threatsTable.platform, candidate.platform),
+            eq(threatsTable.suspiciousUsername, candidate.suspiciousUsername),
+            eq(threatsTable.resolved, false),
+            ne(threatsTable.scanJobId, jobId)
+          )
+        );
+    }
+    logger.info(
+      { accountsRescanned: allCandidates.length },
+      "Targeted retirement: old records for re-found accounts marked resolved"
+    );
   }
 
   // ── Step 8: Complete ──────────────────────────────────────────────────────
