@@ -37,7 +37,7 @@ function StatCard({
 }) {
   const colors = useColors();
   const inner = (
-    <GlassCard style={styles.statCard}>
+    <GlassCard style={[styles.statCard, onPress ? { width: "100%" } : undefined]}>
       {icon}
       <Text style={[styles.statValue, { color: valueColor ?? colors.foreground, fontFamily: "Inter_700Bold" }]}>
         {value}
@@ -49,7 +49,7 @@ function StatCard({
   );
   if (onPress) {
     return (
-      <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ flex: 1 }}>
+      <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ width: "48%" }}>
         {inner}
       </TouchableOpacity>
     );
