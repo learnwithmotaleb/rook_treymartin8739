@@ -410,9 +410,30 @@ function editDistance(s1: string, s2: string): number {
 
 // ─── Web search candidate → ImpersonatorCandidate conversion ─────────────────
 
+/** Maps ShieldID platform names to unavatar.io path segments for profile photo lookup. */
+const UNAVATAR_PLATFORM: Record<string, string> = {
+  instagram: "instagram",
+  x: "twitter",
+  tiktok: "tiktok",
+  facebook: "facebook",
+  youtube: "youtube",
+  linkedin: "linkedin",
+};
+
+/** Best-effort profile photo URL for an impersonator account.
+ *  Uses unavatar.io, which proxies platform CDNs.
+ *  The mobile EvidencePhotoBox has an onError handler that falls back gracefully. */
+function buildStolenPhotoUrl(platform: string, username: string): string | undefined {
+  const slug = UNAVATAR_PLATFORM[platform.toLowerCase()];
+  if (!slug) return undefined;
+  const clean = username.replace(/^@/, "");
+  return `https://unavatar.io/${slug}/${encodeURIComponent(clean)}`;
+}
+
 function webCandidateToImpersonator(
   wc: WebSearchCandidate,
-  ingestedAccounts: IngestedMedia[]
+  ingestedAccounts: IngestedMedia[],
+  userAvatarUrl?: string
 ): ImpersonatorCandidate {
   const bestIngested = ingestedAccounts.reduce<IngestedMedia | null>(
     (best, curr) => (!best || curr.photos > best.photos ? curr : best),
@@ -464,8 +485,13 @@ function webCandidateToImpersonator(
 
   const evidence: DetectedEvidence[] = [];
 
-  // User's own profile photo URL — used as "Your Photo" in evidence display
-  const userProfilePhotoUrl = bestIngested?.profileImageUrl ?? undefined;
+  // "Your Photo" — prefer ingested profile photo, fall back to user avatar URL from DB
+  const userProfilePhotoUrl = bestIngested?.profileImageUrl ?? userAvatarUrl ?? undefined;
+
+  // "Stolen Photo" — use image URL if Vision found one, otherwise build via unavatar.io.
+  // EvidencePhotoBox has an onError handler so a 404 from unavatar falls back gracefully.
+  const stolenProfilePhotoUrl =
+    wc.imageUrl ?? buildStolenPhotoUrl(wc.platform, wc.username) ?? undefined;
 
   if (isImageMatch) {
     evidence.push({
@@ -474,7 +500,7 @@ function webCandidateToImpersonator(
       similarity: Math.round(profileImageSimilarity * 100),
       label: "Profile Photo Found via Image Search",
       stolenPageUrl: wc.profileUrl,
-      stolenPhotoUrl: wc.imageUrl ?? undefined,
+      stolenPhotoUrl: stolenProfilePhotoUrl,
       yourPhotoUrl: userProfilePhotoUrl,
       postContext: wc.postContext ?? "original_post",
     });
@@ -485,6 +511,7 @@ function webCandidateToImpersonator(
       similarity: Math.round(wc.similarity * 100),
       label: "Username Pattern Match",
       stolenPageUrl: wc.profileUrl,
+      stolenPhotoUrl: stolenProfilePhotoUrl,
       yourPhotoUrl: userProfilePhotoUrl,
       postContext: wc.postContext ?? "original_post",
     });
@@ -499,6 +526,7 @@ function webCandidateToImpersonator(
         ? "Caption Text Stolen Verbatim"
         : `${suspectedStolenCount} Potentially Stolen Photos`,
       stolenPageUrl: wc.profileUrl,
+      stolenPhotoUrl: stolenProfilePhotoUrl,
       yourPhotoUrl: userProfilePhotoUrl,
       postContext: wc.postContext ?? "original_post",
       ...(isCaptionMatch
@@ -911,7 +939,7 @@ async function runScanPipeline(
     }
 
     for (const wc of webCandidates) {
-      const candidate = webCandidateToImpersonator(wc, ingestedAccounts);
+      const candidate = webCandidateToImpersonator(wc, ingestedAccounts, user.avatarUrl ?? undefined);
       if (suppressionSet.has(buildSuppressKey(candidate.platform, candidate.suspiciousUsername))) {
         logger.info(
           { username: candidate.suspiciousUsername, platform: candidate.platform },

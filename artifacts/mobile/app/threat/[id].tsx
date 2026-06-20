@@ -345,7 +345,7 @@ export default function ThreatDetail() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { threats, resolveThreat } = useApp();
+  const { threats, resolveThreat, user } = useApp();
 
   const [detail, setDetail] = useState<ThreatDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -437,7 +437,10 @@ export default function ThreatDetail() {
     label: e.label,
     yourCaption: "yourCaption" in e ? (e as any).yourCaption : undefined,
     stolenCaption: "stolenCaption" in e ? (e as any).stolenCaption : undefined,
-    yourPhotoUrl: "yourPhotoUrl" in e ? (e as any).yourPhotoUrl : undefined,
+    yourPhotoUrl:
+      ("yourPhotoUrl" in e && (e as any).yourPhotoUrl)
+        ? (e as any).yourPhotoUrl
+        : (user?.avatarUrl ?? undefined),
     stolenPhotoUrl: "stolenPhotoUrl" in e ? (e as any).stolenPhotoUrl : undefined,
     stolenPageUrl: "stolenPageUrl" in e ? (e as any).stolenPageUrl : undefined,
     postContext: "postContext" in e ? (e as any).postContext : undefined,
