@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   db,
   subscriptionsTable,
@@ -57,7 +57,7 @@ export async function getUsageForPeriod(
   const [row] = await db
     .select()
     .from(usageTrackingTable)
-    .where(eq(usageTrackingTable.userId, userId));
+    .where(and(eq(usageTrackingTable.userId, userId), eq(usageTrackingTable.period, p)));
 
   if (!row) return { scansUsed: 0, accountsConnected: 0, alertsSent: 0, aiCallsMade: 0 };
   return {

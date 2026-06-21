@@ -10,7 +10,7 @@
  */
 
 import crypto from "crypto";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, lt } from "drizzle-orm";
 import { db, scanCacheTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 
@@ -126,7 +126,7 @@ export async function evictExpiredCache(): Promise<number> {
   try {
     const result = await db
       .delete(scanCacheTable)
-      .where(eq(scanCacheTable.expiresAt, new Date()))
+      .where(lt(scanCacheTable.expiresAt, new Date()))
       .returning({ id: scanCacheTable.id });
     return result.length;
   } catch {
