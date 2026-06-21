@@ -31,7 +31,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { useLocalSearchParams } from "expo-router";
 import { GlassCard } from "@/components/GlassCard";
-import { useSubscription } from "@/lib/revenuecat";
+import { useSubscription, isRevenueCatConfigured } from "@/lib/revenuecat";
 import { syncSubscriptionTier } from "@/lib/api";
 
 type Tier = "free" | "pro" | "premium";
@@ -317,6 +317,31 @@ export default function Subscription() {
   const getPlanCtaDisabled = (meta: PlanMeta): boolean => {
     return meta.id === currentTier || TIER_ORDER[meta.id] < TIER_ORDER[currentTier];
   };
+
+  // ── RevenueCat not configured guard ────────────────────────────────────────
+  if (!isRevenueCatConfigured) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 32 }]}>
+        <LinearGradient
+          colors={[colors.primaryDark + "22", "transparent"]}
+          style={styles.topGradient}
+        />
+        <TouchableOpacity
+          style={{ position: "absolute", top: topPad + 16, left: 20 }}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="close" size={24} color={colors.foreground} />
+        </TouchableOpacity>
+        <Ionicons name="lock-closed-outline" size={56} color={colors.primary} style={{ marginBottom: 20 }} />
+        <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center", marginBottom: 12 }}>
+          Subscriptions Coming Soon
+        </Text>
+        <Text style={{ fontSize: 15, color: colors.mutedForeground, textAlign: "center", lineHeight: 22 }}>
+          In-app purchases are being set up.{"\n"}Check back soon for Pro and Premium plans.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

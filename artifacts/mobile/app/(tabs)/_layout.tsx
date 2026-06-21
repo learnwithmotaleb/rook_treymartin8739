@@ -22,7 +22,7 @@ function NativeTabLayout() {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "shield", selected: "shield.fill" }} />
+        <Icon sf={{ default: "crown", selected: "crown.fill" }} />
         <Label>Dashboard</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="alerts">
@@ -89,9 +89,9 @@ function ClassicTabLayout() {
           title: "Dashboard",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="shield.fill" tintColor={color} size={24} />
+              <SymbolView name="crown.fill" tintColor={color} size={24} />
             ) : (
-              <Ionicons name="shield" size={22} color={color} />
+              <MaterialCommunityIcons name="chess-rook" size={22} color={color} />
             ),
         }}
       />

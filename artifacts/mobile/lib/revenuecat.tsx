@@ -31,16 +31,17 @@ export const ENTITLEMENT_PREMIUM = "premium";
 
 export type RCTier = "free" | "pro" | "premium";
 
-function getRevenueCatApiKey(): string {
-  if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
-    throw new Error("RevenueCat API keys not configured. Run the seed script and set env vars.");
-  }
+/** True only after a successful Purchases.configure() call. Guarded by _layout.tsx try/catch. */
+export let isRevenueCatConfigured = false;
 
+function getRevenueCatApiKey(): string | null {
+  if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
+    return null;
+  }
   // Dev, Expo Go (storeClient), or web → use test store key
   if (__DEV__ || Platform.OS === "web" || Constants.executionEnvironment === "storeClient") {
     return REVENUECAT_TEST_API_KEY;
   }
-
   if (Platform.OS === "ios") return REVENUECAT_IOS_API_KEY;
   if (Platform.OS === "android") return REVENUECAT_ANDROID_API_KEY;
   return REVENUECAT_TEST_API_KEY;
@@ -48,10 +49,14 @@ function getRevenueCatApiKey(): string {
 
 export function initializeRevenueCat(): void {
   const apiKey = getRevenueCatApiKey();
+  if (!apiKey) {
+    throw new Error("RevenueCat API keys not configured — set EXPO_PUBLIC_REVENUECAT_IOS_API_KEY, EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY, and EXPO_PUBLIC_REVENUECAT_TEST_API_KEY.");
+  }
   if (__DEV__) {
     Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
   }
   Purchases.configure({ apiKey });
+  isRevenueCatConfigured = true;
 }
 
 /** Derive tier from RevenueCat customer info entitlements */
@@ -84,12 +89,14 @@ function useSubscriptionContext(): SubscriptionContextValue {
     queryKey: ["revenuecat", "customer-info"],
     queryFn: () => Purchases.getCustomerInfo(),
     staleTime: 60_000,
+    enabled: isRevenueCatConfigured,
   });
 
   const offeringsQuery = useQuery({
     queryKey: ["revenuecat", "offerings"],
     queryFn: () => Purchases.getOfferings(),
     staleTime: 300_000,
+    enabled: isRevenueCatConfigured,
   });
 
   const purchaseMutation = useMutation({

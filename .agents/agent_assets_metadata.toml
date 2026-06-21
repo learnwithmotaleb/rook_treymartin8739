@@ -1,11 +1,10 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "m81YOt-kWmD6WCbKeF62b"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
-title = "rook app icon"
+title = "rook app icon dark background"
 
 [[generated]]
 id = "zquvQWWrp9v9NxzTepnx_"
@@ -17,16 +16,82 @@ title = "rook splash screen"
 id = "NWDlLb3IxZ6aICPtOEDTl"
 uri = "file://artifacts/mobile/assets/images/adaptive-icon.png"
 type = "image"
-title = "rook adaptive icon"
+title = "rook adaptive icon android"
 
 [[generated]]
 id = "txp76lxlUX2C2BbzQyX8E"
 uri = "file://artifacts/landing/public/logo.png"
 type = "image"
-title = "rook website logo"
+title = "rook web logo blue white transparent"
 
 [[generated]]
 id = "skfSDH0-hIYlu1mHquoon"
 uri = "file://artifacts/mobile/assets/images/logo-mark.png"
 type = "image"
-title = "rook R lettermark only"
+title = "rook R logo mark blue white"
+
+[[generated]]
+id = "1QvM2FnRkXC7pjf0yKoDi"
+uri = "file://attached_assets/appstore/screenshot-01-dashboard.png"
+type = "image"
+title = "app store dashboard screenshot"
+
+[[generated]]
+id = "Yiv4Xy1dB1NZ1LVfdPwJE"
+uri = "file://attached_assets/appstore/screenshot-02-alerts.png"
+type = "image"
+title = "app store alerts screenshot"
+
+[[generated]]
+id = "Tt3VUZN1S6NbyqAmMTYeK"
+uri = "file://attached_assets/appstore/screenshot-03-scan.png"
+type = "image"
+title = "app store scan screenshot"
+
+[[generated]]
+id = "8JsO2wVtIaxHzAfxwpdFL"
+uri = "file://attached_assets/appstore/screenshot-04-threat-detail.png"
+type = "image"
+title = "app store threat detail screenshot"
+
+[[generated]]
+id = "lpdA1bgZY24UbaaeEKDcC"
+uri = "file://attached_assets/appstore/screenshot-05-subscription.png"
+type = "image"
+title = "app store subscription screenshot"
+
+[[outputs]]
+id = "s4IyNX6G2WrSLXCflXFW3"
+uri = "file://attached_assets/appstore/screenshot-01-dashboard.png"
+type = "image"
+title = "Screenshot 1 — Dashboard"
+
+[[outputs]]
+id = "whETEuZLwmgGMEgjHJW3z"
+uri = "file://attached_assets/appstore/screenshot-02-alerts.png"
+type = "image"
+title = "Screenshot 2 — Alerts Feed"
+
+[[outputs]]
+id = "CclBlW8XMJt7mbo-L_kLb"
+uri = "file://attached_assets/appstore/screenshot-03-scan.png"
+type = "image"
+title = "Screenshot 3 — Active Scan"
+
+[[outputs]]
+id = "4-ygK1UipOvr_M482R_Ns"
+uri = "file://attached_assets/appstore/screenshot-04-threat-detail.png"
+type = "image"
+title = "Screenshot 4 — Threat Detail"
+
+[[outputs]]
+id = "hI_HKU9sO0PsxrWN3bhG9"
+uri = "file://attached_assets/appstore/screenshot-05-subscription.png"
+type = "image"
+title = "Screenshot 5 — Subscription"
+
+[[outputs]]
+id = "2Z0z3jRSsTZyo9t9viEtC"
+uri = "file://artifacts/mobile/store-metadata/app-store-metadata.md"
+type = "text"
+title = "App Store Metadata (full copy)"
