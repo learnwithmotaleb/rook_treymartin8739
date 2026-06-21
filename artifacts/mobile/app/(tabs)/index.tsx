@@ -102,7 +102,7 @@ export default function Dashboard() {
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <Image
-            source={require("../../assets/images/logo.png")}
+            source={require("../../assets/images/logo-mark.png")}
             style={styles.headerLogo}
             resizeMode="contain"
           />
@@ -311,8 +311,8 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerLogo: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
   },
   notifBtn: { position: "relative", padding: 4 },
   notifBadge: {

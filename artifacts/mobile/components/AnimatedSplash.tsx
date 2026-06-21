@@ -13,8 +13,8 @@ import Animated, {
 
 const { width, height } = Dimensions.get("window");
 
-const MARK_SIZE = Math.min(width * 0.42, 190);
-const MARK_TOP = height * 0.28;
+const MARK_SIZE = Math.min(width * 0.52, 230);
+const MARK_TOP = height * 0.26;
 const MARK_LEFT = (width - MARK_SIZE) / 2;
 const MARK_CX = width / 2;
 const MARK_CY = MARK_TOP + MARK_SIZE / 2;
@@ -38,7 +38,7 @@ function FloatingPixel({ size, delay, left, top, driftX, driftY, color }: PixelP
   const ty = useSharedValue(0);
 
   useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(0.8, { duration: 500 }));
+    opacity.value = withDelay(delay, withTiming(0.7, { duration: 500 }));
     tx.value = withDelay(
       delay,
       withRepeat(
@@ -92,12 +92,18 @@ function ScanLine({ startY, endY, delay }: { startY: number; endY: number; delay
   const posY = useSharedValue(startY);
 
   useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(1, { duration: 60 }));
+    // Fade in → hold → fade out as a single sequence so assignments don't race
+    opacity.value = withDelay(
+      delay,
+      withSequence(
+        withTiming(1, { duration: 80 }),
+        withDelay(860, withTiming(0, { duration: 300 }))
+      )
+    );
     posY.value = withDelay(
       delay,
       withTiming(endY, { duration: 1000, easing: Easing.inOut(Easing.ease) })
     );
-    opacity.value = withDelay(delay + 1000, withTiming(0, { duration: 280 }));
   }, []);
 
   const style = useAnimatedStyle(() => ({
@@ -154,17 +160,17 @@ function TaglineText({ delay }: { delay: number }) {
   );
 }
 
-// ─── Pixel positions (relative to logo mark center) ─────────────────────────
+// ─── Pixel positions (blue palette only, no purple) ──────────────────────────
 const PIXELS: PixelProps[] = [
-  { size: 8, delay: 120, left: MARK_CX - MARK_SIZE * 0.52, top: MARK_CY - MARK_SIZE * 0.38, driftX: -14, driftY: -10, color: "#3B82F6" },
-  { size: 5, delay: 200, left: MARK_CX - MARK_SIZE * 0.64, top: MARK_CY - MARK_SIZE * 0.22, driftX: -10, driftY: -16, color: "#60A5FA" },
-  { size: 6, delay: 80,  left: MARK_CX - MARK_SIZE * 0.68, top: MARK_CY - MARK_SIZE * 0.08, driftX: -18, driftY:   6, color: "#3B82F6" },
-  { size: 4, delay: 300, left: MARK_CX - MARK_SIZE * 0.44, top: MARK_CY - MARK_SIZE * 0.50, driftX:  -8, driftY: -12, color: "#818CF8" },
-  { size: 7, delay: 60,  left: MARK_CX - MARK_SIZE * 0.74, top: MARK_CY - MARK_SIZE * 0.30, driftX: -20, driftY:  -4, color: "#3B82F6" },
-  { size: 4, delay: 380, left: MARK_CX - MARK_SIZE * 0.58, top: MARK_CY + MARK_SIZE * 0.08, driftX: -12, driftY:  10, color: "#60A5FA" },
-  { size: 5, delay: 240, left: MARK_CX - MARK_SIZE * 0.36, top: MARK_CY - MARK_SIZE * 0.56, driftX:  -6, driftY: -18, color: "#8B5CF6" },
-  { size: 3, delay: 440, left: MARK_CX - MARK_SIZE * 0.78, top: MARK_CY - MARK_SIZE * 0.16, driftX: -22, driftY:   0, color: "#60A5FA" },
-  { size: 6, delay: 160, left: MARK_CX - MARK_SIZE * 0.66, top: MARK_CY - MARK_SIZE * 0.44, driftX: -16, driftY:  -8, color: "#3B82F6" },
+  { size: 8,  delay: 120, left: MARK_CX - MARK_SIZE * 0.52, top: MARK_CY - MARK_SIZE * 0.38, driftX: -14, driftY: -10, color: "#3B82F6" },
+  { size: 5,  delay: 200, left: MARK_CX - MARK_SIZE * 0.64, top: MARK_CY - MARK_SIZE * 0.22, driftX: -10, driftY: -16, color: "#60A5FA" },
+  { size: 6,  delay: 80,  left: MARK_CX - MARK_SIZE * 0.68, top: MARK_CY - MARK_SIZE * 0.08, driftX: -18, driftY:   6, color: "#3B82F6" },
+  { size: 4,  delay: 300, left: MARK_CX - MARK_SIZE * 0.44, top: MARK_CY - MARK_SIZE * 0.50, driftX:  -8, driftY: -12, color: "#93C5FD" },
+  { size: 7,  delay: 60,  left: MARK_CX - MARK_SIZE * 0.74, top: MARK_CY - MARK_SIZE * 0.30, driftX: -20, driftY:  -4, color: "#3B82F6" },
+  { size: 4,  delay: 380, left: MARK_CX - MARK_SIZE * 0.58, top: MARK_CY + MARK_SIZE * 0.08, driftX: -12, driftY:  10, color: "#60A5FA" },
+  { size: 5,  delay: 240, left: MARK_CX - MARK_SIZE * 0.36, top: MARK_CY - MARK_SIZE * 0.56, driftX:  -6, driftY: -18, color: "#93C5FD" },
+  { size: 3,  delay: 440, left: MARK_CX - MARK_SIZE * 0.78, top: MARK_CY - MARK_SIZE * 0.16, driftX: -22, driftY:   0, color: "#60A5FA" },
+  { size: 6,  delay: 160, left: MARK_CX - MARK_SIZE * 0.66, top: MARK_CY - MARK_SIZE * 0.44, driftX: -16, driftY:  -8, color: "#3B82F6" },
 ];
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -176,41 +182,14 @@ interface Props {
 export function AnimatedSplash({ isReady, onHidden }: Props) {
   const containerOpacity = useSharedValue(1);
   const markOpacity = useSharedValue(0);
-  const markScale = useSharedValue(0.82);
-  const glowOpacity = useSharedValue(0);
-  const glowScale = useSharedValue(0.8);
+  const markScale = useSharedValue(0.80);
 
   useEffect(() => {
-    // Logo mark entrance — spring-style ease-out
     markOpacity.value = withTiming(1, { duration: 680, easing: Easing.out(Easing.cubic) });
-    markScale.value = withTiming(1, { duration: 780, easing: Easing.out(Easing.back(1.08)) });
-
-    // Glow pulse — starts after mark is visible
-    glowOpacity.value = withDelay(
-      520,
-      withRepeat(
-        withSequence(
-          withTiming(0.52, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.10, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        false
-      )
-    );
-    glowScale.value = withDelay(
-      520,
-      withRepeat(
-        withSequence(
-          withTiming(1.35, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.90, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        false
-      )
-    );
+    markScale.value = withTiming(1, { duration: 780, easing: Easing.out(Easing.back(1.06)) });
   }, []);
 
-  // Exit fade-out
+  // Exit fade-out — only fires once isReady is true (minTime ≥ 3800ms so full animation plays)
   useEffect(() => {
     if (!isReady) return;
     containerOpacity.value = withTiming(
@@ -225,31 +204,11 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
     opacity: markOpacity.value,
     transform: [{ scale: markScale.value }],
   }));
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-    transform: [{ scale: glowScale.value }],
-  }));
 
-  const GLOW_SIZE = MARK_SIZE + 100;
-  const WORDMARK_TOP = MARK_TOP + MARK_SIZE + 30;
+  const WORDMARK_TOP = MARK_TOP + MARK_SIZE + 28;
 
   return (
     <Animated.View style={[styles.container, containerStyle, { pointerEvents: "none" }]}>
-
-      {/* Radial glow behind mark */}
-      <Animated.View
-        style={[
-          styles.glowHalo,
-          {
-            width: GLOW_SIZE,
-            height: GLOW_SIZE,
-            borderRadius: GLOW_SIZE / 2,
-            top: MARK_CY - GLOW_SIZE / 2,
-            left: MARK_CX - GLOW_SIZE / 2,
-          },
-          glowStyle,
-        ]}
-      />
 
       {/* Floating pixel fragments */}
       <FloatingPixel {...PIXELS[0]} />
@@ -262,7 +221,7 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
       <FloatingPixel {...PIXELS[7]} />
       <FloatingPixel {...PIXELS[8]} />
 
-      {/* R lettermark */}
+      {/* R lettermark — transparent background so #070B12 shows through */}
       <Animated.View
         style={[
           { position: "absolute", top: MARK_TOP, left: MARK_LEFT, width: MARK_SIZE, height: MARK_SIZE },
@@ -279,7 +238,7 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
       {/* Scan line sweeping through the mark */}
       <ScanLine
         startY={MARK_TOP + MARK_SIZE * 0.06}
-        endY={MARK_TOP + MARK_SIZE * 0.90}
+        endY={MARK_TOP + MARK_SIZE * 0.92}
         delay={800}
       />
 
@@ -292,7 +251,7 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
       </Animated.View>
 
       {/* Tagline */}
-      <TaglineText delay={2300} />
+      <TaglineText delay={2350} />
 
     </Animated.View>
   );
@@ -306,19 +265,15 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     overflow: "hidden",
   },
-  glowHalo: {
-    position: "absolute",
-    backgroundColor: "#3B82F6",
-  },
   scanLine: {
     position: "absolute",
-    left: (width - MARK_SIZE * 0.82) / 2,
-    width: MARK_SIZE * 0.82,
+    left: (width - MARK_SIZE * 0.84) / 2,
+    width: MARK_SIZE * 0.84,
     height: 2,
     backgroundColor: "#3B82F6",
     shadowColor: "#3B82F6",
     shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 12,
+    shadowRadius: 14,
     shadowOpacity: 1,
     elevation: 8,
   },
@@ -333,15 +288,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   letterText: {
-    fontSize: 48,
+    fontSize: 52,
     fontWeight: "800",
     color: "#F0F4FF",
-    letterSpacing: 6,
+    letterSpacing: 8,
     includeFontPadding: false,
   },
   taglineText: {
     position: "absolute",
-    bottom: height * 0.16,
+    bottom: height * 0.15,
     left: 0,
     right: 0,
     textAlign: "center",
