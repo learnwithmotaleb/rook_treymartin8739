@@ -94,6 +94,57 @@ function extractDatePublished(item: GoogleSearchItem): string | undefined {
 }
 
 const GOOGLE_CSE_ENDPOINT = "https://www.googleapis.com/customsearch/v1";
+const SERPER_ENDPOINT = "https://google.serper.dev/search";
+
+// ─── Serper.dev search (preferred text-search backend) ───────────────────────
+// Serper.dev proxies Google Search results with a simple API key — no GCP
+// project setup required. Returns results in a slightly different shape from
+// CSE; this function normalises them to GoogleSearchItem[] for downstream reuse.
+
+interface SerperOrganicResult {
+  title: string;
+  link: string;
+  snippet?: string;
+}
+
+interface SerperSearchResponse {
+  organic?: SerperOrganicResult[];
+  error?: string;
+}
+
+async function runSerperSearch(query: string): Promise<GoogleSearchItem[]> {
+  const apiKey = process.env["SERPER_API_KEY"];
+  if (!apiKey) return [];
+
+  try {
+    const res = await fetch(SERPER_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": apiKey,
+      },
+      body: JSON.stringify({ q: query, num: 10 }),
+    });
+
+    if (!res.ok) {
+      logger.warn({ status: res.status, query }, "Serper.dev returned non-OK status");
+      return [];
+    }
+
+    const data = (await res.json()) as SerperSearchResponse;
+    if (!data.organic) return [];
+
+    // Normalise to GoogleSearchItem shape — snippet and pagemap are optional
+    return data.organic.map((r) => ({
+      link: r.link,
+      title: r.title,
+      snippet: r.snippet ?? "",
+    }));
+  } catch (err) {
+    logger.warn({ err, query }, "Serper.dev request failed");
+    return [];
+  }
+}
 
 // Platform URL patterns used to extract usernames from Google result URLs
 const PLATFORM_PATTERNS: Record<
@@ -161,7 +212,16 @@ const PLATFORM_PATTERNS: Record<
 // which generates 100-300 ranked variants covering suffix, prefix, char-sub, separator,
 // and number patterns. The engine is called per-search with a tier-based limit.
 
-/** Username variant + caption search requires CSE (key + cx). */
+// ─── Search provider helpers ──────────────────────────────────────────────────
+// Priority: Serper.dev → Google CSE → direct platform probes (no text search)
+// Serper.dev requires only SERPER_API_KEY (no GCP project setup).
+// Google CSE requires GOOGLE_CSE_API_KEY (or GOOGLE_SEARCH_API_KEY) + GOOGLE_SEARCH_CX.
+
+/** Returns true when Serper.dev is available (preferred text-search backend). */
+function isSerperConfigured(): boolean {
+  return !!(process.env["SERPER_API_KEY"]);
+}
+
 /** CSE uses GOOGLE_CSE_API_KEY if set, falls back to GOOGLE_SEARCH_API_KEY. */
 function getCseApiKey(): string | undefined {
   return process.env["GOOGLE_CSE_API_KEY"] || process.env["GOOGLE_SEARCH_API_KEY"];
@@ -172,8 +232,9 @@ function getVisionApiKey(): string | undefined {
   return process.env["GOOGLE_VISION_API_KEY"] || process.env["GOOGLE_SEARCH_API_KEY"];
 }
 
+/** Text search (username/name queries) is available when Serper OR CSE is configured. */
 export function isConfigured(): boolean {
-  return !!(getCseApiKey() && process.env["GOOGLE_SEARCH_CX"]);
+  return isSerperConfigured() || !!(getCseApiKey() && process.env["GOOGLE_SEARCH_CX"]);
 }
 
 /** Reverse image search uses Cloud Vision API. */
@@ -214,6 +275,11 @@ interface VisionAnnotateResponse {
 }
 
 async function runGoogleSearch(query: string): Promise<GoogleSearchItem[]> {
+  // Prefer Serper.dev — no GCP setup required, same Google results
+  if (isSerperConfigured()) {
+    return runSerperSearch(query);
+  }
+
   const apiKey = getCseApiKey();
   const cx = process.env["GOOGLE_SEARCH_CX"];
   if (!apiKey || !cx) return [];
