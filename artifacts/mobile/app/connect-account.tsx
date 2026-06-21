@@ -87,7 +87,7 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     label: "Facebook",
     color: "#1877F2",
     authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
-    scopes: ["public_profile"],
+    scopes: ["public_profile", "user_photos"],
     clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID",
     callbackPath: "/api/oauth/facebook/callback",
     usernameHint: "your.profile.name",
