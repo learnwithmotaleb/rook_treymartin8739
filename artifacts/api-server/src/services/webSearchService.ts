@@ -358,63 +358,54 @@ async function searchByUsernameVariants(
     .map((p) => `site:${PLATFORM_PATTERNS[p]!.host}`)
     .join(" OR ");
 
-  // ── Bare handle search — always runs regardless of suffixLimit ──────────────
-  // Finds accounts that cite, tag, or mirror the original handle on any platform.
-  // e.g. "sophieraiin" site:instagram.com → returns profile pages mentioning her
-  {
-    const query = `"${clean}" (${siteFilter})`;
-    logger.info({ query, username: clean }, "Bare handle search");
-    const results = await runGoogleSearch(query);
-    for (const item of results) {
-      const extracted = extractUsernameFromUrl(item.link);
-      if (!extracted) continue;
-      const { username: found, platform } = extracted;
-      if (found === clean) continue;
-      const key = `${platform}:${found}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      candidates.push({
-        username: found,
-        platform,
-        profileUrl: item.link,
-        title: item.title,
-        snippet: item.snippet,
-        similarity: found.startsWith(clean) || found.includes(clean) ? 0.75 : 0.4,
-        discoveryMethod: "username_variant",
-        datePublished: extractDatePublished(item),
-      });
-    }
-    await new Promise<void>((r) => setTimeout(r, 1100));
-  }
-
-  // ── Mutation engine variant searches (tier-limited) ───────────────────────
-  // Phase 1: use ranked mutations from the mutation engine instead of the old
-  // fixed suffix list. Higher-probability patterns (e.g. .official, _real, real*)
-  // are searched first. The limit is tier-controlled (free=5, pro=15, premium=24).
-  //
-  // The old startsWith/includes filter was removed: the scoring engine assigns
-  // low usernameSimilarity for typo-variants, preventing false-positive High alerts.
+  // Build all queries upfront: bare handle + all mutation variants
   const mutations = generateUsernameMutations(clean, suffixLimit + 10);
   const variantsToSearch = mutations.slice(0, suffixLimit).map((m) => m.variant);
 
-  for (const variant of variantsToSearch) {
-    const query = `"${variant}" (${siteFilter})`;
+  const bareQuery = `"${clean}" (${siteFilter})`;
+  const variantQueries = variantsToSearch.map((v) => ({
+    variant: v,
+    query: `"${v}" (${siteFilter})`,
+  }));
 
-    logger.info({ query, username: clean, variant }, "Username mutation variant search");
-    const results = await runGoogleSearch(query);
+  logger.info(
+    { username: clean, queries: 1 + variantQueries.length },
+    "Username variant searches starting (parallel)"
+  );
 
-    for (const item of results) {
+  // ── Run bare-handle + all variant queries in parallel ─────────────────────
+  // JS is single-threaded so the seen Set is safe to update from concurrent
+  // .then() callbacks — they are serialised through the microtask queue.
+  type QueryResult =
+    | { kind: "bare"; items: GoogleSearchItem[] }
+    | { kind: "variant"; variant: string; items: GoogleSearchItem[] };
+
+  const tasks: Promise<QueryResult>[] = [
+    runGoogleSearch(bareQuery).then((items) => ({ kind: "bare" as const, items })),
+    ...variantQueries.map(({ variant, query }) =>
+      runGoogleSearch(query).then((items) => ({ kind: "variant" as const, variant, items }))
+    ),
+  ];
+
+  const results = await Promise.allSettled(tasks);
+
+  for (const r of results) {
+    if (r.status === "rejected") continue;
+    const { value } = r;
+
+    for (const item of value.items) {
       const extracted = extractUsernameFromUrl(item.link);
       if (!extracted) continue;
-
       const { username: found, platform } = extracted;
       if (found === clean) continue;
-
       const key = `${platform}:${found}`;
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const similarity = found.startsWith(clean) || found.includes(clean) ? 0.85 : 0.55;
+      const isBare = value.kind === "bare";
+      const similarity = found.startsWith(clean) || found.includes(clean)
+        ? (isBare ? 0.75 : 0.85)
+        : (isBare ? 0.4 : 0.55);
 
       candidates.push({
         username: found,
@@ -427,8 +418,6 @@ async function searchByUsernameVariants(
         datePublished: extractDatePublished(item),
       });
     }
-
-    await new Promise<void>((r) => setTimeout(r, 1100));
   }
 
   return candidates;
@@ -591,48 +580,59 @@ async function searchByDisplayNameAndHandle(
   }
   if (searchTerms.length === 0) return [];
 
+  // Build all (platform × term) query pairs upfront, then run in parallel
+  type NameQuery = { query: string; platform: string };
+  const nameQueries: NameQuery[] = [];
   for (const platformKey of NAME_SEARCH_PLATFORMS) {
     const config = PLATFORM_PATTERNS[platformKey];
     if (!config) continue;
     const siteStr = `site:${config.host}`;
-
     for (const term of searchTerms) {
-      const query = `${term} ${siteStr}`;
-      logger.info({ query, username: clean }, "Display name / handle normalization search");
-      const results = await runGoogleSearch(query);
+      nameQueries.push({ query: `${term} ${siteStr}`, platform: platformKey });
+    }
+  }
 
-      for (const item of results) {
-        const extracted = extractUsernameFromUrl(item.link);
-        if (!extracted) continue;
+  logger.info(
+    { username: clean, queries: nameQueries.length },
+    "Display name / handle searches starting (parallel)"
+  );
 
-        const { username: found, platform } = extracted;
-        if (found === clean) continue; // skip the real account
-        if (found === "") continue;
+  const nameResults = await Promise.allSettled(
+    nameQueries.map(({ query }) =>
+      runGoogleSearch(query).then((items) => ({ items }))
+    )
+  );
 
-        const key = `${platform}:${found}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
+  for (const r of nameResults) {
+    if (r.status === "rejected") continue;
+    for (const item of r.value.items) {
+      const extracted = extractUsernameFromUrl(item.link);
+      if (!extracted) continue;
 
-        // Similarity: whether found handle overlaps with original
-        const similarity = found.includes(clean) || clean.includes(found)
-          ? 0.70
-          : normalizedVariants.some((v) => found.includes(v) || v.includes(found))
-          ? 0.60
-          : 0.40;
+      const { username: found, platform } = extracted;
+      if (found === clean) continue;
+      if (found === "") continue;
 
-        candidates.push({
-          username: found,
-          platform,
-          profileUrl: item.link,
-          title: item.title,
-          snippet: item.snippet,
-          similarity,
-          discoveryMethod: "username_variant",
-          datePublished: extractDatePublished(item),
-        });
-      }
+      const key = `${platform}:${found}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
 
-      await new Promise<void>((r) => setTimeout(r, 1100));
+      const similarity = found.includes(clean) || clean.includes(found)
+        ? 0.70
+        : normalizedVariants.some((v) => found.includes(v) || v.includes(found))
+        ? 0.60
+        : 0.40;
+
+      candidates.push({
+        username: found,
+        platform,
+        profileUrl: item.link,
+        title: item.title,
+        snippet: item.snippet,
+        similarity,
+        discoveryMethod: "username_variant",
+        datePublished: extractDatePublished(item),
+      });
     }
   }
 
@@ -1182,81 +1182,105 @@ export async function searchForImpersonators(
     "Starting web impersonator search"
   );
 
-  // ── Strategy 1a: Username suffix variants (CSE, tier-limited) ────────────
-  // Includes a bare-handle search that always runs, plus suffix queries capped
-  // by tier. The old startsWith/includes filter has been removed — the scoring
-  // engine assigns low usernameSimilarity for non-matching handles rather than
-  // silently discarding them.
+  // ── Run all four strategies concurrently ─────────────────────────────────
+  // Strategy 1a (username variants), 1b (display name), 2 (vision), and 3
+  // (captions) are fully independent — none of their inputs depend on another's
+  // output. Running them in parallel cuts wall-clock time to max(each strategy)
+  // instead of sum(all strategies). The shared `seen` Set is safe because JS
+  // callbacks are serialised through the microtask queue (no true concurrency).
+
+  // Separate seen sets per strategy to avoid cross-contamination during parallel
+  // execution; merge all into the shared `seen` at the end.
+  const seen1a = new Set<string>(seen);
+  const seen1b = new Set<string>(seen);
+  const seen2  = new Set<string>(seen);
+  const seen3  = new Set<string>(seen);
+
+  type StrategyResult = { tag: string; candidates: WebSearchCandidate[] };
+
+  const strategyTasks: Promise<StrategyResult>[] = [];
+
+  // Strategy 1a: username variant CSE (or direct probe fallback)
   if (cseEnabled && targetPlatforms.length > 0) {
-    const variantCandidates = await searchByUsernameVariants(clean, targetPlatforms, seen, suffixLimit);
-    allCandidates.push(...variantCandidates);
-    // Track CSE cost: bare handle (1) + suffix queries
-    if (userId) {
-      const cseCallCount = 1 + suffixLimit; // 1 bare-handle + N mutation variant searches
-      for (let i = 0; i < cseCallCount; i++) {
-        trackApiCall({ userId, provider: "google_cse", operation: "username_variant_search" });
-      }
-    }
-    // If CSE returned 403 during this scan, fall back to direct URL probe
-    if (cseFailing && variantCandidates.length === 0) {
-      const probeTargets = targetPlatforms.filter((p) => p !== "facebook");
-      const probeCandidates = await directVariantProbe(clean, probeTargets, seen);
-      allCandidates.push(...probeCandidates);
-    }
+    strategyTasks.push(
+      searchByUsernameVariants(clean, targetPlatforms, seen1a, suffixLimit)
+        .then((c) => ({ tag: "1a", candidates: c }))
+    );
   } else if (!cseEnabled) {
-    // No CSE configured at all — go straight to direct probe
     logger.info({}, "GOOGLE_SEARCH_CX not set — using direct platform URL probe");
     const probeTargets = targetPlatforms.filter((p) => p !== "facebook");
-    const probeCandidates = await directVariantProbe(clean, probeTargets, seen);
-    allCandidates.push(...probeCandidates);
+    strategyTasks.push(
+      directVariantProbe(clean, probeTargets, seen1a)
+        .then((c) => ({ tag: "1a_probe", candidates: c }))
+    );
   }
 
-  // ── Strategy 1b: Display name + normalized handle search (CSE) ───────────
-  // Most impersonators claim the person's real name, not their exact handle.
-  // This is the highest-signal text-search strategy for creators/celebrities.
-  // Also catches handle typo-variants: "sophieraiin" → "sophierain".
+  // Strategy 1b: display name + normalized handle
   if (hasNameTargets) {
-    const nameCandidates = await searchByDisplayNameAndHandle(
-      displayName ?? null,
-      clean,
-      seen
+    strategyTasks.push(
+      searchByDisplayNameAndHandle(displayName ?? null, clean, seen1b)
+        .then((c) => ({ tag: "1b", candidates: c }))
     );
-    allCandidates.push(...nameCandidates);
-    if (userId) {
-      for (let i = 0; i < nameCandidates.length; i++) {
-        trackApiCall({ userId, provider: "google_cse", operation: "name_handle_search" });
-      }
-    }
   }
 
-  // ── Strategy 2: Cloud Vision reverse image search (tier-limited) ──────────
+  // Strategy 2: Cloud Vision reverse image search
   if (cappedPhotoUrls.length > 0 && visionEnabled) {
-    logger.info(
-      { imageCount: cappedPhotoUrls.length, planTier },
-      "Running reverse image search (tier-limited)"
+    logger.info({ imageCount: cappedPhotoUrls.length, planTier }, "Running reverse image search (tier-limited)");
+    strategyTasks.push(
+      searchByImageUrls(cappedPhotoUrls, clean, allPlatforms, seen2)
+        .then((c) => ({ tag: "2", candidates: c }))
     );
-    const imageCandidates = await searchByImageUrls(cappedPhotoUrls, clean, allPlatforms, seen);
-    allCandidates.push(...imageCandidates);
-    // Track Vision cost: one call per image
-    if (userId) {
-      for (let i = 0; i < cappedPhotoUrls.length; i++) {
-        trackApiCall({ userId, provider: "google_vision", operation: "image_reverse_search" });
-      }
-    }
   } else if (cappedPhotoUrls.length === 0) {
     logger.info({ username: clean }, "No photo URLs — reverse image search skipped");
   } else {
     logger.info({ username: clean }, "Cloud Vision not configured — reverse image search skipped");
   }
 
-  // ── Strategy 3: Caption text search (tier-limited) ────────────────────────
+  // Strategy 3: caption text search
   if (cappedCaptions.length > 0 && cseEnabled) {
-    const captionCandidates = await searchByCaptions(cappedCaptions, clean, targetPlatforms, seen);
-    allCandidates.push(...captionCandidates);
-    // Track CSE cost: one call per caption query
+    strategyTasks.push(
+      searchByCaptions(cappedCaptions, clean, targetPlatforms, seen3)
+        .then((c) => ({ tag: "3", candidates: c }))
+    );
+  }
+
+  const strategyResults = await Promise.allSettled(strategyTasks);
+
+  // Merge results, deduplicating across strategies using the shared `seen` set
+  for (const r of strategyResults) {
+    if (r.status === "rejected") {
+      logger.warn({ err: r.reason }, "Search strategy failed (non-fatal)");
+      continue;
+    }
+    const { tag, candidates } = r.value;
+
+    // CSE fallback: if strategy 1a via CSE returned 0 and CSE is failing, run direct probe
+    if (tag === "1a" && candidates.length === 0 && cseFailing) {
+      const probeTargets = targetPlatforms.filter((p) => p !== "facebook");
+      const probeCandidates = await directVariantProbe(clean, probeTargets, seen);
+      allCandidates.push(...probeCandidates);
+      probeCandidates.forEach((c) => seen.add(`${c.platform}:${c.username}`));
+      continue;
+    }
+
+    for (const c of candidates) {
+      const key = `${c.platform}:${c.username}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      allCandidates.push(c);
+    }
+
+    // Track API costs
     if (userId) {
-      for (let i = 0; i < cappedCaptions.length; i++) {
-        trackApiCall({ userId, provider: "google_cse", operation: "caption_search" });
+      if (tag === "1a") {
+        const n = 1 + suffixLimit;
+        for (let i = 0; i < n; i++) trackApiCall({ userId, provider: "google_cse", operation: "username_variant_search" });
+      } else if (tag === "1b") {
+        for (let i = 0; i < candidates.length; i++) trackApiCall({ userId, provider: "google_cse", operation: "name_handle_search" });
+      } else if (tag === "2") {
+        for (let i = 0; i < cappedPhotoUrls.length; i++) trackApiCall({ userId, provider: "google_vision", operation: "image_reverse_search" });
+      } else if (tag === "3") {
+        for (let i = 0; i < cappedCaptions.length; i++) trackApiCall({ userId, provider: "google_cse", operation: "caption_search" });
       }
     }
   }

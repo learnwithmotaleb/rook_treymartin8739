@@ -476,7 +476,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
-      pollTimerRef.current = setInterval(async () => {
+      const handlePollResult = async () => {
         try {
           const status = await getScanStatus(job.id);
           setScanProgress(status.progress);
@@ -522,7 +522,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setIsScanning(false);
           setScanCurrentStep(null);
         }
-      }, 1200);
+      };
+
+      // Immediate first poll so progress appears without waiting a full interval
+      handlePollResult();
+      pollTimerRef.current = setInterval(handlePollResult, 400);
     } catch (err) {
       clearTimeout(safetyTimer);
       setIsScanning(false);
