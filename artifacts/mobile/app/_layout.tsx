@@ -61,11 +61,11 @@ export default function RootLayout() {
   // Controls whether the AnimatedSplash is still mounted
   const [splashDone, setSplashDone] = useState(false);
 
-  // Enforce a minimum visible splash duration of 4400 ms so the logo
-  // always completes exactly 2 full spins (each spin = 2200 ms) before fading out.
+  // Minimum duration covers the full animation sequence:
+  // logo entrance (700ms) + scan line (1800ms) + wordmark reveal (2300ms) + tagline + hold ≈ 3600ms
   const [minTimeReached, setMinTimeReached] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setMinTimeReached(true), 4400);
+    const t = setTimeout(() => setMinTimeReached(true), 3800);
     return () => clearTimeout(t);
   }, []);
 

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -184,10 +185,12 @@ export default function Auth() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.logoRow}>
-          <View style={[styles.logoIcon, { backgroundColor: colors.primary + "22", borderColor: colors.border }]}>
-            <Ionicons name="shield-checkmark" size={32} color={colors.primary} />
-          </View>
-          <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Rook</Text>
+          <Image
+            source={require("../assets/images/logo-mark.png")}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold", letterSpacing: 3 }]}>ROOK</Text>
         </View>
 
         {showVerify ? (
@@ -386,8 +389,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   topGradient: { position: "absolute", top: 0, left: 0, right: 0 },
   content: { paddingHorizontal: 24, gap: 16 },
-  logoRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
-  logoIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
+  logoImage: { width: 46, height: 46, borderRadius: 10 },
   logoText: { fontSize: 22 },
   headline: { fontSize: 28, lineHeight: 34 },
   subheadline: { fontSize: 15, lineHeight: 22, marginTop: -8 },

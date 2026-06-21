@@ -5,16 +5,28 @@ outputs = []
 id = "m81YOt-kWmD6WCbKeF62b"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
-title = "generated_image"
+title = "rook app icon"
 
 [[generated]]
 id = "zquvQWWrp9v9NxzTepnx_"
 uri = "file://artifacts/mobile/assets/images/splash.png"
 type = "image"
-title = "ShieldID splash screen"
+title = "rook splash screen"
 
 [[generated]]
 id = "NWDlLb3IxZ6aICPtOEDTl"
 uri = "file://artifacts/mobile/assets/images/adaptive-icon.png"
 type = "image"
-title = "ShieldID adaptive icon"
+title = "rook adaptive icon"
+
+[[generated]]
+id = "txp76lxlUX2C2BbzQyX8E"
+uri = "file://artifacts/landing/public/logo.png"
+type = "image"
+title = "rook website logo"
+
+[[generated]]
+id = "skfSDH0-hIYlu1mHquoon"
+uri = "file://artifacts/mobile/assets/images/logo-mark.png"
+type = "image"
+title = "rook R lettermark only"

@@ -494,7 +494,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
             <img src="/landing/logo.png" alt="Rook" className="h-11 w-11 object-contain" />
-            <span>Shield<span className="text-primary">ID</span></span>
+            <span className="text-white tracking-tight">ROOK</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
             <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
@@ -914,7 +914,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2 font-bold text-lg">
             <img src="/landing/logo.png" alt="Rook" className="h-10 w-10 object-contain" />
-            <span>Shield<span className="text-primary">ID</span></span>
+            <span className="text-white tracking-tight">ROOK</span>
           </div>
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground font-medium justify-center">
             <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
