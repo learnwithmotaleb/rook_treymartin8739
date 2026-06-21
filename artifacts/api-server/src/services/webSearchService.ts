@@ -451,9 +451,9 @@ async function directVariantProbe(
 ): Promise<WebSearchCandidate[]> {
   const clean = username.toLowerCase().replace(/^@/, "");
 
-  // Build the full variant list from the mutation engine — top 30 variants covers
+  // Build the full variant list from the mutation engine — top 100 variants covers
   // all normalization forms + most common suffix/prefix patterns for the direct probe.
-  const mutationVariants = generateUsernameMutations(clean, 30).map((m) => m.variant);
+  const mutationVariants = generateUsernameMutations(clean, 100).map((m) => m.variant);
   const allVariants = [...new Set(mutationVariants)].filter(
     (v) => v !== clean && v.length >= 3 && !/\s/.test(v)
   );
@@ -549,6 +549,165 @@ async function directVariantProbe(
     { found: candidates.length, probed: pairs.length, username: clean },
     "Direct platform URL probe complete"
   );
+  return candidates;
+}
+
+// ─── Strategy 1c: X API direct variant lookup ────────────────────────────────
+//
+// Uses the Twitter OAuth 2.0 client credentials flow to get an app-only bearer
+// token, then batch-looks up up to 100 username variants per request via the
+// X API v2 /users/by endpoint. Much faster and more accurate than HTTP probing:
+// returns real profile data (followers, display name, bio, created_at) for
+// confirmed real accounts only.
+//
+// Requires: TWITTER_CLIENT_ID + TWITTER_CLIENT_SECRET (client_credentials grant)
+
+let _xBearerToken: string | null = null;
+let _xBearerTokenFailing = false;
+
+async function getXBearerToken(): Promise<string | null> {
+  if (_xBearerTokenFailing) return null;
+  if (_xBearerToken) return _xBearerToken;
+
+  const clientId = process.env["TWITTER_CLIENT_ID"];
+  const clientSecret = process.env["TWITTER_CLIENT_SECRET"];
+  if (!clientId || !clientSecret) return null;
+
+  const encoded = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  try {
+    const resp = await fetch("https://api.twitter.com/oauth2/token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encoded}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: "grant_type=client_credentials",
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      logger.warn({ status: resp.status, body: body.slice(0, 200) }, "X API bearer token fetch failed — disabling X API strategy");
+      _xBearerTokenFailing = true;
+      return null;
+    }
+
+    const data = (await resp.json()) as { access_token?: string; token_type?: string };
+    if (!data.access_token) {
+      logger.warn({ data }, "X API token response missing access_token");
+      _xBearerTokenFailing = true;
+      return null;
+    }
+
+    _xBearerToken = data.access_token;
+    logger.info("X API bearer token acquired successfully");
+    return _xBearerToken;
+  } catch (err) {
+    logger.warn({ err }, "X API bearer token request error — disabling X API strategy");
+    _xBearerTokenFailing = true;
+    return null;
+  }
+}
+
+interface XApiUser {
+  id: string;
+  username: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+  public_metrics?: {
+    followers_count: number;
+    following_count: number;
+    tweet_count: number;
+  };
+}
+
+async function searchXApiVariants(
+  username: string,
+  seen: Set<string>
+): Promise<WebSearchCandidate[]> {
+  const bearerToken = await getXBearerToken();
+  if (!bearerToken) return [];
+
+  const clean = username.toLowerCase().replace(/^@/, "");
+
+  // Generate up to 100 mutations, filter to valid X username format (1-15 chars, no spaces)
+  const variants = generateUsernameMutations(clean, 100)
+    .map((m) => m.variant)
+    .filter((v) => v !== clean && /^[A-Za-z0-9_]{1,15}$/.test(v) && v.length >= 3);
+
+  const unique = [...new Set(variants)].filter((v) => !seen.has(`x:${v}`));
+  if (unique.length === 0) return [];
+
+  const candidates: WebSearchCandidate[] = [];
+
+  logger.info(
+    { username: clean, variants: unique.length },
+    "X API variant search starting"
+  );
+
+  // Batch in groups of 100 (X API hard limit)
+  for (let i = 0; i < unique.length; i += 100) {
+    const batch = unique.slice(i, i + 100);
+
+    try {
+      const url = new URL("https://api.twitter.com/2/users/by");
+      url.searchParams.set("usernames", batch.join(","));
+      url.searchParams.set("user.fields", "username,name,description,public_metrics,created_at");
+
+      const resp = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!resp.ok) {
+        logger.warn({ status: resp.status, batch: batch.length }, "X API users/by request failed");
+        if (resp.status === 401) {
+          _xBearerToken = null;
+          _xBearerTokenFailing = true;
+        }
+        break;
+      }
+
+      const data = (await resp.json()) as { data?: XApiUser[]; errors?: unknown[] };
+
+      for (const user of data.data ?? []) {
+        const uname = user.username.toLowerCase();
+        const key = `x:${uname}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const followers = user.public_metrics?.followers_count ?? 0;
+        const similarity =
+          uname.includes(clean) || clean.includes(uname) ? 0.85 : 0.60;
+
+        candidates.push({
+          username: uname,
+          platform: "x",
+          profileUrl: `https://x.com/${user.username}`,
+          title: `${user.name} (@${user.username}) / X`,
+          snippet: user.description?.slice(0, 200) ?? `X account with ${followers} followers`,
+          similarity,
+          discoveryMethod: "username_variant",
+          datePublished: user.created_at,
+        });
+
+        logger.info(
+          { variant: uname, name: user.name, followers },
+          "X API: active profile confirmed"
+        );
+      }
+    } catch (err) {
+      logger.warn({ err, batch: batch.length }, "X API variant batch error");
+    }
+  }
+
+  logger.info(
+    { found: candidates.length, checked: unique.length, username: clean },
+    "X API variant search complete"
+  );
+
   return candidates;
 }
 
@@ -1193,6 +1352,7 @@ export async function searchForImpersonators(
   // execution; merge all into the shared `seen` at the end.
   const seen1a = new Set<string>(seen);
   const seen1b = new Set<string>(seen);
+  const seen1c = new Set<string>(seen);
   const seen2  = new Set<string>(seen);
   const seen3  = new Set<string>(seen);
 
@@ -1212,6 +1372,16 @@ export async function searchForImpersonators(
     strategyTasks.push(
       directVariantProbe(clean, probeTargets, seen1a)
         .then((c) => ({ tag: "1a_probe", candidates: c }))
+    );
+  }
+
+  // Strategy 1c: X API direct variant lookup (always runs when Twitter credentials are set)
+  // Batch-checks up to 100 username variants via the official X API v2 — faster and
+  // more accurate than HTTP probing, and independent of CSE/Google.
+  if (targetPlatforms.includes("x") && (process.env["TWITTER_CLIENT_ID"] || process.env["TWITTER_CLIENT_SECRET"])) {
+    strategyTasks.push(
+      searchXApiVariants(clean, seen1c)
+        .then((c) => ({ tag: "1c_xapi", candidates: c }))
     );
   }
 

@@ -228,6 +228,39 @@ export function generateUsernameMutations(
     add(`${clean}${num}`, prob, "number");
   }
 
+  // ── Last-char repetition ───────────────────────────────────────────────────
+  // Very common real-world pattern: grab @sophieraiin by registering @sophieraiinn
+  // (append the last char one more time). Also catches triple-repeat of already-
+  // doubled final chars, e.g. sophieraiin → sophieraiinn.
+  if (clean.length >= 4) {
+    const lastChar = clean[clean.length - 1]!;
+    add(`${clean}${lastChar}`, 0.62, "substitution");
+    // If the last TWO chars are identical (already doubled), also try tripled
+    if (clean.length >= 5 && clean[clean.length - 2] === lastChar) {
+      add(`${clean}${lastChar}`, 0.55, "substitution"); // deduped — same as above, will skip
+    }
+  }
+
+  // ── Any doubled-char inflation (e.g. sophieraiin → sophieraiiin) ──────────
+  // Impersonators inflate already-doubled chars to stand out while staying similar.
+  for (let i = 1; i < clean.length; i++) {
+    if (clean[i] === clean[i - 1]) {
+      // Inflate this doubled char to tripled
+      const tripled = clean.slice(0, i) + clean[i] + clean.slice(i);
+      add(tripled, 0.58, "substitution");
+    }
+  }
+
+  // ── No-separator common suffixes ────────────────────────────────────────────
+  // Many impersonators concatenate words directly: @sophieraiintv, @sophieraiinfan
+  for (const [bare, prob] of [
+    ["tv", 0.38], ["fan", 0.36], ["real", 0.34], ["live", 0.32],
+    ["hq", 0.30], ["vip", 0.29], ["media", 0.28], ["xx", 0.26],
+    ["xxx", 0.24], ["nsfw", 0.22],
+  ] as Array<[string, number]>) {
+    add(`${clean}${bare}`, prob, "suffix");
+  }
+
   // Sort by probability descending
   mutations.sort((a, b) => b.probability - a.probability);
   return mutations.slice(0, limit);
