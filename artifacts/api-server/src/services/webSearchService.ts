@@ -162,15 +162,23 @@ const PLATFORM_PATTERNS: Record<
 // and number patterns. The engine is called per-search with a tier-based limit.
 
 /** Username variant + caption search requires CSE (key + cx). */
-export function isConfigured(): boolean {
-  return !!(
-    process.env["GOOGLE_SEARCH_API_KEY"] && process.env["GOOGLE_SEARCH_CX"]
-  );
+/** CSE uses GOOGLE_CSE_API_KEY if set, falls back to GOOGLE_SEARCH_API_KEY. */
+function getCseApiKey(): string | undefined {
+  return process.env["GOOGLE_CSE_API_KEY"] || process.env["GOOGLE_SEARCH_API_KEY"];
 }
 
-/** Reverse image search uses Cloud Vision API — same key, Vision API must be enabled on the project. */
+/** Vision uses GOOGLE_VISION_API_KEY if set, falls back to GOOGLE_SEARCH_API_KEY. */
+function getVisionApiKey(): string | undefined {
+  return process.env["GOOGLE_VISION_API_KEY"] || process.env["GOOGLE_SEARCH_API_KEY"];
+}
+
+export function isConfigured(): boolean {
+  return !!(getCseApiKey() && process.env["GOOGLE_SEARCH_CX"]);
+}
+
+/** Reverse image search uses Cloud Vision API. */
 export function isVisionConfigured(): boolean {
-  return !!(process.env["GOOGLE_SEARCH_API_KEY"]);
+  return !!(getVisionApiKey());
 }
 
 // ─── CSE health flag ──────────────────────────────────────────────────────────
@@ -206,7 +214,7 @@ interface VisionAnnotateResponse {
 }
 
 async function runGoogleSearch(query: string): Promise<GoogleSearchItem[]> {
-  const apiKey = process.env["GOOGLE_SEARCH_API_KEY"];
+  const apiKey = getCseApiKey();
   const cx = process.env["GOOGLE_SEARCH_CX"];
   if (!apiKey || !cx) return [];
 
@@ -1029,7 +1037,7 @@ async function buildVisionImagePayload(
 async function runVisionWebDetection(
   photoUrl: string
 ): Promise<VisionWebDetection | null> {
-  const apiKey = process.env["GOOGLE_SEARCH_API_KEY"];
+  const apiKey = getVisionApiKey();
   if (!apiKey) return null;
 
   const imagePayload = await buildVisionImagePayload(photoUrl);
@@ -1713,7 +1721,7 @@ export async function reverseImageSearchForPhoto(input: {
   imageUrl?: string;
   imageBase64?: string;
 }): Promise<{ matches: WebSearchCandidate[] }> {
-  const apiKey = process.env["GOOGLE_SEARCH_API_KEY"];
+  const apiKey = getVisionApiKey();
   if (!apiKey) return { matches: [] };
 
   let webDetection: VisionWebDetection | null = null;
