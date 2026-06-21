@@ -3,10 +3,10 @@
  *
  * Accepts either:
  *   a) A valid Clerk session (sets req.userId via the standard requireAuth flow)
- *   b) A valid ShieldID API key via:
+ *   b) A valid Rook API key via:
  *        Authorization: Bearer sid_live_xxxx
  *      or
- *        X-ShieldID-API-Key: sid_live_xxxx
+ *        X-Rook-API-Key: sid_live_xxxx
  *
  * Used on B2B endpoints like /api/identity/* so both end-user apps and server-to-server
  * integrations can call the same endpoints without separate route handlers.
@@ -14,7 +14,7 @@
  * Precedence:
  *   1. Clerk session (checked first — no DB call if Clerk is present)
  *   2. Authorization: Bearer sid_live_xxx
- *   3. X-ShieldID-API-Key: sid_live_xxx header
+ *   3. X-Rook-API-Key: sid_live_xxx header
  *   4. 401 with clear message indicating accepted auth methods
  */
 
@@ -25,13 +25,13 @@ import { eq } from "drizzle-orm";
 import { db, usersTable, apiKeysTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 
-/** Extract a sid_live_ key from either Authorization: Bearer or X-ShieldID-API-Key header. */
+/** Extract a sid_live_ key from either Authorization: Bearer or X-Rook-API-Key header. */
 function extractApiKey(req: Request): string | null {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer sid_live_")) {
     return authHeader.slice(7).trim();
   }
-  const customHeader = req.headers["x-shieldid-api-key"];
+  const customHeader = req.headers["x-rook-api-key"];
   if (typeof customHeader === "string" && customHeader.startsWith("sid_live_")) {
     return customHeader.trim();
   }
@@ -136,7 +136,7 @@ export async function requireApiKeyOrAuth(
       }
     }
 
-    // ── Path 2: API key (Authorization: Bearer or X-ShieldID-API-Key) ────────
+    // ── Path 2: API key (Authorization: Bearer or X-Rook-API-Key) ────────
     const rawKey = extractApiKey(req);
     if (rawKey) {
       const handled = await resolveApiKey(rawKey, res, req, next);
@@ -147,7 +147,7 @@ export async function requireApiKeyOrAuth(
     res.status(401).json({
       error: "Unauthorized",
       message:
-        "Authenticate via Clerk session, Authorization: Bearer sid_live_<key>, or X-ShieldID-API-Key: sid_live_<key>",
+        "Authenticate via Clerk session, Authorization: Bearer sid_live_<key>, or X-Rook-API-Key: sid_live_<key>",
     });
   } catch (err) {
     logger.error({ err }, "requireApiKeyOrAuth error");

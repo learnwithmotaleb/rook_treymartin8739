@@ -437,7 +437,7 @@ export default function ProfileScreen() {
         </GlassCard>
 
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          ShieldID v1.0.0 · All data encrypted end-to-end
+          Rook v1.0.0 · All data encrypted end-to-end
         </Text>
       </ScrollView>
 

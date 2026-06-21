@@ -136,7 +136,7 @@ function ConcernScreen({
       </View>
 
       <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        What brings you to ShieldID?
+        What brings you to Rook?
       </Text>
       <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
         This helps us tailor your protection profile to what matters most to you.
@@ -578,7 +578,7 @@ function ConnectScreen({
       <GlassCard style={[styles.privacyCard, { borderColor: colors.success + "33" }]}>
         <Ionicons name="lock-closed" size={14} color={colors.success} />
         <Text style={[styles.privacyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          ShieldID only requests read-only access. We never post, follow, or access your DMs.
+          Rook only requests read-only access. We never post, follow, or access your DMs.
         </Text>
       </GlassCard>
 
@@ -614,7 +614,7 @@ function FeaturesScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
         Everything You Need to Stay Protected
       </Text>
       <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        ShieldID combines AI scanning, photo recognition, and real-time threat monitoring into one app.
+        Rook combines AI scanning, photo recognition, and real-time threat monitoring into one app.
       </Text>
       <View style={styles.featureGrid}>
         {FEATURES.map((f) => (
@@ -752,7 +752,7 @@ function ScanSetupScreen({
               One quick question while we set up…
             </Text>
             <Text style={[styles.attributionSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              How did you find ShieldID?
+              How did you find Rook?
             </Text>
             <View style={styles.attributionGrid}>
               {ATTRIBUTION_OPTIONS.map((a) => {
@@ -842,7 +842,7 @@ function RevealScreen({
         {userTypeLabel ? `Your ${userTypeLabel} Protection\nProfile Is Ready` : `Your Identity Is Ready\nTo Be Protected`}
       </Text>
       <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        Here's a preview of what your ShieldID dashboard will look like once monitoring begins.
+        Here's a preview of what your Rook dashboard will look like once monitoring begins.
       </Text>
 
       <Animated.View style={{ opacity: fadeAnim }}>

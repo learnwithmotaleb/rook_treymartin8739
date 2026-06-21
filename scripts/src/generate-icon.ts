@@ -108,7 +108,7 @@ async function renderSvg(
 }
 
 async function main(): Promise<void> {
-  console.log("Generating ShieldID app icons...\n");
+  console.log("Generating Rook app icons...\n");
 
   await renderSvg(
     shieldSvg(1024),

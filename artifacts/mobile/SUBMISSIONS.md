@@ -1,6 +1,6 @@
-# ShieldID — App Store Submission Guide
+# Rook — App Store Submission Guide
 
-This document covers every manual step required to ship ShieldID to the Apple App Store and Google Play Store. Steps that cannot be automated via EAS or app.json are marked **[Console]** — they must be done through App Store Connect or Google Play Console.
+This document covers every manual step required to ship Rook to the Apple App Store and Google Play Store. Steps that cannot be automated via EAS or app.json are marked **[Console]** — they must be done through App Store Connect or Google Play Console.
 
 ---
 
@@ -49,7 +49,7 @@ Both platforms are configured in `eas.json`. The `production` profile uses the `
 ### 2a. iOS — App Store Connect Age Rating [Console]
 
 1. Sign in to [App Store Connect](https://appstoreconnect.apple.com)
-2. Select **ShieldID → App Store → [Version] → App Information**
+2. Select **Rook → App Store → [Version] → App Information**
 3. Scroll to **Content Rights** and confirm: "Does this app contain, display, or access third-party content?" → **No**
 4. Under **Age Rating**, click **Edit** and complete the questionnaire:
 
@@ -76,9 +76,9 @@ Both platforms are configured in `eas.json`. The `production` profile uses the `
 ### 2b. Android — Google Play Content Rating [Console]
 
 1. Sign in to [Google Play Console](https://play.google.com/console)
-2. Select **ShieldID → Policy → App content**
+2. Select **Rook → Policy → App content**
 3. Under **Target audience and content**, set:
-   - Target age group: **18 and over** (ShieldID handles personal identity and financial-adjacent data)
+   - Target age group: **18 and over** (Rook handles personal identity and financial-adjacent data)
    - Does the app appeal primarily to children? **No**
 4. Under **Content rating**, click **Start questionnaire**:
    - App category: **Utility**
@@ -89,7 +89,7 @@ Both platforms are configured in `eas.json`. The `production` profile uses the `
 
 ### 2c. Minimum Age Justification
 
-ShieldID does not target children. It handles sensitive personal identity data (social media accounts, breach detection, photo fingerprinting). The app:
+Rook does not target children. It handles sensitive personal identity data (social media accounts, breach detection, photo fingerprinting). The app:
 - Requires account creation (Clerk auth)
 - Handles OAuth tokens for social platforms
 - Stores personal identity information
@@ -103,13 +103,13 @@ ShieldID does not target children. It handles sensitive personal identity data (
 
 | Field | Value |
 |---|---|
-| Name | ShieldID — Identity Protection |
+| Name | Rook — Identity Protection |
 | Subtitle | AI-Powered Impersonator Shield |
 | Category | Utilities (primary), Lifestyle (secondary) |
 | Age Rating | 4+ (see Section 2a) |
 | Privacy Policy URL | https://\<your-domain\>/api/legal/privacy |
 | Support URL | https://\<your-domain\>/api/legal/support |
-| Copyright | © 2026 ShieldID |
+| Copyright | © 2026 Rook |
 
 ### Steps [Console]
 
@@ -131,7 +131,7 @@ ShieldID does not target children. It handles sensitive personal identity data (
 
 | Field | Value |
 |---|---|
-| Title | ShieldID — Identity Guard |
+| Title | Rook — Identity Guard |
 | Short Description | AI-powered identity & impersonator protection |
 | Category | Productivity |
 | Content Rating | Everyone (see Section 2b) |
@@ -194,7 +194,7 @@ Both URLs must use HTTPS in production. Update `<your-domain>` placeholders abov
 
 ## 7. Export Compliance
 
-ShieldID uses standard HTTPS encryption only (TLS for all API calls). No custom cryptographic implementations are present.
+Rook uses standard HTTPS encryption only (TLS for all API calls). No custom cryptographic implementations are present.
 
 **iOS (App Store Connect):** When prompted during review:
 - Does this app use encryption? **Yes** (standard HTTPS/TLS — exempt)
@@ -214,7 +214,7 @@ Set in App Store Connect: App Information → Export Compliance → "Uses only s
 1. After `eas submit`, the build appears in App Store Connect → TestFlight
 2. Add internal testers under **Internal Group** (team members with App Store Connect access)
 3. For external beta (up to 10,000 testers), submit to Beta App Review:
-   - Beta description: "Test ShieldID's identity protection features including scan, alerts, and AI threat analysis"
+   - Beta description: "Test Rook's identity protection features including scan, alerts, and AI threat analysis"
    - Beta feedback email: support@\<your-domain\>
 
 ### Google Play Internal Testing
@@ -242,7 +242,7 @@ Set in App Store Connect: App Information → Export Compliance → "Uses only s
 Provide these notes in App Store Connect and Google Play Console review submission:
 
 ```
-ShieldID is an AI-powered identity protection app that monitors social media 
+Rook is an AI-powered identity protection app that monitors social media 
 accounts for impersonators, stolen photos, and data breaches.
 
 TEST ACCOUNT CREDENTIALS:

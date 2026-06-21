@@ -1,5 +1,5 @@
 /**
- * ShieldID API Client
+ * Rook API Client
  *
  * Calls the backend intelligence system at /api/*
  * The base URL is inferred from EXPO_PUBLIC_DOMAIN (set by the Expo workflow).

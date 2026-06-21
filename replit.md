@@ -1,4 +1,4 @@
-# ShieldID
+# Rook
 
 A premium AI-powered identity protection mobile app that monitors for impersonators, stolen photos, data breaches, and threats across all major social platforms.
 

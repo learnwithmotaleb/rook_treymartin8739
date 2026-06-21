@@ -18,7 +18,7 @@ import { GlassCard } from "@/components/GlassCard";
 const FAQ = [
   {
     q: "How does identity monitoring work?",
-    a: "ShieldID uses AI to scan social platforms and public photo indexes for matches to your profile. When a potential impersonator or stolen asset is detected, you're immediately alerted with evidence.",
+    a: "Rook uses AI to scan social platforms and public photo indexes for matches to your profile. When a potential impersonator or stolen asset is detected, you're immediately alerted with evidence.",
   },
   {
     q: "Which platforms are monitored?",
@@ -60,13 +60,13 @@ export default function Support() {
 
   const openLink = (url: string) => {
     Linking.openURL(url).catch(() =>
-      Alert.alert("Cannot Open Link", "Please visit shieldid.app in your browser.")
+      Alert.alert("Cannot Open Link", "Please visit getrook.app in your browser.")
     );
   };
 
   const emailSupport = () => {
-    Linking.openURL("mailto:support@shieldid.app?subject=Support%20Request").catch(() =>
-      Alert.alert("Email Support", "Contact us at support@shieldid.app")
+    Linking.openURL("mailto:support@getrook.app?subject=Support%20Request").catch(() =>
+      Alert.alert("Email Support", "Contact us at support@getrook.app")
     );
   };
 
@@ -116,8 +116,8 @@ export default function Support() {
             icon="logo-twitter"
             iconColor="#1DA1F2"
             label="Twitter / X"
-            sub="@ShieldIDApp"
-            onPress={() => openLink("https://x.com/ShieldIDApp")}
+            sub="@RookApp"
+            onPress={() => openLink("https://x.com/RookApp")}
             colors={colors}
           />
         </View>
@@ -169,9 +169,9 @@ export default function Support() {
         </Text>
         <GlassCard noPadding>
           {[
-            { label: "Privacy Policy", url: "https://shieldid.app/privacy" },
-            { label: "Terms of Service", url: "https://shieldid.app/terms" },
-            { label: "Open Source Licenses", url: "https://shieldid.app/licenses" },
+            { label: "Privacy Policy", url: "https://getrook.app/privacy" },
+            { label: "Terms of Service", url: "https://getrook.app/terms" },
+            { label: "Open Source Licenses", url: "https://getrook.app/licenses" },
           ].map((item, i, arr) => (
             <TouchableOpacity
               key={item.label}
@@ -195,7 +195,7 @@ export default function Support() {
           onPress={() =>
             Alert.alert(
               "Delete Account",
-              "This will permanently delete your ShieldID account and all monitoring data. This cannot be undone.",
+              "This will permanently delete your Rook account and all monitoring data. This cannot be undone.",
               [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -214,7 +214,7 @@ export default function Support() {
         </TouchableOpacity>
 
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          ShieldID v1.0.0 · support@shieldid.app
+          Rook v1.0.0 · support@getrook.app
         </Text>
       </ScrollView>
     </View>

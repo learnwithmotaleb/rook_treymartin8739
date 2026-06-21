@@ -400,7 +400,7 @@ export default function ConnectAccount() {
                 Which platform do you want to protect?
               </Text>
               <Text style={[styles.pickSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                ShieldID will monitor this account for impersonators and threats.
+                Rook will monitor this account for impersonators and threats.
               </Text>
 
               <View style={styles.platformGrid}>
@@ -494,7 +494,7 @@ export default function ConnectAccount() {
                       Sign in with {config.label}
                     </Text>
                     <Text style={[styles.authHeaderSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                      Verified accounts get automated sync and full monitoring. ShieldID will only read your public profile and posts — we will never post, like, or message on your behalf.
+                      Verified accounts get automated sync and full monitoring. Rook will only read your public profile and posts — we will never post, like, or message on your behalf.
                     </Text>
                   </View>
                 </View>
@@ -658,7 +658,7 @@ export default function ConnectAccount() {
               <View style={styles.privacyRow}>
                 <Ionicons name="lock-closed" size={12} color={colors.mutedForeground} />
                 <Text style={[styles.privacyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  ShieldID never posts on your behalf or accesses DMs. Read-only access only.
+                  Rook never posts on your behalf or accesses DMs. Read-only access only.
                 </Text>
               </View>
             </>

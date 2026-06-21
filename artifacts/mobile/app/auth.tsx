@@ -187,7 +187,7 @@ export default function Auth() {
           <View style={[styles.logoIcon, { backgroundColor: colors.primary + "22", borderColor: colors.border }]}>
             <Ionicons name="shield-checkmark" size={32} color={colors.primary} />
           </View>
-          <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>ShieldID</Text>
+          <Text style={[styles.logoText, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Rook</Text>
         </View>
 
         {showVerify ? (

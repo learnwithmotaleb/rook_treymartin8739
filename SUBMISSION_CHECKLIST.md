@@ -1,4 +1,4 @@
-# ShieldID — Submission Checklist
+# Rook — Submission Checklist
 
 Quick-reference for the first production release. Full details in
 `artifacts/mobile/metadata/SUBMISSIONS.md`.
@@ -16,10 +16,10 @@ Quick-reference for the first production release. Full details in
 
 | Product ID | Tier | Price |
 |---|---|---|
-| `com.shieldid.pro.monthly` | Pro | $4.99/month |
-| `com.shieldid.pro.yearly` | Pro | $39.99/year |
-| `com.shieldid.premium.monthly` | Premium | $9.99/month |
-| `com.shieldid.premium.yearly` | Premium | $79.99/year |
+| `com.getrook.pro.monthly` | Pro | $4.99/month |
+| `com.getrook.pro.yearly` | Pro | $39.99/year |
+| `com.getrook.premium.monthly` | Premium | $9.99/month |
+| `com.getrook.premium.yearly` | Premium | $79.99/year |
 
 Add 7-day free trial to all four. Copy IDs into RevenueCat dashboard entitlements.
 
@@ -86,7 +86,7 @@ eas submit --platform android --profile production
 ## 8 — App Store Connect
 
 1. Create app record at appstoreconnect.apple.com
-   - Bundle ID: `com.shieldid.app`, SKU: `shieldid-ios-001`
+   - Bundle ID: `com.getrook.app`, SKU: `rook-ios-001`
 2. Fill listing from `artifacts/mobile/metadata/ios/en-US/` text files
 3. Set age rating to **4+** (all violence/content questions → "None";
    "Unrestricted Web Access" → Yes)
@@ -102,9 +102,9 @@ eas submit --platform android --profile production
 
 ## 10 — Legal URLs (already live)
 
-- Privacy Policy: `https://shieldid.replit.app/privacy`
-- Terms of Service: `https://shieldid.replit.app/terms`
-- Support: `https://shieldid.replit.app/support`
+- Privacy Policy: `https://getrook.replit.app/privacy`
+- Terms of Service: `https://getrook.replit.app/terms`
+- Support: `https://getrook.replit.app/support`
 
 ---
 

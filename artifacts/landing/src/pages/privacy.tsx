@@ -1,9 +1,9 @@
 import { Link } from "wouter";
 
 const LAST_UPDATED = "June 15, 2026";
-const APP_NAME = "ShieldID";
-const CONTACT_EMAIL = "privacy@shieldid.app";
-const SUPPORT_EMAIL = "support@shieldid.app";
+const APP_NAME = "Rook";
+const CONTACT_EMAIL = "privacy@getrook.app";
+const SUPPORT_EMAIL = "support@getrook.app";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -30,7 +30,7 @@ export default function Privacy() {
         {/* Header */}
         <div className="flex items-center gap-3 mb-10">
           <Link href="/">
-            <img src="/landing/logo.png" alt="ShieldID" className="h-9 w-9 object-contain" />
+            <img src="/landing/logo.png" alt="Rook" className="h-9 w-9 object-contain" />
           </Link>
           <Link href="/">
             <span className="font-bold text-lg text-white">Shield<span className="text-blue-500">ID</span></span>
@@ -191,7 +191,7 @@ export default function Privacy() {
 
         {/* Footer */}
         <div className="mt-14 pt-6 border-t border-white/10 flex flex-wrap gap-4 text-sm text-slate-500">
-          <Link href="/" className="hover:text-white transition-colors">← Back to ShieldID</Link>
+          <Link href="/" className="hover:text-white transition-colors">← Back to Rook</Link>
           <span className="text-white/20">·</span>
           <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
           <span className="text-white/20">·</span>

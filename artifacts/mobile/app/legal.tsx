@@ -16,7 +16,7 @@ import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL
-  ?? "https://shieldid.app";
+  ?? "https://getrook.app";
 
 const LEGAL_LINKS = [
   {
@@ -27,7 +27,7 @@ const LEGAL_LINKS = [
   },
   {
     title: "Terms of Service",
-    subtitle: "Rules and conditions for using ShieldID",
+    subtitle: "Rules and conditions for using Rook",
     icon: "document-text" as const,
     url: `${BASE_URL}/api/legal/terms`,
   },
@@ -40,8 +40,8 @@ const APP_BUILD =
 const INFO_ROWS = [
   { label: "App Version", value: APP_VERSION },
   { label: "Build", value: APP_BUILD },
-  { label: "Support", value: "support@shieldid.app" },
-  { label: "Privacy", value: "privacy@shieldid.app" },
+  { label: "Support", value: "support@getrook.app" },
+  { label: "Privacy", value: "privacy@getrook.app" },
 ];
 
 export default function Legal() {
@@ -124,7 +124,7 @@ export default function Legal() {
         </GlassCard>
 
         <Text style={[styles.copyright, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          © {new Date().getFullYear()} ShieldID. All rights reserved.{"\n"}
+          © {new Date().getFullYear()} Rook. All rights reserved.{"\n"}
           Made to protect your digital identity.
         </Text>
       </ScrollView>

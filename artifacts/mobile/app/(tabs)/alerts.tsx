@@ -197,7 +197,7 @@ function PaywallBanner({ threats, colors }: { threats: Threat[]; colors: ReturnT
         <View style={[paywallStyles.crownBadge, { backgroundColor: colors.premium + "22", borderColor: colors.premium + "44" }]}>
           <MaterialCommunityIcons name="crown" size={13} color={colors.premium} />
           <Text style={[paywallStyles.crownLabel, { color: colors.premium, fontFamily: "Inter_700Bold" }]}>
-            ShieldID Pro
+            Rook Pro
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={colors.premium + "99"} />

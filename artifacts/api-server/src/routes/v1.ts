@@ -372,7 +372,7 @@ router.get("/v1/docs", (_req, res): void => {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ShieldID Developer API</title>
+<title>Rook Developer API</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 860px; margin: 48px auto; padding: 0 24px; color: #1a1a2e; line-height: 1.6; }
   h1 { color: #6c63ff; } h2 { border-bottom: 1px solid #e0e0ff; padding-bottom: 8px; margin-top: 40px; }
@@ -385,11 +385,11 @@ router.get("/v1/docs", (_req, res): void => {
 </style>
 </head>
 <body>
-<h1>ShieldID Developer API</h1>
+<h1>Rook Developer API</h1>
 <p>Base URL: <code>/api/v1</code> &nbsp;·&nbsp; All requests must include <code>Authorization: Bearer sid_live_xxxx</code></p>
 
 <h2>Authentication</h2>
-<p>Generate an API key via <code>POST /api/v1/keys</code> (requires a ShieldID account). Keys are shown once at creation — store them securely.</p>
+<p>Generate an API key via <code>POST /api/v1/keys</code> (requires a Rook account). Keys are shown once at creation — store them securely.</p>
 
 <h2>Rate Limits</h2>
 <p>Default: 60 requests/minute per key. Returns <code>429</code> with <code>retry_after_ms</code> on breach.</p>
@@ -414,7 +414,7 @@ router.get("/v1/docs", (_req, res): void => {
 
 <h2>Webhook Payload</h2>
 <pre>POST https://your-endpoint.com/webhook
-X-ShieldID-Signature: sha256=&lt;hmac-hex&gt;
+X-Rook-Signature: sha256=&lt;hmac-hex&gt;
 Content-Type: application/json
 
 {
@@ -425,12 +425,12 @@ Content-Type: application/json
 
 <h2>Signature Verification (Node.js)</h2>
 <pre>import crypto from 'crypto';
-const sig = req.headers['x-shieldid-signature'];
+const sig = req.headers['x-rook-signature'];
 const expected = 'sha256=' + crypto.createHmac('sha256', SIGNING_SECRET)
   .update(req.rawBody).digest('hex');
 const valid = crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));</pre>
 
-<p style="margin-top:48px;color:#888;">ShieldID API v1 · Questions? <a href="/api/legal/support">Support</a></p>
+<p style="margin-top:48px;color:#888;">Rook API v1 · Questions? <a href="/api/legal/support">Support</a></p>
 </body>
 </html>`);
 });

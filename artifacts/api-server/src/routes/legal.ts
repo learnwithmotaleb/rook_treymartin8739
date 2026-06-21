@@ -5,11 +5,11 @@ const publicLegalRouter: IRouter = Router();
 
 const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? process.env["REPLIT_DEV_DOMAIN"]
-  ?? "shieldid.app";
+  ?? "getrook.app";
 
-const APP_NAME = "ShieldID";
-const CONTACT_EMAIL = "privacy@shieldid.app";
-const SUPPORT_EMAIL = "support@shieldid.app";
+const APP_NAME = "Rook";
+const CONTACT_EMAIL = "privacy@getrook.app";
+const SUPPORT_EMAIL = "support@getrook.app";
 const LAST_UPDATED = "June 15, 2026";
 
 const html = (title: string, body: string) => `<!DOCTYPE html>
@@ -44,7 +44,7 @@ const html = (title: string, body: string) => `<!DOCTYPE html>
 <body>
   <div class="container">
     <div class="logo">
-      <img class="logo-mark" src="/landing/logo.png" alt="ShieldID" />
+      <img class="logo-mark" src="/landing/logo.png" alt="Rook" />
       <span class="logo-name">${APP_NAME}</span>
     </div>
     ${body}
@@ -187,7 +187,7 @@ function serveTerms(_req: Request, res: Response) {
       <li><strong>Premium — $9.99/month:</strong> Unlimited connected accounts, daily deep scans, 30-day threat history, advanced intelligence reports, priority support.</li>
     </ul>
     <p>Paid subscriptions are billed in advance on a monthly recurring basis through the Apple App Store or Google Play Store. All paid subscriptions include a <strong>7-day free trial</strong> for new subscribers — you will not be charged during the trial period. After the trial, you will be charged the applicable subscription price ($4.99/month for Pro, $9.99/month for Premium) unless you cancel at least 24 hours before the trial ends.</p>
-    <p>You may cancel at any time through your device's subscription settings (iOS: Settings → [your name] → Subscriptions → ShieldID → Cancel; Android: Google Play → Subscriptions → ShieldID → Cancel). Cancellation takes effect at the end of the current billing period. No partial refunds are issued for unused periods. Subscription management and billing are handled by Apple or Google according to their respective terms.</p>
+    <p>You may cancel at any time through your device's subscription settings (iOS: Settings → [your name] → Subscriptions → Rook → Cancel; Android: Google Play → Subscriptions → Rook → Cancel). Cancellation takes effect at the end of the current billing period. No partial refunds are issued for unused periods. Subscription management and billing are handled by Apple or Google according to their respective terms.</p>
 
     <h2>5. AI-Generated Content and Accuracy Disclaimer</h2>
     <p>The Service uses artificial intelligence and machine learning to identify potential identity threats. <strong>All AI-generated alerts, threat scores, and analyses are probabilistic estimates — they may contain errors, false positives, or false negatives.</strong> Results do not constitute legal advice, and ${APP_NAME} makes no guarantee that all threats will be detected or that detected threats are accurate. You should independently verify any alert before taking action. ${APP_NAME} is not liable for any action taken (or not taken) based on AI-generated results.</p>
@@ -252,8 +252,8 @@ function serveSupport(_req: Request, res: Response) {
     <h2>How do I cancel my subscription?</h2>
     <p>Subscriptions are managed through the App Store (iOS) or Google Play (Android). To cancel:</p>
     <ul>
-      <li><strong>iOS:</strong> Settings → [your name] → Subscriptions → ShieldID → Cancel</li>
-      <li><strong>Android:</strong> Google Play → Menu → Subscriptions → ShieldID → Cancel</li>
+      <li><strong>iOS:</strong> Settings → [your name] → Subscriptions → Rook → Cancel</li>
+      <li><strong>Android:</strong> Google Play → Menu → Subscriptions → Rook → Cancel</li>
     </ul>
     <p>Your access continues until the end of the current billing period.</p>
 

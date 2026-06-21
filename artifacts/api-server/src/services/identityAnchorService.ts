@@ -394,7 +394,7 @@ export interface VerifyAccountResult {
  * Check whether a given set of dHashes (from a claimed account) is consistent
  * with the user's existing identity anchor. Used by POST /identity/verify-account.
  *
- * @param userId     The ShieldID user whose anchor to compare against
+ * @param userId     The Rook user whose anchor to compare against
  * @param dHashes    dHash strings computed from the claimed account's photos
  */
 export async function verifyAccountAgainstAnchor(

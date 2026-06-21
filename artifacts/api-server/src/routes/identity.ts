@@ -4,7 +4,7 @@
  * Turns accumulated pHash data into a cross-platform identity proof.
  * Designed for both end-user apps (Clerk session) and B2B server-to-server
  * integrations (API key via Authorization: Bearer sid_live_xxx or
- * X-ShieldID-API-Key: sid_live_xxx header).
+ * X-Rook-API-Key: sid_live_xxx header).
  *
  * Endpoints:
  *   GET  /identity/profile          — full identity profile for the authenticated user
@@ -149,7 +149,7 @@ router.get("/identity/badge", requireApiKeyOrAuth, async (req, res): Promise<voi
 // ─── POST /identity/verify-account ────────────────────────────────────────────
 
 /**
- * B2B endpoint: verify that a claimed social account belongs to this ShieldID user.
+ * B2B endpoint: verify that a claimed social account belongs to this Rook user.
  *
  * Uses ONLY stored photo hashes from the user's connected accounts — no external
  * URL fetching is performed. The account must have been previously connected and
@@ -226,7 +226,7 @@ router.post("/identity/verify-account", requireApiKeyOrAuth, async (req, res): P
       verificationMethod: "account_not_connected",
       anchorHashCount: 0,
       recommendation: "reject",
-      note: "This account is not connected to the ShieldID user. Connect the account and run a scan first.",
+      note: "This account is not connected to the Rook user. Connect the account and run a scan first.",
     });
     return;
   }
@@ -335,7 +335,7 @@ router.post("/identity/api-keys", requireAuth, async (req, res): Promise<void> =
     message: "Store this key securely — it will not be shown again.",
     usage: {
       authorizationHeader: `Authorization: Bearer ${raw}`,
-      customHeader: `X-ShieldID-API-Key: ${raw}`,
+      customHeader: `X-Rook-API-Key: ${raw}`,
     },
   });
 });
@@ -389,7 +389,7 @@ function tierToBadge(tier: ConfidenceTier): {
     case "STRONG":
       return {
         tier: "STRONG",
-        label: "ShieldID Verified",
+        label: "Rook Verified",
         description: "Identity strongly confirmed across 3+ platforms",
         color: "#00C896",
       };

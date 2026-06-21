@@ -19,7 +19,7 @@ import { useSessionList, useSession, useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
 
-const STORAGE_KEY = "shieldid:security_prefs";
+const STORAGE_KEY = "rook:security_prefs";
 
 interface SecurityPrefs {
   biometricLogin: boolean;

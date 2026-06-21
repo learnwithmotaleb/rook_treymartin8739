@@ -1,4 +1,4 @@
-# ShieldID — App Store Submission Checklist
+# Rook — App Store Submission Checklist
 
 A step-by-step guide for the manual tasks required to publish on the Apple App Store and Google Play Store.
 
@@ -16,18 +16,18 @@ A step-by-step guide for the manual tasks required to publish on the Apple App S
 ### 1a. Register the Bundle ID
 1. Go to [developer.apple.com/account](https://developer.apple.com/account) → **Identifiers** → **+**
 2. Select **App IDs** → **App** → Continue
-3. Description: `ShieldID`
-4. Bundle ID (Explicit): `com.shieldid.app`
+3. Description: `Rook`
+4. Bundle ID (Explicit): `com.getrook.app`
 5. Enable capabilities: **Push Notifications**, **Sign in with Apple** (optional)
 6. Click **Register**
 
 ### 1b. Create the App Record in App Store Connect
 1. Go to [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → **My Apps** → **+** → **New App**
 2. Platform: **iOS**
-3. Name: `ShieldID`
+3. Name: `Rook`
 4. Primary Language: **English (U.S.)**
-5. Bundle ID: Select `com.shieldid.app` from dropdown
-6. SKU: `shieldid-ios-001`
+5. Bundle ID: Select `com.getrook.app` from dropdown
+6. SKU: `rook-ios-001`
 7. User Access: **Full Access**
 8. Click **Create**
 
@@ -57,13 +57,13 @@ Create these 4 products (type: **Auto-Renewable Subscription**):
 
 | Reference Name | Product ID | Price |
 |---------------|-----------|-------|
-| ShieldID Pro Monthly | `shieldid_pro_monthly` | $7.99/month |
-| ShieldID Pro Annual | `shieldid_pro_annual` | $59.99/year |
-| ShieldID Premium Monthly | `shieldid_premium_monthly` | $14.99/month |
-| ShieldID Premium Annual | `shieldid_premium_annual` | $99.99/year |
+| Rook Pro Monthly | `rook_pro_monthly` | $7.99/month |
+| Rook Pro Annual | `rook_pro_annual` | $59.99/year |
+| Rook Premium Monthly | `rook_premium_monthly` | $14.99/month |
+| Rook Premium Annual | `rook_premium_annual` | $99.99/year |
 
 For each subscription:
-- Subscription Group: Create group named **"ShieldID Protection"**
+- Subscription Group: Create group named **"Rook Protection"**
 - Display Name: Match the Reference Name above
 - Enable **Introductory Offer**: 7-day free trial
 - Localization: Add English (U.S.) display name and description
@@ -189,7 +189,7 @@ Before clicking **Submit for Review**:
 - [ ] Privacy Policy URL filled in
 - [ ] Support URL filled in
 - [ ] Export Compliance: Does app use encryption? → **Yes** (HTTPS), standard encryption → **Yes**
-- [ ] Advertising Identifier (IDFA): **No** (ShieldID does not use IDFA)
+- [ ] Advertising Identifier (IDFA): **No** (Rook does not use IDFA)
 - [ ] Content Rights confirmed
 - [ ] Age Rating set to **4+**
 - [ ] In-App Purchases added and linked to subscription group
@@ -200,7 +200,7 @@ Before clicking **Submit for Review**:
 ## Step 7 — Google Play (Android)
 
 1. Go to [play.google.com/console](https://play.google.com/console) → **Create app**
-2. App name: `ShieldID - Identity Protection`
+2. App name: `Rook - Identity Protection`
 3. Default language: **English (United States)**
 4. App or game: **App** · Free or paid: **Free** (with in-app purchases)
 5. Fill store listing from `metadata/android/en-US/`
@@ -220,6 +220,6 @@ Before clicking **Submit for Review**:
 |---------|-----|
 | Privacy Policy | `https://YOUR_DOMAIN/api/legal/privacy` |
 | Terms of Service | `https://YOUR_DOMAIN/api/legal/terms` |
-| Support | `mailto:support@shieldid.app` |
+| Support | `mailto:support@getrook.app` |
 
 Deploy the API server first so these URLs are live before submitting to Apple.

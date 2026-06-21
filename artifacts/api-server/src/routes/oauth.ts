@@ -260,7 +260,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(successPage(
       "Instagram Connected!",
-      `@${profile.username} is now verified and being monitored by ShieldID.`,
+      `@${profile.username} is now verified and being monitored by Rook.`,
       profile.username
     ));
   } catch (err: any) {
@@ -355,7 +355,7 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     }
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.send(successPage("Facebook Connected!", `${profile.name} is now being monitored by ShieldID.`, profile.name));
+    res.send(successPage("Facebook Connected!", `${profile.name} is now being monitored by Rook.`, profile.name));
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
@@ -405,7 +405,7 @@ router.get("/oauth/debug", (_req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(`<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>OAuth Debug — ShieldID</title>
+<title>OAuth Debug — Rook</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -489,7 +489,7 @@ function baseHtml(title: string, body: string): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${title} — ShieldID</title>
+  <title>${title} — Rook</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -518,7 +518,7 @@ function successPage(title: string, message: string, username: string): string {
     <h1>${title}</h1>
     <p>${message}</p>
     <p style="margin-top:16px;color:#64748b;font-size:13px;">
-      Returning to ShieldID…
+      Returning to Rook…
     </p>
     <script>
       // Auto-close for Android Chrome Custom Tabs / mobile browsers.
@@ -535,7 +535,7 @@ function errorPage(title: string, detail: string): string {
     <h1>${title}</h1>
     <p>${detail}</p>
     <p style="margin-top:16px;color:#64748b;font-size:13px;">
-      Close this tab and try again in the ShieldID app.
+      Close this tab and try again in the Rook app.
     </p>
   `);
 }
@@ -550,7 +550,7 @@ function setupPage(): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OAuth Setup Guide — ShieldID</title>
+  <title>OAuth Setup Guide — Rook</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -615,7 +615,7 @@ function setupPage(): string {
 <div class="container">
   <div class="logo">
     <div class="logo-mark">🛡</div>
-    <span class="logo-name">ShieldID</span>
+    <span class="logo-name">Rook</span>
   </div>
 
   <h1>Social OAuth Setup Guide</h1>
@@ -658,7 +658,7 @@ function setupPage(): string {
 
     <h3>Step 1 — Create Your Meta App</h3>
     <div class="step"><div class="step-num">1</div><div class="step-text">Go to <a href="https://developers.facebook.com/apps" target="_blank">developers.facebook.com/apps</a> and click <strong>Create App</strong>.</div></div>
-    <div class="step"><div class="step-num">2</div><div class="step-text">Choose <strong>Consumer</strong> as the app type. Name it "ShieldID" (or any name).</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-text">Choose <strong>Consumer</strong> as the app type. Name it "Rook" (or any name).</div></div>
     <div class="step"><div class="step-num">3</div><div class="step-text">In <strong>Basic Settings</strong>, paste your Privacy Policy URL and Terms of Service URL from the section above.</div></div>
     <div class="step"><div class="step-num">4</div><div class="step-text">Add the <strong>Instagram Login</strong> product from the Products panel → Add Product.</div></div>
 
@@ -729,7 +729,7 @@ function setupPage(): string {
     <div class="url-block">
       <div class="url-label">This is the deep-link URI expo-auth-session uses when running in Expo Go on a device:</div>
       <button class="copy-btn" onclick="copy('expo-redirect')">Copy</button>
-      <div class="url-value" id="expo-redirect">https://auth.expo.io/@your-expo-username/shieldid</div>
+      <div class="url-value" id="expo-redirect">https://auth.expo.io/@your-expo-username/rook</div>
     </div>
     <p style="color:#64748b;font-size:12px;margin-top:8px;">Replace <code style="background:#1e2d4a;padding:2px 5px;border-radius:4px;font-size:11px;color:#f0abfc">your-expo-username</code> with your actual Expo account username. Find it at <a href="https://expo.dev" target="_blank" style="color:#60a5fa">expo.dev</a>.</p>
   </div>

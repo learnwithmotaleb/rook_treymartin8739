@@ -1,4 +1,4 @@
-# ShieldID — App Store Submission Guide
+# Rook — App Store Submission Guide
 
 Step-by-step checklist for submitting to the Apple App Store and Google Play.
 
@@ -11,8 +11,8 @@ Step-by-step checklist for submitting to the Apple App Store and Google Play.
 - [ ] EAS CLI installed: `npm install -g eas-cli`
 - [ ] Logged in to EAS: `eas login`
 - [ ] RevenueCat production products created and verified in both store dashboards
-- [ ] Privacy Policy live at: `https://shieldid.replit.app/privacy`
-- [ ] Support page live at: `https://shieldid.replit.app/support`
+- [ ] Privacy Policy live at: `https://getrook.replit.app/privacy`
+- [ ] Support page live at: `https://getrook.replit.app/support`
 
 ---
 
@@ -60,18 +60,18 @@ This creates a signed `.aab` (Android App Bundle) for the Play Store.
 1. Go to [appstoreconnect.apple.com](https://appstoreconnect.apple.com)
 2. **My Apps → +  → New App**
 3. Platform: **iOS**
-4. Name: `ShieldID — Identity Protection` (matches `metadata/ios/en-US/name.txt`)
+4. Name: `Rook — Identity Protection` (matches `metadata/ios/en-US/name.txt`)
 5. Primary language: **English (U.S.)**
-6. Bundle ID: `com.shieldid.app`
-7. SKU: `shieldid-ios-001`
+6. Bundle ID: `com.getrook.app`
+7. SKU: `rook-ios-001`
 
 ### 2b. App Information
 
 | Field | Value |
 |---|---|
-| Name | ShieldID — Identity Protection |
+| Name | Rook — Identity Protection |
 | Subtitle | AI-Powered Impersonator Shield |
-| Privacy Policy URL | https://shieldid.replit.app/privacy |
+| Privacy Policy URL | https://getrook.replit.app/privacy |
 | Category (Primary) | Utilities |
 | Category (Secondary) | Productivity |
 
@@ -101,8 +101,8 @@ Copy from the `metadata/ios/en-US/` files:
 - **Keywords**: `keywords.txt` (≤ 100 chars, comma-separated)
 - **Promotional Text**: `promotional_text.txt` (updateable without re-review)
 - **What's New**: `release_notes.txt`
-- **Support URL**: https://shieldid.replit.app/support
-- **Marketing URL**: https://shieldid.replit.app
+- **Support URL**: https://getrook.replit.app/support
+- **Marketing URL**: https://getrook.replit.app
 
 ### 2e. Screenshots
 
@@ -119,15 +119,15 @@ Take at least 3 screenshots showing:
 
 ### 2f. In-App Purchases / Subscriptions
 
-1. **Features → Subscriptions → + New Subscription Group** → name: "ShieldID Protection"
+1. **Features → Subscriptions → + New Subscription Group** → name: "Rook Protection"
 2. Create three products:
 
 | Product ID | Display Name | Price |
 |---|---|---|
-| `shieldid_pro_monthly` | ShieldID Pro (Monthly) | $7.99/month |
-| `shieldid_pro_yearly` | ShieldID Pro (Annual) | $59.99/year |
-| `shieldid_premium_monthly` | ShieldID Premium (Monthly) | $14.99/month |
-| `shieldid_premium_yearly` | ShieldID Premium (Annual) | $99.99/year |
+| `rook_pro_monthly` | Rook Pro (Monthly) | $7.99/month |
+| `rook_pro_yearly` | Rook Pro (Annual) | $59.99/year |
+| `rook_premium_monthly` | Rook Premium (Monthly) | $14.99/month |
+| `rook_premium_yearly` | Rook Premium (Annual) | $99.99/year |
 
 3. Add 7-day free trial to all paid tiers
 4. Copy Product IDs into RevenueCat dashboard
@@ -147,7 +147,7 @@ Or manually upload the `.ipa` via **Transporter** app and attach it in App Store
 ### 3a. Create the App
 
 1. Go to [play.google.com/console](https://play.google.com/console)
-2. **Create app** → App name: `ShieldID — Identity Guard`
+2. **Create app** → App name: `Rook — Identity Guard`
 3. Default language: **English (United States)**
 4. App or game: **App**
 5. Free or paid: **Free** (with in-app purchases)
@@ -188,10 +188,10 @@ In **Monetize → Products → Subscriptions**, create:
 
 | Product ID | Name | Price |
 |---|---|---|
-| `shieldid_pro_monthly` | ShieldID Pro Monthly | $7.99 |
-| `shieldid_pro_yearly` | ShieldID Pro Annual | $59.99 |
-| `shieldid_premium_monthly` | ShieldID Premium Monthly | $14.99 |
-| `shieldid_premium_yearly` | ShieldID Premium Annual | $99.99 |
+| `rook_pro_monthly` | Rook Pro Monthly | $7.99 |
+| `rook_pro_yearly` | Rook Pro Annual | $59.99 |
+| `rook_premium_monthly` | Rook Premium Monthly | $14.99 |
+| `rook_premium_yearly` | Rook Premium Annual | $99.99 |
 
 Add 7-day free trial to all tiers.
 

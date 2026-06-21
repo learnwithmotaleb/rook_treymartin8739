@@ -337,7 +337,7 @@ export default function Subscription() {
           <Ionicons name="close" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          ShieldID Protection
+          Rook Protection
         </Text>
         <View style={{ width: 24 }} />
       </View>

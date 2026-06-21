@@ -1,5 +1,5 @@
 /**
- * RevenueCat subscription context for ShieldID.
+ * RevenueCat subscription context for Rook.
  *
  * Tiers:
  *   "premium" entitlement → Premium tier (unlimited accounts, daily scans)

@@ -1,5 +1,5 @@
 /**
- * Centralized scan configuration for ShieldID detection engine.
+ * Centralized scan configuration for Rook detection engine.
  *
  * All scoring thresholds, weights, and classification rules live here.
  * Adjust these values to tune detection sensitivity — do not hardcode them

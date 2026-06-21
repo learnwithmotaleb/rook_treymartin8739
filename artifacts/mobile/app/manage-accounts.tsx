@@ -57,7 +57,7 @@ function AccountCard({
   const handleDelete = () => {
     Alert.alert(
       "Remove Account",
-      `Remove ${account.username} from ${PLATFORM_LABELS[account.platform ?? ""] ?? account.platform}? ShieldID will stop monitoring this account.`,
+      `Remove ${account.username} from ${PLATFORM_LABELS[account.platform ?? ""] ?? account.platform}? Rook will stop monitoring this account.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -281,7 +281,7 @@ export default function ManageAccounts() {
               No accounts connected
             </Text>
             <Text style={[styles.emptyDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Connect your social accounts so ShieldID can monitor them for impersonators and threats.
+              Connect your social accounts so Rook can monitor them for impersonators and threats.
             </Text>
             <TouchableOpacity
               style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
@@ -334,7 +334,7 @@ export default function ManageAccounts() {
               Why connect accounts?
             </Text>
             <Text style={[styles.infoDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Connected accounts let ShieldID index your photos and captions to build your identity fingerprint — the foundation of impersonator detection. Authenticated accounts get real-time sync.
+              Connected accounts let Rook index your photos and captions to build your identity fingerprint — the foundation of impersonator detection. Authenticated accounts get real-time sync.
             </Text>
           </View>
         </GlassCard>

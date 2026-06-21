@@ -5,9 +5,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { registerPushToken, deregisterPushToken } from "@/lib/api";
 
-const PUSH_TOKEN_STORED_KEY = "shieldid:push_token_sent";
-const NOTIF_PREFS_KEY = "shieldid:notification_prefs";
-const PERMISSION_ASKED_KEY = "shieldid:push_permission_asked";
+const PUSH_TOKEN_STORED_KEY = "rook:push_token_sent";
+const NOTIF_PREFS_KEY = "rook:notification_prefs";
+const PERMISSION_ASKED_KEY = "rook:push_permission_asked";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -55,7 +55,7 @@ function showPrePrompt(): Promise<boolean> {
   return new Promise((resolve) => {
     Alert.alert(
       "Stay Protected in Real-Time",
-      "ShieldID will send you instant alerts when threats to your identity are detected — impersonators, fake profiles, and stolen photos. You can adjust this anytime in Settings.",
+      "Rook will send you instant alerts when threats to your identity are detected — impersonators, fake profiles, and stolen photos. You can adjust this anytime in Settings.",
       [
         { text: "Not Now", style: "cancel", onPress: () => resolve(false) },
         {
@@ -157,7 +157,7 @@ async function scheduleWeeklyReminder(): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "🛡️ Your Identity is Protected",
-      body: "ShieldID has been monitoring your accounts. Tap to see your security status.",
+      body: "Rook has been monitoring your accounts. Tap to see your security status.",
       data: { screen: "dashboard" },
       sound: true,
     },
@@ -190,7 +190,7 @@ export async function applyNotificationPreferences(): Promise<void> {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "🛡️ Your Identity is Protected",
-          body: "ShieldID has been monitoring your accounts. Tap to see your security status.",
+          body: "Rook has been monitoring your accounts. Tap to see your security status.",
           data: { screen: "dashboard" },
           sound: true,
         },

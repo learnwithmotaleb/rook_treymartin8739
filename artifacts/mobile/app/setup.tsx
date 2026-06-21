@@ -50,7 +50,7 @@ export default function Setup() {
   const handleContinue = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      Alert.alert("Name Required", "Please enter your full name so ShieldID can identify your identity fingerprint.");
+      Alert.alert("Name Required", "Please enter your full name so Rook can identify your identity fingerprint.");
       return;
     }
     setLoading(true);
@@ -253,7 +253,7 @@ export default function Setup() {
               { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
             ]}
           >
-            ShieldID will scan these platforms for impersonators and alert you immediately. Pro & Premium subscribers get automated weekly or daily scans.
+            Rook will scan these platforms for impersonators and alert you immediately. Pro & Premium subscribers get automated weekly or daily scans.
           </Text>
         </View>
 

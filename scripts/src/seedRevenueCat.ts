@@ -26,21 +26,21 @@ import {
   type CreateProductData,
 } from "@replit/revenuecat-sdk";
 
-const PROJECT_NAME = "ShieldID";
+const PROJECT_NAME = "Rook";
 
 // iOS/Android store identifiers
-const IOS_BUNDLE_ID = "com.shieldid.app";
-const ANDROID_PACKAGE = "com.shieldid.app";
+const IOS_BUNDLE_ID = "com.getrook.app";
+const ANDROID_PACKAGE = "com.getrook.app";
 
 // Products: 2 tiers × 2 billing cycles
 const PRODUCTS = [
   {
     label: "Pro Monthly",
-    identifier: "shieldid_pro_monthly",
-    androidIdentifier: "shieldid_pro_monthly:monthly",
+    identifier: "rook_pro_monthly",
+    androidIdentifier: "rook_pro_monthly:monthly",
     duration: "P1M" as const,
-    displayName: "ShieldID Pro — Monthly",
-    title: "ShieldID Pro Monthly",
+    displayName: "Rook Pro — Monthly",
+    title: "Rook Pro Monthly",
     prices: [
       { amount_micros: 11990000, currency: "USD" },  // $11.99
       { amount_micros: 10990000, currency: "EUR" },  // €10.99
@@ -52,11 +52,11 @@ const PRODUCTS = [
   },
   {
     label: "Pro Yearly",
-    identifier: "shieldid_pro_yearly",
-    androidIdentifier: "shieldid_pro_yearly:yearly",
+    identifier: "rook_pro_yearly",
+    androidIdentifier: "rook_pro_yearly:yearly",
     duration: "P1Y" as const,
-    displayName: "ShieldID Pro — Yearly",
-    title: "ShieldID Pro Yearly",
+    displayName: "Rook Pro — Yearly",
+    title: "Rook Pro Yearly",
     prices: [
       { amount_micros: 95880000, currency: "USD" },  // $95.88 ($7.99/mo, save 33%)
       { amount_micros: 87880000, currency: "EUR" },  // €87.88
@@ -68,11 +68,11 @@ const PRODUCTS = [
   },
   {
     label: "Premium Monthly",
-    identifier: "shieldid_premium_monthly",
-    androidIdentifier: "shieldid_premium_monthly:monthly",
+    identifier: "rook_premium_monthly",
+    androidIdentifier: "rook_premium_monthly:monthly",
     duration: "P1M" as const,
-    displayName: "ShieldID Premium — Monthly",
-    title: "ShieldID Premium Monthly",
+    displayName: "Rook Premium — Monthly",
+    title: "Rook Premium Monthly",
     prices: [
       { amount_micros: 24990000, currency: "USD" },  // $24.99
       { amount_micros: 22990000, currency: "EUR" },  // €22.99
@@ -84,11 +84,11 @@ const PRODUCTS = [
   },
   {
     label: "Premium Yearly",
-    identifier: "shieldid_premium_yearly",
-    androidIdentifier: "shieldid_premium_yearly:yearly",
+    identifier: "rook_premium_yearly",
+    androidIdentifier: "rook_premium_yearly:yearly",
     duration: "P1Y" as const,
-    displayName: "ShieldID Premium — Yearly",
-    title: "ShieldID Premium Yearly",
+    displayName: "Rook Premium — Yearly",
+    title: "Rook Premium Yearly",
     prices: [
       { amount_micros: 203880000, currency: "USD" }, // $203.88 ($16.99/mo, save 32%)
       { amount_micros: 185880000, currency: "EUR" }, // €185.88
@@ -150,7 +150,7 @@ async function seedRevenueCat() {
     const { data: newApp, error } = await createApp({
       client,
       path: { project_id: project.id },
-      body: { name: "ShieldID iOS", type: "app_store", app_store: { bundle_id: IOS_BUNDLE_ID } },
+      body: { name: "Rook iOS", type: "app_store", app_store: { bundle_id: IOS_BUNDLE_ID } },
     });
     if (error) throw new Error("Failed to create App Store app");
     appStoreApp = newApp;
@@ -163,7 +163,7 @@ async function seedRevenueCat() {
     const { data: newApp, error } = await createApp({
       client,
       path: { project_id: project.id },
-      body: { name: "ShieldID Android", type: "play_store", play_store: { package_name: ANDROID_PACKAGE } },
+      body: { name: "Rook Android", type: "play_store", play_store: { package_name: ANDROID_PACKAGE } },
     });
     if (error) throw new Error("Failed to create Play Store app");
     playStoreApp = newApp;
@@ -388,12 +388,12 @@ async function seedRevenueCat() {
   };
 
   // Pro offering packages
-  await ensurePackage(proOffering, "$rc_monthly", "Pro Monthly", "shieldid_pro_monthly");
-  await ensurePackage(proOffering, "$rc_annual", "Pro Annual", "shieldid_pro_yearly");
+  await ensurePackage(proOffering, "$rc_monthly", "Pro Monthly", "rook_pro_monthly");
+  await ensurePackage(proOffering, "$rc_annual", "Pro Annual", "rook_pro_yearly");
 
   // Premium offering packages
-  await ensurePackage(premiumOffering, "$rc_monthly", "Premium Monthly", "shieldid_premium_monthly");
-  await ensurePackage(premiumOffering, "$rc_annual", "Premium Annual", "shieldid_premium_yearly");
+  await ensurePackage(premiumOffering, "$rc_monthly", "Premium Monthly", "rook_premium_monthly");
+  await ensurePackage(premiumOffering, "$rc_annual", "Premium Annual", "rook_premium_yearly");
 
   // ── API Keys ─────────────────────────────────────────────────────────────
   const getKeys = async (app: App) => {

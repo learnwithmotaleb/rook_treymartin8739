@@ -22,7 +22,7 @@ import { registerPushToken, deregisterPushToken } from "@/lib/api";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 
-const STORAGE_KEY = "shieldid:notification_prefs";
+const STORAGE_KEY = "rook:notification_prefs";
 
 interface NotifPrefs {
   pushAlerts: boolean;

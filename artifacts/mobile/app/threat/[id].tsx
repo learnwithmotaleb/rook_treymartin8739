@@ -554,7 +554,7 @@ export default function ThreatDetail() {
         ? `We'll open @${handle}'s profile directly so you can tap "Report" from within the platform's app.`
         : guideUrl
         ? "We'll open the platform's official reporting guide."
-        : "Your report will be recorded in ShieldID.",
+        : "Your report will be recorded in Rook.",
       buttons
     );
   };
@@ -597,7 +597,7 @@ export default function ThreatDetail() {
               How did you handle this?
             </Text>
             <Text style={[resolveModalStyles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Your response helps ShieldID learn and improve detection accuracy.
+              Your response helps Rook learn and improve detection accuracy.
             </Text>
 
             {/* Real impersonator section */}
@@ -685,7 +685,7 @@ export default function ThreatDetail() {
                     False detection
                   </Text>
                   <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    ShieldID flagged this incorrectly — helps us reduce future false alarms
+                    Rook flagged this incorrectly — helps us reduce future false alarms
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
@@ -759,7 +759,7 @@ export default function ThreatDetail() {
               <Text
                 style={[styles.collectiveBadgeTitle, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}
               >
-                Confirmed by {detail.threatActor.victimCount} ShieldID users
+                Confirmed by {detail.threatActor.victimCount} Rook users
               </Text>
               <Text
                 style={[styles.collectiveBadgeSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
@@ -839,7 +839,7 @@ export default function ThreatDetail() {
                   AI Analysis
                 </Text>
                 <Text style={[styles.aiPowered, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  ShieldID Identity Investigator
+                  Rook Identity Investigator
                 </Text>
               </View>
             </View>

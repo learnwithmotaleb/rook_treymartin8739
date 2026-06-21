@@ -3,7 +3,7 @@
  *
  * Delivers signed JSON payloads to registered webhook endpoints.
  * Signature: HMAC-SHA256 of the raw JSON body using the webhook's signing secret.
- * Signature header: X-ShieldID-Signature: sha256=<hex>
+ * Signature header: X-Rook-Signature: sha256=<hex>
  *
  * Retry logic: up to 3 attempts with 2x/4x exponential backoff.
  * Delivery state is tracked in webhook_delivery_log table.
@@ -44,8 +44,8 @@ async function postWebhook(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-ShieldID-Signature": signature,
-        "User-Agent": "ShieldID-Webhooks/1.0",
+        "X-Rook-Signature": signature,
+        "User-Agent": "Rook-Webhooks/1.0",
       },
       body,
       signal: controller.signal,

@@ -32,7 +32,7 @@
  * TOS COMPLIANCE NOTE:
  * All data ingestion MUST use official platform APIs only.
  * Scraping, crawling, or unauthorized data access violates platform TOS
- * and may result in legal liability. ShieldID only accesses data that
+ * and may result in legal liability. Rook only accesses data that
  * users explicitly authorize via OAuth.
  */
 

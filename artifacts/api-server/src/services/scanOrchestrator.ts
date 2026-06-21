@@ -410,7 +410,7 @@ function editDistance(s1: string, s2: string): number {
 
 // ─── Web search candidate → ImpersonatorCandidate conversion ─────────────────
 
-/** Maps ShieldID platform names to unavatar.io path segments for profile photo lookup. */
+/** Maps Rook platform names to unavatar.io path segments for profile photo lookup. */
 const UNAVATAR_PLATFORM: Record<string, string> = {
   instagram: "instagram",
   x: "twitter",
@@ -1274,7 +1274,7 @@ async function runScanPipeline(
     if (confirmedVictims >= 3 && escalatedSeverity !== scoredSeverity) {
       candidate.detectedSignals.push(
         "crossUserEscalation",
-        `confirmedVictimsEscalation: severity escalated ${scoredSeverity}→${escalatedSeverity} (${confirmedVictims} ShieldID users confirmed this actor)`
+        `confirmedVictimsEscalation: severity escalated ${scoredSeverity}→${escalatedSeverity} (${confirmedVictims} Rook users confirmed this actor)`
       );
     }
 

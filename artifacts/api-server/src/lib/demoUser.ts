@@ -16,7 +16,7 @@ import {
 } from "@workspace/db";
 import { logger } from "./logger";
 
-const DEMO_EMAIL = "demo@shieldid.app";
+const DEMO_EMAIL = "demo@getrook.app";
 
 const DEMO_ACCOUNTS = [
   { platform: "instagram", username: "@alexjohnson", followers: 12400, photosIndexed: 84, captionsIndexed: 72, reelsIndexed: 18 },

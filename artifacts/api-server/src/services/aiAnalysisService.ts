@@ -33,7 +33,7 @@ export interface ThreatExplanationInput {
 
 // ─── System prompts ───────────────────────────────────────────────────────────
 
-const SCAM_SYSTEM_PROMPT = `You are ShieldID's AI scam detection engine. Analyze text for scam indicators.
+const SCAM_SYSTEM_PROMPT = `You are Rook's AI scam detection engine. Analyze text for scam indicators.
 
 Return ONLY this JSON (no extra text):
 {
@@ -47,7 +47,7 @@ Return ONLY this JSON (no extra text):
 Risk: 0-30=low, 31-65=medium, 66-100=high.
 Patterns: urgency, crypto requests, fake prizes, phishing, brand impersonation, too-good-to-be-true, unusual payment, threats, account verification, romance scam.`;
 
-const EXPLANATION_SYSTEM_PROMPT = `You are ShieldID's identity investigator. Write 2 sentences explaining why an account was flagged as a potential impersonator. Be specific, factual, professional. Return only the explanation text.`;
+const EXPLANATION_SYSTEM_PROMPT = `You are Rook's identity investigator. Write 2 sentences explaining why an account was flagged as a potential impersonator. Be specific, factual, professional. Return only the explanation text.`;
 
 // ─── In-memory explanation dedup cache ───────────────────────────────────────
 
@@ -203,7 +203,7 @@ async function _callExplanationApi(
 
   const result =
     response.choices[0]?.message?.content?.trim() ??
-    "This account was flagged based on suspicious activity detected by ShieldID's AI monitoring system.";
+    "This account was flagged based on suspicious activity detected by Rook's AI monitoring system.";
 
   // Store in cache
   explanationCache.set(cacheKey, {

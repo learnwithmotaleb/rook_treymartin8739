@@ -33,23 +33,23 @@ const FAQS = [
   },
   {
     q: "How is this different from identity theft protection services?",
-    a: "Traditional identity theft services focus on financial fraud — credit monitoring, SSN alerts. ShieldID focuses on your digital identity: fake social accounts, stolen photos, impersonation scams, and online reputation threats. These are the fastest-growing category of identity crime and almost no existing tool covers them.",
+    a: "Traditional identity theft services focus on financial fraud — credit monitoring, SSN alerts. Rook focuses on your digital identity: fake social accounts, stolen photos, impersonation scams, and online reputation threats. These are the fastest-growing category of identity crime and almost no existing tool covers them.",
   },
   {
     q: "Which platforms do you monitor?",
-    a: "ShieldID monitors Instagram, X (Twitter), TikTok, Facebook, LinkedIn, YouTube, and Snapchat — all live now. Connect any of your accounts and your first scan runs immediately.",
+    a: "Rook monitors Instagram, X (Twitter), TikTok, Facebook, LinkedIn, YouTube, and Snapchat — all live now. Connect any of your accounts and your first scan runs immediately.",
   },
   {
     q: "Will you access my private messages or personal data?",
-    a: "Absolutely not. ShieldID only reads publicly available information — the same information anyone on the internet can see. We never access your DMs, private posts, or any non-public content. Your privacy is our foundation.",
+    a: "Absolutely not. Rook only reads publicly available information — the same information anyone on the internet can see. We never access your DMs, private posts, or any non-public content. Your privacy is our foundation.",
   },
   {
     q: "How quickly will I be notified if a threat is found?",
-    a: "ShieldID runs automated, scheduled scans and delivers push notifications directly to your phone when a potential threat is detected. Pro users get weekly automated scans, Premium users get daily — you'll know within hours, not months.",
+    a: "Rook runs automated, scheduled scans and delivers push notifications directly to your phone when a potential threat is detected. Pro users get weekly automated scans, Premium users get daily — you'll know within hours, not months.",
   },
   {
-    q: "What happens when ShieldID finds an impersonator?",
-    a: "You'll receive an instant alert with full details on the fake account, including AI analysis and evidence. From there, you can view the impersonator's profile and report them directly to the platform with guided step-by-step instructions. ShieldID handles the evidence documentation.",
+    q: "What happens when Rook finds an impersonator?",
+    a: "You'll receive an instant alert with full details on the fake account, including AI analysis and evidence. From there, you can view the impersonator's profile and report them directly to the platform with guided step-by-step instructions. Rook handles the evidence documentation.",
   },
   {
     q: "Is my data secure?",
@@ -134,7 +134,7 @@ function PhoneMockup() {
           <div style={{ width: 24, height: 24, borderRadius: 7, background: `${C.primary}22`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill={C.primary}><path d="M12 2L3.5 6.5v5c0 5.25 3.58 10.15 8.5 11.5 4.92-1.35 8.5-6.25 8.5-11.5v-5L12 2z" /></svg>
           </div>
-          <span style={{ color: C.text, fontSize: 11, fontWeight: 700, letterSpacing: -0.3 }}>ShieldID</span>
+          <span style={{ color: C.text, fontSize: 11, fontWeight: 700, letterSpacing: -0.3 }}>Rook</span>
         </div>
         <div style={{ position: "relative" }}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -493,7 +493,7 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass-panel border-b-0 border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
-            <img src="/landing/logo.png" alt="ShieldID" className="h-11 w-11 object-contain" />
+            <img src="/landing/logo.png" alt="Rook" className="h-11 w-11 object-contain" />
             <span>Shield<span className="text-primary">ID</span></span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
@@ -537,7 +537,7 @@ export default function Home() {
 
             <motion.p variants={fadeUp} className="text-lg text-muted-foreground max-w-lg leading-relaxed">
               1 in 10 people are being impersonated online. Most don't find out until their reputation is already damaged, their followers are scammed, and the fake account has thousands of followers.
-              <span className="text-white font-medium"> ShieldID is AI-powered impersonator detection and photo monitoring — it finds threats before the damage is done.</span>
+              <span className="text-white font-medium"> Rook is AI-powered impersonator detection and photo monitoring — it finds threats before the damage is done.</span>
             </motion.p>
 
             <motion.div variants={fadeUp} id="hero-form" className="w-full max-w-md">
@@ -614,7 +614,7 @@ export default function Home() {
               <span className="text-gradient-primary">identity is threatened.</span>
             </motion.h2>
             <motion.p variants={fadeUp} className="text-lg text-muted-foreground leading-relaxed">
-              ShieldID scans for impersonators and stolen photos so you don't have to. The moment something goes wrong, you're the first to know — with everything you need to act immediately.
+              Rook scans for impersonators and stolen photos so you don't have to. The moment something goes wrong, you're the first to know — with everything you need to act immediately.
             </motion.p>
           </motion.div>
 
@@ -724,7 +724,7 @@ export default function Home() {
               See threats the moment they appear.
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              ShieldID doesn't wait for your followers to report a fake account. Our AI actively hunts for clones, intercepts impersonators, and gives you everything you need to shut them down — before any damage is done.
+              Rook doesn't wait for your followers to report a fake account. Our AI actively hunts for clones, intercepts impersonators, and gives you everything you need to shut them down — before any damage is done.
             </p>
             <ul className="flex flex-col gap-4 mb-8">
               {[
@@ -756,7 +756,7 @@ export default function Home() {
             <div className="hidden md:block absolute top-10 left-[18%] right-[18%] h-px bg-gradient-to-r from-transparent via-border to-transparent" />
             {[
               { step: 1, title: "Connect Your Accounts", desc: "Link your social profiles in under 2 minutes to establish your verified digital identity baseline." },
-              { step: 2, title: "AI Scanning Begins", desc: "ShieldID immediately begins scanning your connected platforms for impersonators, stolen photos, and identity threats." },
+              { step: 2, title: "AI Scanning Begins", desc: "Rook immediately begins scanning your connected platforms for impersonators, stolen photos, and identity threats." },
               { step: 3, title: "Get Instant Alerts", desc: "Receive push notifications the moment a threat is detected, with everything you need to act immediately." },
             ].map((item, i) => (
               <motion.div
@@ -904,7 +904,7 @@ export default function Home() {
 
           <p className="text-center text-sm text-muted-foreground mt-10">
             Still have questions?{" "}
-            <a href="mailto:support@shieldid.app" className="text-primary hover:underline">Contact us</a>
+            <a href="mailto:support@getrook.app" className="text-primary hover:underline">Contact us</a>
           </p>
         </div>
       </section>
@@ -913,7 +913,7 @@ export default function Home() {
       <footer className="border-t border-white/5 py-12 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2 font-bold text-lg">
-            <img src="/landing/logo.png" alt="ShieldID" className="h-10 w-10 object-contain" />
+            <img src="/landing/logo.png" alt="Rook" className="h-10 w-10 object-contain" />
             <span>Shield<span className="text-primary">ID</span></span>
           </div>
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground font-medium justify-center">
@@ -922,13 +922,13 @@ export default function Home() {
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
             <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
             <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
-            <a href="mailto:support@shieldid.app" className="hover:text-white transition-colors">Contact</a>
+            <a href="mailto:support@getrook.app" className="hover:text-white transition-colors">Contact</a>
           </div>
-          <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} ShieldID. All rights reserved.</div>
+          <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} Rook. All rights reserved.</div>
         </div>
         <div className="max-w-7xl mx-auto mt-8 pt-6 border-t border-white/[0.04]">
           <p className="text-xs text-white/20 text-center leading-relaxed max-w-3xl mx-auto">
-            ShieldID monitors publicly available information only. Statistics sourced from FTC Consumer Sentinel, Meta Transparency Reports, and IBM Security X-Force. ShieldID is not affiliated with any social media platform.
+            Rook monitors publicly available information only. Statistics sourced from FTC Consumer Sentinel, Meta Transparency Reports, and IBM Security X-Force. Rook is not affiliated with any social media platform.
           </p>
         </div>
       </footer>
