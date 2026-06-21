@@ -12,3 +12,4 @@
 - [Dual-score detection engine](dual-score-detection.md) — identityMatchScore + impersonationConfidenceScore; actor corpus matches bypass all caps; all thresholds in scanConfig.ts.
 - [Web candidate photo fix](web-candidate-photo-fix.md) — webCandidateToImpersonator must set suspiciousProfileImageUrl from wc.imageUrl; without it pHash step 6 is skipped for ALL web/probe candidates; also set yourPhotoUrl on each evidence item from bestIngested?.profileImageUrl.
 - [Dep security overrides pattern](dep-security-overrides.md) — ws and undici blanket overrides in pnpm-workspace.yaml are the only remediation path for transitive DoS vulns; check patched version in audit output before setting range; 0 high vulns is achievable.
+- [Platform probe strategies](platform-probe-strategies.md) — TikTok oEmbed works from DC IPs (200=exists, 400=not found); Instagram web profile JSON 429s on bulk DC probing; CSE 403 = GCP "Custom Search JSON API" not enabled; all handled gracefully.

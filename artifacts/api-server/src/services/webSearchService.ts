@@ -436,10 +436,10 @@ const DIRECT_PROBE_UA =
 //   X (Twitter) — SSR renders "<DisplayName> (@handle) / X" in <title> for real profiles.
 //                  Non-existent profiles return an empty/generic title with no username.
 //                  Reliable existence detection: check if variant appears in first 4KB of HTML.
-//   Instagram    — Returns HTTP 429 (Too Many Requests) from all data-center IPs immediately.
-//                  Cannot probe reliably without residential proxies. Skip.
-//   TikTok       — Full SPA. Serves the same generic "TikTok - Make Your Day" HTML for
-//                  both real and non-existent profiles. No SSR signals. Skip.
+//   Instagram    — Handled by instagramVariantProbe() via internal web profile JSON API.
+//                  (HTML page returns 429 from DC IPs; the JSON API endpoint works)
+//   TikTok       — Handled by tiktokVariantProbe() via public oEmbed API.
+//                  (The SPA page is unreadable; oEmbed returns JSON: 200=exists, 400=not found)
 const DIRECT_PROBE_URL_BUILDERS: Record<string, (u: string) => string> = {
   x: (u) => `https://x.com/${u}`,
 };
@@ -708,6 +708,206 @@ async function searchXApiVariants(
     "X API variant search complete"
   );
 
+  return candidates;
+}
+
+// ─── Strategy 1d: Instagram web profile JSON probe ───────────────────────────
+//
+// Instagram's internal web profile endpoint returns JSON user data for existing
+// accounts without requiring authentication. HTML page probes return 429 from
+// data-center IPs, but this JSON API works reliably.
+//
+// Endpoint: GET /api/v1/users/web_profile_info/?username=<u>
+// Success:  200 + { data: { user: { username, full_name, biography, ... } } }
+// Not found: 200 with data.user === null, or 404
+
+const INSTAGRAM_PROBE_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+  "X-IG-App-ID": "936619743392459",
+  Accept: "application/json",
+};
+
+interface InstagramWebUser {
+  username?: string;
+  full_name?: string;
+  biography?: string;
+  edge_followed_by?: { count: number };
+}
+
+async function instagramVariantProbe(
+  username: string,
+  seen: Set<string>
+): Promise<WebSearchCandidate[]> {
+  const clean = username.toLowerCase().replace(/^@/, "");
+
+  const variants = generateUsernameMutations(clean, 100)
+    .map((m) => m.variant)
+    .filter((v) => v !== clean && v.length >= 3 && !/[\s.]/.test(v));
+
+  const unique = [...new Set(variants)].filter((v) => !seen.has(`instagram:${v}`));
+  if (unique.length === 0) return [];
+
+  const candidates: WebSearchCandidate[] = [];
+
+  logger.info(
+    { username: clean, variants: unique.length },
+    "Instagram variant probe starting"
+  );
+
+  const CONCURRENCY = 4;
+  for (let i = 0; i < unique.length; i += CONCURRENCY) {
+    const batch = unique.slice(i, i + CONCURRENCY);
+
+    await Promise.all(
+      batch.map(async (variant) => {
+        const key = `instagram:${variant}`;
+        if (seen.has(key)) return;
+        try {
+          const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(variant)}`;
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 6000);
+          const resp = await fetch(url, {
+            headers: INSTAGRAM_PROBE_HEADERS,
+            signal: ctrl.signal,
+          }).finally(() => clearTimeout(timer));
+
+          if (!resp.ok) return;
+          const data = await resp
+            .json()
+            .catch(() => null) as { data?: { user?: InstagramWebUser } } | null;
+          const user = data?.data?.user;
+          if (!user?.username) return;
+
+          seen.add(key);
+          const similarity =
+            variant.includes(clean) || clean.includes(variant) ? 0.85 : 0.6;
+          candidates.push({
+            username: variant,
+            platform: "instagram",
+            profileUrl: `https://www.instagram.com/${user.username}/`,
+            title: user.full_name
+              ? `${user.full_name} (@${user.username}) on Instagram`
+              : `@${user.username} on Instagram`,
+            snippet:
+              user.biography?.slice(0, 200) ??
+              `Instagram account with ${user.edge_followed_by?.count ?? 0} followers`,
+            similarity,
+            discoveryMethod: "username_variant",
+          });
+          logger.info(
+            { variant, name: user.full_name, followers: user.edge_followed_by?.count },
+            "Instagram probe: active profile confirmed"
+          );
+        } catch {
+          // timeout / network — skip
+        }
+      })
+    );
+
+    if (i + CONCURRENCY < unique.length) {
+      await new Promise<void>((r) => setTimeout(r, 500));
+    }
+  }
+
+  logger.info(
+    { found: candidates.length, checked: unique.length, username: clean },
+    "Instagram variant probe complete"
+  );
+  return candidates;
+}
+
+// ─── Strategy 1e: TikTok oEmbed direct probe ─────────────────────────────────
+//
+// TikTok's public oEmbed API returns profile metadata for real accounts and
+// a 400 JSON error for non-existent usernames. No authentication required.
+//
+// Endpoint: GET https://www.tiktok.com/oembed?url=https://www.tiktok.com/@<u>
+// Success:  200 + { author_name, author_url, title, thumbnail_url }
+// Not found: 400 + { code: 400, message: "Something went wrong" }
+
+interface TikTokOEmbedData {
+  author_name?: string;
+  author_url?: string;
+  title?: string;
+  code?: number;
+}
+
+async function tiktokVariantProbe(
+  username: string,
+  seen: Set<string>
+): Promise<WebSearchCandidate[]> {
+  const clean = username.toLowerCase().replace(/^@/, "");
+
+  const variants = generateUsernameMutations(clean, 100)
+    .map((m) => m.variant)
+    .filter((v) => v !== clean && v.length >= 3 && !/\s/.test(v));
+
+  const unique = [...new Set(variants)].filter((v) => !seen.has(`tiktok:${v}`));
+  if (unique.length === 0) return [];
+
+  const candidates: WebSearchCandidate[] = [];
+
+  logger.info(
+    { username: clean, variants: unique.length },
+    "TikTok oEmbed probe starting"
+  );
+
+  const CONCURRENCY = 5;
+  for (let i = 0; i < unique.length; i += CONCURRENCY) {
+    const batch = unique.slice(i, i + CONCURRENCY);
+
+    await Promise.all(
+      batch.map(async (variant) => {
+        const key = `tiktok:${variant}`;
+        if (seen.has(key)) return;
+        try {
+          const profileUrl = `https://www.tiktok.com/@${variant}`;
+          const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(profileUrl)}`;
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 6000);
+          const resp = await fetch(oembedUrl, {
+            headers: { "User-Agent": DIRECT_PROBE_UA },
+            signal: ctrl.signal,
+          }).finally(() => clearTimeout(timer));
+
+          if (!resp.ok) return; // 400 = doesn't exist
+          const data = await resp
+            .json()
+            .catch(() => null) as TikTokOEmbedData | null;
+          if (!data?.author_name) return;
+
+          seen.add(key);
+          const similarity =
+            variant.includes(clean) || clean.includes(variant) ? 0.85 : 0.6;
+          candidates.push({
+            username: variant,
+            platform: "tiktok",
+            profileUrl,
+            title: `${data.author_name} (@${variant}) on TikTok`,
+            snippet: data.title ?? `TikTok account @${variant} by ${data.author_name}`,
+            similarity,
+            discoveryMethod: "username_variant",
+          });
+          logger.info(
+            { variant, name: data.author_name },
+            "TikTok oEmbed: active profile confirmed"
+          );
+        } catch {
+          // timeout / network — skip
+        }
+      })
+    );
+
+    if (i + CONCURRENCY < unique.length) {
+      await new Promise<void>((r) => setTimeout(r, 400));
+    }
+  }
+
+  logger.info(
+    { found: candidates.length, checked: unique.length, username: clean },
+    "TikTok oEmbed probe complete"
+  );
   return candidates;
 }
 
@@ -1270,10 +1470,14 @@ export async function searchForImpersonators(
   const cseEnabled = isConfigured();
   const visionEnabled = isVisionConfigured();
 
-  if (!cseEnabled && !visionEnabled) {
+  // Direct platform probes (Instagram, TikTok, X) work without Google credentials —
+  // they use public APIs that require no API key. We only skip entirely if there is
+  // genuinely nothing to run (no Google AND no direct probe targets configured).
+  const hasDirectProbeCapability = true; // Instagram + TikTok oEmbed always available
+  if (!cseEnabled && !visionEnabled && !hasDirectProbeCapability) {
     logger.info(
       {},
-      "No Google API key configured — skipping web search. Set GOOGLE_SEARCH_API_KEY to enable."
+      "No search capabilities configured — skipping web search."
     );
     return [];
   }
@@ -1353,6 +1557,8 @@ export async function searchForImpersonators(
   const seen1a = new Set<string>(seen);
   const seen1b = new Set<string>(seen);
   const seen1c = new Set<string>(seen);
+  const seen1d = new Set<string>(seen);
+  const seen1e = new Set<string>(seen);
   const seen2  = new Set<string>(seen);
   const seen3  = new Set<string>(seen);
 
@@ -1382,6 +1588,26 @@ export async function searchForImpersonators(
     strategyTasks.push(
       searchXApiVariants(clean, seen1c)
         .then((c) => ({ tag: "1c_xapi", candidates: c }))
+    );
+  }
+
+  // Strategy 1d: Instagram web profile JSON probe (always runs for instagram targets)
+  // Uses Instagram's internal web profile API endpoint — no auth required, works from
+  // server IPs (unlike the HTML page which 429s from data-center addresses).
+  if (targetPlatforms.includes("instagram")) {
+    strategyTasks.push(
+      instagramVariantProbe(clean, seen1d)
+        .then((c) => ({ tag: "1d_instagram", candidates: c }))
+    );
+  }
+
+  // Strategy 1e: TikTok oEmbed direct probe (always runs for tiktok targets)
+  // Uses TikTok's public oEmbed API — no auth required, returns JSON indicating
+  // whether a profile exists (200) or not (400). Covers all username variants.
+  if (targetPlatforms.includes("tiktok")) {
+    strategyTasks.push(
+      tiktokVariantProbe(clean, seen1e)
+        .then((c) => ({ tag: "1e_tiktok", candidates: c }))
     );
   }
 
