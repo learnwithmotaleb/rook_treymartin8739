@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/landing/"
-title = "ShieldID — Landing Page"
+title = "Rook — Landing Page"
 version = "1.0.0"
 id = "artifacts/landing"
 router = "path"
