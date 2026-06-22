@@ -137,7 +137,7 @@ router.get("/threats", async (req, res): Promise<void> => {
     .from(threatsTable)
     .where(and(...conditions))
     .orderBy(desc(threatsTable.createdAt))
-    .limit(Math.min(parseInt(limit, 10), 100))
+    .limit(Math.min(parseInt(limit, 10), 200))
     .offset(Math.max(parseInt(offset, 10), 0));
 
   res.json(rows.map(parseThreatSummary));

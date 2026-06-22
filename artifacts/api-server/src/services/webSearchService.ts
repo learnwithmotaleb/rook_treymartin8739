@@ -213,6 +213,54 @@ const PLATFORM_PATTERNS: Record<
 // which generates 100-300 ranked variants covering suffix, prefix, char-sub, separator,
 // and number patterns. The engine is called per-search with a tier-based limit.
 
+// ─── Fan / parody account detection ───────────────────────────────────────────
+//
+// A "fan account" explicitly declares itself as not being the real person.
+// These should NEVER be surfaced as impersonators — they are fans, not impostors.
+// Detection is based on username boundary patterns and snippet/bio keywords.
+
+const FAN_ACCOUNT_USERNAME_TOKENS = [
+  "fan", "fans", "fanpage", "fanaccount", "fc",
+  "stan", "stans", "stanaccount",
+  "tribute", "supporters", "appreciation",
+  "unofficial",
+];
+
+const FAN_ACCOUNT_SNIPPET_PHRASES = [
+  "fan account", "fan page", "fan-account", "fan-page",
+  "not affiliated", "not the real", "not official",
+  "unofficial fan", "parody account", "parody",
+  "fan site", "fanbase", "fan club", "fan edit",
+  "stan account", "tribute account", "appreciation account",
+  "i am not", "i'm not",
+];
+
+/**
+ * Returns true if the username or any provided text field (snippet, bio, title)
+ * signals a self-declared fan/parody account.
+ *
+ * Checks:
+ *   1. Username ends/starts with a fan token (e.g. sophieraiin_fan, fansofsophie)
+ *   2. Any text field contains an explicit fan-account declaration
+ */
+function isFanAccountSignal(username: string, ...textFields: string[]): boolean {
+  const u = username.toLowerCase().replace(/^@/, "");
+
+  for (const token of FAN_ACCOUNT_USERNAME_TOKENS) {
+    if (u === token) return true;
+    // boundary-based suffix: _fan, .fan, fans (plural suffix)
+    if (u.endsWith(`.${token}`) || u.endsWith(`_${token}`)) return true;
+    // boundary-based prefix: fan_, fan.
+    if (u.startsWith(`${token}.`) || u.startsWith(`${token}_`)) return true;
+    // inline with clear word boundaries: .fan. or _fan_
+    if (u.includes(`.${token}.`) || u.includes(`_${token}_`)) return true;
+    if (u.includes(`.${token}_`) || u.includes(`_${token}.`)) return true;
+  }
+
+  const combined = textFields.join(" ").toLowerCase();
+  return FAN_ACCOUNT_SNIPPET_PHRASES.some((phrase) => combined.includes(phrase));
+}
+
 // ─── Search provider helpers ──────────────────────────────────────────────────
 // Priority: Serper.dev → Google CSE → direct platform probes (no text search)
 // Serper.dev requires only SERPER_API_KEY (no GCP project setup).
@@ -486,6 +534,9 @@ async function searchByUsernameVariants(
       const similarity = found.startsWith(clean) || found.includes(clean)
         ? (isBare ? 0.75 : 0.85)
         : (isBare ? 0.4 : 0.55);
+
+      // Skip self-declared fan/parody accounts
+      if (isFanAccountSignal(found, item.title ?? "", item.snippet ?? "")) continue;
 
       candidates.push({
         username: found,
@@ -958,6 +1009,13 @@ async function tiktokVariantProbe(
           if (!data?.author_name) return;
 
           seen.add(key);
+
+          // Skip self-declared fan/parody accounts (e.g. sophieraiin_fan, teamsophieraiin)
+          if (isFanAccountSignal(variant, data.author_name ?? "", data.title ?? "")) {
+            logger.info({ variant }, "TikTok oEmbed: skipping fan/parody account");
+            return;
+          }
+
           const similarity =
             variant.includes(clean) || clean.includes(variant) ? 0.85 : 0.6;
           candidates.push({
@@ -1061,6 +1119,13 @@ async function searchByDisplayNameAndHandle(
         : normalizedVariants.some((v) => found.includes(v) || v.includes(found))
         ? 0.60
         : 0.40;
+
+      // Skip accounts with no username overlap — they're unrelated content creators
+      // (e.g. a news channel that mentioned the target in a video title) not impostors.
+      if (similarity < 0.50) continue;
+
+      // Skip self-declared fan/parody accounts — they're supporters, not impostors.
+      if (isFanAccountSignal(found, item.title ?? "", item.snippet ?? "")) continue;
 
       candidates.push({
         username: found,

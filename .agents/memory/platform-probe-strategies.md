@@ -1,42 +1,48 @@
 ---
 name: Platform probe strategies
-description: How Instagram, TikTok, X direct probes work (or don't) from data-center IPs — and the CSE 403 root cause.
+description: How Instagram, TikTok, X direct probes work (or don't) from data-center IPs, the CSE 403 root cause, and false-positive/fan-account filters.
 ---
+
+## Text search backend (priority order)
+1. **Serper.dev** — SERPER_API_KEY required; zero GCP setup; working ✓
+2. **Google CSE** — GOOGLE_CSE_API_KEY + GOOGLE_SEARCH_CX; still 403 pending GCP fix; kept as fallback
 
 ## TikTok oEmbed probe (Strategy 1e) — WORKS
 - Endpoint: `GET https://www.tiktok.com/oembed?url=https://www.tiktok.com/@{username}`
-- 200 + JSON (`author_name`, `author_url`) = account exists
-- 400 + `{"code":400}` = account does not exist
-- Reliable from Replit DC IPs; no auth required
-- Concurrency 5, 400ms batch delay to avoid rate limits
-- Found 6 real impersonators for @sophieraiin in first test run
+- 200 + JSON (`author_name`, `author_url`) = account exists; 400 = does not exist
+- Reliable from Replit DC IPs; no auth required; concurrency 5, 400ms batch delay
 
 ## Instagram web profile JSON probe (Strategy 1d) — PARTIAL
 - Endpoint: `GET https://www.instagram.com/api/v1/users/web_profile_info/?username={username}`
-- Headers: `User-Agent: iPhone UA` + `X-IG-App-ID: 936619743392459`
-- Works for isolated single checks (confirmed returns `data.user` for real accounts)
-- Returns 429 from DC IPs on bulk variant scanning (7+ rapid requests blocked)
-- Gracefully skips 429 responses — scan won't crash, just won't find Instagram accounts via this path
-- Instagram coverage requires CSE (when GCP API enabled) or residential proxies
+- Works for isolated checks; 429s on bulk variant scanning from DC IPs — gracefully skipped
 
-## X direct HTML probe (Strategy 1a-probe / fallback) — WORKS
-- Only activates when `cseEnabled=false` (env var absent) OR via the cseFailing fallback at line ~1650
-- Checks SSR-rendered `<title>` — real profiles include the @handle; 404/generic don't
-- Extended from 30 → 100 variants
+## X direct HTML probe (fallback) — WORKS
+- Only activates when cseEnabled=false OR cseFailing=true
+- Checks SSR `<title>` for @handle presence; covers 100 variants
 
 ## Google CSE 403 root cause
 - Error: `"This project does not have the access to Custom Search JSON API."`
-- Cause: The GCP project has Vision API enabled but NOT Custom Search JSON API — separate toggle
-- The `GOOGLE_SEARCH_API_KEY` works for Vision (different API) but fails for CSE
-- Fix: GCP Console → APIs & Services → Library → search "Custom Search JSON API" → Enable
-- `cseFailing` flag is set on first 403; X fallback probe auto-activates; logged at WARN level
-- User's key prefix: AIzaSy...hxdw; CX prefix: f36b25ef88...
+- Fix: GCP Console → APIs & Services → Library → "Custom Search JSON API" → Enable on the project owning GOOGLE_CSE_API_KEY
+- Different error messages: "blocked" = key API restriction; "no access" = project-level not enabled
+
+## Fan account filtering (isFanAccountSignal)
+Applied in Strategy 1a, 1b, and 1e before pushing any candidate.
+- **Username tokens**: `fan`, `fans`, `fanpage`, `fc`, `stan`, `stans`, `tribute`, `supporters`, `unofficial`, etc.
+- **Snippet phrases**: "fan account", "fan page", "not affiliated", "not the real", "parody", "unofficial fan", etc.
+- Self-declared fan accounts are suppressed permanently, NOT flagged as threats.
+
+**Why:** Fan accounts explicitly declare they are not the real person — they are supporters, not impostors. Treating them as threats creates noise and erodes trust in the scan results.
+
+## Display-name search false-positive guard (Strategy 1b)
+Candidates with `similarity < 0.50` are skipped (similarity 0.40 = zero username overlap).
+
+**Why:** Serper returns TikTok/Instagram profiles for anyone who mentioned the target in a video title (e.g. TMZ, Lil Tay). Requiring username overlap prevents media/commentary accounts from flooding the threat feed.
 
 ## Strategy numbering in webSearchService.ts
-- 1a: CSE username variant search (OR direct X probe if cseEnabled=false)
-- 1b: Display name + handle CSE search
-- 1c: X API v2 variant lookup (TWITTER_CLIENT_ID/SECRET = PKCE, not app-only — fails gracefully)
+- 1a: CSE/Serper username variant search (OR direct X probe if cseEnabled=false)
+- 1b: Display name + handle search (similarity ≥ 0.50 required, fan filter applied)
+- 1c: X API v2 variant lookup (PKCE flow, fails gracefully without app-only token)
 - 1d: Instagram web profile JSON probe (always runs, skips on 429)
-- 1e: TikTok oEmbed probe (always runs, reliable from DC IPs)
+- 1e: TikTok oEmbed probe (always runs, reliable from DC IPs, fan filter applied)
 - 2: Cloud Vision reverse image search
-- 3: Caption text CSE search
+- 3: Caption text CSE/Serper search

@@ -225,12 +225,14 @@ export async function getLatestScan(): Promise<ScanJob> {
 export async function listThreats(params?: {
   severity?: string;
   resolved?: boolean;
+  limit?: number;
 }): Promise<ThreatSummary[]> {
   const qs = new URLSearchParams();
   if (params?.severity) qs.set("severity", params.severity);
   if (params?.resolved !== undefined)
     qs.set("resolved", String(params.resolved));
-  const query = qs.toString() ? `?${qs.toString()}` : "";
+  qs.set("limit", String(params?.limit ?? 200));
+  const query = `?${qs.toString()}`;
   return apiFetch<ThreatSummary[]>(`/threats${query}`);
 }
 
