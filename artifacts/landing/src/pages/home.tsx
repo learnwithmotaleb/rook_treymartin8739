@@ -6,7 +6,6 @@ import {
   Users, Clock,
 } from "lucide-react";
 import { WaitlistForm } from "@/components/WaitlistForm";
-import { ThreatCard } from "@/components/ThreatCard";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -477,7 +476,13 @@ export default function Home() {
   const [showStickyBar, setShowStickyBar] = useState(false);
 
   const scrollToWaitlist = () => {
-    document.getElementById("hero-form")?.scrollIntoView({ behavior: "smooth" });
+    const heroForm = document.getElementById("hero-form");
+    const ctaForm = document.getElementById("cta-form");
+    const heroTop = heroForm?.getBoundingClientRect().top ?? Infinity;
+    const ctaTop = ctaForm?.getBoundingClientRect().top ?? Infinity;
+    const target =
+      Math.abs(heroTop) <= Math.abs(ctaTop) ? heroForm : ctaForm;
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   useEffect(() => {
@@ -705,47 +710,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Live Threat Demo ──────────────────────────────────────────────────── */}
-      <section className="py-16 px-6 bg-black relative border-b border-white/5 overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
-        <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-primary/20 opacity-20 blur-[100px]" />
-
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-          <div className="relative z-10 flex flex-col gap-4">
-            <ThreatCard platform="Instagram" severity="High" type="Impersonator Detected" username="@●●●●_official_backup" timeAgo="2m ago" delay={0.1} />
-            <div className="ml-8">
-              <ThreatCard platform="TikTok" severity="Medium" type="Stolen Photo Upload" username="@●●●●_fans_page" timeAgo="18m ago" delay={0.3} />
-            </div>
-            <ThreatCard platform="X" severity="High" type="Phishing Link in Bio" username="@●●●●_support_team" timeAgo="1h ago" delay={0.5} />
-          </div>
-
-          <div className="relative z-10">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6">
-              See threats the moment they appear.
-            </h2>
-            <p className="text-lg text-muted-foreground mb-8">
-              Rook doesn't wait for your followers to report a fake account. Our AI actively hunts for clones, intercepts impersonators, and gives you everything you need to shut them down — before any damage is done.
-            </p>
-            <ul className="flex flex-col gap-4 mb-8">
-              {[
-                "Guided 1-click reporting directly to platform trust & safety",
-                "Push notifications the moment a threat is detected",
-                "Full evidence package for each impersonator found",
-                "AI analysis with risk score and detected signals",
-              ].map((item, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm font-medium">
-                  <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <button onClick={scrollToWaitlist} className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold transition-colors">
-              Get Early Access
-            </button>
-          </div>
-        </div>
-      </section>
-
       {/* ── How It Works ──────────────────────────────────────────────────────── */}
       <section id="how-it-works" className="py-16 px-6 bg-white/[0.01] border-b border-white/5">
         <div className="max-w-7xl mx-auto text-center">
@@ -785,7 +749,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10">
             <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-4">Simple, transparent pricing</p>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">Protect your identity. Start free.</h2>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">Your digital identity <span className="text-gradient-primary">is worth protecting.</span></h2>
             <p className="text-muted-foreground text-lg">Lock in launch pricing today. Cancel anytime. No questions asked.</p>
           </div>
 
@@ -866,13 +830,15 @@ export default function Home() {
             Join thousands of people already protecting their identity
           </div>
           <h2 className="text-4xl md:text-6xl font-extrabold tracking-tighter mb-6 leading-tight">
-            Your digital identity{" "}
-            <span className="text-gradient-primary">is worth protecting.</span>
+            The next impersonation attempt{" "}
+            <span className="text-gradient-primary">won't wait.</span>
           </h2>
           <p className="text-xl text-muted-foreground mb-10 leading-relaxed">
-            Free to start. Takes 2 minutes. The next impersonation attempt won't wait — and neither should you.
+            Free to start. Takes 2 minutes. Join the waitlist and be first to protect your identity when we launch.
           </p>
-          <WaitlistForm className="max-w-md mx-auto" buttonText="Protect My Identity" />
+          <div id="cta-form">
+            <WaitlistForm className="max-w-md mx-auto" buttonText="Protect My Identity" />
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-6 mt-6 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> No credit card required</span>
             <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-400" /> Free to start</span>
