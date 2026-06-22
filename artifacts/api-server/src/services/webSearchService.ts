@@ -291,17 +291,22 @@ async function runGoogleSearch(query: string): Promise<GoogleSearchItem[]> {
   url.searchParams.set("q", query);
   url.searchParams.set("num", "10");
 
+  const fullUrl = url.toString();
+  const logUrl = fullUrl.replace(apiKey, apiKey.slice(0, 8) + "[REDACTED]");
+  logger.info({ url: logUrl, cx, query }, "CSE request →");
+
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch(fullUrl);
+    const rawBody = await res.text();
+    logger.info(
+      { httpStatus: res.status, httpStatusText: res.statusText, url: logUrl, rawBody },
+      "CSE response ←"
+    );
+
     if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as GoogleSearchResponse;
+      let body: GoogleSearchResponse = {};
+      try { body = JSON.parse(rawBody) as GoogleSearchResponse; } catch { /* ignore */ }
       if (res.status === 403) {
-        if (!cseFailing) {
-          logger.warn(
-            { message: body.error?.message },
-            "CSE returning 403 — Custom Search JSON API not enabled on this GCP project. Fix: console.cloud.google.com → APIs & Services → Library → enable 'Custom Search JSON API'. Activating direct platform URL probe fallback."
-          );
-        }
         cseFailing = true;
       } else {
         logger.warn(
@@ -312,7 +317,7 @@ async function runGoogleSearch(query: string): Promise<GoogleSearchItem[]> {
       return [];
     }
     cseFailing = false;
-    const data = (await res.json()) as GoogleSearchResponse;
+    const data = JSON.parse(rawBody) as GoogleSearchResponse;
     return data.items ?? [];
   } catch (err) {
     logger.warn({ err, query }, "Google CSE request failed");
