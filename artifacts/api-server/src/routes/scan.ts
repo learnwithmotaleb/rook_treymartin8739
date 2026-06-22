@@ -47,7 +47,7 @@ router.post("/scan", async (req, res): Promise<void> => {
 
   // "deep scan" = the full Vision + CSE pipeline fires when API keys are set
   const isDeepScan =
-    !!(process.env["GOOGLE_SEARCH_API_KEY"] || process.env["GOOGLE_SEARCH_CX"]);
+    !!(process.env["GOOGLE_CSE_API_KEY"] || process.env["GOOGLE_VISION_API_KEY"]);
 
   const quota = await checkAndIncrementQuota(userId, planTier, isDeepScan);
 

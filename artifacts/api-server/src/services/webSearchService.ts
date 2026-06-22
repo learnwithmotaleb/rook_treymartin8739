@@ -5,23 +5,24 @@
  *
  * 1. USERNAME VARIANT SEARCH  — Google CSE text search for known suffix patterns
  *    (catches: @user.official, @user_real, @user0fficial, etc.)
- *    Requires: GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX
+ *    Requires: GOOGLE_CSE_API_KEY + GOOGLE_SEARCH_CX
  *
  * 2. REVERSE IMAGE SEARCH     — Google Cloud Vision WEB_DETECTION
  *    Sends actual photo pixels to Google Vision; returns every public page
  *    where that image (or a visually similar one) appears.
  *    (catches: completely different usernames that stole your photos)
- *    Requires: GOOGLE_SEARCH_API_KEY with Cloud Vision API enabled on the project
+ *    Requires: GOOGLE_VISION_API_KEY (Cloud Vision API enabled on that key's project)
  *    Pricing: $1.50 per 1,000 images (first 1,000/mo free)
  *
  * 3. CAPTION TEXT SEARCH      — Google CSE verbatim text search
  *    (catches: accounts that copy your post text with no username overlap)
- *    Requires: GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX
+ *    Requires: GOOGLE_CSE_API_KEY + GOOGLE_SEARCH_CX
  *
  * Setup:
- *   1. console.cloud.google.com → enable "Custom Search API" + "Cloud Vision API"
- *   2. programmablesearchengine.google.com → create engine → "Search the entire web"
- *   3. Set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX
+ *   1. console.cloud.google.com → enable "Custom Search JSON API" on the CSE key's project
+ *   2. console.cloud.google.com → enable "Cloud Vision API" on the Vision key's project
+ *   3. programmablesearchengine.google.com → create engine → "Search the entire web"
+ *   4. Set GOOGLE_CSE_API_KEY, GOOGLE_VISION_API_KEY, and GOOGLE_SEARCH_CX
  */
 
 import { logger } from "../lib/logger";
@@ -215,21 +216,21 @@ const PLATFORM_PATTERNS: Record<
 // ─── Search provider helpers ──────────────────────────────────────────────────
 // Priority: Serper.dev → Google CSE → direct platform probes (no text search)
 // Serper.dev requires only SERPER_API_KEY (no GCP project setup).
-// Google CSE requires GOOGLE_CSE_API_KEY (or GOOGLE_SEARCH_API_KEY) + GOOGLE_SEARCH_CX.
+// Google CSE requires GOOGLE_CSE_API_KEY + GOOGLE_SEARCH_CX.
 
 /** Returns true when Serper.dev is available (preferred text-search backend). */
 function isSerperConfigured(): boolean {
   return !!(process.env["SERPER_API_KEY"]);
 }
 
-/** CSE uses GOOGLE_CSE_API_KEY if set, falls back to GOOGLE_SEARCH_API_KEY. */
+/** CSE uses GOOGLE_CSE_API_KEY. */
 function getCseApiKey(): string | undefined {
-  return process.env["GOOGLE_CSE_API_KEY"] || process.env["GOOGLE_SEARCH_API_KEY"];
+  return process.env["GOOGLE_CSE_API_KEY"];
 }
 
-/** Vision uses GOOGLE_VISION_API_KEY if set, falls back to GOOGLE_SEARCH_API_KEY. */
+/** Vision uses GOOGLE_VISION_API_KEY. */
 function getVisionApiKey(): string | undefined {
-  return process.env["GOOGLE_VISION_API_KEY"] || process.env["GOOGLE_SEARCH_API_KEY"];
+  return process.env["GOOGLE_VISION_API_KEY"];
 }
 
 /** Text search (username/name queries) is available when Serper OR CSE is configured. */

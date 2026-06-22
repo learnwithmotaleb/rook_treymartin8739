@@ -764,9 +764,9 @@ router.get("/oauth/debug/vision", async (_req, res) => {
     res.status(404).end();
     return;
   }
-  const apiKey = process.env["GOOGLE_SEARCH_API_KEY"];
+  const apiKey = process.env["GOOGLE_VISION_API_KEY"];
   if (!apiKey) {
-    res.status(503).json({ ok: false, error: "GOOGLE_SEARCH_API_KEY not set" });
+    res.status(503).json({ ok: false, error: "GOOGLE_VISION_API_KEY not set" });
     return;
   }
 
