@@ -478,9 +478,126 @@ ${igClientId && igPublicId && igClientId === igPublicId
 });
 
 // ─── Developer Setup Guide ────────────────────────────────────────────────────
+// Blocked in production — only useful during local / staging development.
 router.get("/oauth/setup", (_req, res) => {
+  if (process.env["NODE_ENV"] === "production") {
+    res.status(404).end();
+    return;
+  }
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(setupPage());
+});
+
+// ─── Facebook Data Deletion Callback ─────────────────────────────────────────
+// Meta calls this URL when a user removes your app from their Facebook account.
+// We must verify the signed_request, delete their data, and return a status URL.
+// Register this URL in Meta App → Settings → Advanced → Data Deletion Instructions
+// URL: POST https://<domain>/api/oauth/facebook/data-deletion
+//
+// Spec: https://developers.facebook.com/docs/development/create-an-app/app-dashboard/data-deletion-callback
+router.post("/oauth/facebook/data-deletion", async (req, res): Promise<void> => {
+  const appSecret = process.env["FACEBOOK_APP_SECRET"];
+  if (!appSecret) {
+    res.status(503).json({ error: "FACEBOOK_APP_SECRET not configured" });
+    return;
+  }
+
+  // signed_request arrives as form-encoded body OR JSON body (or query param for GET-based tools)
+  const body = (req.body ?? {}) as Record<string, string>;
+  const rawSignedRequest: string | undefined =
+    body["signed_request"] ??
+    (req.query["signed_request"] as string | undefined);
+
+  if (!rawSignedRequest) {
+    res.status(400).json({ error: "signed_request parameter missing" });
+    return;
+  }
+
+  // Parse: <base64url_sig>.<base64url_payload>
+  const dotIdx = rawSignedRequest.indexOf(".");
+  if (dotIdx === -1) {
+    res.status(400).json({ error: "Malformed signed_request" });
+    return;
+  }
+  const encodedSig = rawSignedRequest.slice(0, dotIdx);
+  const encodedPayload = rawSignedRequest.slice(dotIdx + 1);
+
+  // Verify HMAC-SHA256 signature
+  const expectedSig = crypto
+    .createHmac("sha256", appSecret)
+    .update(encodedPayload)
+    .digest("base64url");
+
+  if (expectedSig !== encodedSig) {
+    res.status(400).json({ error: "Invalid signed_request signature" });
+    return;
+  }
+
+  let payload: { user_id?: string; algorithm?: string; issued_at?: number };
+  try {
+    payload = JSON.parse(
+      Buffer.from(encodedPayload, "base64url").toString("utf8")
+    ) as typeof payload;
+  } catch {
+    res.status(400).json({ error: "Could not parse signed_request payload" });
+    return;
+  }
+
+  const facebookUserId = payload.user_id;
+  if (!facebookUserId) {
+    res.status(400).json({ error: "signed_request payload missing user_id" });
+    return;
+  }
+
+  // Delete all Facebook-sourced data for this user
+  // (the connected account row that holds the access token + profile data)
+  const deleted = await db
+    .delete(connectedAccountsTable)
+    .where(
+      and(
+        eq(connectedAccountsTable.platform, "facebook"),
+        eq(connectedAccountsTable.platformUserId, facebookUserId)
+      )
+    )
+    .returning({ id: connectedAccountsTable.id, userId: connectedAccountsTable.userId });
+
+  const confirmationCode = crypto
+    .createHmac("sha256", STATE_SECRET)
+    .update(`fb-deletion:${facebookUserId}:${Date.now()}`)
+    .digest("hex")
+    .slice(0, 16);
+
+  req.log?.info(
+    { facebookUserId, rowsDeleted: deleted.length, confirmationCode },
+    "Facebook data deletion request processed"
+  );
+
+  res.json({
+    url: `https://${DOMAIN}/api/oauth/facebook/deletion-status?id=${confirmationCode}`,
+    confirmation_code: confirmationCode,
+  });
+});
+
+// ─── Facebook Data Deletion Status ────────────────────────────────────────────
+// Meta may fetch this URL to confirm deletion was completed.
+router.get("/oauth/facebook/deletion-status", (req, res) => {
+  const id = req.query["id"] as string | undefined;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"/>
+<title>Data Deletion Status — Rook</title>
+<style>body{font-family:-apple-system,sans-serif;background:#0a0f1e;color:#e2e8f0;
+  display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
+.card{background:#131929;border:1px solid #1e2d4a;border-radius:16px;padding:40px;
+  max-width:480px;text-align:center;}
+h1{color:#10B981;font-size:22px;margin:0 0 12px;}
+p{color:#94a3b8;font-size:14px;line-height:1.6;margin:0;}
+.code{font-family:monospace;font-size:12px;color:#64748b;margin-top:16px;}</style>
+</head><body><div class="card">
+<h1>✓ Data Deleted</h1>
+<p>Your Facebook data has been removed from Rook's systems. All connected account data, access tokens, and associated profile information have been permanently deleted.</p>
+${id ? `<p class="code">Confirmation ID: ${id}</p>` : ""}
+</div></body></html>`);
 });
 
 // ─── HTML helpers ─────────────────────────────────────────────────────────────
