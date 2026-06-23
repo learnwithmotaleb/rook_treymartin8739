@@ -21,7 +21,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { getAccounts, getOAuthRedirectUris, getOAuthState } from "@/lib/api";
+import { getAccounts, getOAuthRedirectUris, getOAuthState, getXOAuthInit } from "@/lib/api";
 
 interface PlatformConfig {
   label: string;
@@ -116,8 +116,7 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
 const ALL_PLATFORMS = Object.keys(PLATFORM_CONFIGS) as NonNullable<AppPlatform>[];
 
 // Platforms that are visible in the picker but not yet available for connection.
-// Keep them ready — just swap this set to empty when the backend callbacks are live.
-const LAUNCH_DISABLED_PLATFORMS = new Set<string>(["x", "tiktok"]);
+const LAUNCH_DISABLED_PLATFORMS = new Set<string>(["tiktok"]);
 
 function getClientId(platform: string): string | undefined {
   const key = PLATFORM_CONFIGS[platform]?.clientIdEnvKey;
@@ -129,15 +128,19 @@ function buildAuthUrl(
   platform: string,
   clientId: string,
   state: string,
-  redirectUri: string
+  redirectUri: string,
+  extraParams?: Record<string, string>
 ): string {
   const config = PLATFORM_CONFIGS[platform]!;
+  // Twitter requires space-separated scopes; all other platforms use commas
+  const scopeSep = platform === "x" ? " " : ",";
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: config.scopes.join(","),
+    scope: config.scopes.join(scopeSep),
     response_type: "code",
     state,
+    ...extraParams,
   });
   return `${config.authUrl}?${params.toString()}`;
 }
@@ -165,16 +168,28 @@ function OAuthButton({
       const existingAccount = accountsBefore.find((a) => a.platform === platform);
       const prevLastSynced = existingAccount?.lastSynced ?? null;
 
-      // HMAC-signed state token — survives longer than a 60s Clerk JWT
-      const state = await getOAuthState();
-
-      // Use the HTTPS server callback as redirect_uri — Instagram requires HTTPS.
-      // On iOS, openAuthSessionAsync may intercept the redirect before the server
-      // loads the page; if so, result.url will contain the code, which we
-      // forward to the server below.
+      // X/Twitter uses PKCE — the server generates the code_verifier (embedded in
+      // state) and returns the code_challenge to add to the auth URL.
+      // All other platforms use a plain HMAC state token.
       const redirectUriMap = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
       const redirectUrl = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${config.callbackPath}`;
-      const authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
+
+      let state: string;
+      let authUrl: string;
+      if (platform === "x") {
+        const { state: xState, codeChallenge } = await getXOAuthInit();
+        state = xState;
+        // Use the server-provided client ID from redirect-uris as a fallback
+        // when EXPO_PUBLIC_TWITTER_CLIENT_ID isn't bundled in the Expo app.
+        const xClientId = (redirectUriMap as Record<string, string>)["x_client_id"] || clientId;
+        authUrl = buildAuthUrl(platform, xClientId, state, redirectUrl, {
+          code_challenge: codeChallenge,
+          code_challenge_method: "S256",
+        });
+      } else {
+        state = await getOAuthState();
+        authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
+      }
 
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
 
@@ -515,10 +530,10 @@ export default function ConnectAccount() {
                       Authenticated successfully
                     </Text>
                   </View>
-                ) : clientId ? (
+                ) : (clientId || selectedPlatform === "x") ? (
                   <OAuthButton
                     platform={selectedPlatform}
-                    clientId={clientId}
+                    clientId={clientId ?? ""}
                     onSuccess={handleOAuthDone}
                     disabled={submitting}
                   />

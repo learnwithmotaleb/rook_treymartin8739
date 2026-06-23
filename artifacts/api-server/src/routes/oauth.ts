@@ -65,6 +65,40 @@ function parseOAuthState(state: string): string | null {
   }
 }
 
+// ── X/Twitter PKCE state helpers ─────────────────────────────────────────────
+// Twitter's OAuth 2.0 always requires PKCE. The server generates the
+// code_verifier + code_challenge and embeds the verifier in the signed state
+// token so the callback can use it without any extra round-trips.
+
+function createXPkceState(userId: string): { state: string; codeChallenge: string } {
+  const codeVerifier = crypto.randomBytes(32).toString("base64url");
+  const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({ userId, iat: Math.floor(Date.now() / 1000), cv: codeVerifier })
+  ).toString("base64url");
+  const sig = crypto.createHmac("sha256", STATE_SECRET).update(payload).digest("base64url");
+  return { state: `${payload}.${sig}`, codeChallenge };
+}
+
+function parseXPkceState(state: string): { userId: string; codeVerifier: string } | null {
+  try {
+    const dot = state.lastIndexOf(".");
+    if (dot === -1) return null;
+    const payload = state.slice(0, dot);
+    const sig = state.slice(dot + 1);
+    const expected = crypto.createHmac("sha256", STATE_SECRET).update(payload).digest("base64url");
+    if (sig !== expected) return null;
+    const parsed = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8")
+    ) as { userId?: string; iat?: number; cv?: string };
+    if (!parsed.userId || typeof parsed.iat !== "number" || !parsed.cv) return null;
+    if (Date.now() / 1000 - parsed.iat > 900) return null;
+    return { userId: parsed.userId, codeVerifier: parsed.cv };
+  } catch {
+    return null;
+  }
+}
+
 async function resolveUserFromState(state: string | undefined): Promise<string> {
   if (state) {
     // Primary: HMAC-signed opaque state token (doesn't expire in 60s like JWTs)
@@ -101,6 +135,15 @@ async function resolveUserFromState(state: string | undefined): Promise<string> 
 router.post("/oauth/state", requireAuth, (req, res): void => {
   const state = createOAuthState(req.userId);
   res.json({ state });
+});
+
+// ── POST /api/oauth/x/init ────────────────────────────────────────────────────
+// Called by the mobile app before opening X's OAuth browser.
+// Generates a PKCE code_verifier (embedded in signed state) + code_challenge
+// (sent to Twitter). The callback extracts code_verifier from the state token.
+router.post("/oauth/x/init", requireAuth, (req, res): void => {
+  const { state, codeChallenge } = createXPkceState(req.userId);
+  res.json({ state, codeChallenge });
 });
 
 // ─── Instagram OAuth callback ────────────────────────────────────────────────
@@ -366,12 +409,161 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
   }
 });
 
+// ─── X (Twitter) OAuth 2.0 + PKCE callback ────────────────────────────────────
+// Twitter redirects here after the user approves the app.
+// URL: GET /api/oauth/x/callback?code=...&state=...
+router.get("/oauth/x/callback", async (req, res): Promise<void> => {
+  const { code, error, state } = req.query as Record<string, string>;
+
+  if (error || !code) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(400).send(errorPage("X Authorization Failed", error ?? "No authorization code received"));
+    return;
+  }
+
+  const clientId = process.env["TWITTER_CLIENT_ID"];
+  const clientSecret = process.env["TWITTER_CLIENT_SECRET"];
+
+  if (!clientId || !clientSecret) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(503).send(errorPage(
+      "Not Configured",
+      "TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET must be set as environment secrets."
+    ));
+    return;
+  }
+
+  // State must be an X PKCE state (contains embedded code_verifier)
+  const pkce = state ? parseXPkceState(state) : null;
+  if (!pkce) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(401).send(errorPage(
+      "Session Expired",
+      "Your sign-in session expired or the link is invalid. Please try connecting your X account again."
+    ));
+    return;
+  }
+
+  const { userId, codeVerifier } = pkce;
+
+  try {
+    const redirectUri = `https://${DOMAIN}/api/oauth/x/callback`;
+
+    // Exchange authorization code for access token (PKCE confidential client)
+    const tokenRes = await fetch("https://api.twitter.com/2/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+      },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier,
+      }).toString(),
+    });
+
+    const tokenText = await tokenRes.text();
+    if (!tokenRes.ok) {
+      req.log?.error({ status: tokenRes.status, body: tokenText }, "X token exchange failed");
+      throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${tokenText}`);
+    }
+
+    const tokenData = JSON.parse(tokenText) as { access_token?: string; refresh_token?: string; error?: string };
+    if (!tokenData.access_token) {
+      throw new Error(tokenData.error ?? `Token exchange returned no access_token: ${tokenText}`);
+    }
+
+    const { access_token } = tokenData;
+
+    // Fetch user profile
+    const profileRes = await fetch(
+      "https://api.twitter.com/2/users/me?user.fields=public_metrics,profile_image_url,username,name,description",
+      { headers: { Authorization: `Bearer ${access_token}` } }
+    );
+    if (!profileRes.ok) {
+      throw new Error(`X profile fetch failed (HTTP ${profileRes.status})`);
+    }
+    const profileJson = await profileRes.json() as {
+      data?: {
+        id: string;
+        username: string;
+        name: string;
+        description?: string;
+        public_metrics?: { followers_count?: number };
+        profile_image_url?: string;
+      };
+    };
+    const profile = profileJson.data;
+    if (!profile?.id) {
+      throw new Error("X profile response missing data");
+    }
+
+    req.log?.info({ xUsername: profile.username, xId: profile.id }, "X profile fetched");
+
+    // Upsert connected account
+    const existing = await db
+      .select({ id: connectedAccountsTable.id })
+      .from(connectedAccountsTable)
+      .where(and(eq(connectedAccountsTable.userId, userId), eq(connectedAccountsTable.platform, "x")));
+
+    if (existing.length > 0) {
+      await db
+        .update(connectedAccountsTable)
+        .set({
+          accessToken: access_token,
+          platformUserId: profile.id,
+          username: profile.username,
+          displayName: profile.name,
+          followers: profile.public_metrics?.followers_count ?? 0,
+          verified: true,
+          lastSynced: new Date(),
+        })
+        .where(eq(connectedAccountsTable.id, existing[0]!.id));
+    } else {
+      await db.insert(connectedAccountsTable).values({
+        userId,
+        platform: "x",
+        username: profile.username,
+        displayName: profile.name,
+        platformUserId: profile.id,
+        accessToken: access_token,
+        verified: true,
+        followers: profile.public_metrics?.followers_count ?? 0,
+        photosIndexed: 0,
+        captionsIndexed: 0,
+        reelsIndexed: 0,
+        lastSynced: new Date(),
+      });
+    }
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(successPage(
+      "X Connected!",
+      `@${profile.username} is now verified and being monitored by Rook.`,
+      profile.username
+    ));
+  } catch (err: any) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    if (err instanceof StateResolutionError) {
+      res.status(401).send(errorPage("Session Expired", err.message));
+      return;
+    }
+    req.log?.error({ err }, "X OAuth callback error");
+    res.status(500).send(errorPage("Connection Failed", err.message ?? "Unexpected error"));
+  }
+});
+
 // ─── OAuth config — returns the current redirect URIs for this deployment ────
 // Used by the mobile app to keep its redirect_uri in sync with the server.
 router.get("/oauth/redirect-uris", (_req, res) => {
   res.json({
     instagram: `https://${DOMAIN}/api/oauth/instagram/callback`,
     facebook:  `https://${DOMAIN}/api/oauth/facebook/callback`,
+    x:         `https://${DOMAIN}/api/oauth/x/callback`,
+    // Public client IDs (non-secret) — mobile uses these when EXPO_PUBLIC_* not bundled
+    x_client_id: process.env["TWITTER_CLIENT_ID"] ?? "",
     // mobile:// scheme used by the Expo app for in-app browser OAuth
     instagram_mobile: "mobile://oauth",
     facebook_mobile:  "mobile://oauth",

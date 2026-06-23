@@ -151,7 +151,7 @@ function AccountCard({
       </View>
 
       {/* Verify CTA — hidden for platforms not yet available for OAuth */}
-      {!account.verified && !["x", "tiktok"].includes(account.platform ?? "") && (
+      {!account.verified && !["tiktok"].includes(account.platform ?? "") && (
         <TouchableOpacity
           style={[styles.authCta, { borderColor: colors.primary + "44", backgroundColor: colors.primary + "0C" }]}
           activeOpacity={0.7}
