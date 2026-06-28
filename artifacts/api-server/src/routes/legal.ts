@@ -5,11 +5,11 @@ const publicLegalRouter: IRouter = Router();
 
 const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? process.env["REPLIT_DEV_DOMAIN"]
-  ?? "getrook.app";
+  ?? "tryrook.app";
 
 const APP_NAME = "Rook";
-const CONTACT_EMAIL = "privacy@getrook.app";
-const SUPPORT_EMAIL = "support@getrook.app";
+const CONTACT_EMAIL = "privacy@tryrook.app";
+const SUPPORT_EMAIL = "support@tryrook.app";
 const LAST_UPDATED = "June 15, 2026";
 
 const html = (title: string, body: string) => `<!DOCTYPE html>

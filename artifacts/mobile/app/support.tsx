@@ -60,13 +60,13 @@ export default function Support() {
 
   const openLink = (url: string) => {
     Linking.openURL(url).catch(() =>
-      Alert.alert("Cannot Open Link", "Please visit getrook.app in your browser.")
+      Alert.alert("Cannot Open Link", "Please visit tryrook.app in your browser.")
     );
   };
 
   const emailSupport = () => {
-    Linking.openURL("mailto:support@getrook.app?subject=Support%20Request").catch(() =>
-      Alert.alert("Email Support", "Contact us at support@getrook.app")
+    Linking.openURL("mailto:support@tryrook.app?subject=Support%20Request").catch(() =>
+      Alert.alert("Email Support", "Contact us at support@tryrook.app")
     );
   };
 
@@ -169,9 +169,9 @@ export default function Support() {
         </Text>
         <GlassCard noPadding>
           {[
-            { label: "Privacy Policy", url: "https://getrook.app/privacy" },
-            { label: "Terms of Service", url: "https://getrook.app/terms" },
-            { label: "Open Source Licenses", url: "https://getrook.app/licenses" },
+            { label: "Privacy Policy", url: "https://tryrook.app/api/legal/privacy" },
+            { label: "Terms of Service", url: "https://tryrook.app/api/legal/terms" },
+            { label: "Open Source Licenses", url: "https://tryrook.app/api/legal/privacy" },
           ].map((item, i, arr) => (
             <TouchableOpacity
               key={item.label}
@@ -214,7 +214,7 @@ export default function Support() {
         </TouchableOpacity>
 
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Rook v1.0.0 · support@getrook.app
+          Rook v1.0.0 · support@tryrook.app
         </Text>
       </ScrollView>
     </View>

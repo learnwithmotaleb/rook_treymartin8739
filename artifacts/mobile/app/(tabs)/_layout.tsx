@@ -4,8 +4,8 @@ import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs, Badge } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useEffect, useRef } from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/expo";
 
@@ -145,6 +145,15 @@ export default function TabLayout() {
   const { tier, customerInfo } = useSubscription();
   useNotifications(isLoggedIn);
 
+  // Safety valve: if initialization takes more than 12 seconds, stop waiting
+  // and show a recoverable error rather than a permanent blank screen.
+  const [initTimedOut, setInitTimedOut] = useState(false);
+  useEffect(() => {
+    if (!isInitializing) { setInitTimedOut(false); return; }
+    const t = setTimeout(() => setInitTimedOut(true), 12_000);
+    return () => clearTimeout(t);
+  }, [isInitializing]);
+
   // Keep a stable ref to getToken so the effect below doesn't need it as a
   // dependency. Clerk sometimes returns a new function reference on every
   // render, which would cause the effect to re-fire and spam refreshData().
@@ -187,13 +196,35 @@ export default function TabLayout() {
     if (!isLoaded || isInitializing || !isSignedIn) return;
     if (!customerInfo) return;
     if (Constants.executionEnvironment === "storeClient") return;
-    syncSubscriptionTier(tier).catch(() => {});
+    syncSubscriptionTier(tier).catch(() => {
+      Alert.alert(
+        "Subscription Sync Failed",
+        "Your subscription is active on this device but could not be confirmed with the server. Scan limits may not reflect your plan. Please check your connection and try again.",
+        [{ text: "OK" }]
+      );
+    });
   }, [tier, isLoaded, isInitializing, isSignedIn, customerInfo]);
 
   // Render a blank screen (not null) while loading — returning null from a
   // layout component breaks expo-router's component tree on web and causes
   // "Invalid hook call" errors in child screens.
   if (!isLoaded || isInitializing) {
+    if (initTimedOut) {
+      return (
+        <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16 }}>
+          <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center", paddingHorizontal: 40 }}>
+            Taking longer than expected…
+          </Text>
+          <TouchableOpacity
+            onPress={() => setInitTimedOut(false)}
+            style={{ backgroundColor: colors.primary, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 }}
+            activeOpacity={0.8}
+          >
+            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 

@@ -416,6 +416,15 @@ export default function ThreatDetail() {
           <Text style={[styles.loadingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             Threat not found
           </Text>
+          <TouchableOpacity
+            onPress={() => router.replace("/(tabs)" as any)}
+            style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.primary, borderRadius: 12 }}
+            activeOpacity={0.8}
+          >
+            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+              Return to Dashboard
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     );

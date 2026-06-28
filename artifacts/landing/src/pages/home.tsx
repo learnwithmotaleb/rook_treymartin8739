@@ -870,7 +870,7 @@ export default function Home() {
 
           <p className="text-center text-sm text-muted-foreground mt-10">
             Still have questions?{" "}
-            <a href="mailto:support@getrook.app" className="text-primary hover:underline">Contact us</a>
+            <a href="mailto:support@tryrook.app" className="text-primary hover:underline">Contact us</a>
           </p>
         </div>
       </section>
@@ -888,7 +888,7 @@ export default function Home() {
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
             <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
             <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
-            <a href="mailto:support@getrook.app" className="hover:text-white transition-colors">Contact</a>
+            <a href="mailto:support@tryrook.app" className="hover:text-white transition-colors">Contact</a>
           </div>
           <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} Rook. All rights reserved.</div>
         </div>

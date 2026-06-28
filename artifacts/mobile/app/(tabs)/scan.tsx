@@ -56,6 +56,7 @@ export default function ScanScreen() {
     photoThreats: number;
     time: string;
   } | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
   const prevScanning = useRef(false);
 
@@ -114,7 +115,11 @@ export default function ScanScreen() {
     if (isScanning || !canScan) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLastResult(null);
-    startScan();
+    setScanError(null);
+    Promise.resolve(startScan()).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Scan failed. Please try again.";
+      setScanError(msg);
+    });
   };
 
   const isIdle = !isScanning;
@@ -508,6 +513,29 @@ export default function ScanScreen() {
                 style={[styles.ctaBtnSecondaryText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
               >
                 Connect Account
+              </Text>
+            </TouchableOpacity>
+          </GlassCard>
+        ) : scanError && isIdle ? (
+          /* Scan error */
+          <GlassCard style={[styles.ctaCard, { borderColor: colors.danger + "44" }]}>
+            <View style={[styles.ctaIcon, { backgroundColor: colors.danger + "18" }]}>
+              <Ionicons name="alert-circle" size={28} color={colors.danger} />
+            </View>
+            <Text style={[styles.ctaTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+              Scan failed
+            </Text>
+            <Text style={[styles.ctaSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Something went wrong during the scan. Check your connection and try again.
+            </Text>
+            <TouchableOpacity
+              style={[styles.ctaBtn, { backgroundColor: colors.primary }]}
+              activeOpacity={0.85}
+              onPress={handleScan}
+            >
+              <Ionicons name="refresh" size={16} color="#fff" />
+              <Text style={[styles.ctaBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+                Retry Scan
               </Text>
             </TouchableOpacity>
           </GlassCard>

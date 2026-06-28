@@ -309,11 +309,11 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
-      res.status(401).send(errorPage("Session Expired", err.message));
+      res.status(401).send(errorPage("Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your Instagram account again."));
       return;
     }
     req.log?.error({ err }, "Instagram OAuth callback error");
-    res.status(500).send(errorPage("Connection Failed", err.message ?? "Unexpected error"));
+    res.status(500).send(errorPage("Connection Failed", "Something went wrong while connecting your Instagram account. Please try again."));
   }
 });
 
@@ -402,10 +402,11 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
-      res.status(401).send(errorPage("Session Expired", err.message));
+      res.status(401).send(errorPage("Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your Facebook account again."));
       return;
     }
-    res.status(500).send(errorPage("Connection Failed", err.message));
+    req.log?.error({ err }, "Facebook OAuth callback error");
+    res.status(500).send(errorPage("Connection Failed", "Something went wrong while connecting your Facebook account. Please try again."));
   }
 });
 
@@ -547,11 +548,11 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
-      res.status(401).send(errorPage("Session Expired", err.message));
+      res.status(401).send(errorPage("Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your X account again."));
       return;
     }
     req.log?.error({ err }, "X OAuth callback error");
-    res.status(500).send(errorPage("Connection Failed", err.message ?? "Unexpected error"));
+    res.status(500).send(errorPage("Connection Failed", "Something went wrong while connecting your X account. Please try again."));
   }
 });
 

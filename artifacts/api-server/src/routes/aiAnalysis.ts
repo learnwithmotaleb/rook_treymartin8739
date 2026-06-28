@@ -20,8 +20,13 @@ router.post("/ai/analyze-scam", async (req, res): Promise<void> => {
 
   req.log.info({ textLength: text.length }, "Scam analysis requested");
 
-  const result = await analyzeScamText(text.trim());
-  res.json(result);
+  try {
+    const result = await analyzeScamText(text.trim());
+    res.json(result);
+  } catch (err: any) {
+    req.log.error({ err }, "Scam analysis failed");
+    res.status(500).json({ error: "analysis_failed", message: "Unable to analyze text. Please try again." });
+  }
 });
 
 router.post("/ai/generate-explanation", async (req, res): Promise<void> => {
@@ -46,18 +51,23 @@ router.post("/ai/generate-explanation", async (req, res): Promise<void> => {
 
   req.log.info({ threatType, platform }, "Threat explanation requested");
 
-  const explanation = await generateThreatExplanation({
-    threatType,
-    signals,
-    matchedMediaCount: matchedMediaCount ?? 0,
-    platform: platform ?? null,
-    suspiciousUsername: suspiciousUsername ?? null,
-  });
+  try {
+    const explanation = await generateThreatExplanation({
+      threatType,
+      signals,
+      matchedMediaCount: matchedMediaCount ?? 0,
+      platform: platform ?? null,
+      suspiciousUsername: suspiciousUsername ?? null,
+    });
 
-  res.json({
-    explanation,
-    generatedAt: new Date().toISOString(),
-  });
+    res.json({
+      explanation,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "Threat explanation generation failed");
+    res.status(500).json({ error: "generation_failed", message: "Unable to generate explanation. Please try again." });
+  }
 });
 
 export default router;
