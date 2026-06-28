@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -24,6 +24,8 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { Skeleton } from "@/components/Skeleton";
 import { severityColor } from "@/lib/severity";
 import { getThreat, resolveThreat as apiResolveThreat, type ThreatDetail } from "@/lib/api";
+import { ShareCard } from "@/components/ShareCard";
+import { useShareCard } from "@/hooks/useShareCard";
 
 const PROFILE_URL_TEMPLATES: Record<string, (u: string) => string> = {
   instagram: (u) => `https://www.instagram.com/${u}/`,
@@ -353,6 +355,7 @@ export default function ThreatDetail() {
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(false);
   const [showResolveModal, setShowResolveModal] = useState(false);
+  const { cardRef, isSharing, share } = useShareCard();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -584,11 +587,26 @@ export default function ThreatDetail() {
         >
           Threat Details
         </Text>
-        {threat.platform ? (
-          <PlatformIcon platform={threat.platform as Parameters<typeof PlatformIcon>[0]["platform"]} size={30} />
-        ) : (
-          <View style={{ width: 30 }} />
-        )}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {threat.platform && (
+            <PlatformIcon platform={threat.platform as Parameters<typeof PlatformIcon>[0]["platform"]} size={26} />
+          )}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              share();
+            }}
+            disabled={isSharing}
+            hitSlop={8}
+            style={{ opacity: isSharing ? 0.4 : 1 }}
+          >
+            <Ionicons
+              name={isSharing ? "hourglass-outline" : "share-social-outline"}
+              size={22}
+              color={colors.foreground}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Resolution category bottom-sheet modal */}
@@ -913,6 +931,24 @@ export default function ThreatDetail() {
         </View>
 
       </ScrollView>
+
+      {/* Off-screen ShareCard — captured by useShareCard as PNG, never visible to user */}
+      <View
+        style={{ position: "absolute", top: -10000, left: 0 }}
+        pointerEvents="none"
+      >
+        <View ref={cardRef} collapsable={false}>
+          <ShareCard
+            userDisplayName={user?.name ?? "Rook User"}
+            userInitials={user?.avatarInitials ?? "R"}
+            userAvatarUrl={user?.avatarUrl}
+            platform={String(threat.platform ?? "")}
+            suspiciousUsername={suspiciousUsername || "unknown"}
+            threatScore={threat.threatScore}
+            reportUrl={`https://tryrook.app/report?platform=${encodeURIComponent(String(threat.platform ?? ""))}&username=${encodeURIComponent((suspiciousUsername || "").replace(/^@/, ""))}`}
+          />
+        </View>
+      </View>
     </View>
   );
 }
