@@ -500,30 +500,16 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
     return;
   }
 
-  const [dbUser] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.clerkId, clerkId))
-    .limit(1);
-
-  if (!dbUser) {
-    res.status(404).json({
-      error: "User not found in DB. Have the reviewer sign in to the app first, then retry.",
-      clerkId,
-    });
-    return;
-  }
-
-  const userId = dbUser.id;
   const now = new Date();
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
   const fourDaysFromNow = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
-  // ── Step 1: Update users row ─────────────────────────────────────────────────
-  await db
-    .update(usersTable)
-    .set({
+  // ── Step 1: Upsert users row (insert on first call, update on repeat) ─────────
+  const [dbUser] = await db
+    .insert(usersTable)
+    .values({
+      clerkId,
       name: "Alex Rivera",
       username: "alexrivera",
       avatarInitials: "AR",
@@ -531,9 +517,23 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
       scanCount: 3,
       avatarUrl: REVIEWER_PHOTO,
       nextScanDue: tier === "pro" || tier === "premium" ? fourDaysFromNow : null,
-      updatedAt: now,
     })
-    .where(eq(usersTable.id, userId));
+    .onConflictDoUpdate({
+      target: usersTable.clerkId,
+      set: {
+        name: "Alex Rivera",
+        username: "alexrivera",
+        avatarInitials: "AR",
+        securityScore: 64,
+        scanCount: 3,
+        avatarUrl: REVIEWER_PHOTO,
+        nextScanDue: tier === "pro" || tier === "premium" ? fourDaysFromNow : null,
+        updatedAt: now,
+      },
+    })
+    .returning({ id: usersTable.id });
+
+  const userId = dbUser.id;
 
   // ── Step 2: Remove any previously seeded connected accounts ──────────────────
   await db
@@ -591,8 +591,8 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
       {
         userId,
         platform: "youtube",
-        platformUserId: null,
-        username: "alexrivera",
+        platformUserId: "review_seed_yt_pending",
+        username: "",
         displayName: "Alex Rivera",
         followers: 0,
         verified: false,
