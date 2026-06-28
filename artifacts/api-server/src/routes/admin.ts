@@ -231,7 +231,6 @@ router.get("/admin/user/:userId/costs", async (req, res): Promise<void> => {
 const REVIEWER_PHOTO = "https://randomuser.me/api/portraits/women/44.jpg";
 const IMPERSONATOR_PHOTO_ALIKE = "https://randomuser.me/api/portraits/women/46.jpg";
 const STRANGER_PHOTO = "https://randomuser.me/api/portraits/women/50.jpg";
-const SEED_MARKER_JSON = JSON.stringify({ flags: ["firstScanHighConfidence"], isReviewerSeed: true });
 
 function buildReviewerThreats(userId: string) {
   return [
@@ -281,7 +280,26 @@ function buildReviewerThreats(userId: string) {
         usernameSimilarity: 3,
         behavioral: 2,
       }),
-      detectedSignalsJson: SEED_MARKER_JSON,
+      detectedSignalsJson: JSON.stringify({
+        flags: ["firstScanHighConfidence"],
+        isReviewerSeed: true,
+        yourPhotoUrl: REVIEWER_PHOTO,
+        suspiciousProfileImageUrl: REVIEWER_PHOTO,
+        evidence: [
+          {
+            type: "profile_photo_match",
+            yourPhotoUrl: REVIEWER_PHOTO,
+            stolenPhotoUrl: REVIEWER_PHOTO,
+            similarity: 0.91,
+            caption: "Profile photo appears to be copied verbatim from your Instagram account",
+          },
+          {
+            type: "media_overlap",
+            count: 28,
+            caption: "28 posts share identical captions or images with your account",
+          },
+        ],
+      }),
       resolved: false,
     },
     // ── Threat 2: MEDIUM — lookalike photo + username variant on X ────────────
@@ -328,10 +346,33 @@ function buildReviewerThreats(userId: string) {
         usernameSimilarity: 22,
         behavioral: 17,
       }),
-      detectedSignalsJson: SEED_MARKER_JSON,
+      detectedSignalsJson: JSON.stringify({
+        flags: ["firstScanHighConfidence"],
+        isReviewerSeed: true,
+        yourPhotoUrl: REVIEWER_PHOTO,
+        suspiciousProfileImageUrl: IMPERSONATOR_PHOTO_ALIKE,
+        evidence: [
+          {
+            type: "profile_photo_match",
+            yourPhotoUrl: REVIEWER_PHOTO,
+            stolenPhotoUrl: IMPERSONATOR_PHOTO_ALIKE,
+            similarity: 0.61,
+            caption: "Profile photo is visually similar — possible edited copy of your photo",
+          },
+          {
+            type: "username_variant",
+            yourUsername: "alexrivera",
+            theirUsername: "alex_rivera_real",
+            similarity: 0.82,
+            caption: "Username closely mimics your handle with an added 'real' suffix",
+          },
+        ],
+      }),
       resolved: false,
     },
     // ── Threat 3: MEDIUM — stolen post photo on Facebook ─────────────────────
+    // suspiciousProfileImageUrl = STRANGER_PHOTO (the page owner — a different person)
+    // stolenPhotoUrl in evidence = REVIEWER_PHOTO (YOUR photo that was reposted)
     {
       userId,
       type: "stolen_photo",
@@ -361,7 +402,7 @@ function buildReviewerThreats(userId: string) {
           stolenCaption: "Beautiful morning! 🌅",
         },
         {
-          id: "ev_med2_page",
+          id: "ev_med2_caption",
           type: "caption",
           similarity: 74,
           label: "Caption Reused",
@@ -377,7 +418,25 @@ function buildReviewerThreats(userId: string) {
         usernameSimilarity: 0,
         behavioral: 8,
       }),
-      detectedSignalsJson: SEED_MARKER_JSON,
+      detectedSignalsJson: JSON.stringify({
+        flags: ["firstScanHighConfidence"],
+        isReviewerSeed: true,
+        yourPhotoUrl: REVIEWER_PHOTO,
+        suspiciousProfileImageUrl: STRANGER_PHOTO,
+        evidence: [
+          {
+            type: "post_photo_theft",
+            yourPhotoUrl: REVIEWER_PHOTO,
+            stolenPhotoUrl: REVIEWER_PHOTO,
+            caption: "A photo from your Instagram was posted without credit to this Facebook page",
+            similarity: 0.88,
+          },
+          {
+            type: "caption_match",
+            caption: "Post caption matches your original Instagram post text",
+          },
+        ],
+      }),
       resolved: false,
     },
     // ── Threat 4: LOW — suspicious login anomaly ──────────────────────────────
@@ -416,7 +475,16 @@ function buildReviewerThreats(userId: string) {
         usernameSimilarity: 0,
         behavioral: 32,
       }),
-      detectedSignalsJson: SEED_MARKER_JSON,
+      detectedSignalsJson: JSON.stringify({
+        flags: [],
+        isReviewerSeed: true,
+        evidence: [
+          {
+            type: "login_anomaly",
+            caption: "Unusual login detected from an unrecognized device or location",
+          },
+        ],
+      }),
       resolved: false,
     },
   ] as const;
