@@ -148,12 +148,12 @@ export function ShareCard({
       {/* Footer */}
       <View style={s.footer}>
         <Text style={s.footerText}>Tap this story to help and protect yourself.</Text>
-        <Text style={s.footerUrl}>tryrook.app</Text>
-      </View>
-
-      {/* Threat score watermark */}
-      <View style={s.scorePill}>
-        <Text style={s.scorePillText}>{threatScore}% match confirmed</Text>
+        <Text style={s.footerUrl} numberOfLines={1} ellipsizeMode="tail">
+          {reportUrl}
+        </Text>
+        <View style={s.scorePill}>
+          <Text style={s.scorePillText}>{threatScore}% match confirmed</Text>
+        </View>
       </View>
     </View>
   );
@@ -338,7 +338,7 @@ const s = StyleSheet.create({
 
   footer: {
     alignItems: "center",
-    gap: 3,
+    gap: 4,
   },
   footerText: {
     fontSize: 11,
@@ -346,20 +346,20 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   footerUrl: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: C.primary,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    maxWidth: 340,
+    textAlign: "center",
   },
 
   scorePill: {
-    position: "absolute",
-    bottom: 16,
-    right: 16,
     backgroundColor: C.danger + "22",
     borderRadius: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 3,
+    marginTop: 2,
   },
   scorePillText: {
     fontSize: 10,

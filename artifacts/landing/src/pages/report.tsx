@@ -65,8 +65,54 @@ export default function ReportPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setPlatform(params.get("platform") ?? "");
-    setUsername(params.get("username") ?? "");
+    const p = params.get("platform") ?? "";
+    const u = params.get("username") ?? "";
+    setPlatform(p);
+    setUsername(u);
+
+    const handle = u.replace(/^@/, "");
+    const platformLabel = PLATFORM_META[p.toLowerCase()]?.label ?? p;
+    const title = handle
+      ? `Help report @${handle} on ${platformLabel} — Rook Identity Protection`
+      : "Help report an impersonator — Rook Identity Protection";
+    const description = handle
+      ? `Someone is being impersonated by @${handle} on ${platformLabel}. Tap to report the fake account and protect them.`
+      : "A Rook user detected a fake account impersonating them. Tap to help report it.";
+    const cardImageUrl = "https://tryrook.app/og-share-card.png";
+    const canonicalUrl = `https://tryrook.app/report?platform=${encodeURIComponent(p)}&username=${encodeURIComponent(handle)}`;
+
+    document.title = title;
+
+    const setMeta = (property: string, content: string) => {
+      let el = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement | null;
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute("property", property);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+    const setNameMeta = (name: string, content: string) => {
+      let el = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement | null;
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute("name", name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+
+    setMeta("og:title", title);
+    setMeta("og:description", description);
+    setMeta("og:image", cardImageUrl);
+    setMeta("og:url", canonicalUrl);
+    setMeta("og:type", "website");
+    setMeta("og:site_name", "Rook Identity Protection");
+    setNameMeta("twitter:card", "summary_large_image");
+    setNameMeta("twitter:title", title);
+    setNameMeta("twitter:description", description);
+    setNameMeta("twitter:image", cardImageUrl);
+    setNameMeta("description", description);
   }, []);
 
   const handle = username.replace(/^@/, "");

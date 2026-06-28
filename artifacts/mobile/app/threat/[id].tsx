@@ -594,7 +594,9 @@ export default function ThreatDetail() {
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              share();
+              const handle = (suspiciousUsername || "").replace(/^@/, "");
+              const reportUrl = `https://tryrook.app/report?platform=${encodeURIComponent(String(threat.platform ?? ""))}&username=${encodeURIComponent(handle)}`;
+              share(reportUrl);
             }}
             disabled={isSharing}
             hitSlop={8}
