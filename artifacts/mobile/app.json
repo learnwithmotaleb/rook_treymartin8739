@@ -67,7 +67,8 @@
           "sounds": [],
           "mode": "production"
         }
-      ]
+      ],
+      "./plugins/withPrivacyManifest"
     ],
     "experiments": {
       "typedRoutes": true,
