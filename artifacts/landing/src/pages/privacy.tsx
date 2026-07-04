@@ -51,7 +51,7 @@ export default function Privacy() {
           <UL>
             <li><strong className="text-white">Account information:</strong> Name, email address, and username when you register. Authentication is handled by <strong className="text-white">Clerk</strong> — we receive a secure user identifier (Clerk user ID) and basic profile info, but never your password.</li>
             <li><strong className="text-white">Connected platform data:</strong> When you authorize {APP_NAME} to access a social platform, we receive read-only access to your public profile information — username, profile photo, follower count, and public posts.</li>
-            <li><strong className="text-white">Identity fingerprint data:</strong> Perceptual hashes (not raw images) derived from your public photos, used to detect visually similar stolen content.</li>
+            <li><strong className="text-white">Identity fingerprint data:</strong> A non-reversible digital signature (not raw images) derived from your public photos, used to detect visually similar stolen content.</li>
             <li><strong className="text-white">Scan results:</strong> Records of monitoring activity, detected threats, and impersonation alerts associated with your account. Stored in a managed <strong className="text-white">PostgreSQL</strong> database.</li>
             <li><strong className="text-white">Payment information:</strong> Subscriptions are managed by <strong className="text-white">RevenueCat</strong> and billed through the Apple App Store or Google Play Store. We store only your subscription tier and entitlement status — we never see or store your payment card details.</li>
             <li><strong className="text-white">Usage data:</strong> App interactions, feature usage, and device information to improve the service.</li>
@@ -108,7 +108,7 @@ export default function Privacy() {
           <UL>
             <li><strong className="text-white">Account data:</strong> Retained until account deletion; purged within 30 days thereafter.</li>
             <li><strong className="text-white">Threat history:</strong> Retained for 30 days (Premium), 7 days (Pro), 1 day (Free) from detection, then automatically deleted.</li>
-            <li><strong className="text-white">Identity fingerprint data (perceptual hashes):</strong> Retained while account is active; deleted upon account deletion.</li>
+            <li><strong className="text-white">Identity fingerprint data:</strong> Retained while account is active; deleted upon account deletion.</li>
             <li><strong className="text-white">OAuth tokens:</strong> Deleted immediately upon account disconnection or account deletion.</li>
             <li><strong className="text-white">Anonymized usage analytics:</strong> May be retained for up to 2 years in aggregated, non-identifiable form.</li>
           </UL>

@@ -42,7 +42,7 @@ const FAQ = [
   },
   {
     q: "What is the Photo Monitor?",
-    a: "Photo Monitor uses a two-layer system: perceptual hashing (dHash) catches exact or near-exact copies instantly, while AI vision embeddings catch cropped, filtered, or re-uploaded versions that hashing alone would miss.",
+    a: "Photo Monitor uses AI-powered image recognition to detect when your photos are copied, edited, cropped, or re-uploaded elsewhere — even versions that look different from the original.",
   },
   {
     q: "Why am I seeing false positives?",

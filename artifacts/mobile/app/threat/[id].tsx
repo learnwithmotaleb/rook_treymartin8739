@@ -73,7 +73,7 @@ function generateAiExplanation(
       (matchedMediaCount > 0
         ? `${matchedMediaCount} of your photos have been`
         : "Your photo content has been") +
-      ` detected on ${u}'s ${p} profile without your authorization. Our AI cross-referenced your indexed media fingerprints against this account's content library. This constitutes unauthorized use of your identity and likeness.`
+      ` detected on ${u}'s ${p} profile without your authorization. Our AI confirmed this is your content. This constitutes unauthorized use of your identity and likeness.`
     );
   }
   if (type === "leaked_password") {
@@ -88,7 +88,7 @@ function generateAiExplanation(
 function generateDetectedSignals(breakdown: ThreatScoreBreakdown, type: string): string[] {
   const signals: string[] = [];
   if (breakdown.mediaSimilarity >= 20)
-    signals.push(`Visual media similarity confirmed (${breakdown.mediaSimilarity}/40 match score)`);
+    signals.push("Visual media similarity confirmed");
   else if (breakdown.mediaSimilarity >= 10)
     signals.push("Partial media overlap detected across profiles");
   if (breakdown.contentReuse >= 10)
@@ -102,7 +102,7 @@ function generateDetectedSignals(breakdown: ThreatScoreBreakdown, type: string):
   if (breakdown.behavioral >= 3)
     signals.push("Behavioral patterns consistent with impersonator accounts");
   if (type === "stolen_photo")
-    signals.push("Reverse image search confirmed photo match");
+    signals.push("AI photo match confirmed");
   if (type === "impersonator" || type === "fake_account")
     signals.push("Account creation post-dates your verified profile");
   return signals;
@@ -133,6 +133,13 @@ function ScoreGauge({ score }: { score: number }) {
   );
 }
 
+function scoreStrengthLabel(pct: number): string {
+  if (pct >= 75) return "Strong";
+  if (pct >= 45) return "Moderate";
+  if (pct > 0) return "Weak";
+  return "None";
+}
+
 function ScoreBar({
   label,
   value,
@@ -161,7 +168,7 @@ function ScoreBar({
           />
         </View>
         <Text style={[styles.scoreBarValue, { color, fontFamily: "Inter_700Bold" }]}>
-          {value}/{max}
+          {scoreStrengthLabel(pct)}
         </Text>
       </View>
     </View>
@@ -793,7 +800,7 @@ export default function ThreatDetail() {
               <Text
                 style={[styles.collectiveBadgeSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
               >
-                Multiple users flagged this actor · Corpus confidence {detail.threatActor.confidenceScore}%
+                Multiple users flagged this account · Match confidence {detail.threatActor.confidenceScore}%
               </Text>
             </View>
             <View style={[styles.collectivePill, { backgroundColor: colors.primary + "33" }]}>

@@ -260,7 +260,7 @@ function PhoneMockup() {
       {/* Threat rows */}
       {[
         { sev: "HIGH", label: "Impersonator Detected", sub: "@alex_official_backup · Facebook", time: "2m", color: C.danger },
-        { sev: "MED", label: "Stolen Photo Found", sub: "Reverse image search result", time: "18m", color: C.warning },
+        { sev: "MED", label: "Stolen Photo Found", sub: "@fake_backup_2024 · Instagram", time: "18m", color: C.warning },
         { sev: "LOW", label: "Username Variant Found", sub: "@yourname_official · LinkedIn", time: "1h", color: C.success },
       ].map((a, i) => (
         <div key={i} style={{ background: `${a.color}0C`, border: `1px solid ${a.color}28`, borderRadius: 12, padding: "9px 10px", display: "flex", alignItems: "center", gap: 8 }}>
