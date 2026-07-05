@@ -12,7 +12,7 @@
 
 | Field | Value |
 |---|---|
-| Email | `reviewer@tryrook.app` |
+| Email | `rooktestuser@gmail.com` |
 | Password | `RookReview2026!` |
 | Account type | Premium (active subscription, full feature access) |
 
@@ -43,7 +43,7 @@ Tap **"Sign In"** and enter the credentials above. Tap **"Continue"**.
 
 **Expected:** Authentication succeeds. App transitions to the Dashboard tab.
 
-> **First-time device notice:** The first time these credentials are used on a new device, our auth provider (Clerk) requires a one-time 6-digit email verification code as a security check for unrecognized devices. If you see a **"Verify it's you"** screen after signing in, a code was just sent to `reviewer@tryrook.app`. Enter the code to continue — this only happens once per device; subsequent sign-ins on the same device go straight to the Dashboard. If review is blocked on this step, contact us via the app review notes and we will confirm receipt of the code.
+> **First-time device notice:** The first time these credentials are used on a new device, our auth provider (Clerk) requires a one-time 6-digit email verification code as a security check for unrecognized devices. If you see a **"Verify it's you"** screen after signing in, a code was just sent to `rooktestuser@gmail.com`. Enter the code to continue — this only happens once per device; subsequent sign-ins on the same device go straight to the Dashboard. If review is blocked on this step, contact us via the app review notes and we will confirm receipt of the code.
 
 ---
 
