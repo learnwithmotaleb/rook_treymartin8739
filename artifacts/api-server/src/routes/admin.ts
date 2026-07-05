@@ -24,6 +24,7 @@ import {
   threatsTable,
   visualFingerprintsTable,
   userIdentityProfilesTable,
+  subscriptionsTable,
 } from "@workspace/db";
 import {
   getSystemMonthlyStats,
@@ -493,16 +494,22 @@ function buildReviewerThreats(userId: string) {
 // ─── POST /api/admin/seed-reviewer ────────────────────────────────────────────
 
 router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
-  const { clerkId, tier = "pro" } = req.body as { clerkId?: string; tier?: string };
+  const { clerkId, tier = "premium" } = req.body as { clerkId?: string; tier?: string };
 
   if (!clerkId) {
     res.status(400).json({ error: "clerkId is required" });
     return;
   }
 
+  if (tier !== "free" && tier !== "pro" && tier !== "premium") {
+    res.status(400).json({ error: "tier must be one of: free, pro, premium" });
+    return;
+  }
+
   const now = new Date();
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
   const fourDaysFromNow = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
+  const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
   // ── Step 1: Upsert users row (insert on first call, update on repeat) ─────────
@@ -672,6 +679,31 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
       },
     });
 
+  // ── Step 8: Grant subscription tier (so paywalled screens actually unlock) ───
+  await db
+    .insert(subscriptionsTable)
+    .values({
+      userId,
+      tier,
+      status: "active",
+      billingCycle: "yearly",
+      currentPeriodEnd: oneYearFromNow,
+      cancelAtPeriodEnd: false,
+      trialEndsAt: null,
+    })
+    .onConflictDoUpdate({
+      target: subscriptionsTable.userId,
+      set: {
+        tier,
+        status: "active",
+        billingCycle: "yearly",
+        currentPeriodEnd: oneYearFromNow,
+        cancelAtPeriodEnd: false,
+        trialEndsAt: null,
+        updatedAt: now,
+      },
+    });
+
   logger.info({ clerkId, userId, tier }, "Admin: reviewer account seeded");
 
   res.json({
@@ -750,6 +782,13 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
         )
         .returning({ id: userIdentityProfilesTable.id }),
     ]);
+
+  // Reset the granted subscription back to free so the account doesn't keep
+  // paid entitlements after its seeded review data is removed.
+  await db
+    .update(subscriptionsTable)
+    .set({ tier: "free", status: "active", cancelAtPeriodEnd: false, updatedAt: new Date() })
+    .where(eq(subscriptionsTable.userId, userId));
 
   const rowsDeleted =
     deletedThreats.length +
