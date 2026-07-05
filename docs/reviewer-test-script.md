@@ -14,7 +14,7 @@
 |---|---|
 | Email | `reviewer@tryrook.app` |
 | Password | `RookReview2026!` |
-| Account type | Pro (active subscription) |
+| Account type | Premium (active subscription, full feature access) |
 
 > **Note for Meta reviewers:** A second clean account will be used for testing the Facebook/Instagram connection flow. See Step 19 for the OAuth flow.
 
@@ -25,7 +25,7 @@ The reviewer account is pre-loaded with:
 - **4 active threat alerts** (1 High, 2 Medium, 1 Low)
 - **3 connected social accounts** (Instagram, Facebook, X) + 1 pending (YouTube)
 - **47 photos indexed** in the monitoring system
-- **Pro subscription** active
+- **Premium subscription** active (unlocks every paywalled feature, including unlimited scans, downloadable reports, and priority processing)
 
 ---
 
@@ -42,6 +42,8 @@ Open Rook from your home screen. The animated splash screen appears (Rook logo +
 Tap **"Sign In"** and enter the credentials above. Tap **"Continue"**.
 
 **Expected:** Authentication succeeds. App transitions to the Dashboard tab.
+
+> **First-time device notice:** The first time these credentials are used on a new device, our auth provider (Clerk) requires a one-time 6-digit email verification code as a security check for unrecognized devices. If you see a **"Verify it's you"** screen after signing in, a code was just sent to `reviewer@tryrook.app`. Enter the code to continue — this only happens once per device; subsequent sign-ins on the same device go straight to the Dashboard. If review is blocked on this step, contact us via the app review notes and we will confirm receipt of the code.
 
 ---
 
@@ -187,10 +189,10 @@ Navigate to the **Profile** tab (bottom navigation).
 Verify:
 - Profile avatar (reviewer's profile photo)
 - Name: Alex Rivera
-- **"Pro"** subscription badge
+- **"Premium"** subscription badge
 - Connected Accounts section: Instagram ✓, Facebook ✓, X ✓, YouTube (pending)
 
-**Expected:** All sections render correctly. Pro badge is visible.
+**Expected:** All sections render correctly. Premium badge is visible.
 
 ---
 
@@ -250,7 +252,7 @@ From the Profile tab, scroll to the bottom and tap **"Legal & Privacy"** (or **"
 | 11–13 | Scan | Starts, progresses, completes without crash |
 | 14–15 | Scam Analyzer | AI analysis returned, labels phishing correctly |
 | 16 | Photo Monitor | Loads with 47 indexed |
-| 17 | Profile | Pro badge, connected accounts visible |
+| 17 | Profile | Premium badge, connected accounts visible |
 | 19 | OAuth (Meta only) | Full Facebook/Instagram connect flow works |
 | 20 | Privacy Policy | Opens correctly in browser |
 

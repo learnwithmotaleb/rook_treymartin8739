@@ -165,7 +165,7 @@ Apple allows up to **3 preview videos** per device size. A 15–30 second video 
 | 13–18 | Scan tab | Tap Start Scan → radar animation → progress bar |
 | 18–21 | Scan result | Result card slides in |
 | 21–25 | Tools tab | Scroll through tool cards |
-| 25–28 | Profile | Profile tab shows Pro badge + connected accounts |
+| 25–28 | Profile | Profile tab shows Premium badge + connected accounts |
 
 ### How to Record
 1. In Xcode Simulator: **Window → Video Recording** (⌘R)

@@ -82,6 +82,7 @@ export default function Auth() {
   const [error, setError] = useState("");
   const [ssoLoading, setSsoLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [needsSigninCode, setNeedsSigninCode] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -96,6 +97,10 @@ export default function Auth() {
     if (isSignedIn) router.replace("/(tabs)/" as any);
   }, [isSignedIn]);
 
+  const completeSignIn = useCallback(async () => {
+    await signIn!.finalize({ navigate: () => { router.replace("/(tabs)/" as any); } });
+  }, [signIn]);
+
   const handleSignIn = useCallback(async () => {
     if (!email || !password) { setError("Please fill in all fields"); return; }
     setError("");
@@ -103,13 +108,35 @@ export default function Auth() {
       const { error: signInError } = await signIn!.password({ emailAddress: email.trim(), password });
       if (signInError) { setError(signInError.longMessage ?? signInError.message ?? "Sign in failed"); return; }
       if (signIn!.status === "complete") {
-        await signIn!.finalize({ navigate: () => { router.replace("/(tabs)/" as any); } });
+        await completeSignIn();
+      } else if (signIn!.status === "needs_second_factor" || signIn!.status === "needs_client_trust") {
+        setCode("");
+        setNeedsSigninCode(true);
+        await (signIn as any).mfa.sendEmailCode();
+      } else {
+        setError("Sign in requires additional verification that isn't supported yet. Please contact support.");
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Sign in failed");
     }
-  }, [signIn, email, password]);
+  }, [signIn, email, password, completeSignIn]);
+
+  const handleVerifySignInCode = useCallback(async () => {
+    if (!code) { setError("Enter the verification code"); return; }
+    setError("");
+    try {
+      await (signIn as any).mfa.verifyEmailCode({ code });
+      if (signIn!.status === "complete") {
+        await completeSignIn();
+      } else {
+        setError("Verification incomplete. Please try again.");
+      }
+    } catch (e: any) {
+      const clerkErr = e?.errors?.[0];
+      setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Verification failed");
+    }
+  }, [signIn, code, completeSignIn]);
 
   const handleSignUp = useCallback(async () => {
     if (!email || !password || !name) { setError("Please fill in all fields"); return; }
@@ -216,7 +243,46 @@ export default function Auth() {
         {/* ══ FORM CARD ════════════════════════════════════════════ */}
         <View style={styles.card}>
 
-          {showVerify ? (
+          {needsSigninCode ? (
+            /* ── Sign-in Second Factor (new device verification) ── */
+            <>
+              <View style={styles.cardHeader}>
+                <Text style={styles.headline}>Verify it's you</Text>
+                <Text style={styles.subheadline}>We sent a 6-digit code to{"\n"}<Text style={styles.emailHighlight}>{email}</Text></Text>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Verification Code</Text>
+                <View style={[styles.inputRow, { borderColor: inputBorder("code") }]}>
+                  <Ionicons name="key-outline" size={18} color={focusedField === "code" ? "#3B82F6" : "#6B8EAE"} />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="• • • • • •"
+                    placeholderTextColor="#3B4C6B"
+                    value={code}
+                    onChangeText={setCode}
+                    keyboardType="number-pad"
+                    autoCapitalize="none"
+                    onFocus={() => setFocusedField("code")}
+                    onBlur={() => setFocusedField(null)}
+                  />
+                </View>
+              </View>
+
+              {error !== "" && <ErrorBanner message={error} />}
+
+              <GradientButton label={loading ? "Verifying…" : "Verify"} onPress={handleVerifySignInCode} disabled={loading} />
+
+              <TouchableOpacity onPress={() => (signIn as any).mfa.sendEmailCode()} style={styles.switchRow}>
+                <Text style={styles.switchText}>Didn't get it? </Text>
+                <Text style={styles.switchLink}>Resend code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setNeedsSigninCode(false); setCode(""); setError(""); }} style={styles.switchRow}>
+                <Text style={styles.switchLink}>Start over</Text>
+              </TouchableOpacity>
+            </>
+
+          ) : showVerify ? (
             /* ── Email Verification ── */
             <>
               <View style={styles.cardHeader}>
