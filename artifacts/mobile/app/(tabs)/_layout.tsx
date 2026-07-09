@@ -140,7 +140,7 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user: clerkUser } = useUser();
-  const { login, logout, hasSeenOnboarding, isInitializing, isLoggedIn } = useApp();
+  const { login, logout, hasSeenOnboarding, isInitializing, isOnboardingReady, isLoggedIn } = useApp();
   const colors = useColors();
   const { tier, customerInfo } = useSubscription();
   useNotifications(isLoggedIn);
@@ -149,10 +149,10 @@ export default function TabLayout() {
   // and show a recoverable error rather than a permanent blank screen.
   const [initTimedOut, setInitTimedOut] = useState(false);
   useEffect(() => {
-    if (!isInitializing) { setInitTimedOut(false); return; }
+    if (!isInitializing && (isOnboardingReady || !isSignedIn)) { setInitTimedOut(false); return; }
     const t = setTimeout(() => setInitTimedOut(true), 12_000);
     return () => clearTimeout(t);
-  }, [isInitializing]);
+  }, [isInitializing, isOnboardingReady, isSignedIn]);
 
   // Keep a stable ref to getToken so the effect below doesn't need it as a
   // dependency. Clerk sometimes returns a new function reference on every
@@ -173,7 +173,7 @@ export default function TabLayout() {
     setApiAuthToken(() => getTokenRef.current());
     const name = clerkUser?.fullName ?? clerkUser?.firstName ?? "";
     const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
-    login(name, email);
+    login(name, email, clerkUser?.id);
     // Identify the user to RevenueCat so purchases are tied to their account
     // across devices and are recoverable after reinstall.
     if (clerkUser?.id) {
@@ -208,7 +208,7 @@ export default function TabLayout() {
   // Render a blank screen (not null) while loading — returning null from a
   // layout component breaks expo-router's component tree on web and causes
   // "Invalid hook call" errors in child screens.
-  if (!isLoaded || isInitializing) {
+  if (!isLoaded || isInitializing || (isSignedIn && !isOnboardingReady)) {
     if (initTimedOut) {
       return (
         <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16 }}>

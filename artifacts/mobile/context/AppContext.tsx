@@ -157,6 +157,8 @@ interface AppContextType {
   hasSeenOnboarding: boolean;
   /** true while AsyncStorage is being read on first mount — gates all route redirects */
   isInitializing: boolean;
+  /** true once the per-user hasSeenOnboarding flag has been loaded after login — gates the onboarding redirect specifically */
+  isOnboardingReady: boolean;
   isScanning: boolean;
   scanProgress: number;
   scanCurrentStep: string | null;
@@ -166,7 +168,7 @@ interface AppContextType {
   fakeAccounts: number;
   resolvedCount: number;
   leakedPasswords: number;
-  login: (name: string, email: string) => void;
+  login: (name: string, email: string, userId?: string) => void;
   logout: () => void;
   completeOnboarding: () => void;
   startScan: () => void;
@@ -275,6 +277,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // otherwise a returning user gets flash-redirected to /auth or /onboarding
   // before the stored values are loaded.
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isOnboardingReady, setIsOnboardingReady] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanCurrentStep, setScanCurrentStep] = useState<string | null>(null);
@@ -284,6 +287,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const indexedPhotosRef = useRef<IndexedPhoto[]>([]);
   const [localPhotoThreats, setLocalPhotoThreats] = useState<Threat[]>([]);
   const localPhotoThreatsRef = useRef<Threat[]>([]);
+  // hasSeenOnboarding is scoped per Clerk user id (see onboardingKey below) so
+  // that signing out and back in with the SAME account never re-shows
+  // onboarding, while a brand new account on the same device always does.
+  const clerkUserIdRef = useRef<string | null>(null);
 
   useEffect(() => { indexedPhotosRef.current = indexedPhotos; }, [indexedPhotos]);
   useEffect(() => { localPhotoThreatsRef.current = localPhotoThreats; }, [localPhotoThreats]);
@@ -291,12 +298,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     Promise.all([
       AsyncStorage.getItem("isLoggedIn"),
-      AsyncStorage.getItem("hasSeenOnboarding"),
       AsyncStorage.getItem("indexedPhotos"),
       AsyncStorage.getItem("localPhotoThreats"),
-    ]).then(([loggedIn, seenOnboarding, storedPhotos, storedLocalThreats]) => {
+    ]).then(([loggedIn, storedPhotos, storedLocalThreats]) => {
       if (loggedIn !== null) setIsLoggedIn(loggedIn === "true");
-      if (seenOnboarding !== null) setHasSeenOnboarding(seenOnboarding === "true");
+      // hasSeenOnboarding is deliberately NOT restored here — it is scoped per
+      // Clerk user id and is loaded/set inside login() once we know who signed in.
       if (storedPhotos) {
         try {
           const parsed: IndexedPhoto[] = JSON.parse(storedPhotos);
@@ -355,10 +362,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // from _layout.tsx, so any API call made here would have no Bearer token and would
   // fall back to the demo user. Data loading is triggered explicitly inside login().
 
-  const login = useCallback((name: string, email: string) => {
+  const login = useCallback((name: string, email: string, userId?: string) => {
     setIsLoggedIn(true);
     AsyncStorage.setItem("isLoggedIn", "true");
     setIsLoading(true);
+    clerkUserIdRef.current = userId ?? null;
+    setIsOnboardingReady(false);
+    // hasSeenOnboarding is scoped per Clerk user id so switching accounts on
+    // the same device never inherits another account's onboarding state.
+    if (userId) {
+      AsyncStorage.getItem(`hasSeenOnboarding:${userId}`).then((seen) => {
+        setHasSeenOnboarding(seen === "true");
+        setIsOnboardingReady(true);
+      });
+    } else {
+      setHasSeenOnboarding(false);
+      setIsOnboardingReady(true);
+    }
     // If the caller passes a real name/email (from Clerk's useUser()), patch the
     // DB record so the user sees their actual name instead of "Shield User".
     const load = (name || email)
@@ -377,20 +397,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     indexedPhotosRef.current = [];
     setLocalPhotoThreats([]);
     localPhotoThreatsRef.current = [];
-    // hasSeenOnboarding is a single global AsyncStorage key (not scoped per
-    // account), so it must be reset on logout — otherwise a brand new account
-    // signed into on the same device inherits the previous account's flag and
-    // skips onboarding entirely.
     setHasSeenOnboarding(false);
+    setIsOnboardingReady(false);
+    clerkUserIdRef.current = null;
     AsyncStorage.setItem("isLoggedIn", "false");
-    AsyncStorage.removeItem("hasSeenOnboarding");
     AsyncStorage.removeItem("indexedPhotos");
     AsyncStorage.removeItem("localPhotoThreats");
   }, []);
 
   const completeOnboarding = useCallback(() => {
     setHasSeenOnboarding(true);
-    AsyncStorage.setItem("hasSeenOnboarding", "true");
+    const userId = clerkUserIdRef.current;
+    AsyncStorage.setItem(userId ? `hasSeenOnboarding:${userId}` : "hasSeenOnboarding", "true");
   }, []);
 
   const addIndexedPhotos = useCallback((
@@ -628,6 +646,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isLoggedIn,
         hasSeenOnboarding,
         isInitializing,
+        isOnboardingReady,
         isScanning,
         scanProgress,
         scanCurrentStep,
