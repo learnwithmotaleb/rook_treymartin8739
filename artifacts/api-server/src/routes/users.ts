@@ -68,6 +68,11 @@ router.get("/me", async (req, res): Promise<void> => {
     securityScore: freshScore,
     scoreTrend: user.scoreTrend,
     monitored: accounts.length,
+    // Server-side source of truth for onboarding completion. Device-local
+    // flags (AsyncStorage) can be lost on reinstall or be stale after account
+    // deletion/recreation; onboardingAnswers being non-null is the durable
+    // signal that this user actually finished (or explicitly skipped) onboarding.
+    onboardingCompleted: user.onboardingAnswers !== null,
     lastScan,
     nextScanDue: user.nextScanDue?.toISOString() ?? null,
     totalPhotosIndexed: fingerprint.totalPhotosIndexed,

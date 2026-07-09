@@ -339,6 +339,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]);
         setUser(mapProfileToUser(profile, accounts));
         setThreats(summaries.map(mapSummaryToThreat));
+        // The server is the durable source of truth for onboarding completion
+        // (onboardingAnswers persisted in the DB). Device-local AsyncStorage
+        // flags can be lost on reinstall or stale after account deletion, so
+        // once we hear from the server that onboarding is done, trust it and
+        // sync the local cache to match (never downgrade an already-true local flag).
+        if (profile.onboardingCompleted) {
+          setHasSeenOnboarding(true);
+          const userId = clerkUserIdRef.current;
+          AsyncStorage.setItem(userId ? `hasSeenOnboarding:${userId}` : "hasSeenOnboarding", "true");
+        }
         return true;
       } catch {
         return false;

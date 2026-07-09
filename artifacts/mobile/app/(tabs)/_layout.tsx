@@ -232,16 +232,13 @@ export default function TabLayout() {
     return <Redirect href="/auth" />;
   }
 
-  // Only send the user to onboarding if they genuinely haven't seen it AND
-  // their Clerk account was created within the last 10 minutes (i.e. they just
-  // signed up for the first time). Returning users who reinstall or re-login
-  // have an older account and should go straight to the app.
-  const accountAgeMs = clerkUser?.createdAt
-    ? Date.now() - new Date(clerkUser.createdAt).getTime()
-    : Infinity;
-  const isNewAccount = accountAgeMs < 10 * 60 * 1000; // < 10 minutes old
-
-  if (!hasSeenOnboarding && isNewAccount) {
+  // hasSeenOnboarding is backed by the server's onboardingCompleted flag
+  // (onboardingAnswers persisted in the DB), synced in refreshData(), with the
+  // per-user AsyncStorage value as a fast local cache to avoid flicker. This
+  // is durable across reinstalls and account deletion/recreation, so we no
+  // longer need a Clerk-account-age heuristic (which incorrectly skipped
+  // onboarding for users who abandoned it mid-flow and returned >10 min later).
+  if (!hasSeenOnboarding) {
     return <Redirect href="/onboarding" />;
   }
 

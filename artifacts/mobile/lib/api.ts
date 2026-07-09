@@ -94,6 +94,7 @@ export interface UserProfile {
   securityScore: number;
   scoreTrend: number;
   monitored: number;
+  onboardingCompleted: boolean;
   lastScan: string;
   totalPhotosIndexed: number;
   totalCaptionsIndexed: number;
