@@ -78,15 +78,15 @@ export default function Dashboard() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const recentThreats = threats.filter((t) => !t.resolved).slice(0, 3);
 
-  // Auto-complete onboarding for returning users who already have data.
-  // The tab layout handles the /auth and /onboarding redirects — we only
-  // need this to skip onboarding for users who arrived before it was added.
+  // Auto-complete onboarding for legacy returning users who connected accounts
+  // before onboarding was introduced. Only triggers when the user has existing
+  // connected accounts (not just a name — all Clerk users have a name).
   useEffect(() => {
     if (isInitializing) return;
-    if (!hasSeenOnboarding && (user.connectedAccounts.length > 0 || user.name)) {
+    if (!hasSeenOnboarding && user.connectedAccounts.length > 0) {
       completeOnboarding();
     }
-  }, [isInitializing, hasSeenOnboarding, user.connectedAccounts.length, user.name, completeOnboarding]);
+  }, [isInitializing, hasSeenOnboarding, user.connectedAccounts.length, completeOnboarding]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

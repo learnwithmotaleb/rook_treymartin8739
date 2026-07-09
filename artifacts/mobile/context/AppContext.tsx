@@ -366,19 +366,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           .then(() => refreshData())
           .catch(() => refreshData())
       : refreshData();
-    load
-      .then(() => {
-        // Auto-complete onboarding for returning users — if they already have
-        // a profile name or connected accounts the onboarding has been done.
-        setHasSeenOnboarding((prev) => {
-          if (!prev) {
-            AsyncStorage.setItem("hasSeenOnboarding", "true");
-            return true;
-          }
-          return prev;
-        });
-      })
-      .finally(() => setIsLoading(false));
+    load.finally(() => setIsLoading(false));
   }, [refreshData]);
 
   const logout = useCallback(() => {
