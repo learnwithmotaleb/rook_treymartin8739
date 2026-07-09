@@ -332,10 +332,16 @@ export default function ConnectAccount() {
     await refreshData();
     Alert.alert(
       "Connected!",
-      "Your account was verified via OAuth. Return to the app to see it listed as connected.",
-      [{ text: "Done", onPress: () => router.back() }]
+      `Your ${config?.label ?? "account"} was verified via OAuth. Next, choose which photos from this account you'd like Rook to monitor.`,
+      [
+        {
+          text: "Choose Photos",
+          onPress: () => router.replace("/photo-monitor"),
+        },
+        { text: "Later", style: "cancel", onPress: () => router.back() },
+      ]
     );
-  }, [refreshData]);
+  }, [refreshData, config]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedPlatform) return;
