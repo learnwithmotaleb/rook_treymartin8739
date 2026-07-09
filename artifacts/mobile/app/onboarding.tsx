@@ -494,13 +494,17 @@ const CONNECTABLE: Array<{ id: NonNullable<SocialPlatform>; label: string; color
 function ConnectScreen({
   colors,
   activePlatforms,
+  connectedCount,
   onSkip,
   onConnect,
+  onContinue,
 }: {
   colors: ReturnType<typeof useColors>;
   activePlatforms: string[];
+  connectedCount: number;
   onSkip: () => void;
   onConnect: () => void;
+  onContinue: () => void;
 }) {
   const prioritized = activePlatforms.length > 0
     ? CONNECTABLE.filter((p) => activePlatforms.includes(p.id))
@@ -587,11 +591,28 @@ function ConnectScreen({
         </Text>
       </GlassCard>
 
+      {connectedCount > 0 && (
+        <GlassCard style={[styles.privacyCard, { borderColor: colors.success + "44" }]}>
+          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+          <Text style={[styles.privacyText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+            {connectedCount} account{connectedCount !== 1 ? "s" : ""} connected
+          </Text>
+        </GlassCard>
+      )}
+
       <View style={styles.connectActions}>
         <TouchableOpacity style={[styles.connectBtn, { backgroundColor: colors.primary }]} activeOpacity={0.85} onPress={onConnect}>
           <Ionicons name="link" size={18} color="#fff" />
-          <Text style={[styles.connectBtnText, { fontFamily: "Inter_600SemiBold" }]}>Connect Accounts</Text>
+          <Text style={[styles.connectBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+            {connectedCount > 0 ? "Connect Another Account" : "Connect Accounts"}
+          </Text>
         </TouchableOpacity>
+        {connectedCount > 0 && (
+          <TouchableOpacity style={[styles.connectBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]} activeOpacity={0.85} onPress={onContinue}>
+            <Text style={[styles.connectBtnText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Continue</Text>
+            <Ionicons name="arrow-forward" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={onSkip}>
           <Text style={[styles.skipLink, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Skip for now</Text>
         </TouchableOpacity>
@@ -664,38 +685,69 @@ function ScanSetupScreen({
   onAttributionSelect: (id: string) => void;
   onDone: () => void;
 }) {
+  const { startScan, isScanning, scanProgress, scanQuotaError } = useApp();
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const [showAttribution, setShowAttribution] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
   const attributionAnim = useRef(new Animated.Value(0)).current;
+  const hasStartedScan = useRef(false);
+  const wasScanning = useRef(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
+  // Kick off a real scan (hits the API, indexes photos, polls for completion)
+  // instead of a decorative timer, so onboarding surfaces genuine results.
   useEffect(() => {
     Animated.loop(
       Animated.timing(spinAnim, { toValue: 1, duration: 1500, easing: Easing.linear, useNativeDriver: true })
     ).start();
 
-    const delays = [700, 1500, 2400, 3200];
-    const timers: ReturnType<typeof setTimeout>[] = [];
-
-    delays.forEach((delay, i) => {
-      timers.push(setTimeout(() => {
-        setCompletedSteps((prev) => [...prev, i]);
-        setActiveStep(i + 1);
-        Animated.timing(progressAnim, { toValue: (i + 1) / SETUP_STEPS.length, duration: 400, useNativeDriver: false }).start();
-      }, delay));
-    });
-
-    // Show attribution question after a short delay
-    timers.push(setTimeout(() => {
+    const attributionTimer = setTimeout(() => {
       setShowAttribution(true);
       Animated.timing(attributionAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-    }, 900));
+    }, 900);
 
-    timers.push(setTimeout(onDone, 4200));
-    return () => timers.forEach(clearTimeout);
-  }, [onDone, progressAnim, spinAnim, attributionAnim]);
+    if (!hasStartedScan.current) {
+      hasStartedScan.current = true;
+      Promise.resolve(startScan()).catch(() => {});
+    }
+
+    // Safety valve: never strand the user here (e.g. scan quota hit or network
+    // failure before the polling loop ever reports isScanning=true).
+    const fallbackTimer = setTimeout(() => {
+      if (!wasScanning.current) onDoneRef.current();
+    }, 12000);
+
+    return () => {
+      clearTimeout(attributionTimer);
+      clearTimeout(fallbackTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (isScanning) {
+      wasScanning.current = true;
+      const fraction = Math.max(0, Math.min(1, scanProgress / 100));
+      const stepIndex = Math.min(SETUP_STEPS.length - 1, Math.floor(fraction * SETUP_STEPS.length));
+      setActiveStep(stepIndex);
+      setCompletedSteps(Array.from({ length: stepIndex }, (_, i) => i));
+      Animated.timing(progressAnim, { toValue: fraction, duration: 300, useNativeDriver: false }).start();
+    } else if (wasScanning.current) {
+      // Scan just finished (success or failure) — show completion state then advance.
+      wasScanning.current = false;
+      setCompletedSteps(SETUP_STEPS.map((_, i) => i));
+      setActiveStep(SETUP_STEPS.length);
+      Animated.timing(progressAnim, { toValue: 1, duration: 300, useNativeDriver: false }).start(() => {
+        setTimeout(() => onDoneRef.current(), 500);
+      });
+    } else if (scanQuotaError) {
+      // Scan never started because quota was already exhausted — don't block onboarding.
+      onDoneRef.current();
+    }
+  }, [isScanning, scanProgress, progressAnim, scanQuotaError]);
 
   const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
@@ -928,15 +980,21 @@ function ConfidenceSliderTrack({
 }) {
   const [trackWidth, setTrackWidth] = useState(0);
 
+  const trackRef = useRef<View>(null);
+  const trackPageX = useRef(0);
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (evt) => {
-        handleMove(evt.nativeEvent.locationX);
+        handleMove(evt.nativeEvent.pageX - trackPageX.current);
       },
       onPanResponderMove: (evt) => {
-        handleMove(evt.nativeEvent.locationX);
+        handleMove(evt.nativeEvent.pageX - trackPageX.current);
       },
     })
   ).current;
@@ -970,7 +1028,13 @@ function ConfidenceSliderTrack({
       </View>
 
       <View
-        onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+        ref={trackRef}
+        onLayout={(e) => {
+          setTrackWidth(e.nativeEvent.layout.width);
+          trackRef.current?.measureInWindow((x) => {
+            trackPageX.current = x;
+          });
+        }}
         {...panResponder.panHandlers}
         style={{ height: 52, justifyContent: "center" }}
       >
@@ -1085,12 +1149,12 @@ export default function Onboarding() {
 
   useFocusEffect(
     useCallback(() => {
+      // Returning from the connect-account flow: just clear the flag and stay on the
+      // Connect step so the user can add more accounts before choosing to continue.
       if (hasAttemptedConnect) {
         setHasAttemptedConnect(false);
-        // Only show the scan-setup step when accounts were actually connected
-        animateToStep(hasConnectedAccounts ? 7 : 8);
       }
-    }, [hasAttemptedConnect, animateToStep, hasConnectedAccounts])
+    }, [hasAttemptedConnect])
   );
 
   const handleNext = useCallback(() => {
@@ -1112,7 +1176,7 @@ export default function Onboarding() {
       return;
     }
     if (step < TOTAL_STEPS - 1) animateToStep(step + 1);
-    else router.replace("/subscription" as any);
+    else router.replace({ pathname: "/subscription", params: { fromOnboarding: "1" } } as any);
   }, [step, animateToStep, hasConnectedAccounts, answers]);
 
   const handleSkip = useCallback(() => {
@@ -1132,7 +1196,7 @@ export default function Onboarding() {
       platform_count: answers.activePlatforms.length,
       attribution: answers.attribution ?? undefined,
     });
-    router.replace("/subscription" as any);
+    router.replace({ pathname: "/subscription", params: { fromOnboarding: "1" } } as any);
   }, [completeOnboarding, answers]);
 
   const handleMaybeLater = useCallback(() => {
@@ -1180,11 +1244,13 @@ export default function Onboarding() {
         <ConnectScreen
           colors={colors}
           activePlatforms={answers.activePlatforms}
+          connectedCount={user.connectedAccounts.length}
           onSkip={() => animateToStep(hasConnectedAccounts ? 7 : 8)}
           onConnect={() => {
             setHasAttemptedConnect(true);
             router.push("/connect-account" as any);
           }}
+          onContinue={() => animateToStep(hasConnectedAccounts ? 7 : 8)}
         />
       );
       case 7: return (
