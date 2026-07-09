@@ -32,6 +32,19 @@ const PROJECT_NAME = "Rook";
 const IOS_BUNDLE_ID = "com.getrook.app";
 const ANDROID_PACKAGE = "com.getrook.app";
 
+// One-time scan unlock product
+const SCAN_UNLOCK_PRODUCT = {
+  label: "Scan Unlock",
+  identifier: "scan_unlock_v1",
+  androidIdentifier: "scan_unlock_v1",
+  displayName: "Rook Single Scan Unlock",
+  title: "Rook Scan Unlock",
+  prices: [
+    { amount_micros: 2990000, currency: "USD" },  // $2.99
+    { amount_micros: 2790000, currency: "EUR" },  // €2.79
+  ],
+};
+
 // Products: 2 tiers × 2 billing cycles
 const PRODUCTS = [
   {
@@ -42,8 +55,8 @@ const PRODUCTS = [
     displayName: "Rook Pro — Monthly",
     title: "Rook Pro Monthly",
     prices: [
-      { amount_micros: 11990000, currency: "USD" },  // $11.99
-      { amount_micros: 10990000, currency: "EUR" },  // €10.99
+      { amount_micros: 14990000, currency: "USD" },  // $14.99
+      { amount_micros: 13990000, currency: "EUR" },  // €13.99
     ],
     entitlement: "pro",
     offeringKey: "pro",
@@ -395,6 +408,123 @@ async function seedRevenueCat() {
   await ensurePackage(premiumOffering, "$rc_monthly", "Premium Monthly", "rook_premium_monthly");
   await ensurePackage(premiumOffering, "$rc_annual", "Premium Annual", "rook_premium_yearly");
 
+  // ── Scan Unlock (one-time, non-consumable) ────────────────────────────────
+  const ensureOneTimeProduct = async (
+    targetApp: App,
+    label: string,
+    storeIdentifier: string,
+    isTestStore: boolean,
+    displayName: string,
+    userFacingTitle: string
+  ): Promise<Product> => {
+    const existing = existingProductsData.items?.find(
+      (p) => p.store_identifier === storeIdentifier && p.app_id === targetApp.id
+    );
+    if (existing) {
+      console.log(`${label} product exists:`, existing.id);
+      return existing;
+    }
+    const body: CreateProductData["body"] = {
+      store_identifier: storeIdentifier,
+      app_id: targetApp.id,
+      type: "non_consumable",
+      display_name: displayName,
+    };
+    if (isTestStore) {
+      body.title = userFacingTitle;
+    }
+    const { data: created, error } = await createProduct({ client, path: { project_id: project.id }, body });
+    if (error) throw new Error(`Failed to create ${label} product: ${JSON.stringify(error)}`);
+    console.log(`Created ${label} product:`, created.id);
+    return created;
+  };
+
+  const [scanUnlockTest, scanUnlockAppStore, scanUnlockPlayStore] = await Promise.all([
+    ensureOneTimeProduct(testApp, "[Test] Scan Unlock", SCAN_UNLOCK_PRODUCT.identifier, true, SCAN_UNLOCK_PRODUCT.displayName, SCAN_UNLOCK_PRODUCT.title),
+    ensureOneTimeProduct(appStoreApp, "[iOS] Scan Unlock", SCAN_UNLOCK_PRODUCT.identifier, false, SCAN_UNLOCK_PRODUCT.displayName, SCAN_UNLOCK_PRODUCT.title),
+    ensureOneTimeProduct(playStoreApp, "[Android] Scan Unlock", SCAN_UNLOCK_PRODUCT.androidIdentifier, false, SCAN_UNLOCK_PRODUCT.displayName, SCAN_UNLOCK_PRODUCT.title),
+  ]);
+
+  // Add test store prices for scan unlock
+  const { error: scanPriceError } = await client.post<TestStorePricesResponse>({
+    url: "/projects/{project_id}/products/{product_id}/test_store_prices",
+    path: { project_id: project.id, product_id: scanUnlockTest.id },
+    body: { prices: SCAN_UNLOCK_PRODUCT.prices },
+  });
+  if (scanPriceError) {
+    const err = scanPriceError as any;
+    if (err?.type === "resource_already_exists") {
+      console.log("Test store prices already exist for Scan Unlock");
+    } else {
+      console.warn("Warning: couldn't add test store prices for Scan Unlock:", JSON.stringify(scanPriceError));
+    }
+  } else {
+    console.log("Added test store prices for Scan Unlock");
+  }
+
+  // scan_unlocked entitlement
+  const scanUnlockEntitlement = await ensureEntitlement("scan_unlocked", "Scan Unlock");
+  const { error: scanEntitlementAttachError } = await attachProductsToEntitlement({
+    client,
+    path: { project_id: project.id, entitlement_id: scanUnlockEntitlement.id },
+    body: { product_ids: [scanUnlockTest.id, scanUnlockAppStore.id, scanUnlockPlayStore.id] },
+  });
+  if (scanEntitlementAttachError) {
+    const e = scanEntitlementAttachError as any;
+    if (e?.type === "unprocessable_entity_error") {
+      console.log('Products already attached to "scan_unlocked" entitlement');
+    } else {
+      throw new Error(`Failed to attach products to "scan_unlocked" entitlement`);
+    }
+  } else {
+    console.log('Attached products to "scan_unlocked" entitlement');
+  }
+
+  // scan_unlock offering + $rc_lifetime package
+  const scanUnlockOffering = await ensureOffering("scan_unlock", "Scan Unlock");
+  const { data: scanUnlockPkgs, error: listScanPkgsError } = await listPackages({
+    client,
+    path: { project_id: project.id, offering_id: scanUnlockOffering.id },
+    query: { limit: 20 },
+  });
+  if (listScanPkgsError) throw new Error("Failed to list scan_unlock packages");
+
+  let scanUnlockPkg = scanUnlockPkgs.items?.find((p) => p.lookup_key === "$rc_lifetime");
+  if (!scanUnlockPkg) {
+    const { data: newPkg, error } = await createPackages({
+      client,
+      path: { project_id: project.id, offering_id: scanUnlockOffering.id },
+      body: { lookup_key: "$rc_lifetime", display_name: "Scan Unlock One-Time" },
+    });
+    if (error) throw new Error(`Failed to create scan_unlock $rc_lifetime package`);
+    console.log('Created package "$rc_lifetime" in scan_unlock offering:', newPkg.id);
+    scanUnlockPkg = newPkg;
+  } else {
+    console.log('Package "$rc_lifetime" in scan_unlock exists:', scanUnlockPkg.id);
+  }
+
+  const { error: scanPkgAttachError } = await attachProductsToPackage({
+    client,
+    path: { project_id: project.id, package_id: scanUnlockPkg.id },
+    body: {
+      products: [
+        { product_id: scanUnlockTest.id, eligibility_criteria: "all" },
+        { product_id: scanUnlockAppStore.id, eligibility_criteria: "all" },
+        { product_id: scanUnlockPlayStore.id, eligibility_criteria: "all" },
+      ],
+    },
+  });
+  if (scanPkgAttachError) {
+    const e = scanPkgAttachError as any;
+    if (e?.type === "unprocessable_entity_error") {
+      console.log('Package "$rc_lifetime" already has scan_unlock_v1 products attached');
+    } else {
+      throw new Error(`Failed to attach products to scan_unlock package: ${JSON.stringify(scanPkgAttachError)}`);
+    }
+  } else {
+    console.log('Attached scan_unlock_v1 products to "$rc_lifetime" package');
+  }
+
   // ── API Keys ─────────────────────────────────────────────────────────────
   const getKeys = async (app: App) => {
     const { data, error } = await listAppPublicApiKeys({
@@ -417,8 +547,8 @@ async function seedRevenueCat() {
   console.log("Test Store App ID:       ", testApp.id);
   console.log("App Store App ID:        ", appStoreApp.id);
   console.log("Play Store App ID:       ", playStoreApp.id);
-  console.log("Entitlements:             pro, premium");
-  console.log("Offerings:                pro (default), premium");
+  console.log("Entitlements:             pro, premium, scan_unlocked");
+  console.log("Offerings:                pro (default), premium, scan_unlock");
   console.log("");
   console.log("Set these environment variables:");
   console.log("  REVENUECAT_PROJECT_ID =                     ", project.id);

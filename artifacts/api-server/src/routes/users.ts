@@ -219,7 +219,7 @@ router.post("/me/onboarding", async (req, res): Promise<void> => {
   }
   await db
     .update(usersTable)
-    .set({ onboardingAnswers: JSON.stringify(parsed.data.answers), updatedAt: new Date() })
+    .set({ onboardingAnswers: parsed.data.answers, updatedAt: new Date() })
     .where(eq(usersTable.id, userId));
   res.json({ ok: true });
 });

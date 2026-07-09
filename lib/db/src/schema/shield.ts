@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -22,7 +23,7 @@ export const usersTable = pgTable("users", {
   nextScanDue: timestamp("next_scan_due", { withTimezone: true }),
   avatarUrl: text("avatar_url"),
   scanCount: integer("scan_count").notNull().default(0),
-  onboardingAnswers: text("onboarding_answers"),
+  onboardingAnswers: jsonb("onboarding_answers"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
