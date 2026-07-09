@@ -1,0 +1,337 @@
+# ROOK Onboarding & Paywall Redesign Based on Premium App Conversion Patterns
+
+## Objective
+
+Redesign ROOK's onboarding and monetization experience using the provided reference videos as inspiration.
+
+Important:
+The videos are NOT a strict blueprint.
+
+Analyze the UX patterns, psychology, pacing, visual hierarchy, conversion techniques, and user flow decisions shown in the references.
+
+Adapt those concepts into ROOK's existing ecosystem.
+
+Do NOT blindly copy screens or features that our current application cannot support.
+
+---
+
+# Product Philosophy
+
+ROOK is a cybersecurity and identity protection app.
+
+The onboarding experience should make users feel:
+
+* "I understand the risk."
+* "ROOK can protect me."
+* "This app is built for people like me."
+* "I need to know my current security status."
+
+The user should emotionally understand the problem before being asked to pay.
+
+---
+
+# Important Implementation Rule
+
+Use your own product judgment.
+
+The ideas below are direction, not mandatory requirements.
+
+Only implement changes that:
+
+* Improve activation.
+* Increase trust.
+* Improve conversion.
+* Fit our existing backend.
+* Use functionality that already exists.
+
+Do not create fake functionality, placeholder features, or unsupported screens.
+
+---
+
+# New Onboarding Flow Direction
+
+Create a premium onboarding experience.
+
+The flow should be concise.
+
+Avoid a generic slideshow.
+
+Every screen should have a purpose.
+
+---
+
+## Screen 1: Brand Introduction
+
+Goal:
+Establish trust.
+
+Example:
+
+"Your digital identity is constantly exposed."
+
+Explain ROOK protects against:
+
+* Fake accounts
+* Stolen photos
+* Identity impersonation
+* Online threats
+
+Use premium cybersecurity visuals.
+
+---
+
+## Screen 2: Personalization
+
+Ask the user questions that help them identify with the problem.
+
+Examples:
+
+"What type of account do you want to protect?"
+
+Options:
+
+* Personal account
+* Creator/influencer
+* Business
+* Public figure
+* Other
+
+Store answers only if our current database supports this.
+
+Do not add unnecessary user data collection.
+
+---
+
+## Screen 3: Risk Education
+
+Show why protection matters.
+
+Examples:
+
+"Your photos can be copied."
+"Your username can be duplicated."
+"Fake accounts can damage your reputation."
+
+Keep this educational, not fear-based.
+
+---
+
+## Screen 4: Connect Account
+
+Guide users to connect supported platforms.
+
+Only show platforms currently supported by ROOK.
+
+Examples:
+
+Instagram
+Facebook
+X
+TikTok
+YouTube
+LinkedIn
+Snapchat
+
+Do not display unsupported integrations.
+
+---
+
+## Screen 5: Scan Experience
+
+Create a premium scanning animation.
+
+Show:
+
+* Images analyzed
+* Security checks running
+* Threat detection progress
+
+Only use real scan states from our backend.
+
+Do not fake threat results.
+
+---
+
+# Results Preview Before Paywall
+
+Do not immediately show a hard subscription wall.
+
+After scanning:
+
+Create a preview experience.
+
+Show:
+
+* Scan completed
+* Number of images analyzed
+* Security score
+* Potential threats detected
+
+Blur or lock:
+
+* Full threat details
+* Profile information
+* Evidence
+* Reporting actions
+
+The goal:
+
+Create curiosity while maintaining trust.
+
+---
+
+# Paywall Design
+
+Create a premium subscription/paywall experience.
+
+The paywall should feel like a cybersecurity protection upgrade.
+
+Avoid looking like a generic subscription screen.
+
+---
+
+## Offer Structure
+
+### Single Scan Unlock
+
+$2.99
+
+Unlock current scan results.
+
+Includes:
+
+* Full threat report
+* Evidence
+* Matched profiles
+* Reporting tools
+
+---
+
+### ROOK Pro
+
+$14.99/month
+
+Recommended plan.
+
+Includes:
+
+* Unlimited scans
+* Continuous monitoring
+* Threat alerts
+* Full reports
+* Scan history
+
+---
+
+### ROOK Premium
+
+$24.99/month
+
+Advanced protection.
+
+Includes only features our ecosystem currently supports.
+
+Potential future-ready positioning:
+
+* Multiple identity monitoring
+* Advanced protection tools
+* Priority scanning
+
+Do not display unavailable features as active.
+
+---
+
+# Paywall Psychology
+
+Use proven conversion principles:
+
+* Highlight the most valuable plan.
+* Clearly explain what the user receives.
+* Use trust-building language.
+* Reduce uncertainty.
+* Make the next action obvious.
+
+Avoid:
+
+* Aggressive sales language.
+* Fake urgency.
+* False claims.
+* Overloading the user.
+
+---
+
+# UI Requirements
+
+Match ROOK's existing brand.
+
+Create:
+
+* Premium cybersecurity aesthetic.
+* Clean typography.
+* Smooth transitions.
+* Modern cards.
+* Strong visual hierarchy.
+* Subtle animations.
+* Professional feel.
+
+The experience should feel closer to a premium security product than a basic utility app.
+
+---
+
+# Technical Requirements
+
+Before implementation:
+
+Review the current codebase.
+
+Identify:
+
+* Existing onboarding components.
+* Existing navigation.
+* Existing authentication.
+* Existing subscription/payment setup.
+* Existing scan functionality.
+
+Reuse existing systems wherever possible.
+
+Do not rebuild functionality unnecessarily.
+
+---
+
+# Analytics Preparation
+
+Add tracking hooks where appropriate:
+
+Onboarding Started
+
+Onboarding Completed
+
+Account Connected
+
+Scan Started
+
+Scan Completed
+
+Preview Viewed
+
+Paywall Viewed
+
+Scan Purchased
+
+Subscription Started
+
+Subscription Cancelled
+
+Only implement tracking if our current analytics architecture supports it.
+
+---
+
+# Final Goal
+
+Create the highest-converting ROOK onboarding experience possible while maintaining product integrity.
+
+Think like a senior product designer and engineer.
+
+The goal is not to copy another app.
+
+The goal is to understand why their onboarding converts and apply those principles to ROOK's identity protection experience.

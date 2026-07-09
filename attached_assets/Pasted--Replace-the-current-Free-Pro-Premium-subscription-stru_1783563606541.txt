@@ -1,0 +1,669 @@
+
+
+
+
+Replace the current Free / Pro / Premium subscription structure with a hybrid monetization model designed to maximize launch revenue while maintaining high subscription conversion.
+
+
+
+This should integrate into the existing React Native + Expo application without breaking any existing functionality.
+
+
+
+---
+
+
+
+# New Pricing Structure
+
+
+
+## Scan Unlock
+
+
+
+* Price: **$2.99 one-time purchase**
+
+* Grants access to the complete report generated from a completed scan.
+
+* This purchase only unlocks the current scan results.
+
+* Future scans require another unlock unless the user has an active subscription.
+
+
+
+---
+
+
+
+## Pro Plan
+
+
+
+**$14.99/month**
+
+
+
+Includes:
+
+
+
+* Unlimited scans
+
+* Continuous monitoring
+
+* Push notifications for new impersonators
+
+* Faster scan queue
+
+
+
+---
+
+
+
+## Premium Plan
+
+
+
+**$24.99/month**
+
+
+
+Everything in Pro plus:
+
+
+
+* Monitor multiple identities/accounts
+
+* Priority scan processing
+
+* Advanced AI threat detection
+
+* More connected social accounts
+
+* Family/Business monitoring support
+
+* Future premium features should automatically belong to this tier
+
+
+
+Design Premium so it can expand over time without requiring major UI changes.
+
+
+
+---
+
+
+
+# New User Flow
+
+
+
+## Step 1
+
+
+
+User signs in.
+
+
+
+---
+
+
+
+## Step 2
+
+
+
+User connects their first social account.
+
+
+
+---
+
+
+
+## Step 3
+
+
+
+User starts an AI scan.
+
+
+
+The scan should complete normally exactly as it does today.
+
+
+
+Do NOT reduce scan accuracy.
+
+
+
+---
+
+
+
+## Step 4
+
+
+
+Instead of immediately displaying full results, show a new "Results Preview" screen.
+
+
+
+Example information to display:
+
+
+
+• Profiles analyzed
+
+• Images compared
+
+• Scan completed successfully
+
+• Number of potential impersonators found
+
+• Security Score
+
+
+
+Do NOT reveal:
+
+
+
+* usernames
+
+* profile photos
+
+* evidence
+
+* reporting tools
+
+* profile links
+
+
+
+Instead display something similar to:
+
+
+
+"We found 4 potential impersonator accounts."
+
+
+
+"You've completed your free scan preview."
+
+
+
+"Unlock the complete report for only $2.99."
+
+
+
+Include a premium-looking blurred preview of the threat cards underneath.
+
+
+
+---
+
+
+
+# Unlock Report Screen
+
+
+
+Primary CTA:
+
+
+
+Unlock Full Report
+
+
+
+$2.99
+
+
+
+Benefits:
+
+
+
+✔ View every detected account
+
+
+
+✔ See stolen photos
+
+
+
+✔ View evidence
+
+
+
+
+
+
+
+Secondary option:
+
+
+
+Upgrade to Pro instead
+
+
+
+$14.99/month
+
+
+
+Label:
+
+
+
+Includes unlimited report unlocks forever.
+
+
+
+---
+
+
+
+# After Purchase
+
+
+
+Immediately unlock:
+
+
+
+* Threat Details
+
+* Matched photos
+
+* Platform links
+
+* Report buttons
+
+* Confidence scores
+
+* Evidence
+
+
+
+Do not require another scan.
+
+
+
+---
+
+
+
+# Subscription Upsell
+
+
+
+After the report has been viewed, show a premium card:
+
+
+
+"Stay Protected Automatically"
+
+
+
+Instead of paying for every future scan, Pro continuously monitors your accounts and instantly alerts you whenever new impersonators appear.
+
+
+
+CTA:
+
+
+
+Start Pro
+
+
+
+$14.99/month
+
+
+
+Secondary:
+
+
+
+Continue with one-time scans
+
+
+
+---
+
+
+
+# Dashboard Changes
+
+
+
+Replace the existing Free tier messaging.
+
+
+
+Display one of the following account states:
+
+
+
+## Not Protected
+
+
+
+No active monitoring
+
+
+
+CTA:
+
+
+
+Start Monitoring
+
+
+
+---
+
+
+
+## Scan Available
+
+
+
+If no subscription exists:
+
+
+
+"Run a Scan"
+
+
+
+---
+
+
+
+## Monitoring Active
+
+
+
+For Pro/Premium:
+
+
+
+Protected
+
+
+
+Last Scan
+
+
+
+Next Scheduled Scan
+
+
+
+Threat Status
+
+
+
+---
+
+
+
+# Pricing Page
+
+
+
+Create a completely redesigned pricing screen.
+
+
+
+Three cards.
+
+
+
+Card 1
+
+
+
+Single Scan
+
+
+
+$2.99
+
+
+
+Perfect if you only need to check your account today.
+
+
+
+Button:
+
+
+
+Unlock Report
+
+
+
+---
+
+
+
+Card 2 (Featured)
+
+
+
+Pro
+
+
+
+$14.99/month
+
+
+
+Unlimited scans
+
+
+
+Continuous monitoring
+
+
+
+
+
+Threat alerts
+
+
+
+
+
+Scan history
+
+
+
+Automatic rescans
+
+
+
+Badge:
+
+
+
+Most Popular
+
+
+
+---
+
+
+
+Card 3
+
+
+
+Premium
+
+
+
+$24.99/month
+
+
+
+Everything in Pro
+
+
+
+Multiple accounts
+
+
+
+Priority AI scanning
+
+
+
+Advanced protection
+
+
+
+Family support
+
+
+
+Future premium features
+
+
+
+Badge:
+
+
+
+Best Value
+
+
+
+---
+
+
+
+# UX Requirements
+
+
+
+The UI should feel like a premium cybersecurity application similar to Apple, Stripe, Notion, or Linear.
+
+
+
+Use:
+
+
+
+* Frosted glass cards
+
+* Smooth animations
+
+* Premium gradients
+
+* Subtle haptics
+
+* High-end typography
+
+* Large spacing
+
+* Minimal clutter
+
+
+
+No bright or gimmicky colors.
+
+
+
+Keep the existing ROOK branding.
+
+
+
+---
+
+
+
+# Revenue Tracking
+
+
+
+Prepare analytics events for:
+
+
+
+Scan Started
+
+
+
+Scan Completed
+
+
+
+Preview Viewed
+
+
+
+Unlock Purchased
+
+
+
+Pro Started
+
+
+
+Premium Started
+
+
+
+Subscription Upgraded
+
+
+
+Subscription Cancelled
+
+
+
+Threat Found
+
+
+
+Threat Reported
+
+
+
+These should be abstracted so they can later connect to RevenueCat 
+
+
+
+---
+
+
+
+# Technical Requirements
+
+
+
+* Preserve the existing authentication flow.
+
+* Preserve all current scan logic and detection algorithms.
+
+* Preserve existing API integrations.
+
+* Integrate the new purchase flow using the existing billing architecture RevenueCat 
+
+
+
+* Avoid duplicated logic.
+
+* Ensure all existing functionality continues to work after the monetization refactor.
+
+
+
+The end result should feel like a polished consumer cybersecurity product that maximizes both immediate purchase conversion through one-time report unlocks and long-term recurring revenue through Pro and Premium subscriptions.

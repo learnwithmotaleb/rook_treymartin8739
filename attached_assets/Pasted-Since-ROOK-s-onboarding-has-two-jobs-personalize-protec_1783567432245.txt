@@ -1,0 +1,315 @@
+Since ROOK's onboarding has two jobs—**personalize protection** and **teach you about your users**—I'd focus on collecting data that directly improves the product, marketing, and roadmap while keeping onboarding under about 90 seconds. The key is to ask only what you'll actually use.
+
+## 1. Who are you protecting?
+
+**What best describes you?**
+
+* Personal account
+* Creator / Influencer
+* Small business
+* Realtor
+* Entrepreneur
+* Public figure
+* Musician
+* Athlete
+* Model
+* Content creator
+* OF Creator
+* Nonprofit
+* Student
+* Government employee
+* Other
+
+---
+
+## 2. What's your biggest concern today?
+
+* Fake social media accounts
+* Someone stealing my photos
+* Identity theft
+* Online scams
+* Reputation damage
+* Fake customer accounts
+* Someone pretending to be me
+* I just want peace of mind
+
+This immediately tells you what value proposition resonates most.
+
+---
+
+## 3. Have you ever been impersonated?
+
+* Yes
+* No
+* I'm not sure
+
+If Yes:
+
+How many times?
+
+* Once
+* 2–5
+* More than 5
+
+---
+
+## 4. Did it cause real damage?
+
+Multiple choice
+
+* Lost followers
+* Lost money
+* Lost business
+* Reputation damage
+* Emotional stress
+* No damage
+* Other
+
+This becomes valuable product research.
+
+---
+
+## 5. Which platforms matter most?
+
+Multi-select
+
+* Instagram
+* Facebook
+* TikTok
+* X
+* YouTube
+* LinkedIn
+* Snapchat
+* Threads
+
+Prioritize API development based on answers.
+
+---
+
+## 6. How often do you post?
+
+* Multiple times daily
+* Daily
+* Weekly
+* Monthly
+* Rarely
+
+Great for understanding engagement.
+
+---
+
+## 7. Rough follower count
+
+* Under 500
+* 500–5k
+* 5k–25k
+* 25k–100k
+* 100k–500k
+* 500k+
+
+Useful for segmentation without collecting exact counts.
+
+---
+
+## 8. Do you make money from your online presence?
+
+* Yes, full-time
+* Yes, part-time
+* Not yet
+* No
+
+---
+
+## 9. What do you use your account for?
+
+Multi-select
+
+* Business
+* Friends & family
+* Brand building
+* Content creation
+* Selling products
+* Education
+* Entertainment
+* Other
+
+---
+
+## 10. What would worry you most?
+
+* Losing access to my account
+* Fake accounts
+* Photo theft
+* Identity theft
+* Scams
+* Data breaches
+* Reputation attacks
+
+---
+
+## 11. Have you ever reported an impersonator?
+
+* Yes
+* No
+
+If Yes:
+
+Was the platform helpful?
+
+⭐ 1–5
+
+Fantastic market validation.
+
+---
+
+## 12. How long did it take to resolve?
+
+* Same day
+* Few days
+* Weeks
+* Months
+* Never resolved
+
+---
+
+## 13. How confident are you your accounts are secure?
+
+Slider
+
+0–100
+
+You'll be able to compare this against scan results later.
+
+---
+
+## 14. Have you ever experienced any of these?
+
+Multi-select
+
+* Fake account
+* Hacked account
+* Stolen photos
+* Scam messages
+* Phishing
+* Data breach
+* Username copied
+* None
+
+---
+
+## 15. What made you download ROOK today?
+
+One of the most valuable questions.
+
+* Someone copied me
+* Friend recommendation
+* Social media
+* TikTok
+* Instagram
+* Reddit
+* App Store
+* Google
+* News article
+* Creator recommendation
+* Other
+
+---
+
+## 16. What almost stopped you?
+
+* Privacy concerns
+* Subscription price
+* Didn't understand what it does
+* Didn't trust it
+* Too much setup
+* Nothing
+
+Amazing for conversion optimization.
+
+---
+
+## 17. Which feature excited you most?
+
+* Fake account detection
+* Photo matching
+* Continuous monitoring
+* Alerts
+* Security score
+* One-tap reporting
+* Identity protection
+
+Great roadmap input.
+
+---
+
+## 18. If ROOK could add one feature...
+
+Free text
+
+This will become a goldmine of product ideas.
+
+---
+
+## 19. How often would you like scans?
+
+* Daily
+* Weekly
+* Monthly
+* Only when I request
+
+---
+
+## 20. Would you recommend ROOK?
+
+0–10
+
+Classic NPS baseline.
+
+---
+
+# Questions to avoid during onboarding
+
+Don't ask for:
+
+* Age
+* Gender
+* Income
+* Political views
+* Race or ethnicity
+* Religion
+* Home address
+* Phone number (unless needed for the product)
+
+These add friction without improving the core experience.
+
+# My recommendation
+
+I wouldn't show all 20 questions to every user. Instead, build an adaptive onboarding:
+
+### Step 1: Identify the user (2–3 questions)
+
+* Who are you?
+* What platform do you care about?
+* What's your biggest concern?
+
+### Step 2: Ask 2–3 follow-up questions based on their answers
+
+For example:
+
+* A creator might be asked about follower count and monetization.
+* A business owner might be asked about brand reputation.
+* Someone who says they've been impersonated might be asked about the impact and how long resolution took.
+
+### Step 3: Begin the scan
+
+This approach gives you rich, actionable data while keeping onboarding fast and relevant.
+
+Over time, the responses can help you answer questions like:
+
+* Which user segments convert best?
+* Which acquisition channels bring the highest-value customers?
+* Which social platforms generate the most impersonation reports?
+* Which problems should drive your product roadmap?
+* Which user segments have the highest retention and subscription rates?
+
+That kind of insight is often as valuable as the subscription revenue itself because it guides both product development and marketing.
