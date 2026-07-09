@@ -96,15 +96,14 @@ export default function Dashboard() {
 
   const monitoredCount = user.connectedAccounts.length;
 
-  // Tier-driven state machine:
-  //  not_protected  — no accounts connected (any tier)
-  //  scan_available — accounts exist but never scanned (any tier)
-  //  results_locked — free user who has scanned (results gated behind paywall)
-  //  monitoring_active — pro/premium subscriber with at least one scan
+  // Dashboard state machine (3 states):
+  //  not_protected    — no accounts connected (any tier)
+  //  scan_available   — accounts exist but never scanned (any tier)
+  //  monitoring_active — has completed at least one scan (any tier)
+  //  (free-user result gating is handled by the Alerts tab, not the dashboard)
   const dashState =
     monitoredCount === 0 ? ("not_protected" as const) :
     user.lastScan === "Never" ? ("scan_available" as const) :
-    user.tier === "free" ? ("results_locked" as const) :
     ("monitoring_active" as const);
 
   return (
@@ -182,28 +181,6 @@ export default function Dashboard() {
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-            </TouchableOpacity>
-          </Animated.View>
-        )}
-        {dashState === "results_locked" && (
-          <Animated.View entering={FadeInDown.delay(0).springify()}>
-            <TouchableOpacity
-              activeOpacity={0.88}
-              onPress={() => router.push("/scan-results-preview" as any)}
-              style={[styles.stateBanner, { backgroundColor: colors.warning + "14", borderColor: colors.warning + "44" }]}
-            >
-              <View style={[styles.stateBannerIcon, { backgroundColor: colors.warning + "22" }]}>
-                <Ionicons name="lock-closed" size={20} color={colors.warning} />
-              </View>
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={[styles.stateBannerTitle, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
-                  Results Ready — Locked
-                </Text>
-                <Text style={[styles.stateBannerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Tap to unlock your scan results or upgrade to Pro
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.warning} />
             </TouchableOpacity>
           </Animated.View>
         )}

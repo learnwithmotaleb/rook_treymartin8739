@@ -230,15 +230,42 @@ export default function ScanUnlock() {
     );
   };
 
+  /** Non-consumable $2.99 single-scan unlock — lives in the "scan_unlock" offering */
+  const getScanUnlockPackage = () => {
+    if (!isRevenueCatConfigured) return null;
+    const offering = offerings?.all["scan_unlock"];
+    return (
+      offering?.lifetime ??
+      offering?.availablePackages.find((p) => p.packageType === "LIFETIME") ??
+      offering?.availablePackages[0] ??
+      null
+    );
+  };
+
   const handleUnlockScan = async () => {
     setLoadingTier("scan");
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (isRevenueCatConfigured) {
+        const pkg = getScanUnlockPackage();
+        if (!pkg) {
+          Alert.alert(
+            "Not Available",
+            "The single-scan product isn't available right now. Please choose a subscription or try again later."
+          );
+          return;
+        }
+        await purchase(pkg);
+      }
+      // Mark locally after successful purchase (or in dev when RC not configured)
       await markScanUnlocked();
-      analytics.scanPurchased({ price: "2.99", via: "async_storage" });
+      analytics.scanPurchased({ price: "2.99", via: isRevenueCatConfigured ? "revenuecat" : "dev_mode" });
       router.replace("/(tabs)/alerts" as any);
-    } catch {
-      Alert.alert("Purchase Failed", "Please try again.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Purchase failed";
+      if (!msg.includes("cancelled") && !msg.includes("cancel")) {
+        Alert.alert("Purchase Failed", msg);
+      }
     } finally {
       setLoadingTier(null);
     }

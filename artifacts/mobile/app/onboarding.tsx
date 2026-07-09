@@ -3,6 +3,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -914,14 +915,101 @@ function RevealScreen({
   );
 }
 
-// ─── Step 8: Confidence Check ────────────────────────────────────────────────
-const CONFIDENCE_OPTIONS = [
-  { label: "Very worried", sublabel: "I suspect I've been impersonated", value: 10, icon: "alert-circle" },
-  { label: "Somewhat concerned", sublabel: "I've noticed some suspicious activity", value: 30, icon: "warning" },
-  { label: "Unsure", sublabel: "I haven't thought about it much", value: 50, icon: "help-circle" },
-  { label: "Fairly safe", sublabel: "I keep a low profile online", value: 70, icon: "shield-outline" },
-  { label: "Very confident", sublabel: "My identity is well protected", value: 90, icon: "shield-checkmark" },
-] as const;
+// ─── Step 8: Confidence Slider ───────────────────────────────────────────────
+function ConfidenceSliderTrack({
+  colors,
+  value,
+  onChange,
+}: {
+  colors: ReturnType<typeof useColors>;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        handleMove(evt.nativeEvent.locationX);
+      },
+      onPanResponderMove: (evt) => {
+        handleMove(evt.nativeEvent.locationX);
+      },
+    })
+  ).current;
+
+  const handleMove = (x: number) => {
+    if (trackWidth === 0) return;
+    const fraction = Math.max(0, Math.min(1, x / trackWidth));
+    const v = Math.round(fraction * 100);
+    Haptics.selectionAsync();
+    onChange(v);
+  };
+
+  const fraction = value / 100;
+  const thumbLeft = trackWidth > 0 ? fraction * trackWidth : 0;
+  const confidenceLabel =
+    value < 20 ? "Very worried about your safety" :
+    value < 40 ? "Somewhat concerned" :
+    value < 60 ? "Feeling neutral / unsure" :
+    value < 80 ? "Feeling fairly safe" :
+    "Very confident my identity is protected";
+
+  return (
+    <View style={{ gap: 20 }}>
+      <View style={{ alignItems: "center", gap: 4 }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>
+          {value}%
+        </Text>
+        <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }]}>
+          {confidenceLabel}
+        </Text>
+      </View>
+
+      <View
+        onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+        {...panResponder.panHandlers}
+        style={{ height: 52, justifyContent: "center" }}
+      >
+        {/* Track background */}
+        <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
+          {/* Fill */}
+          {trackWidth > 0 && (
+            <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: thumbLeft, backgroundColor: colors.primary, borderRadius: 3 }} />
+          )}
+        </View>
+        {/* Thumb */}
+        {trackWidth > 0 && (
+          <View style={{
+            position: "absolute",
+            left: thumbLeft - 15,
+            top: 11,
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: colors.primary,
+            shadowColor: colors.primary,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.5,
+            shadowRadius: 6,
+            elevation: 5,
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#fff" }} />
+          </View>
+        )}
+      </View>
+
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Text style={{ color: colors.danger, fontFamily: "Inter_400Regular", fontSize: 12 }}>Very Worried</Text>
+        <Text style={{ color: colors.success, fontFamily: "Inter_400Regular", fontSize: 12 }}>Very Confident</Text>
+      </View>
+    </View>
+  );
+}
 
 function ConfidenceStep({
   colors,
@@ -932,52 +1020,31 @@ function ConfidenceStep({
   selected: number | null;
   onSelect: (value: number) => void;
 }) {
+  const [sliderValue, setSliderValue] = useState(selected ?? 50);
+
+  useEffect(() => {
+    // Always emit the current slider value so Continue button is enabled
+    onSelect(sliderValue);
+  }, []);
+
+  const handleChange = (v: number) => {
+    setSliderValue(v);
+    onSelect(v);
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
-      <View style={{ gap: 8, marginBottom: 16 }}>
+      <View style={{ gap: 8, marginBottom: 28 }}>
         <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           How safe do you feel online?
         </Text>
         <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          We'll compare this to your actual scan results — most people are surprised.
+          Drag to set your confidence level — we'll compare it to your actual scan results. Most people are surprised.
         </Text>
       </View>
-      <View style={{ gap: 10 }}>
-        {CONFIDENCE_OPTIONS.map((opt) => {
-          const isSelected = selected === opt.value;
-          return (
-            <TouchableOpacity
-              key={opt.value}
-              activeOpacity={0.8}
-              onPress={() => {
-                Haptics.selectionAsync();
-                onSelect(opt.value);
-              }}
-              style={[
-                styles.optionCard,
-                {
-                  backgroundColor: isSelected ? colors.primary + "14" : colors.card,
-                  borderColor: isSelected ? colors.primary : colors.border,
-                  borderWidth: isSelected ? 1.5 : 1,
-                },
-              ]}
-            >
-              <View style={[styles.optionIconWrap, { backgroundColor: isSelected ? colors.primary + "18" : colors.secondary }]}>
-                <Ionicons name={opt.icon as any} size={18} color={isSelected ? colors.primary : colors.mutedForeground} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.optionLabel, { color: colors.foreground, fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_500Medium" }]}>
-                  {opt.label}
-                </Text>
-                <Text style={[styles.optionSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {opt.sublabel}
-                </Text>
-              </View>
-              {isSelected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <GlassCard style={{ padding: 20, gap: 8 }}>
+        <ConfidenceSliderTrack colors={colors} value={sliderValue} onChange={handleChange} />
+      </GlassCard>
     </ScrollView>
   );
 }
