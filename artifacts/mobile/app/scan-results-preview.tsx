@@ -21,6 +21,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
+import { SecurityScoreRing } from "@/components/SecurityScoreRing";
 import { analytics } from "@/lib/analytics";
 
 function BlurredThreatCard({
@@ -84,7 +85,7 @@ const blurStyles = StyleSheet.create({
 export default function ScanResultsPreview() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { threats } = useApp();
+  const { threats, user, indexedPhotos } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -99,7 +100,7 @@ export default function ScanResultsPreview() {
   const totalCount = activeThreats.length;
 
   useEffect(() => {
-    analytics.track("preview_viewed", { threat_count: totalCount, high: highCount });
+    analytics.previewViewed({ threat_count: totalCount, high: highCount });
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
@@ -156,15 +157,39 @@ export default function ScanResultsPreview() {
             </Text>
           </View>
 
-          {/* Count hero */}
+          {/* Score + stats hero */}
           <GlassCard style={styles.heroCard}>
             <LinearGradient colors={[colors.danger + "14", "transparent"]} style={StyleSheet.absoluteFill} />
-            <Text style={[styles.heroCount, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
-              {totalCount}
-            </Text>
-            <Text style={[styles.heroLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              {totalCount === 1 ? "Threat Found" : "Threats Found"}
-            </Text>
+            <SecurityScoreRing score={user.securityScore} size={130} />
+            {/* Quick-stats row */}
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
+                  {totalCount}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {totalCount === 1 ? "Threat" : "Threats"}
+                </Text>
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+                  {indexedPhotos.length}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Photos{"\n"}Analyzed
+                </Text>
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
+                  {user.connectedAccounts.length}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Platforms{"\n"}Scanned
+                </Text>
+              </View>
+            </View>
             <Text style={[styles.heroSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Unlock to see full details, evidence, and removal steps
             </Text>
@@ -257,7 +282,7 @@ export default function ScanResultsPreview() {
           style={[styles.primaryCta, { backgroundColor: colors.danger }]}
           activeOpacity={0.85}
           onPress={() => {
-            analytics.track("paywall_viewed", { source: "scan_results_preview", tier: "free" });
+            analytics.paywallViewed({ source: "scan_results_preview", tier: "free" });
             router.push("/scan-unlock" as any);
           }}
         >
@@ -271,7 +296,7 @@ export default function ScanResultsPreview() {
           style={[styles.secondaryCta, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "44" }]}
           activeOpacity={0.85}
           onPress={() => {
-            analytics.track("paywall_viewed", { source: "scan_results_preview", tier: "free", option: "pro" });
+            analytics.paywallViewed({ source: "scan_results_preview", tier: "free", option: "pro" });
             router.push({ pathname: "/subscription", params: { fromScan: "1" } } as any);
           }}
         >
@@ -319,12 +344,21 @@ const styles = StyleSheet.create({
 
   heroCard: {
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 28,
+    gap: 12,
+    paddingVertical: 24,
     overflow: "hidden",
   },
-  heroCount: { fontSize: 64, lineHeight: 72 },
-  heroLabel: { fontSize: 20 },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 0,
+    width: "100%",
+    justifyContent: "center",
+  },
+  statItem: { flex: 1, alignItems: "center", gap: 3 },
+  statDivider: { width: 1, height: 36, opacity: 0.5, marginHorizontal: 8 },
+  statValue: { fontSize: 24, lineHeight: 28 },
+  statLabel: { fontSize: 10, textAlign: "center", lineHeight: 14, opacity: 0.75 },
   heroSub: { fontSize: 13, textAlign: "center", lineHeight: 20, maxWidth: 280 },
   breakdownRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 4 },
   severityChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },

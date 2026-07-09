@@ -201,7 +201,7 @@ export default function Subscription() {
   // Fallback prices shown while RC offerings are loading (or in Expo Go test mode)
   const FALLBACK_PRICES: Record<Tier, { monthly: string; yearlyPerMonth: string; yearlyTotal: string }> = {
     free: { monthly: "$0", yearlyPerMonth: "$0", yearlyTotal: "$0" },
-    pro: { monthly: "$11.99", yearlyPerMonth: "$7.99", yearlyTotal: "$95.88" },
+    pro: { monthly: "$14.99", yearlyPerMonth: "$9.99", yearlyTotal: "$119.88" },
     premium: { monthly: "$24.99", yearlyPerMonth: "$16.99", yearlyTotal: "$203.88" },
   };
 

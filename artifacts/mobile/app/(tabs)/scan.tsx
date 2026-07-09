@@ -93,16 +93,21 @@ export default function ScanScreen() {
         duration: 400,
         useNativeDriver: true,
       }).start(() => {
-        if (activeCount > 0) {
-          setTimeout(() => {
+        // Free users always see the preview gate (even if 0 threats).
+        // Subscribed users only navigate to alerts when there are real threats.
+        setTimeout(() => {
+          if (user.tier === "free") {
+            Haptics.notificationAsync(
+              activeCount > 0
+                ? Haptics.NotificationFeedbackType.Warning
+                : Haptics.NotificationFeedbackType.Success
+            );
+            router.push("/scan-results-preview" as any);
+          } else if (activeCount > 0) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            if (user.tier === "free") {
-              router.push("/scan-results-preview" as any);
-            } else {
-              router.push("/(tabs)/alerts");
-            }
-          }, 2000);
-        }
+            router.push("/(tabs)/alerts");
+          }
+        }, 2000);
       });
     }
   }, [isScanning, threats, resultOpacity, user.tier]);

@@ -231,7 +231,7 @@ export default function ScanUnlock() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await markScanUnlocked();
-      analytics.track("scan_purchased", { price: "2.99", via: "async_storage" });
+      analytics.scanPurchased({ price: "2.99", via: "async_storage" });
       router.replace("/(tabs)/alerts" as any);
     } catch {
       Alert.alert("Purchase Failed", "Please try again.");
@@ -254,7 +254,7 @@ export default function ScanUnlock() {
       }
       await purchase(pkg);
       await markScanUnlocked();
-      analytics.track("subscription_started", { tier: tierId, source: "scan_unlock" });
+      analytics.subscriptionStarted({ tier: tierId, source: "scan_unlock" });
       router.replace("/(tabs)/alerts" as any);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Purchase failed";
@@ -273,7 +273,7 @@ export default function ScanUnlock() {
       const hasPremium = !!info.entitlements.active["premium"];
       if (hasPro || hasPremium) {
         await markScanUnlocked();
-        analytics.track("subscription_restored", { source: "scan_unlock" });
+        analytics.subscriptionRestored({ source: "scan_unlock" });
         syncSubscriptionTier(hasPremium ? "premium" : "pro").catch(() => {});
         router.replace("/(tabs)/alerts" as any);
       } else {

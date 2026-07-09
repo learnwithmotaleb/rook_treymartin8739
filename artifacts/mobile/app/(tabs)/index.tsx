@@ -96,9 +96,15 @@ export default function Dashboard() {
 
   const monitoredCount = user.connectedAccounts.length;
 
+  // Tier-driven state machine:
+  //  not_protected  — no accounts connected (any tier)
+  //  scan_available — accounts exist but never scanned (any tier)
+  //  results_locked — free user who has scanned (results gated behind paywall)
+  //  monitoring_active — pro/premium subscriber with at least one scan
   const dashState =
     monitoredCount === 0 ? ("not_protected" as const) :
     user.lastScan === "Never" ? ("scan_available" as const) :
+    user.tier === "free" ? ("results_locked" as const) :
     ("monitoring_active" as const);
 
   return (
@@ -179,6 +185,28 @@ export default function Dashboard() {
             </TouchableOpacity>
           </Animated.View>
         )}
+        {dashState === "results_locked" && (
+          <Animated.View entering={FadeInDown.delay(0).springify()}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => router.push("/scan-results-preview" as any)}
+              style={[styles.stateBanner, { backgroundColor: colors.warning + "14", borderColor: colors.warning + "44" }]}
+            >
+              <View style={[styles.stateBannerIcon, { backgroundColor: colors.warning + "22" }]}>
+                <Ionicons name="lock-closed" size={20} color={colors.warning} />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.stateBannerTitle, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
+                  Results Ready — Locked
+                </Text>
+                <Text style={[styles.stateBannerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Tap to unlock your scan results or upgrade to Pro
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.warning} />
+            </TouchableOpacity>
+          </Animated.View>
+        )}
         {dashState === "monitoring_active" && (
           <Animated.View entering={FadeInDown.delay(0).springify()}>
             <View style={[styles.stateBanner, { backgroundColor: colors.success + "14", borderColor: colors.success + "33" }]}>
@@ -190,7 +218,7 @@ export default function Dashboard() {
                   Monitoring Active
                 </Text>
                 <Text style={[styles.stateBannerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {monitoredCount} platform{monitoredCount !== 1 ? "s" : ""} · Last scan: {user.lastScan}
+                  {monitoredCount} platform{monitoredCount !== 1 ? "s" : ""} · {activeThreats} active threat{activeThreats !== 1 ? "s" : ""} · Last scan: {user.lastScan}
                 </Text>
               </View>
             </View>
