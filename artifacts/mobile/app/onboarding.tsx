@@ -24,7 +24,7 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { analytics } from "@/lib/analytics";
 
 const { width } = Dimensions.get("window");
-const TOTAL_STEPS = 9;
+const TOTAL_STEPS = 10;
 
 export interface OnboardingAnswers {
   primaryConcern: string | null;
@@ -32,6 +32,8 @@ export interface OnboardingAnswers {
   followerRange: string | null;
   activePlatforms: string[];
   attribution: string | null;
+  /** 0-100: how safe the user felt BEFORE their first scan (shown vs actual score in results preview) */
+  perceivedRisk: number | null;
 }
 
 // ─── Step 1: Welcome ──────────────────────────────────────────────────────────
@@ -912,6 +914,74 @@ function RevealScreen({
   );
 }
 
+// ─── Step 8: Confidence Check ────────────────────────────────────────────────
+const CONFIDENCE_OPTIONS = [
+  { label: "Very worried", sublabel: "I suspect I've been impersonated", value: 10, icon: "alert-circle" },
+  { label: "Somewhat concerned", sublabel: "I've noticed some suspicious activity", value: 30, icon: "warning" },
+  { label: "Unsure", sublabel: "I haven't thought about it much", value: 50, icon: "help-circle" },
+  { label: "Fairly safe", sublabel: "I keep a low profile online", value: 70, icon: "shield-outline" },
+  { label: "Very confident", sublabel: "My identity is well protected", value: 90, icon: "shield-checkmark" },
+] as const;
+
+function ConfidenceStep({
+  colors,
+  selected,
+  onSelect,
+}: {
+  colors: ReturnType<typeof useColors>;
+  selected: number | null;
+  onSelect: (value: number) => void;
+}) {
+  return (
+    <ScrollView contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
+      <View style={{ gap: 8, marginBottom: 16 }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          How safe do you feel online?
+        </Text>
+        <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          We'll compare this to your actual scan results — most people are surprised.
+        </Text>
+      </View>
+      <View style={{ gap: 10 }}>
+        {CONFIDENCE_OPTIONS.map((opt) => {
+          const isSelected = selected === opt.value;
+          return (
+            <TouchableOpacity
+              key={opt.value}
+              activeOpacity={0.8}
+              onPress={() => {
+                Haptics.selectionAsync();
+                onSelect(opt.value);
+              }}
+              style={[
+                styles.optionCard,
+                {
+                  backgroundColor: isSelected ? colors.primary + "14" : colors.card,
+                  borderColor: isSelected ? colors.primary : colors.border,
+                  borderWidth: isSelected ? 1.5 : 1,
+                },
+              ]}
+            >
+              <View style={[styles.optionIconWrap, { backgroundColor: isSelected ? colors.primary + "18" : colors.secondary }]}>
+                <Ionicons name={opt.icon as any} size={18} color={isSelected ? colors.primary : colors.mutedForeground} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.optionLabel, { color: colors.foreground, fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_500Medium" }]}>
+                  {opt.label}
+                </Text>
+                <Text style={[styles.optionSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {opt.sublabel}
+                </Text>
+              </View>
+              {isSelected && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </ScrollView>
+  );
+}
+
 // ─── Main Onboarding Component ────────────────────────────────────────────────
 export default function Onboarding() {
   const colors = useColors();
@@ -928,6 +998,7 @@ export default function Onboarding() {
     followerRange: null,
     activePlatforms: [],
     attribution: null,
+    perceivedRisk: null,
   });
 
   useEffect(() => {
@@ -1041,13 +1112,20 @@ export default function Onboarding() {
           onDone={() => animateToStep(8)}
         />
       );
-      case 8: return <RevealScreen colors={colors} answers={answers} />;
+      case 8: return (
+        <ConfidenceStep
+          colors={colors}
+          selected={answers.perceivedRisk}
+          onSelect={(value) => setAnswers((a) => ({ ...a, perceivedRisk: value }))}
+        />
+      );
+      case 9: return <RevealScreen colors={colors} answers={answers} />;
       default: return null;
     }
   };
 
   const showFooter = step !== 7; // scan screen auto-advances
-  const isLastStep = step === 8;
+  const isLastStep = step === 9;
   const isConnectStep = step === 6;
 
   // Some steps require a selection before continuing
@@ -1055,6 +1133,7 @@ export default function Onboarding() {
     if (step === 1) return answers.primaryConcern !== null;
     if (step === 3) return answers.userType !== null;
     if (step === 5) return answers.activePlatforms.length > 0;
+    if (step === 8) return answers.perceivedRisk !== null;
     return true;
   };
 
@@ -1064,6 +1143,7 @@ export default function Onboarding() {
     if (step === 1) return "Continue";
     if (step === 3) return "Continue";
     if (step === 5) return `Monitor ${answers.activePlatforms.length > 0 ? answers.activePlatforms.length : ""} Platform${answers.activePlatforms.length !== 1 ? "s" : ""}`;
+    if (step === 8) return "See My Risk Score";
     return "Continue";
   };
 

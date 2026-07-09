@@ -468,62 +468,6 @@ export default function Subscription() {
           </TouchableOpacity>
         )}
 
-        {/* Free plan card — hidden when user arrived from scan gate (3-card paywall mode) */}
-        {!isFromScan && <GlassCard style={[styles.planCard, {
-          borderColor: currentTier === "free" ? colors.primary : colors.border,
-          borderWidth: currentTier === "free" ? 1.5 : 1,
-        }]}>
-          <View style={styles.planBadgeRow}>
-            <View />
-            {currentTier === "free" && (
-              <View style={[styles.currentBadge, { backgroundColor: colors.success + "22", borderColor: colors.success + "55" }]}>
-                <Ionicons name="checkmark-circle" size={12} color={colors.success} />
-                <Text style={[styles.currentBadgeText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
-                  Your Plan
-                </Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.planHeader}>
-            <View style={[styles.planIconBg, { backgroundColor: colors.primary + "18" }]}>
-              <Ionicons name="shield-outline" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.planNameBlock}>
-              <Text style={[styles.planName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Free</Text>
-              <Text style={[styles.planTagline, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Get started with basic protection
-              </Text>
-            </View>
-            <View style={styles.planPriceBlock}>
-              <Text style={[styles.planPrice, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>$0</Text>
-            </View>
-          </View>
-          <View style={[styles.diffList, { borderTopColor: colors.border }]}>
-            {[
-              { icon: "scan", text: "3 scans / month" },
-              { icon: "person", text: "1 social account" },
-              { icon: "time", text: "24h threat history" },
-            ].map((d, i) => (
-              <View key={i} style={styles.diffRow}>
-                <View style={[styles.diffIcon, { backgroundColor: colors.primary + "14" }]}>
-                  <Ionicons name={d.icon as any} size={13} color={colors.primary} />
-                </View>
-                <Text style={[styles.diffText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                  {d.text}
-                </Text>
-              </View>
-            ))}
-          </View>
-          {currentTier === "free" && (
-            <View style={[styles.planCurrentRow, { borderTopColor: colors.border }]}>
-              <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-              <Text style={[styles.planCurrentText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
-                Active — you're protected
-              </Text>
-            </View>
-          )}
-        </GlassCard>}
-
         {/* Pro + Premium plan cards */}
         {PLAN_META.map((meta) => {
           const isCurrent = meta.id === currentTier;

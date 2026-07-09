@@ -8,7 +8,7 @@
  * After any purchase, navigates to Alerts and fires the post-unlock upsell flag.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -215,6 +215,10 @@ export default function ScanUnlock() {
 
   const [loadingTier, setLoadingTier] = useState<"scan" | "pro" | "premium" | null>(null);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    analytics.paywallViewed({ source: "scan_unlock" });
+  }, []);
 
   const getSubscriptionPackage = (tierId: "pro" | "premium") => {
     if (!isRevenueCatConfigured) return null;

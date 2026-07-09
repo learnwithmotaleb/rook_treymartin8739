@@ -4,7 +4,7 @@
  * CTAs: unlock for $2.99 (one-time) or subscribe to Pro/Premium.
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Platform,
   Animated,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -93,6 +94,8 @@ export default function ScanResultsPreview() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
 
+  const [perceivedRisk, setPerceivedRisk] = useState<number | null>(null);
+
   const activeThreats = threats.filter((t) => !t.resolved);
   const highCount = activeThreats.filter((t) => t.severity === "high").length;
   const medCount = activeThreats.filter((t) => t.severity === "medium").length;
@@ -105,6 +108,13 @@ export default function ScanResultsPreview() {
       Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start();
+    AsyncStorage.getItem("onboardingAnswers").then((raw) => {
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed?.perceivedRisk === "number") setPerceivedRisk(parsed.perceivedRisk);
+      } catch { /* no-op */ }
+    });
   }, []);
 
   const urgencyColor = highCount > 0 ? colors.danger : medCount > 0 ? colors.warning : colors.success;
@@ -190,6 +200,23 @@ export default function ScanResultsPreview() {
                 </Text>
               </View>
             </View>
+            {perceivedRisk !== null && (() => {
+              const felt = perceivedRisk;
+              const actual = user.securityScore;
+              const gap = felt - actual;
+              const surprising = Math.abs(gap) >= 20;
+              const moreExposed = gap > 0;
+              return surprising ? (
+                <View style={[styles.confidenceRow, { backgroundColor: moreExposed ? colors.danger + "14" : colors.success + "14", borderColor: moreExposed ? colors.danger + "40" : colors.success + "40" }]}>
+                  <Ionicons name={moreExposed ? "trending-down" : "trending-up"} size={15} color={moreExposed ? colors.danger : colors.success} />
+                  <Text style={[styles.confidenceText, { color: moreExposed ? colors.danger : colors.success, fontFamily: "Inter_500Medium" }]}>
+                    {moreExposed
+                      ? `You felt ${felt}% safe — your actual score is ${actual}. You're more exposed than you thought.`
+                      : `You felt ${felt}% safe — your actual score is ${actual}. You're better protected than expected!`}
+                  </Text>
+                </View>
+              ) : null;
+            })()}
             <Text style={[styles.heroSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Unlock to see full details, evidence, and removal steps
             </Text>
@@ -360,6 +387,8 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 24, lineHeight: 28 },
   statLabel: { fontSize: 10, textAlign: "center", lineHeight: 14, opacity: 0.75 },
   heroSub: { fontSize: 13, textAlign: "center", lineHeight: 20, maxWidth: 280 },
+  confidenceRow: { flexDirection: "row", alignItems: "flex-start", gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1, width: "100%" },
+  confidenceText: { fontSize: 12, lineHeight: 17, flex: 1 },
   breakdownRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 4 },
   severityChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   severityDot: { width: 6, height: 6, borderRadius: 3 },
