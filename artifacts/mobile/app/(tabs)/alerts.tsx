@@ -24,6 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analytics } from "@/lib/analytics";
 
 const SHOW_UPSELL_KEY = "rook:show_post_unlock_upsell";
+const SCAN_UNLOCK_KEY = "rook:scan_unlocked";
 
 type Tab = "active" | "resolved";
 type Filter = "all" | Severity;
@@ -296,10 +297,17 @@ export default function AlertsScreen() {
   const navigation = useNavigation();
   const hasMounted = useRef(false);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [scanUnlocked, setScanUnlocked] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(SHOW_UPSELL_KEY)
-      .then((val) => { if (val === "1") setShowUpsell(true); })
+    Promise.all([
+      AsyncStorage.getItem(SHOW_UPSELL_KEY),
+      AsyncStorage.getItem(SCAN_UNLOCK_KEY),
+    ])
+      .then(([upsellVal, unlockVal]) => {
+        if (upsellVal === "1") setShowUpsell(true);
+        if (unlockVal === "1") setScanUnlocked(true);
+      })
       .catch(() => {});
   }, []);
 
@@ -332,6 +340,8 @@ export default function AlertsScreen() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const isFree = user.tier === "free";
+  // Free users who paid the $2.99 one-time scan unlock see all results.
+  const isGated = isFree && !scanUnlocked;
 
   const activeFiltered = threats.filter((t) => {
     if (t.resolved) return false;
@@ -355,8 +365,8 @@ export default function AlertsScreen() {
     (t) => t.resolveAction === "false_positive" || t.resolveAction === "approved"
   ).length;
 
-  const visibleThreats = isFree ? activeFiltered.slice(0, FREE_VISIBLE_THREATS) : activeFiltered;
-  const lockedThreats = isFree ? activeFiltered.slice(FREE_VISIBLE_THREATS) : [];
+  const visibleThreats = isGated ? activeFiltered.slice(0, FREE_VISIBLE_THREATS) : activeFiltered;
+  const lockedThreats = isGated ? activeFiltered.slice(FREE_VISIBLE_THREATS) : [];
 
   const filterColor = (f: Filter) => {
     if (f === "high") return colors.danger;

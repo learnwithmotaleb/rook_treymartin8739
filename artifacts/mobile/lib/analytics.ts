@@ -48,5 +48,43 @@ function trackEvent(event: AnalyticsEvent, properties?: EventProperties): void {
 }
 
 export const analytics = {
+  /** Generic tracker — use typed helpers below when available. */
   track: trackEvent,
+
+  // ─── Typed convenience helpers ────────────────────────────────────────────
+  onboardingStarted: () =>
+    trackEvent("onboarding_started"),
+
+  onboardingCompleted: (props: { user_type?: string; platform_count?: number; attribution?: string }) =>
+    trackEvent("onboarding_completed", props),
+
+  onboardingSkipped: (props: { at_step?: number; reason?: string }) =>
+    trackEvent("onboarding_skipped", props),
+
+  scanStarted: (props?: { platform_count?: number }) =>
+    trackEvent("scan_started", props),
+
+  scanCompleted: (props?: { threat_count?: number; high?: number; medium?: number; low?: number }) =>
+    trackEvent("scan_completed", props),
+
+  paywallViewed: (props?: { source?: string; tier?: string; option?: string }) =>
+    trackEvent("paywall_viewed", props),
+
+  previewViewed: (props?: { threat_count?: number; high?: number }) =>
+    trackEvent("preview_viewed", props),
+
+  scanPurchased: (props?: { price?: string; via?: string }) =>
+    trackEvent("scan_purchased", props),
+
+  subscriptionStarted: (props?: { tier?: string; source?: string }) =>
+    trackEvent("subscription_started", props),
+
+  subscriptionRestored: (props?: { source?: string }) =>
+    trackEvent("subscription_restored", props),
+
+  upsellTapped: (props?: { source?: string }) =>
+    trackEvent("upsell_tapped", props),
+
+  upsellDismissed: (props?: { source?: string }) =>
+    trackEvent("upsell_dismissed", props),
 } as const;

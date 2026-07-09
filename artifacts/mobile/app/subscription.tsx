@@ -468,8 +468,8 @@ export default function Subscription() {
           </TouchableOpacity>
         )}
 
-        {/* Free plan card */}
-        <GlassCard style={[styles.planCard, {
+        {/* Free plan card — hidden when user arrived from scan gate (3-card paywall mode) */}
+        {!isFromScan && <GlassCard style={[styles.planCard, {
           borderColor: currentTier === "free" ? colors.primary : colors.border,
           borderWidth: currentTier === "free" ? 1.5 : 1,
         }]}>
@@ -522,7 +522,7 @@ export default function Subscription() {
               </Text>
             </View>
           )}
-        </GlassCard>
+        </GlassCard>}
 
         {/* Pro + Premium plan cards */}
         {PLAN_META.map((meta) => {
