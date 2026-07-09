@@ -340,7 +340,8 @@ export default function AlertsScreen() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const isFree = user.tier === "free";
-  // Free users who paid the $2.99 one-time scan unlock see all results.
+  // Gating: free users who haven't unlocked. Non-free tier bypasses regardless of AsyncStorage.
+  // scanUnlocked from AsyncStorage is supplementary — tier from AppContext/RC is authoritative.
   const isGated = isFree && !scanUnlocked;
 
   const activeFiltered = threats.filter((t) => {

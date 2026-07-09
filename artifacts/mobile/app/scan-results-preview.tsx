@@ -324,7 +324,7 @@ export default function ScanResultsPreview() {
           activeOpacity={0.85}
           onPress={() => {
             analytics.paywallViewed({ source: "scan_results_preview", tier: "free", option: "pro" });
-            router.push({ pathname: "/subscription", params: { fromScan: "1" } } as any);
+            router.push("/scan-unlock" as any);
           }}
         >
           <MaterialCommunityIcons name="crown" size={16} color={colors.primary} />
