@@ -15,7 +15,7 @@ import {
   Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -96,11 +96,27 @@ export default function ScanResultsPreview() {
 
   const [perceivedRisk, setPerceivedRisk] = useState<number | null>(null);
 
+  const params = useLocalSearchParams<{
+    total?: string;
+    high?: string;
+    medium?: string;
+    low?: string;
+    platforms?: string;
+  }>();
+
   const activeThreats = threats.filter((t) => !t.resolved);
-  const highCount = activeThreats.filter((t) => t.severity === "high").length;
-  const medCount = activeThreats.filter((t) => t.severity === "medium").length;
-  const lowCount = activeThreats.filter((t) => t.severity === "low").length;
-  const totalCount = activeThreats.length;
+  const highCount = params.high !== undefined
+    ? Number(params.high)
+    : activeThreats.filter((t) => t.severity === "high").length;
+  const medCount = params.medium !== undefined
+    ? Number(params.medium)
+    : activeThreats.filter((t) => t.severity === "medium").length;
+  const lowCount = params.low !== undefined
+    ? Number(params.low)
+    : activeThreats.filter((t) => t.severity === "low").length;
+  const totalCount = params.total !== undefined
+    ? Number(params.total)
+    : activeThreats.length;
 
   useEffect(() => {
     analytics.previewViewed({ threat_count: totalCount, high: highCount });
@@ -121,9 +137,11 @@ export default function ScanResultsPreview() {
   const urgencyLabel = highCount > 0 ? "High-priority threats found" : medCount > 0 ? "Medium-risk threats found" : "Low-risk activity detected";
 
   const previewPlatforms =
-    activeThreats.length > 0
-      ? activeThreats.slice(0, 3).map((t) => t.platform ?? "unknown")
-      : ["instagram", "tiktok", "x"];
+    params.platforms
+      ? params.platforms.split(",").filter(Boolean)
+      : activeThreats.length > 0
+        ? activeThreats.slice(0, 3).map((t) => t.platform ?? "unknown")
+        : ["instagram", "tiktok", "x"];
 
   const PREVIEW_CARDS = [
     { color: colors.danger, label: "HIGH", platform: previewPlatforms[0] ?? "instagram" },

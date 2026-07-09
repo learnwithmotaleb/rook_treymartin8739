@@ -206,6 +206,24 @@ router.delete("/me", async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
+const OnboardingAnswersBody = z.object({
+  answers: z.record(z.unknown()),
+}).strict();
+
+router.post("/me/onboarding", async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const parsed = OnboardingAnswersBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid body" });
+    return;
+  }
+  await db
+    .update(usersTable)
+    .set({ onboardingAnswers: JSON.stringify(parsed.data.answers), updatedAt: new Date() })
+    .where(eq(usersTable.id, userId));
+  res.json({ ok: true });
+});
+
 function formatRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();

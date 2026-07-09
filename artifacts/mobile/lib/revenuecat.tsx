@@ -28,6 +28,8 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 
 export const ENTITLEMENT_PRO = "pro";
 export const ENTITLEMENT_PREMIUM = "premium";
+export const ENTITLEMENT_SCAN_UNLOCK = "scan_unlocked";
+export const OFFERING_SCAN_UNLOCK = "scan_unlock";
 
 export type RCTier = "free" | "pro" | "premium";
 
@@ -74,6 +76,7 @@ export interface SubscriptionContextValue {
   offerings: PurchasesOfferings | undefined;
   tier: RCTier;
   isSubscribed: boolean;
+  isScanUnlocked: boolean;
   isLoading: boolean;
   purchase: (pkg: PurchasesPackage) => Promise<CustomerInfo>;
   restore: () => Promise<CustomerInfo>;
@@ -124,12 +127,15 @@ function useSubscriptionContext(): SubscriptionContextValue {
   });
 
   const tier = getTierFromCustomerInfo(customerInfoQuery.data);
+  const isScanUnlocked =
+    !!customerInfoQuery.data?.entitlements.active[ENTITLEMENT_SCAN_UNLOCK];
 
   return {
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
     tier,
     isSubscribed: tier !== "free",
+    isScanUnlocked,
     isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
     purchase: purchaseMutation.mutateAsync,
     restore: restoreMutation.mutateAsync,

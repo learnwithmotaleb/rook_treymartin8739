@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { saveOnboardingAnswers } from "@/lib/api";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { Platform as SocialPlatform } from "@/context/AppContext";
@@ -1117,6 +1118,7 @@ export default function Onboarding() {
   const handleSkip = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
+    saveOnboardingAnswers(answers as unknown as Record<string, unknown>).catch(() => {});
     analytics.onboardingSkipped({ at_step: step });
     router.replace("/(tabs)" as any);
   }, [completeOnboarding, answers, step]);
@@ -1124,6 +1126,7 @@ export default function Onboarding() {
   const handleFinish = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
+    saveOnboardingAnswers(answers as unknown as Record<string, unknown>).catch(() => {});
     analytics.onboardingCompleted({
       user_type: answers.userType ?? undefined,
       platform_count: answers.activePlatforms.length,
@@ -1135,6 +1138,7 @@ export default function Onboarding() {
   const handleMaybeLater = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
+    saveOnboardingAnswers(answers as unknown as Record<string, unknown>).catch(() => {});
     analytics.onboardingSkipped({ at_step: step, reason: "maybe_later" });
     router.replace("/(tabs)" as any);
   }, [completeOnboarding, answers, step]);

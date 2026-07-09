@@ -190,6 +190,13 @@ export async function updateMe(updates: {
   });
 }
 
+export async function saveOnboardingAnswers(answers: Record<string, unknown>): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/me/onboarding", {
+    method: "POST",
+    body: JSON.stringify({ answers }),
+  });
+}
+
 export async function uploadAvatar(imageBase64: string): Promise<{ avatarUrl: string }> {
   return apiFetch<{ avatarUrl: string }>("/me/avatar", {
     method: "PATCH",

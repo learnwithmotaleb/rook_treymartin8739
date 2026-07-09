@@ -22,6 +22,7 @@ import { ThreatCard } from "@/components/ThreatCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analytics } from "@/lib/analytics";
+import { useSubscription } from "@/lib/revenuecat";
 
 const SHOW_UPSELL_KEY = "rook:show_post_unlock_upsell";
 const SCAN_UNLOCK_KEY = "rook:scan_unlocked";
@@ -298,6 +299,7 @@ export default function AlertsScreen() {
   const hasMounted = useRef(false);
   const [showUpsell, setShowUpsell] = useState(false);
   const [scanUnlocked, setScanUnlocked] = useState(false);
+  const { isScanUnlocked: rcScanUnlocked } = useSubscription();
 
   useEffect(() => {
     Promise.all([
@@ -340,9 +342,10 @@ export default function AlertsScreen() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const isFree = user.tier === "free";
-  // Gating: free users who haven't unlocked. Non-free tier bypasses regardless of AsyncStorage.
-  // scanUnlocked from AsyncStorage is supplementary — tier from AppContext/RC is authoritative.
-  const isGated = isFree && !scanUnlocked;
+  // Gating: free users who haven't unlocked.
+  // RC entitlement (scan_unlocked) is authoritative; AsyncStorage is local cache fallback.
+  // Non-free tier always bypasses.
+  const isGated = isFree && !rcScanUnlocked && !scanUnlocked;
 
   const activeFiltered = threats.filter((t) => {
     if (t.resolved) return false;

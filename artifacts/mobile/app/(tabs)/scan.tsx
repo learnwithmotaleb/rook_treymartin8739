@@ -75,10 +75,17 @@ export default function ScanScreen() {
       prevScanning.current = true;
     } else if (prevScanning.current) {
       prevScanning.current = false;
-      const activeCount = threats.filter((t) => !t.resolved).length;
-      const photoCount = threats.filter(
-        (t) => !t.resolved && t.type === "stolen_photo"
+      const activeThreats = threats.filter((t) => !t.resolved);
+      const activeCount = activeThreats.length;
+      const photoCount = activeThreats.filter(
+        (t) => t.type === "stolen_photo"
       ).length;
+      const highCount = activeThreats.filter((t) => t.severity === "high").length;
+      const medCount = activeThreats.filter((t) => t.severity === "medium").length;
+      const lowCount = activeThreats.filter((t) => t.severity === "low").length;
+      const topPlatforms = [
+        ...new Set(activeThreats.slice(0, 3).map((t) => t.platform ?? "unknown")),
+      ].join(",");
       setLastResult({
         threatsFound: activeCount,
         photoThreats: photoCount,
@@ -102,7 +109,16 @@ export default function ScanScreen() {
                 ? Haptics.NotificationFeedbackType.Warning
                 : Haptics.NotificationFeedbackType.Success
             );
-            router.push("/scan-results-preview" as any);
+            router.push({
+              pathname: "/scan-results-preview",
+              params: {
+                total: String(activeCount),
+                high: String(highCount),
+                medium: String(medCount),
+                low: String(lowCount),
+                platforms: topPlatforms,
+              },
+            } as any);
           } else if (activeCount > 0) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             router.push("/(tabs)/alerts");
