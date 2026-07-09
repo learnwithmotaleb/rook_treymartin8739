@@ -96,6 +96,11 @@ export default function Dashboard() {
 
   const monitoredCount = user.connectedAccounts.length;
 
+  const dashState =
+    monitoredCount === 0 ? ("not_protected" as const) :
+    user.lastScan === "Never" ? ("scan_available" as const) :
+    ("monitoring_active" as const);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -129,6 +134,69 @@ export default function Dashboard() {
           />
         }
       >
+        {/* Dashboard State Banner */}
+        {dashState === "not_protected" && (
+          <Animated.View entering={FadeInDown.delay(0).springify()}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => router.push("/manage-accounts" as any)}
+              style={[styles.stateBanner, { backgroundColor: colors.danger + "14", borderColor: colors.danger + "44" }]}
+            >
+              <View style={[styles.stateBannerIcon, { backgroundColor: colors.danger + "22" }]}>
+                <Ionicons name="shield-outline" size={20} color={colors.danger} />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.stateBannerTitle, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
+                  Not Protected
+                </Text>
+                <Text style={[styles.stateBannerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Connect a social account to start monitoring
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.danger} />
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+        {dashState === "scan_available" && (
+          <Animated.View entering={FadeInDown.delay(0).springify()}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => router.push("/(tabs)/scan" as any)}
+              style={[styles.stateBanner, { backgroundColor: colors.primary + "14", borderColor: colors.primary + "44" }]}
+            >
+              <View style={[styles.stateBannerIcon, { backgroundColor: colors.primary + "22" }]}>
+                <MaterialCommunityIcons name="radar" size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.stateBannerTitle, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+                  Scan Available
+                </Text>
+                <Text style={[styles.stateBannerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Run your first scan to detect threats across your platforms
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+        {dashState === "monitoring_active" && (
+          <Animated.View entering={FadeInDown.delay(0).springify()}>
+            <View style={[styles.stateBanner, { backgroundColor: colors.success + "14", borderColor: colors.success + "33" }]}>
+              <View style={[styles.stateBannerIcon, { backgroundColor: colors.success + "22" }]}>
+                <Ionicons name="shield-checkmark" size={20} color={colors.success} />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.stateBannerTitle, { color: colors.success, fontFamily: "Inter_700Bold" }]}>
+                  Monitoring Active
+                </Text>
+                <Text style={[styles.stateBannerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {monitoredCount} platform{monitoredCount !== 1 ? "s" : ""} · Last scan: {user.lastScan}
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Security Score */}
         <Animated.View entering={FadeInDown.delay(0).springify()}>
           <GlassCard style={styles.scoreCard}>
@@ -375,4 +443,22 @@ const styles = StyleSheet.create({
 
   noThreats: { alignItems: "center", gap: 10, paddingVertical: 12 },
   noThreatsText: { fontSize: 14 },
+
+  stateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  stateBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stateBannerTitle: { fontSize: 14, lineHeight: 20 },
+  stateBannerSub: { fontSize: 12, lineHeight: 17 },
 });

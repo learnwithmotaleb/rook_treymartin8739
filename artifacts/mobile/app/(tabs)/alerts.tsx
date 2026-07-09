@@ -20,6 +20,10 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, Severity, type Threat } from "@/context/AppContext";
 import { ThreatCard } from "@/components/ThreatCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { analytics } from "@/lib/analytics";
+
+const SHOW_UPSELL_KEY = "rook:show_post_unlock_upsell";
 
 type Tab = "active" | "resolved";
 type Filter = "all" | Severity;
@@ -176,6 +180,40 @@ function LockedThreatCard({ threat, colors }: { threat: Threat; colors: ReturnTy
   );
 }
 
+function PostUnlockUpsellBanner({ onDismiss, colors }: { onDismiss: () => void; colors: ReturnType<typeof useColors> }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => {
+        analytics.track("upsell_tapped", { source: "post_scan_unlock" });
+        router.push("/subscription" as any);
+      }}
+      style={[upsellStyles.banner, { backgroundColor: colors.card, borderColor: colors.primary + "44" }]}
+    >
+      <LinearGradient colors={[colors.primary + "12", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <View style={upsellStyles.row}>
+        <View style={[upsellStyles.icon, { backgroundColor: colors.success + "20" }]}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[upsellStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Scan results unlocked!
+          </Text>
+          <Text style={[upsellStyles.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Upgrade to Pro for continuous monitoring — $14.99/mo →
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={onDismiss}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="close" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function PaywallBanner({ threats, colors }: { threats: Threat[]; colors: ReturnType<typeof useColors> }) {
   const high = threats.filter((t) => t.severity === "high").length;
   const medium = threats.filter((t) => t.severity === "medium").length;
@@ -257,6 +295,19 @@ export default function AlertsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
   const hasMounted = useRef(false);
+  const [showUpsell, setShowUpsell] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SHOW_UPSELL_KEY)
+      .then((val) => { if (val === "1") setShowUpsell(true); })
+      .catch(() => {});
+  }, []);
+
+  const dismissUpsell = useCallback(async () => {
+    setShowUpsell(false);
+    await AsyncStorage.removeItem(SHOW_UPSELL_KEY).catch(() => {});
+    analytics.track("upsell_dismissed", { source: "post_scan_unlock" });
+  }, []);
 
   // When the dashboard taps "Resolutions", deep-link opens this screen on the resolved tab.
   useEffect(() => {
@@ -442,6 +493,11 @@ export default function AlertsScreen() {
             renderItem={renderItem}
             contentContainerStyle={[styles.list, { paddingBottom: bottomPad + 100 }]}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
+            ListHeaderComponent={
+              showUpsell ? (
+                <PostUnlockUpsellBanner onDismiss={dismissUpsell} colors={colors} />
+              ) : null
+            }
             ListFooterComponent={
               <>
                 {lockedThreats.length > 0 && (
@@ -732,4 +788,28 @@ const paywallStyles = StyleSheet.create({
     borderTopWidth: 1,
   },
   ctaText: { fontSize: 14 },
+});
+
+const upsellStyles = StyleSheet.create({
+  banner: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+  },
+  icon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: { fontSize: 14, lineHeight: 20 },
+  sub: { fontSize: 12, lineHeight: 17 },
 });

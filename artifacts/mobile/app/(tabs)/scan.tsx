@@ -96,12 +96,16 @@ export default function ScanScreen() {
         if (activeCount > 0) {
           setTimeout(() => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            router.push("/(tabs)/alerts");
+            if (user.tier === "free") {
+              router.push("/scan-results-preview" as any);
+            } else {
+              router.push("/(tabs)/alerts");
+            }
           }, 2000);
         }
       });
     }
-  }, [isScanning, threats, resultOpacity]);
+  }, [isScanning, threats, resultOpacity, user.tier]);
 
   const hasAccounts = user.connectedAccounts.length > 0;
   const photoCount = indexedPhotos.length;

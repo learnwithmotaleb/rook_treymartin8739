@@ -21,6 +21,7 @@ import { useApp } from "@/context/AppContext";
 import { Platform as SocialPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { analytics } from "@/lib/analytics";
 
 const { width } = Dimensions.get("window");
 const TOTAL_STEPS = 9;
@@ -929,6 +930,10 @@ export default function Onboarding() {
     attribution: null,
   });
 
+  useEffect(() => {
+    analytics.track("onboarding_started");
+  }, []);
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -962,20 +967,27 @@ export default function Onboarding() {
   const handleSkip = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
+    analytics.track("onboarding_skipped", { at_step: step });
     router.replace("/(tabs)" as any);
-  }, [completeOnboarding, answers]);
+  }, [completeOnboarding, answers, step]);
 
   const handleFinish = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
+    analytics.track("onboarding_completed", {
+      user_type: answers.userType ?? undefined,
+      platform_count: answers.activePlatforms.length,
+      attribution: answers.attribution ?? undefined,
+    });
     router.replace("/subscription" as any);
   }, [completeOnboarding, answers]);
 
   const handleMaybeLater = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
+    analytics.track("onboarding_skipped", { at_step: step, reason: "maybe_later" });
     router.replace("/(tabs)" as any);
-  }, [completeOnboarding, answers]);
+  }, [completeOnboarding, answers, step]);
 
   const renderStep = () => {
     switch (step) {

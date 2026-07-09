@@ -171,8 +171,9 @@ export default function Subscription() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, completeOnboarding, refreshData } = useApp();
-  const { fromOnboarding } = useLocalSearchParams<{ fromOnboarding?: string }>();
+  const { fromOnboarding, fromScan } = useLocalSearchParams<{ fromOnboarding?: string; fromScan?: string }>();
   const isFromOnboarding = fromOnboarding === "1";
+  const isFromScan = fromScan === "1";
 
   const { offerings, tier: rcTier, isPurchasing, isLoading: rcIsLoading, purchase, restore, isRestoring } = useSubscription();
 
@@ -410,6 +411,62 @@ export default function Subscription() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Single Scan card — shown when user arrived from scan-results-preview or is on free tier */}
+        {(isFromScan || currentTier === "free") && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => router.push("/scan-unlock" as any)}
+          >
+            <GlassCard style={[styles.planCard, { borderColor: colors.danger + "44" }]}>
+              <View style={styles.planBadgeRow}>
+                <View style={[styles.planBadge, { backgroundColor: colors.danger }]}>
+                  <Text style={[styles.planBadgeText, { fontFamily: "Inter_700Bold" }]}>Instant Access</Text>
+                </View>
+              </View>
+              <View style={styles.planHeader}>
+                <View style={[styles.planIconBg, { backgroundColor: colors.danger + "18" }]}>
+                  <Ionicons name="lock-open" size={22} color={colors.danger} />
+                </View>
+                <View style={styles.planNameBlock}>
+                  <Text style={[styles.planName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    Single Scan
+                  </Text>
+                  <Text style={[styles.planTagline, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    Unlock this scan's full results
+                  </Text>
+                </View>
+                <View style={styles.planPriceBlock}>
+                  <Text style={[styles.planPrice, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>$2.99</Text>
+                  <Text style={[styles.planPricePer, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    one-time
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.diffList, { borderTopColor: colors.border }]}>
+                {[
+                  { icon: "lock-open", text: "Full results for this scan" },
+                  { icon: "flag", text: "One-tap report to platform" },
+                  { icon: "analytics", text: "AI threat analysis + evidence" },
+                  { icon: "close-circle", text: "No subscription required" },
+                ].map((d, i) => (
+                  <View key={i} style={styles.diffRow}>
+                    <View style={[styles.diffIcon, { backgroundColor: colors.danger + "14" }]}>
+                      <Ionicons name={d.icon as any} size={13} color={colors.danger} />
+                    </View>
+                    <Text style={[styles.diffText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                      {d.text}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <View style={[styles.planCta, { backgroundColor: colors.danger }]}>
+                <Ionicons name="lock-open" size={16} color="#fff" />
+                <Text style={[styles.planCtaText, { fontFamily: "Inter_700Bold" }]}>Unlock for $2.99</Text>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        )}
 
         {/* Free plan card */}
         <GlassCard style={[styles.planCard, {
