@@ -202,6 +202,25 @@ router.delete("/me", async (req, res): Promise<void> => {
   // all have onDelete:"cascade" referencing usersTable.id, so one delete suffices.
   await db.delete(usersTable).where(eq(usersTable.id, userId));
 
+  // Also delete the underlying Clerk identity. Without this, "deleting" an
+  // account only removes our DB row — the Clerk user (and its id/createdAt)
+  // survives, so signing back in with the same Google/email account reuses
+  // the same Clerk id and is treated as a returning user (skips onboarding,
+  // "Welcome back" instead of a fresh signup).
+  if (user.clerkId && process.env.CLERK_SECRET_KEY) {
+    try {
+      const resp = await fetch(`https://api.clerk.com/v1/users/${user.clerkId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
+      });
+      if (!resp.ok && resp.status !== 404) {
+        req.log.warn({ userId, clerkId: user.clerkId, status: resp.status }, "Clerk user deletion failed (non-fatal)");
+      }
+    } catch (err) {
+      req.log.warn({ userId, clerkId: user.clerkId, err }, "Clerk user deletion failed (non-fatal)");
+    }
+  }
+
   req.log.info({ userId }, "User account deleted");
   res.status(204).end();
 });
