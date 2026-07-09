@@ -377,7 +377,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     indexedPhotosRef.current = [];
     setLocalPhotoThreats([]);
     localPhotoThreatsRef.current = [];
+    // hasSeenOnboarding is a single global AsyncStorage key (not scoped per
+    // account), so it must be reset on logout — otherwise a brand new account
+    // signed into on the same device inherits the previous account's flag and
+    // skips onboarding entirely.
+    setHasSeenOnboarding(false);
     AsyncStorage.setItem("isLoggedIn", "false");
+    AsyncStorage.removeItem("hasSeenOnboarding");
     AsyncStorage.removeItem("indexedPhotos");
     AsyncStorage.removeItem("localPhotoThreats");
   }, []);
