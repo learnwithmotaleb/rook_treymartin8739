@@ -302,13 +302,16 @@ export default function ScanUnlock() {
       const info = await restore();
       const hasPro = !!info.entitlements.active["pro"];
       const hasPremium = !!info.entitlements.active["premium"];
-      if (hasPro || hasPremium) {
+      const hasScanUnlock = !!info.entitlements.active["scan_unlocked"];
+      if (hasPro || hasPremium || hasScanUnlock) {
         await markScanUnlocked();
         analytics.subscriptionRestored({ source: "scan_unlock" });
-        syncSubscriptionTier(hasPremium ? "premium" : "pro").catch(() => {});
+        if (hasPro || hasPremium) {
+          syncSubscriptionTier(hasPremium ? "premium" : "pro").catch(() => {});
+        }
         router.replace("/(tabs)/alerts" as any);
       } else {
-        setRestoreMsg("No active subscription found.");
+        setRestoreMsg("No active purchase found for this account.");
       }
     } catch {
       setRestoreMsg("Restore failed. Please try again.");

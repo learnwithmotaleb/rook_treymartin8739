@@ -1069,7 +1069,7 @@ export default function Onboarding() {
   });
 
   useEffect(() => {
-    analytics.track("onboarding_started");
+    analytics.onboardingStarted();
   }, []);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -1093,6 +1093,18 @@ export default function Onboarding() {
   );
 
   const handleNext = useCallback(() => {
+    // Fire step-completion analytics with the relevant answer for each gated step
+    const STEP_QUESTIONS: Record<number, { question: string; answer?: string | number }> = {
+      1: { question: "primary_concern", answer: answers.primaryConcern ?? undefined },
+      3: { question: "user_type_and_range", answer: answers.userType ?? undefined },
+      5: { question: "active_platforms", answer: answers.activePlatforms.join(",") },
+      8: { question: "perceived_risk_slider", answer: answers.perceivedRisk ?? undefined },
+    };
+    const stepMeta = STEP_QUESTIONS[step];
+    if (stepMeta) {
+      analytics.onboardingStepCompleted({ step, ...stepMeta });
+    }
+
     // After the Connect step, skip the scan-setup animation if no accounts connected
     if (step === 6 && !hasConnectedAccounts) {
       animateToStep(8);
@@ -1100,19 +1112,19 @@ export default function Onboarding() {
     }
     if (step < TOTAL_STEPS - 1) animateToStep(step + 1);
     else router.replace("/subscription" as any);
-  }, [step, animateToStep, hasConnectedAccounts]);
+  }, [step, animateToStep, hasConnectedAccounts, answers]);
 
   const handleSkip = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
-    analytics.track("onboarding_skipped", { at_step: step });
+    analytics.onboardingSkipped({ at_step: step });
     router.replace("/(tabs)" as any);
   }, [completeOnboarding, answers, step]);
 
   const handleFinish = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
-    analytics.track("onboarding_completed", {
+    analytics.onboardingCompleted({
       user_type: answers.userType ?? undefined,
       platform_count: answers.activePlatforms.length,
       attribution: answers.attribution ?? undefined,
@@ -1123,7 +1135,7 @@ export default function Onboarding() {
   const handleMaybeLater = useCallback(() => {
     completeOnboarding();
     AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
-    analytics.track("onboarding_skipped", { at_step: step, reason: "maybe_later" });
+    analytics.onboardingSkipped({ at_step: step, reason: "maybe_later" });
     router.replace("/(tabs)" as any);
   }, [completeOnboarding, answers, step]);
 

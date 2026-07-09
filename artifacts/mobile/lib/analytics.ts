@@ -61,6 +61,9 @@ export const analytics = {
   onboardingSkipped: (props: { at_step?: number; reason?: string }) =>
     trackEvent("onboarding_skipped", props),
 
+  onboardingStepCompleted: (props: { step: number; question: string; answer?: string | number }) =>
+    trackEvent("onboarding_step_completed", props),
+
   scanStarted: (props?: { platform_count?: number }) =>
     trackEvent("scan_started", props),
 
