@@ -172,12 +172,12 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
   }
 
   try {
-    // Accept either the https server callback URI OR the mobile:// custom
-    // scheme URI (used by the Expo app so iOS can intercept the redirect).
+    // Accept either the https server callback URI OR the custom-scheme URI
+    // (used by the Expo app so iOS can intercept the redirect immediately).
     // The redirect_uri in the token exchange must exactly match what was sent
     // to Instagram in the authorization request.
     const serverRedirectUri = `https://${DOMAIN}/api/oauth/instagram/callback`;
-    const mobileRedirectUri = "mobile://oauth";
+    const mobileRedirectUri = "com.getrook.app://oauth";
     const redirectUri = (req.query["redirect_uri"] as string | undefined) === mobileRedirectUri
       ? mobileRedirectUri
       : serverRedirectUri;
@@ -565,9 +565,9 @@ router.get("/oauth/redirect-uris", (_req, res) => {
     x:         `https://${DOMAIN}/api/oauth/x/callback`,
     // Public client IDs (non-secret) — mobile uses these when EXPO_PUBLIC_* not bundled
     x_client_id: process.env["TWITTER_CLIENT_ID"] ?? "",
-    // mobile:// scheme used by the Expo app for in-app browser OAuth
-    instagram_mobile: "mobile://oauth",
-    facebook_mobile:  "mobile://oauth",
+    // com.getrook.app:// scheme used by the Expo app for in-app browser OAuth
+    instagram_mobile: "com.getrook.app://oauth",
+    facebook_mobile:  "com.getrook.app://oauth",
   });
 });
 

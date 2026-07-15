@@ -16,7 +16,7 @@ import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL
-  ?? "https://tryrook.app";
+  ?? "https://getrook.app";
 
 const LEGAL_LINKS = [
   {
@@ -40,8 +40,8 @@ const APP_BUILD =
 const INFO_ROWS = [
   { label: "App Version", value: APP_VERSION },
   { label: "Build", value: APP_BUILD },
-  { label: "Support", value: "support@tryrook.app" },
-  { label: "Privacy", value: "privacy@tryrook.app" },
+  { label: "Support", value: "support.rook@gmail.com" },
+  { label: "Privacy", value: "support.rook@gmail.com" },
 ];
 
 export default function Legal() {

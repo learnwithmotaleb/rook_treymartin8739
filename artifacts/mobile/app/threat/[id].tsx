@@ -602,7 +602,7 @@ export default function ThreatDetail() {
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               const handle = (suspiciousUsername || "").replace(/^@/, "");
-              const reportUrl = `https://tryrook.app/report?platform=${encodeURIComponent(String(threat.platform ?? ""))}&username=${encodeURIComponent(handle)}`;
+              const reportUrl = `https://getrook.app/report?platform=${encodeURIComponent(String(threat.platform ?? ""))}&username=${encodeURIComponent(handle)}`;
               share(reportUrl);
             }}
             disabled={isSharing}
@@ -954,7 +954,7 @@ export default function ThreatDetail() {
             platform={String(threat.platform ?? "")}
             suspiciousUsername={suspiciousUsername || "unknown"}
             threatScore={threat.threatScore}
-            reportUrl={`https://tryrook.app/report?platform=${encodeURIComponent(String(threat.platform ?? ""))}&username=${encodeURIComponent((suspiciousUsername || "").replace(/^@/, ""))}`}
+            reportUrl={`https://getrook.app/report?platform=${encodeURIComponent(String(threat.platform ?? ""))}&username=${encodeURIComponent((suspiciousUsername || "").replace(/^@/, ""))}`}
           />
         </View>
       </View>

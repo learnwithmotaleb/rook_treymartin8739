@@ -1,6 +1,6 @@
 import { logger } from "../lib/logger";
 import { db, usersTable, connectedAccountsTable } from "@workspace/db";
-import { lte, and, isNotNull, eq, inArray } from "drizzle-orm";
+import { lte, and, isNotNull, eq } from "drizzle-orm";
 import { startScan } from "./scanOrchestrator";
 import { getSubscription } from "./subscriptionService";
 

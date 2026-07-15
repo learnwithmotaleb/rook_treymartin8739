@@ -5,12 +5,15 @@ const publicLegalRouter: IRouter = Router();
 
 const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? process.env["REPLIT_DEV_DOMAIN"]
-  ?? "tryrook.app";
+  ?? "getrook.app";
 
 const APP_NAME = "Rook";
-const CONTACT_EMAIL = "privacy@tryrook.app";
-const SUPPORT_EMAIL = "support@tryrook.app";
-const LAST_UPDATED = "June 15, 2026";
+const CONTACT_EMAIL = "support.rook@gmail.com";
+const SUPPORT_EMAIL = "support.rook@gmail.com";
+const BUSINESS_PHONE = "+1 (832) 819-3114";
+const BUSINESS_ADDRESS = "127 N Higgins Ave Suite 307D #2992, Missoula, MT 59802";
+const BUSINESS_NAME = "Rook Identity Labs LLC";
+const LAST_UPDATED = "July 15, 2026";
 
 const html = (title: string, body: string) => `<!DOCTYPE html>
 <html lang="en">
@@ -156,6 +159,9 @@ function servePrivacy(_req: Request, res: Response) {
 
     <h2>12. Contact</h2>
     <div class="card">
+      <p><strong>${BUSINESS_NAME}</strong></p>
+      <p><strong>Address:</strong> ${BUSINESS_ADDRESS}</p>
+      <p><strong>Phone:</strong> <a href="tel:${BUSINESS_PHONE.replace(/[^+\d]/g, "")}">${BUSINESS_PHONE}</a></p>
       <p><strong>Privacy inquiries:</strong> <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
       <p><strong>Support:</strong> <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
       <p><strong>Website:</strong> <a href="https://${DOMAIN}">https://${DOMAIN}</a></p>
@@ -222,6 +228,9 @@ function serveTerms(_req: Request, res: Response) {
 
     <h2>13. Contact</h2>
     <div class="card">
+      <p><strong>${BUSINESS_NAME}</strong></p>
+      <p><strong>Address:</strong> ${BUSINESS_ADDRESS}</p>
+      <p><strong>Phone:</strong> <a href="tel:${BUSINESS_PHONE.replace(/[^+\d]/g, "")}">${BUSINESS_PHONE}</a></p>
       <p><strong>Support:</strong> <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
       <p><strong>Privacy:</strong> <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
       <p><strong>Website:</strong> <a href="https://${DOMAIN}">https://${DOMAIN}</a></p>
