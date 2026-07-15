@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startWebhookRetryLoop } from "./services/webhookService";
-import { startScheduledScanLoop } from "./services/schedulerService";
+import { startScheduledScanLoop, startTokenRefreshLoop } from "./services/schedulerService";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +24,10 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  startWebhookRetryLoop();
-  startScheduledScanLoop();
+
+  // Wrap each background loop in try/catch so a startup error in one
+  // does not silently prevent the others from starting.
+  try { startWebhookRetryLoop(); } catch (err) { logger.error({ err }, "Failed to start webhook retry loop"); }
+  try { startScheduledScanLoop(); } catch (err) { logger.error({ err }, "Failed to start scheduled scan loop"); }
+  try { startTokenRefreshLoop(); } catch (err) { logger.error({ err }, "Failed to start token refresh loop"); }
 });

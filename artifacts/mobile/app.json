@@ -3,10 +3,10 @@
     "name": "Rook",
     "slug": "rook",
     "version": "1.0.0",
-    "privacyPolicyUrl": "https://tryrook.app/api/legal/privacy",
+    "privacyPolicyUrl": "https://getrook.app/privacy",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "com.getrook.app",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {

@@ -1,0 +1,185 @@
+# ROOK Meta Business Verification & App Review Readiness Audit
+
+Our LLC (Rook Identity Labs LLC) is now finalized, and we're preparing for Meta Business Verification and Meta App Review.
+
+I want you to act as a senior Meta Platform engineer and perform a complete audit of the entire codebase, backend, frontend, APIs, authentication flow, website, and Meta configuration.
+
+Do NOT make assumptions. Inspect the project and produce a detailed report.
+
+## Business Verification
+
+Verify that everything required for Meta Business Verification is present or identify what is missing.
+
+Check for:
+
+* Business name consistency
+* Company name throughout the app
+* Website branding
+* Privacy Policy
+* Terms of Service
+* Data Deletion Instructions page
+* Contact email
+* Contact phone
+* Domain ownership references
+* Business information displayed on the website
+
+Flag anything that could cause Business Verification issues.
+
+---
+
+## Meta Developer App
+
+Audit every Meta configuration.
+
+Check:
+
+* Facebook Login
+* Instagram Graph API
+* OAuth redirect URIs
+* App Domains
+* Bundle IDs
+* Package names
+* Deep links
+* Universal Links
+* Client IDs
+* App Secret usage
+* Redirect logic
+* Production vs Development mode
+
+Report every missing or incorrect configuration.
+
+---
+
+## Permission Audit
+
+Identify every Meta permission currently required by ROOK.
+
+For each permission explain:
+
+* Why ROOK needs it
+* Which feature uses it
+* Whether it requires App Review
+* Whether it is optional
+* Whether it can be removed
+
+Produce a final list of only the permissions required for launch.
+
+---
+
+## Authentication Audit
+
+Walk through every login flow.
+
+Inspect:
+
+* Facebook Login
+* Instagram connection
+* Session handling
+* Token refresh
+* Logout
+* Expired token handling
+* Error handling
+
+Find every possible failure point.
+
+---
+
+## Reviewer Experience
+
+Pretend you are a Meta reviewer.
+
+Attempt to follow the review flow from launch to connecting a Meta account and using the protected features.
+
+Identify every place where a reviewer could become confused or blocked.
+
+Recommend improvements.
+
+---
+
+## Website Audit
+
+Review the landing page.
+
+Verify:
+
+* Privacy Policy linked
+* Terms linked
+* Data Deletion page
+* Contact information
+* Company name consistency
+* App branding
+* HTTPS
+* Broken links
+* Metadata
+* Mobile responsiveness
+
+---
+
+## Security Audit
+
+Check:
+
+* Secret management
+* Environment variables
+* API keys
+* OAuth security
+* Callback validation
+* HTTPS enforcement
+* Token storage
+* Logging of sensitive information
+
+---
+
+## Error Handling
+
+Look for:
+
+* Unhandled exceptions
+* Blank screens
+* Failed API calls
+* Missing loading states
+* Authentication failures
+* Network failures
+
+---
+
+## Production Readiness
+
+Produce a complete checklist of:
+
+✅ Ready
+
+⚠ Needs attention
+
+❌ Blocking issue
+
+Rank every issue by severity.
+
+---
+
+## App Review Preparation
+
+Generate everything needed for Meta App Review:
+
+* Reviewer instructions
+* Reviewer test account requirements
+* Login credentials needed
+* Suggested review video script
+* Permission justifications
+* Reviewer notes
+
+---
+
+## Final Deliverable
+
+Produce a launch readiness report with:
+
+1. Critical blockers
+2. High-priority issues
+3. Medium-priority issues
+4. Low-priority improvements
+5. Business Verification readiness score (0–100)
+6. Meta App Review readiness score (0–100)
+7. Exact action plan to reach 100% readiness before submission.
+
+Do not make code changes automatically unless they are clearly safe. Present findings first with file references and recommended fixes.

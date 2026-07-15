@@ -46,7 +46,26 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+// Restrict CORS to known origins. Replit preview and dev domains are allowed
+// during development; production locks to the canonical getrook.app domain.
+const ALLOWED_ORIGINS = new Set([
+  "https://getrook.app",
+  "https://tryrook.app",
+]);
+const REPLIT_ORIGIN_RE = /^https:\/\/[a-z0-9-]+\.(replit\.dev|replit\.app|janeway\.replit\.dev)$/;
+
+app.use(
+  cors({
+    credentials: true,
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.has(origin) || REPLIT_ORIGIN_RE.test(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error(`CORS: origin not allowed — ${origin}`));
+    },
+  })
+);
 
 app.use("/api/billing/webhook", express.raw({ type: "application/json" }));
 

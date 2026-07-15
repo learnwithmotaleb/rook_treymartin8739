@@ -35,11 +35,11 @@ interface PlatformConfig {
   businessAccountNote?: string;
 }
 
-// Custom URL scheme registered in app.json ("scheme": "mobile").
-// Instagram/Facebook redirect to mobile://oauth — iOS intercepts this
+// Custom URL scheme registered in app.json ("scheme": "com.getrook.app").
+// Instagram/Facebook redirect to com.getrook.app://oauth — iOS intercepts this
 // immediately, closes the browser, and returns result.url to the app.
 // The app then POSTs the code to the server callback for token exchange.
-const OAUTH_SCHEME = "mobile://oauth";
+const OAUTH_SCHEME = "com.getrook.app://oauth";
 
 const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
   instagram: {

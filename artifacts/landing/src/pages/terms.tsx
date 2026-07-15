@@ -1,9 +1,12 @@
 import { Link } from "wouter";
 
-const LAST_UPDATED = "June 15, 2026";
+const LAST_UPDATED = "July 15, 2026";
 const APP_NAME = "Rook";
-const SUPPORT_EMAIL = "support@getrook.app";
-const CONTACT_EMAIL = "privacy@getrook.app";
+const SUPPORT_EMAIL = "support.rook@gmail.com";
+const CONTACT_EMAIL = "support.rook@gmail.com";
+const BUSINESS_PHONE = "+1 (832) 819-3114";
+const BUSINESS_ADDRESS = "127 N Higgins Ave Suite 307D #2992, Missoula, MT 59802";
+const BUSINESS_NAME = "Rook Identity Labs LLC";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -33,7 +36,7 @@ export default function Terms() {
             <img src="/landing/logo.png" alt="Rook" className="h-9 w-9 object-contain" />
           </Link>
           <Link href="/">
-            <span className="font-bold text-lg text-white">Shield<span className="text-blue-500">ID</span></span>
+            <span className="font-bold text-lg text-white">ROOK</span>
           </Link>
         </div>
 
@@ -208,8 +211,10 @@ export default function Terms() {
 
         <Section title="13. Contact">
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 space-y-1.5">
-            <P><strong className="text-white">Support:</strong>{" "}<a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-500 hover:underline">{SUPPORT_EMAIL}</a></P>
-            <P><strong className="text-white">Privacy:</strong>{" "}<a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-500 hover:underline">{CONTACT_EMAIL}</a></P>
+            <P><strong className="text-white">Company:</strong> {BUSINESS_NAME}</P>
+            <P><strong className="text-white">Address:</strong> {BUSINESS_ADDRESS}</P>
+            <P><strong className="text-white">Phone:</strong>{" "}<a href={`tel:${BUSINESS_PHONE.replace(/[^+\d]/g, "")}`} className="text-blue-500 hover:underline">{BUSINESS_PHONE}</a></P>
+            <P><strong className="text-white">Support &amp; privacy:</strong>{" "}<a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-500 hover:underline">{SUPPORT_EMAIL}</a></P>
           </div>
         </Section>
 

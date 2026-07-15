@@ -870,7 +870,7 @@ export default function Home() {
 
           <p className="text-center text-sm text-muted-foreground mt-10">
             Still have questions?{" "}
-            <a href="mailto:support@tryrook.app" className="text-primary hover:underline">Contact us</a>
+            <a href="mailto:support.rook@gmail.com" className="text-primary hover:underline">Contact us</a>
           </p>
         </div>
       </section>
@@ -888,9 +888,17 @@ export default function Home() {
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
             <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
             <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
-            <a href="mailto:support@tryrook.app" className="hover:text-white transition-colors">Contact</a>
+            <a href="mailto:support.rook@gmail.com" className="hover:text-white transition-colors">Contact</a>
           </div>
-          <div className="text-sm text-muted-foreground">© {new Date().getFullYear()} Rook. All rights reserved.</div>
+          <div className="text-sm text-muted-foreground text-right">
+            <div>© {new Date().getFullYear()} Rook Identity Labs LLC. All rights reserved.</div>
+            <div className="mt-0.5">
+              <a href="tel:+18328193114" className="hover:text-white transition-colors">+1 (832) 819-3114</a>
+              {" · "}
+              <a href="mailto:support.rook@gmail.com" className="hover:text-white transition-colors">support.rook@gmail.com</a>
+            </div>
+            <div className="text-xs mt-0.5 text-white/30">127 N Higgins Ave Suite 307D #2992, Missoula, MT 59802</div>
+          </div>
         </div>
         <div className="max-w-7xl mx-auto mt-8 pt-6 border-t border-white/[0.04]">
           <p className="text-xs text-white/20 text-center leading-relaxed max-w-3xl mx-auto">

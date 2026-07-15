@@ -78,8 +78,8 @@ export default function ReportPage() {
     const description = handle
       ? `Someone is being impersonated by @${handle} on ${platformLabel}. Tap to report the fake account and protect them.`
       : "A Rook user detected a fake account impersonating them. Tap to help report it.";
-    const cardImageUrl = "https://tryrook.app/og-share-card.png";
-    const canonicalUrl = `https://tryrook.app/report?platform=${encodeURIComponent(p)}&username=${encodeURIComponent(handle)}`;
+    const cardImageUrl = "https://getrook.app/landing/opengraph.jpg";
+    const canonicalUrl = `https://getrook.app/report?platform=${encodeURIComponent(p)}&username=${encodeURIComponent(handle)}`;
 
     document.title = title;
 
