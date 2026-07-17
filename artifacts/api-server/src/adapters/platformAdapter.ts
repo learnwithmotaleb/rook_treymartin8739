@@ -375,32 +375,47 @@ export class FacebookAdapter implements PlatformAdapter {
 
   async getMediaItems(
     accessToken: string,
-    _platformUserId: string,
+    platformUserId: string,
     limit = 50
   ): Promise<MediaItem[]> {
-    // user_photos permission requires App Review — gracefully return empty if not granted
-    const response = await metaFetch(
-      `https://graph.facebook.com/v22.0/me/photos?type=uploaded&fields=id,picture,name,created_time&limit=${limit}&access_token=${accessToken}`
-    );
-    if (!response.ok) return [];
-    const data = (await response.json()) as {
-      data?: Array<{
-        id: string;
-        picture?: string;
-        name?: string;
-        created_time?: string;
-      }>;
-      error?: { code: number; message: string };
-    };
-    // Permission denied (code 200) — not an error, just not granted yet
-    if (data.error) return [];
-    return (data.data ?? []).map((item) => ({
-      platformMediaId: item.id,
+    // Profile picture is always available with public_profile scope
+    const profilePicture: MediaItem = {
+      platformMediaId: `profile_${platformUserId}`,
       type: "image" as const,
-      url: item.picture ?? "",
-      caption: item.name,
-      postedAt: item.created_time ? new Date(item.created_time) : undefined,
-    }));
+      url: `https://graph.facebook.com/${platformUserId}/picture?type=large`,
+      caption: "Profile photo",
+    };
+
+    // user_photos permission requires App Review — gracefully fall back to profile pic
+    try {
+      const response = await metaFetch(
+        `https://graph.facebook.com/v22.0/me/photos?type=uploaded&fields=id,picture,name,created_time&limit=${limit}&access_token=${accessToken}`
+      );
+      if (!response.ok) return [profilePicture];
+      const data = (await response.json()) as {
+        data?: Array<{
+          id: string;
+          picture?: string;
+          name?: string;
+          created_time?: string;
+        }>;
+        error?: { code: number; message: string };
+      };
+      // Permission denied — fall back to profile picture
+      if (data.error || !data.data?.length) return [profilePicture];
+      return [
+        profilePicture,
+        ...(data.data ?? []).map((item) => ({
+          platformMediaId: item.id,
+          type: "image" as const,
+          url: item.picture ?? "",
+          caption: item.name,
+          postedAt: item.created_time ? new Date(item.created_time) : undefined,
+        })),
+      ];
+    } catch {
+      return [profilePicture];
+    }
   }
 
   async searchByUsername(): Promise<CandidateAccount[]> {

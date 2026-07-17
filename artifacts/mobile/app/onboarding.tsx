@@ -809,23 +809,27 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
       const redirectUriMap = await getOAuthRedirectUris().catch(() => ({} as Record<string,string>));
       const redirectUrl = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${cfg.callbackPath}`;
 
-      let state: string;
-      let authUrl: string;
+      // For X, TWITTER_CLIENT_ID is server-only — use the server-supplied x_client_id
+      const effectiveClientId = platform === "x"
+        ? ((redirectUriMap as Record<string,string>)["x_client_id"] || clientId)
+        : clientId;
 
-      if (!clientId) {
+      if (!effectiveClientId) {
         // No client ID available — fall back to manual entry
         setShowManual(true);
         return;
       }
 
+      let state: string;
+      let authUrl: string;
+
       if (platform === "x") {
         const { state: xState, codeChallenge } = await getXOAuthInit();
         state = xState;
-        const xClientId = (redirectUriMap as Record<string,string>)["x_client_id"] || clientId;
-        authUrl = buildOAuthUrl(platform, xClientId, state, redirectUrl, { code_challenge: codeChallenge, code_challenge_method: "S256" });
+        authUrl = buildOAuthUrl(platform, effectiveClientId, state, redirectUrl, { code_challenge: codeChallenge, code_challenge_method: "S256" });
       } else {
         state = await getOAuthState();
-        authUrl = buildOAuthUrl(platform, clientId, state, redirectUrl);
+        authUrl = buildOAuthUrl(platform, effectiveClientId, state, redirectUrl);
       }
 
       // The server processes the OAuth code and then redirects to the app scheme.
