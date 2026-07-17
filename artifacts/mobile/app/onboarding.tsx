@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   Animated,
@@ -30,7 +31,30 @@ import { useApp } from "@/context/AppContext";
 import { Platform as SocialPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { ScanPulse } from "@/components/ScanPulse";
 import { analytics } from "@/lib/analytics";
+import { useReduceMotion } from "@/hooks/useReduceMotion";
+
+// ─── ScaleButton: TouchableOpacity with spring press-in/out feedback ──────────
+function ScaleButton({ onPress, style, disabled, activeOpacity = 0.85, children }: {
+  onPress?: () => void;
+  style?: object | object[];
+  disabled?: boolean;
+  activeOpacity?: number;
+  children: React.ReactNode;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const rm = useReduceMotion();
+  const pressIn  = () => !rm && Animated.spring(scale, { toValue: 0.97, tension: 300, friction: 10, useNativeDriver: true }).start();
+  const pressOut = () => !rm && Animated.spring(scale, { toValue: 1,    tension: 300, friction: 10, useNativeDriver: true }).start();
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity onPress={onPress} style={style} disabled={disabled} activeOpacity={activeOpacity} onPressIn={pressIn} onPressOut={pressOut}>
+        {children}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 const { width } = Dimensions.get("window");
 const TOTAL_STEPS = 16;
@@ -46,27 +70,38 @@ export interface OnboardingAnswers {
   platformHandles: Record<string, string>;
 }
 
-// ─── Segmented Progress Bar ──────────────────────────────────────────────────
+// ─── Animated Progress Bar (spring fill) ─────────────────────────────────────
 function ProgressBar({ step, colors }: { step: number; colors: ReturnType<typeof useColors> }) {
+  const fillAnim = useRef(new Animated.Value((step + 1) / TOTAL_STEPS)).current;
+  const prevStep = useRef(step);
+  const glowAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(Animated.sequence([
+      Animated.timing(glowAnim, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+      Animated.timing(glowAnim, { toValue: 0.4, duration: 1500, useNativeDriver: false }),
+    ])).start();
+  }, []);
+
+  useEffect(() => {
+    if (prevStep.current !== step) {
+      prevStep.current = step;
+      Animated.spring(fillAnim, { toValue: (step + 1) / TOTAL_STEPS, tension: 100, friction: 14, useNativeDriver: false }).start();
+    }
+  }, [step]);
+
+  const glowWidth = fillAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
+  const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+
   return (
-    <View style={[pb.bar]}>
-      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-        <View
-          key={i}
-          style={[pb.seg, {
-            flex: 1,
-            marginRight: i < TOTAL_STEPS - 1 ? 2 : 0,
-            backgroundColor: i <= step ? colors.primary : colors.border,
-            opacity: i > step ? 0.35 : 1,
-          }]}
-        />
-      ))}
+    <View style={[pb.bar, { backgroundColor: colors.border }]}>
+      <Animated.View style={[pb.fill, { width: glowWidth, backgroundColor: colors.primary, opacity: glowOpacity }]} />
     </View>
   );
 }
 const pb = StyleSheet.create({
-  bar: { flexDirection: "row", height: 3, borderRadius: 2 },
-  seg: { height: 3, borderRadius: 1 },
+  bar: { height: 3, borderRadius: 2, overflow: "hidden" },
+  fill: { height: "100%", borderRadius: 2 },
 });
 
 // ─── S0: Brand Hook ───────────────────────────────────────────────────────────
@@ -82,6 +117,10 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   ).current;
   const glow = useRef(new Animated.Value(0)).current;
   const shield = useRef(new Animated.Value(0)).current;
+  const headlineAnim = useRef(new Animated.Value(0)).current;
+  const subAnim      = useRef(new Animated.Value(0)).current;
+  const bodyAnim     = useRef(new Animated.Value(0)).current;
+  const rm = useReduceMotion();
 
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -89,6 +128,15 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
       Animated.timing(glow, { toValue: 0, duration: 2600, useNativeDriver: true }),
     ])).start();
     Animated.spring(shield, { toValue: 1, tension: 55, friction: 8, useNativeDriver: true }).start();
+    if (!rm) {
+      Animated.stagger(140, [
+        Animated.timing(headlineAnim, { toValue: 1, duration: 500, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        Animated.timing(subAnim,      { toValue: 1, duration: 450, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        Animated.timing(bodyAnim,     { toValue: 1, duration: 400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      ]).start();
+    } else {
+      headlineAnim.setValue(1); subAnim.setValue(1); bodyAnim.setValue(1);
+    }
     particles.forEach((p) => {
       const run = () => {
         p.anim.setValue(0);
@@ -104,6 +152,9 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
 
   const glowOp = glow.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.32] });
   const shieldScale = shield.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+  const headY  = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+  const subY   = subAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
+  const bodyY  = bodyAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 
   return (
     <View style={[s.screenPad, { flex: 1, justifyContent: "center" }]}>
@@ -122,16 +173,16 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
           </Animated.View>
         </View>
         <View style={{ gap: 14, alignItems: "center" }}>
-          <Text style={[hook.headline, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          <Animated.Text style={[hook.headline, { color: colors.foreground, fontFamily: "Inter_700Bold", opacity: headlineAnim, transform: [{ translateY: headY }] }]}>
             Your name and face{"\n"}already exist online.
-          </Text>
-          <Text style={[hook.sub, { color: colors.foreground + "CC", fontFamily: "Inter_400Regular" }]}>
+          </Animated.Text>
+          <Animated.Text style={[hook.sub, { color: colors.foreground + "CC", fontFamily: "Inter_400Regular", opacity: subAnim, transform: [{ translateY: subY }] }]}>
             The question is{" "}
             <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>who's using them.</Text>
-          </Text>
-          <Text style={[hook.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          </Animated.Text>
+          <Animated.Text style={[hook.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", opacity: bodyAnim, transform: [{ translateY: bodyY }] }]}>
             Rook is an AI identity monitor that finds impersonators, stolen photos, and fake accounts using your identity — usually before you'd ever notice on your own.
-          </Text>
+          </Animated.Text>
         </View>
       </View>
     </View>
@@ -149,6 +200,29 @@ const hook = StyleSheet.create({
 
 // ─── S1: Credible Stat ────────────────────────────────────────────────────────
 function CredibleStatScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const [statNum, setStatNum] = useState(1);
+  const cardScale = useRef(new Animated.Value(0.93)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const rm = useReduceMotion();
+
+  useEffect(() => {
+    if (rm) { cardScale.setValue(1); cardOpacity.setValue(1); setStatNum(4); return; }
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.spring(cardScale, { toValue: 1, tension: 80, friction: 9, useNativeDriver: true }),
+        Animated.timing(cardOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+      ]).start();
+    }, 250);
+    let current = 1;
+    const iv = setInterval(() => {
+      current++;
+      setStatNum(current);
+      if (current >= 4) clearInterval(iv);
+    }, 200);
+    const guard = setTimeout(() => clearInterval(iv), 3000);
+    return () => { clearInterval(iv); clearTimeout(guard); };
+  }, []);
+
   return (
     <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 24 }]} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={["#EF444410", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -160,11 +234,13 @@ function CredibleStatScreen({ colors }: { colors: ReturnType<typeof useColors> }
           Fake accounts don't just borrow a name — they steal photos, copy bios, and message your real followers pretending to be you. Most people find out from someone else, days or weeks later.
         </Text>
       </View>
+      <Animated.View style={{ transform: [{ scale: cardScale }], opacity: cardOpacity }}>
       <GlassCard style={[stat.card, { borderLeftColor: "#EF4444", borderLeftWidth: 3 }]}>
-        <Text style={[stat.number, { color: "#EF4444", fontFamily: "Inter_700Bold" }]}>1 in 4</Text>
+        <Text style={[stat.number, { color: "#EF4444", fontFamily: "Inter_700Bold" }]}>1 in {statNum}</Text>
         <Text style={[stat.label, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Americans have experienced online identity fraud</Text>
         <Text style={[stat.src, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Source: FTC Consumer Sentinel Network Report</Text>
       </GlassCard>
+      </Animated.View>
       <View style={stat.cloneRow}>
         <GlassCard style={[stat.profile, { borderColor: colors.success + "55" }]}>
           <View style={[stat.avatar, { backgroundColor: colors.primary + "30" }]}><Ionicons name="person" size={20} color={colors.primary} /></View>
@@ -302,7 +378,8 @@ const USER_TYPES = [
   { id: "personal", icon: "person" as const, label: "Personal Use", risk: "Everyone deserves identity protection" },
 ];
 function IdentityTypeScreen({ colors, selected, onSelect }: { colors: ReturnType<typeof useColors>; selected: string | null; onSelect: (id: string) => void }) {
-  const anims = useRef(USER_TYPES.map(() => new Animated.Value(0))).current;
+  const anims  = useRef(USER_TYPES.map(() => new Animated.Value(0))).current;
+  const scales = useRef(USER_TYPES.map(() => new Animated.Value(1))).current;
   useEffect(() => { Animated.stagger(55, anims.map((a) => Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true }))).start(); }, []);
   return (
     <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 20 }]} showsVerticalScrollIndicator={false}>
@@ -312,8 +389,15 @@ function IdentityTypeScreen({ colors, selected, onSelect }: { colors: ReturnType
         {USER_TYPES.map((t, idx) => {
           const isSelected = selected === t.id;
           return (
-            <Animated.View key={t.id} style={{ opacity: anims[idx], transform: [{ translateY: anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }], width: (width - 60) / 2 }}>
-              <TouchableOpacity activeOpacity={0.8} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect(t.id); }}
+            <Animated.View key={t.id} style={{ opacity: anims[idx], transform: [{ translateY: anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }, { scale: scales[idx]! }], width: (width - 60) / 2 }}>
+              <TouchableOpacity activeOpacity={0.8}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  Animated.sequence([
+                    Animated.timing(scales[idx]!, { toValue: 0.95, duration: 80, useNativeDriver: true }),
+                    Animated.spring(scales[idx]!, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
+                  ]).start(() => onSelect(t.id));
+                }}
                 style={[type.card, { backgroundColor: isSelected ? colors.primary + "18" : colors.card, borderColor: isSelected ? colors.primary + "80" : colors.border, borderWidth: isSelected ? 1.5 : 1 }]}>
                 <View style={[type.icon, { backgroundColor: isSelected ? colors.primary + "25" : colors.secondary }]}><Ionicons name={t.icon} size={22} color={isSelected ? colors.primary : colors.mutedForeground} /></View>
                 <Text style={[{ color: isSelected ? colors.primary : colors.foreground, fontFamily: isSelected ? "Inter_700Bold" : "Inter_600SemiBold", fontSize: 13, textAlign: "center" }]}>{t.label}</Text>
@@ -338,7 +422,8 @@ const ACCOUNT_RANGES = [
   { id: "large", label: "6+ accounts", sub: "Wide digital presence" },
 ];
 function AccountCountScreen({ colors, selected, onSelect }: { colors: ReturnType<typeof useColors>; selected: string | null; onSelect: (id: string) => void }) {
-  const anims = useRef(ACCOUNT_RANGES.map(() => new Animated.Value(0))).current;
+  const anims  = useRef(ACCOUNT_RANGES.map(() => new Animated.Value(0))).current;
+  const scales = useRef(ACCOUNT_RANGES.map(() => new Animated.Value(1))).current;
   useEffect(() => { Animated.stagger(80, anims.map((a) => Animated.spring(a, { toValue: 1, tension: 100, friction: 9, useNativeDriver: true }))).start(); }, []);
   return (
     <View style={[s.screenPad, { flex: 1, justifyContent: "center", gap: 28 }]}>
@@ -351,8 +436,15 @@ function AccountCountScreen({ colors, selected, onSelect }: { colors: ReturnType
         {ACCOUNT_RANGES.map((r, idx) => {
           const isSelected = selected === r.id;
           return (
-            <Animated.View key={r.id} style={{ opacity: anims[idx], transform: [{ translateY: anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-              <TouchableOpacity activeOpacity={0.85} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onSelect(r.id); }}
+            <Animated.View key={r.id} style={{ opacity: anims[idx], transform: [{ translateY: anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }, { scale: scales[idx]! }] }}>
+              <TouchableOpacity activeOpacity={0.85}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  Animated.sequence([
+                    Animated.timing(scales[idx]!, { toValue: 0.96, duration: 80, useNativeDriver: true }),
+                    Animated.spring(scales[idx]!, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
+                  ]).start(() => onSelect(r.id));
+                }}
                 style={[cnt.card, { backgroundColor: isSelected ? colors.primary + "18" : colors.card, borderColor: isSelected ? colors.primary + "80" : colors.border, borderWidth: isSelected ? 1.5 : 1 }]}>
                 <View>
                   <Text style={[cnt.label, { color: isSelected ? colors.primary : colors.foreground, fontFamily: "Inter_700Bold" }]}>{r.label}</Text>
@@ -686,8 +778,36 @@ function ProfileSavedScreen({ colors, identityInput, selectedPlatforms, hasPhoto
   selectedPlatforms: string[];
   hasPhoto: boolean;
 }) {
-  const fade = useRef(new Animated.Value(0)).current;
-  useEffect(() => { Animated.timing(fade, { toValue: 1, duration: 500, useNativeDriver: true }).start(); }, []);
+  const badgeScale   = useRef(new Animated.Value(0)).current;
+  const badgeOpacity = useRef(new Animated.Value(0)).current;
+  const titleAnim    = useRef(new Animated.Value(0)).current;
+  const cardAnim     = useRef(new Animated.Value(0)).current;
+  const stepsAnim    = useRef(new Animated.Value(0)).current;
+  const rm = useReduceMotion();
+
+  useEffect(() => {
+    if (rm) {
+      badgeScale.setValue(1); badgeOpacity.setValue(1);
+      titleAnim.setValue(1); cardAnim.setValue(1); stepsAnim.setValue(1);
+      return;
+    }
+    Animated.sequence([
+      Animated.parallel([
+        Animated.spring(badgeScale,   { toValue: 1, tension: 55, friction: 6, useNativeDriver: true }),
+        Animated.timing(badgeOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]),
+      Animated.timing(titleAnim, { toValue: 1, duration: 350, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(cardAnim,  { toValue: 1, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(stepsAnim, { toValue: 1, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const badgeY  = badgeScale.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+  const titleY  = titleAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
+  const cardY   = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+  const stepsY  = stepsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+
+  const fade = useRef(new Animated.Value(1)).current;
   const steps = [
     { label: "Scan profile set", done: true },
     { label: "Enter your account handles", done: false, current: true },
@@ -697,28 +817,34 @@ function ProfileSavedScreen({ colors, identityInput, selectedPlatforms, hasPhoto
   return (
     <View style={[s.screenPad, { flex: 1, justifyContent: "center", gap: 32 }]}>
       <LinearGradient colors={["#10B98111", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <Animated.View style={{ opacity: fade, gap: 24 }}>
+      <View style={{ gap: 24 }}>
         <View style={{ gap: 10 }}>
-          <View style={[ps.badge, { backgroundColor: colors.success + "14", borderColor: colors.success + "33" }]}>
-            <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-            <Text style={[{ color: colors.success, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>Your profile is saved</Text>
-          </View>
-          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>You're 3 steps{"\n"}from your first results.</Text>
+          <Animated.View style={{ opacity: badgeOpacity, transform: [{ scale: badgeScale }, { translateY: badgeY }] }}>
+            <View style={[ps.badge, { backgroundColor: colors.success + "14", borderColor: colors.success + "33" }]}>
+              <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+              <Text style={[{ color: colors.success, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>Your profile is saved</Text>
+            </View>
+          </Animated.View>
+          <Animated.Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold", opacity: titleAnim, transform: [{ translateY: titleY }] }]}>
+            You're 3 steps{"\n"}from your first results.
+          </Animated.Text>
         </View>
         {(identityInput || selectedPlatforms.length > 0 || hasPhoto) && (
-          <GlassCard style={{ gap: 10, borderColor: colors.primary + "22" }}>
-            {identityInput ? (
-              <View style={ps.row}><Ionicons name="person-circle" size={16} color={colors.primary} /><Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Scanning for: <Text style={{ fontFamily: "Inter_600SemiBold" }}>{identityInput}</Text></Text></View>
-            ) : null}
-            {selectedPlatforms.length > 0 && (
-              <View style={ps.row}><Ionicons name="grid" size={16} color={colors.primary} /><Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 13 }]}>{selectedPlatforms.length} platform{selectedPlatforms.length !== 1 ? "s" : ""} selected</Text></View>
-            )}
-            {hasPhoto && (
-              <View style={ps.row}><Ionicons name="image" size={16} color={colors.primary} /><Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Photo added for reverse-image scan</Text></View>
-            )}
-          </GlassCard>
+          <Animated.View style={{ opacity: cardAnim, transform: [{ translateY: cardY }] }}>
+            <GlassCard style={{ gap: 10, borderColor: colors.primary + "22" }}>
+              {identityInput ? (
+                <View style={ps.row}><Ionicons name="person-circle" size={16} color={colors.primary} /><Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Scanning for: <Text style={{ fontFamily: "Inter_600SemiBold" }}>{identityInput}</Text></Text></View>
+              ) : null}
+              {selectedPlatforms.length > 0 && (
+                <View style={ps.row}><Ionicons name="grid" size={16} color={colors.primary} /><Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 13 }]}>{selectedPlatforms.length} platform{selectedPlatforms.length !== 1 ? "s" : ""} selected</Text></View>
+              )}
+              {hasPhoto && (
+                <View style={ps.row}><Ionicons name="image" size={16} color={colors.primary} /><Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Photo added for reverse-image scan</Text></View>
+              )}
+            </GlassCard>
+          </Animated.View>
         )}
-        <View style={{ gap: 0 }}>
+        <Animated.View style={{ opacity: stepsAnim, transform: [{ translateY: stepsY }], gap: 0 }}>
           {steps.map((step, i) => (
             <View key={step.label} style={ps.stepRow}>
               <View style={ps.stepIconCol}>
@@ -730,8 +856,8 @@ function ProfileSavedScreen({ colors, identityInput, selectedPlatforms, hasPhoto
               <Text style={[ps.stepLabel, { color: step.done || step.current ? colors.foreground : colors.mutedForeground, fontFamily: step.current ? "Inter_600SemiBold" : "Inter_400Regular", paddingBottom: i < steps.length - 1 ? 20 : 0 }]}>{step.label}</Text>
             </View>
           ))}
-        </View>
-      </Animated.View>
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -1175,10 +1301,8 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
     <View style={[s.screenPad, { flex: 1, alignItems: "center", justifyContent: "center", gap: 32 }]}>
       <LinearGradient colors={["#3B82F622", "#8B5CF611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={sc.rings}>
-        {[200, 150, 100].map((size, i) => (
-          <View key={size} style={[sc.ring, { width: size, height: size, borderRadius: size / 2, borderColor: colors.primary + (i === 0 ? "18" : i === 1 ? "28" : "38") }]} />
-        ))}
-        <Animated.View style={{ transform: [{ rotate: spin }] }}>
+        <ScanPulse size={200} active={true} />
+        <Animated.View style={{ position: "absolute", transform: [{ rotate: spin }] }}>
           <View style={[sc.spinner, { borderColor: colors.primary + "44", borderTopColor: colors.primary }]} />
         </Animated.View>
         <Ionicons name="shield-checkmark" size={36} color={colors.primary} style={sc.shield} />
@@ -1219,9 +1343,12 @@ const sc = StyleSheet.create({
 
 // ─── S14: Result Reveal (real threat count) ────────────────────────────────────
 function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeof useColors>; threatCount: number }) {
+  const [displayCount, setDisplayCount] = useState(0);
   const fade = useRef(new Animated.Value(0)).current;
   const cardAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
   const pulse = useRef(new Animated.Value(1)).current;
+  const rm = useReduceMotion();
+
   useEffect(() => {
     Animated.timing(fade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.stagger(150, cardAnims.map((a) => Animated.spring(a, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }))).start();
@@ -1229,6 +1356,17 @@ function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeo
       Animated.timing(pulse, { toValue: 1.02, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       Animated.timing(pulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
     ])).start();
+
+    if (rm || threatCount === 0) { setDisplayCount(threatCount); return; }
+    const steps = Math.min(threatCount, 8);
+    const stepSize = Math.ceil(threatCount / steps);
+    let current = 0;
+    const iv = setInterval(() => {
+      current = Math.min(current + stepSize, threatCount);
+      setDisplayCount(current);
+      if (current >= threatCount) clearInterval(iv);
+    }, 100);
+    return () => clearInterval(iv);
   }, []);
   const hasThreats = threatCount > 0;
   const MOCK_CARDS = [
@@ -1248,7 +1386,7 @@ function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeo
         {hasThreats ? (
           <>
             <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              We found{" "}<Text style={{ color: "#EF4444" }}>{threatCount} potential match{threatCount !== 1 ? "es" : ""}</Text>.
+              We found{" "}<Text style={{ color: "#EF4444" }}>{displayCount} potential match{displayCount !== 1 ? "es" : ""}</Text>.
             </Text>
             <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Unlock your full identity report to see exactly where — and what to do about it.
@@ -1306,8 +1444,21 @@ function ReportBridgeScreen({ colors, threatCount, userType, platformCount }: {
   userType: string | null;
   platformCount: number;
 }) {
-  const fade = useRef(new Animated.Value(0)).current;
-  useEffect(() => { Animated.timing(fade, { toValue: 1, duration: 600, useNativeDriver: true }).start(); }, []);
+  const fade       = useRef(new Animated.Value(0)).current;
+  const summaryAnim = useRef(new Animated.Value(0)).current;
+  const featAnims   = useRef([0, 1, 2, 3].map(() => new Animated.Value(0))).current;
+  const rm = useReduceMotion();
+
+  useEffect(() => {
+    if (rm) { fade.setValue(1); summaryAnim.setValue(1); featAnims.forEach(a => a.setValue(1)); return; }
+    Animated.sequence([
+      Animated.timing(fade, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(summaryAnim, { toValue: 1, duration: 400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.stagger(90, featAnims.map(a => Animated.timing(a, { toValue: 1, duration: 320, easing: Easing.out(Easing.ease), useNativeDriver: true }))),
+    ]).start();
+  }, []);
+
+  const summaryY = summaryAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
   const userTypeLabel = USER_TYPES.find((t) => t.id === userType)?.label ?? null;
   const LOCKED_FEATURES = ["Continuous daily monitoring", "Takedown request assistance", "30-day threat history", "Real-time push alerts"];
   return (
@@ -1318,33 +1469,37 @@ function ReportBridgeScreen({ colors, threatCount, userType, platformCount }: {
           <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Your Identity Protection{"\n"}Report is ready.</Text>
           <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Free accounts get a one-time scan. Rook Premium monitors continuously — every platform, every day.</Text>
         </View>
-        <GlassCard style={{ gap: 14, borderColor: colors.primary + "33" }}>
-          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Scan Summary</Text>
-          <View style={{ gap: 10 }}>
-            {[
-              { label: "Platforms scanned", value: platformCount > 0 ? String(platformCount) : "All major platforms", icon: "grid-outline" },
-              { label: "Matches found", value: threatCount > 0 ? String(threatCount) : "None detected yet", icon: "alert-circle-outline", color: threatCount > 0 ? "#EF4444" : colors.success },
-              { label: "Scan type", value: "Full identity sweep", icon: "shield-checkmark-outline" },
-            ].map((row) => (
-              <View key={row.label} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <Ionicons name={row.icon as any} size={16} color={row.color ?? colors.primary} />
-                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, flex: 1 }]}>{row.label}</Text>
-                <Text style={[{ color: row.color ?? colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>{row.value}</Text>
-              </View>
-            ))}
-          </View>
-        </GlassCard>
+        <Animated.View style={{ opacity: summaryAnim, transform: [{ translateY: summaryY }] }}>
+          <GlassCard style={{ gap: 14, borderColor: colors.primary + "33" }}>
+            <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Scan Summary</Text>
+            <View style={{ gap: 10 }}>
+              {[
+                { label: "Platforms scanned", value: platformCount > 0 ? String(platformCount) : "All major platforms", icon: "grid-outline" },
+                { label: "Matches found", value: threatCount > 0 ? String(threatCount) : "None detected yet", icon: "alert-circle-outline", color: threatCount > 0 ? "#EF4444" : colors.success },
+                { label: "Scan type", value: "Full identity sweep", icon: "shield-checkmark-outline" },
+              ].map((row) => (
+                <View key={row.label} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Ionicons name={row.icon as any} size={16} color={row.color ?? colors.primary} />
+                  <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, flex: 1 }]}>{row.label}</Text>
+                  <Text style={[{ color: row.color ?? colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
+          </GlassCard>
+        </Animated.View>
         <GlassCard style={{ gap: 12, borderColor: colors.border }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Ionicons name="lock-closed" size={14} color={colors.mutedForeground} />
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Premium features — unlock with trial</Text>
           </View>
-          {LOCKED_FEATURES.map((f) => (
-            <View key={f} style={{ flexDirection: "row", alignItems: "center", gap: 10, opacity: 0.5 }}>
-              <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-              <Text style={[{ color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>{f}</Text>
-              <Ionicons name="lock-closed" size={12} color={colors.mutedForeground} style={{ marginLeft: "auto" }} />
-            </View>
+          {LOCKED_FEATURES.map((f, i) => (
+            <Animated.View key={f} style={{ opacity: featAnims[i] ?? 1, transform: [{ translateX: (featAnims[i] ?? new Animated.Value(1)).interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, opacity: 0.5 }}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+                <Text style={[{ color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>{f}</Text>
+                <Ionicons name="lock-closed" size={12} color={colors.mutedForeground} style={{ marginLeft: "auto" }} />
+              </View>
+            </Animated.View>
           ))}
         </GlassCard>
       </Animated.View>
@@ -1358,7 +1513,8 @@ export default function Onboarding() {
   const insets = useSafeAreaInsets();
   const { completeOnboarding, addIndexedPhotos } = useApp();
   const [step, setStep] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim  = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const [answers, setAnswers] = useState<OnboardingAnswers>({
     primaryConcern: null,
@@ -1399,11 +1555,18 @@ export default function Onboarding() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const animateToStep = useCallback((next: number) => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 140, useNativeDriver: true }).start(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 0,   duration: 120, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: -14, duration: 120, useNativeDriver: true }),
+    ]).start(() => {
       setStep(next);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 240, useNativeDriver: true }).start();
+      slideAnim.setValue(14);
+      Animated.parallel([
+        Animated.timing(fadeAnim,  { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 120, friction: 14, useNativeDriver: true }),
+      ]).start();
     });
-  }, [fadeAnim]);
+  }, [fadeAnim, slideAnim]);
 
   const handleAutoAdvance = useCallback((next: number) => {
     setTimeout(() => animateToStep(next), 280);
@@ -1540,7 +1703,7 @@ export default function Onboarding() {
         )}
       </View>
 
-      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+      <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateX: slideAnim }] }}>
         {renderStep()}
       </Animated.View>
 
@@ -1548,16 +1711,16 @@ export default function Onboarding() {
         <View style={[s.footer, { paddingBottom: bottomPad + 16 }]}>
           {isLastStep ? (
             <>
-              <TouchableOpacity style={[s.cta, { backgroundColor: colors.primary }]} activeOpacity={0.85} onPress={handleNext}>
+              <ScaleButton style={[s.cta, { backgroundColor: colors.primary }]} activeOpacity={0.85} onPress={handleNext}>
                 <Ionicons name="lock-open" size={18} color="#fff" />
                 <Text style={[s.ctaText, { fontFamily: "Inter_700Bold", color: "#fff" }]}>Unlock Full Protection</Text>
-              </TouchableOpacity>
+              </ScaleButton>
               <TouchableOpacity onPress={handleMaybeLater} style={{ alignItems: "center" }}>
                 <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Maybe later — continue with free plan</Text>
               </TouchableOpacity>
             </>
           ) : (
-            <TouchableOpacity
+            <ScaleButton
               style={[s.cta, { backgroundColor: canContinue() && !isAddingAccounts ? colors.primary : colors.secondary, opacity: canContinue() && !isAddingAccounts ? 1 : 0.6 }]}
               activeOpacity={0.85}
               onPress={canContinue() && !isAddingAccounts ? handleNext : undefined}
@@ -1569,7 +1732,7 @@ export default function Onboarding() {
                     <Text style={[s.ctaText, { color: canContinue() ? "#fff" : colors.mutedForeground, fontFamily: "Inter_700Bold" }]}>{getCtaLabel()}</Text>
                     {canContinue() && <Ionicons name="arrow-forward" size={18} color="#fff" />}
                   </>}
-            </TouchableOpacity>
+            </ScaleButton>
           )}
         </View>
       )}
