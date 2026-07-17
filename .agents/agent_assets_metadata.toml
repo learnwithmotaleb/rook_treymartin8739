@@ -60,6 +60,54 @@ uri = "file://attached_assets/appstore/screenshot-05-subscription.png"
 type = "image"
 title = "app store subscription screenshot"
 
+[[generated]]
+id = "6aQxgvMcDMHBwf9MPknvf"
+uri = "file://artifacts/mobile/assets/images/onboarding/s0-hero.png"
+type = "image"
+title = "s0 brand hook hero"
+
+[[generated]]
+id = "u8PTgj6MJJ3Ei2oLgr57W"
+uri = "file://artifacts/mobile/assets/images/onboarding/s7-genuine-alex.png"
+type = "image"
+title = "s7 genuine alex portrait"
+
+[[generated]]
+id = "8zAohVsCXu8kK5ZMNuhiZ"
+uri = "file://artifacts/mobile/assets/images/onboarding/s7-impersonator.png"
+type = "image"
+title = "s7 impersonator portrait"
+
+[[generated]]
+id = "SxbYLQ9eHSxR23ct_U3dk"
+uri = "file://artifacts/mobile/assets/images/onboarding/s10-sarah.png"
+type = "image"
+title = "s10 sarah creator avatar"
+
+[[generated]]
+id = "9QfOA2rnKEFDm704zoAZ9"
+uri = "file://artifacts/mobile/assets/images/onboarding/s10-mark.png"
+type = "image"
+title = "s10 mark designer avatar"
+
+[[generated]]
+id = "08kXlEZVi1PqWu4nYsSdP"
+uri = "file://artifacts/mobile/assets/images/onboarding/s10-brandpro.png"
+type = "image"
+title = "s10 brandpro avatar"
+
+[[generated]]
+id = "vsQ6Derg1Xwz0w33Fwd9G"
+uri = "file://artifacts/mobile/assets/images/onboarding/s13-scan-world.png"
+type = "image"
+title = "s13 global scan network map"
+
+[[generated]]
+id = "tq7vZ0cwLxj0DIOzCi7OT"
+uri = "file://artifacts/mobile/assets/images/onboarding/s15-report-locked.png"
+type = "image"
+title = "s15 locked identity report"
+
 [[outputs]]
 id = "s4IyNX6G2WrSLXCflXFW3"
 uri = "file://attached_assets/appstore/screenshot-01-dashboard.png"
@@ -95,3 +143,51 @@ id = "2Z0z3jRSsTZyo9t9viEtC"
 uri = "file://artifacts/mobile/store-metadata/app-store-metadata.md"
 type = "text"
 title = "App Store Metadata (full copy)"
+
+[[outputs]]
+id = "YVAF9VuZhxma8js9oynAg"
+uri = "file://artifacts/mobile/assets/images/onboarding/s0-hero.png"
+type = "image"
+title = "S0 — Brand Hook hero"
+
+[[outputs]]
+id = "1QPMYJvIPPGaohJCckQ_L"
+uri = "file://artifacts/mobile/assets/images/onboarding/s7-genuine-alex.png"
+type = "image"
+title = "S7 — @alexjones (genuine)"
+
+[[outputs]]
+id = "qkjqZ-5ZhxF9zTKrp8-AE"
+uri = "file://artifacts/mobile/assets/images/onboarding/s7-impersonator.png"
+type = "image"
+title = "S7 — @alexjone5 (impersonator)"
+
+[[outputs]]
+id = "_fMZcjB89Ra1c-E3IKfyX"
+uri = "file://artifacts/mobile/assets/images/onboarding/s10-sarah.png"
+type = "image"
+title = "S10 — @sarahcreates avatar"
+
+[[outputs]]
+id = "mu06IyXLPrwPvRBfd2aWI"
+uri = "file://artifacts/mobile/assets/images/onboarding/s10-mark.png"
+type = "image"
+title = "S10 — @mkdesign avatar"
+
+[[outputs]]
+id = "BlQO_hQ9wQb3_pBsVtY7K"
+uri = "file://artifacts/mobile/assets/images/onboarding/s10-brandpro.png"
+type = "image"
+title = "S10 — @brandpro avatar"
+
+[[outputs]]
+id = "v7aSF3ohjDsP0BN8vZ9-C"
+uri = "file://artifacts/mobile/assets/images/onboarding/s13-scan-world.png"
+type = "image"
+title = "S13 — Global scan network"
+
+[[outputs]]
+id = "z2atnkesWkD68h9jgBSG2"
+uri = "file://artifacts/mobile/assets/images/onboarding/s15-report-locked.png"
+type = "image"
+title = "S15 — Locked identity report"

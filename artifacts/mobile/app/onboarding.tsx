@@ -168,7 +168,13 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
 
   return (
     <View style={[s.screenPad, { flex: 1, justifyContent: "center" }]}>
-      <LinearGradient colors={["#1E3A5F44", "#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      {/* Full-bleed hero image with a deep dark overlay so particles + orb pop on top */}
+      <RNImage
+        source={require("../assets/images/onboarding/s0-hero.png")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.38 }]}
+        resizeMode="cover"
+      />
+      <LinearGradient colors={["#070B12CC", "#070B1288", "#070B12EE"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={{ alignItems: "center", gap: 44 }}>
         <View style={hook.orb}>
           {particles.map((p, i) => (
@@ -645,14 +651,22 @@ function ProofVisualScreen({ colors }: { colors: ReturnType<typeof useColors> })
         </View>
         <View style={pv.profiles}>
           <View style={pv.profileCol}>
-            <View style={[pv.avatar, { backgroundColor: colors.primary + "25" }]}><Ionicons name="person" size={18} color={colors.primary} /></View>
+            <RNImage
+              source={require("../assets/images/onboarding/s7-genuine-alex.png")}
+              style={[pv.avatar, { borderWidth: 2, borderColor: colors.success + "80" }]}
+              resizeMode="cover"
+            />
             <Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 12 }]}>@alexjones</Text>
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 10 }]}>Your account</Text>
             <View style={[pv.tag, { backgroundColor: colors.success + "20" }]}><Text style={[{ color: colors.success, fontSize: 10, fontFamily: "Inter_600SemiBold" }]}>Genuine</Text></View>
           </View>
           <View style={[{ width: 1, height: 70, backgroundColor: colors.border }]} />
           <View style={pv.profileCol}>
-            <View style={[pv.avatar, { backgroundColor: "#EF444422" }]}><Ionicons name="person" size={18} color="#EF4444" /></View>
+            <RNImage
+              source={require("../assets/images/onboarding/s7-impersonator.png")}
+              style={[pv.avatar, { borderWidth: 2, borderColor: "#EF444466" }]}
+              resizeMode="cover"
+            />
             <Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 12 }]}>@alexjone5</Text>
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 10, textAlign: "center" }]}>Stolen photo · Copied bio</Text>
             <View style={[pv.tag, { backgroundColor: "#EF444420" }]}><Text style={[{ color: "#EF4444", fontSize: 10, fontFamily: "Inter_600SemiBold" }]}>Impersonator</Text></View>
@@ -786,6 +800,11 @@ const REVIEWS = [
   { name: "@mkdesign", meta: "Graphic Designer", review: "An impersonator was messaging my followers. Rook caught it before I even noticed." },
   { name: "@brandpro", meta: "Business Owner", review: "Five minutes to set up. Three accounts using our logo — gone." },
 ];
+const REVIEW_AVATARS = [
+  require("../assets/images/onboarding/s10-sarah.png"),
+  require("../assets/images/onboarding/s10-mark.png"),
+  require("../assets/images/onboarding/s10-brandpro.png"),
+];
 function SocialProofScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   const anims = useRef(REVIEWS.map(() => new Animated.Value(0))).current;
   useEffect(() => { Animated.stagger(120, anims.map((a) => Animated.spring(a, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }))).start(); }, []);
@@ -808,9 +827,16 @@ function SocialProofScreen({ colors }: { colors: ReturnType<typeof useColors> })
             <GlassCard style={{ gap: 10 }}>
               <View style={{ flexDirection: "row", gap: 2 }}>{[0,1,2,3,4].map((i) => <Ionicons key={i} name="star" size={12} color="#F59E0B" />)}</View>
               <Text style={[{ color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21, fontStyle: "italic" }]}>"{r.review}"</Text>
-              <View>
-                <Text style={[{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>{r.name}</Text>
-                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>{r.meta}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <RNImage
+                  source={REVIEW_AVATARS[idx]}
+                  style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, borderColor: colors.primary + "44" }}
+                  resizeMode="cover"
+                />
+                <View>
+                  <Text style={[{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>{r.name}</Text>
+                  <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>{r.meta}</Text>
+                </View>
               </View>
             </GlassCard>
           </Animated.View>
@@ -1350,6 +1376,12 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
     <View style={[s.screenPad, { flex: 1, alignItems: "center", justifyContent: "center", gap: 32 }]}>
       <LinearGradient colors={["#3B82F622", "#8B5CF611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={sc.rings}>
+        {/* World network map bleeds through the pulse rings for geographic depth */}
+        <RNImage
+          source={require("../assets/images/onboarding/s13-scan-world.png")}
+          style={{ position: "absolute", width: 200, height: 200, borderRadius: 100, opacity: 0.28 }}
+          resizeMode="cover"
+        />
         <ScanPulse size={200} active={true} />
         <Animated.View style={{ position: "absolute", transform: [{ rotate: spin }] }}>
           <View style={[sc.spinner, { borderColor: colors.primary + "44", borderTopColor: colors.primary }]} />
@@ -1538,6 +1570,19 @@ function ReportBridgeScreen({ colors, threatCount, userType, platformCount }: {
         <View style={{ gap: 10 }}>
           <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Your Identity Protection{"\n"}Report is ready.</Text>
           <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Free accounts get a one-time scan. Rook Premium monitors continuously — every platform, every day.</Text>
+        </View>
+        {/* Locked report preview — blurred to create paywall FOMO */}
+        <View style={{ borderRadius: 16, overflow: "hidden", height: 180 }}>
+          <RNImage
+            source={require("../assets/images/onboarding/s15-report-locked.png")}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={["transparent", "#070B12CC"]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
         </View>
         <Animated.View style={{ opacity: summaryAnim, transform: [{ translateY: summaryY }] }}>
           <GlassCard style={{ gap: 14, borderColor: colors.primary + "33" }}>
