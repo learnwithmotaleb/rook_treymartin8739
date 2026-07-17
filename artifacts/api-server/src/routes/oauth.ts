@@ -301,12 +301,20 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
         });
     }
 
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.send(successPage(
-      "Instagram Connected!",
-      `@${profile.username} is now verified and being monitored by Rook.`,
-      profile.username
-    ));
+    // Redirect to the app custom scheme so ASWebAuthenticationSession closes automatically.
+    // Falls back to the HTML success page on non-iOS clients (Android, web).
+    const ua = (req.headers["user-agent"] ?? "").toLowerCase();
+    const isMobile = ua.includes("iphone") || ua.includes("ipad") || ua.includes("android");
+    if (isMobile) {
+      res.redirect("com.getrook.app://oauth?platform=instagram&status=connected");
+    } else {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(successPage(
+        "Instagram Connected!",
+        `@${profile.username} is now verified and being monitored by Rook.`,
+        profile.username
+      ));
+    }
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
@@ -398,8 +406,14 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
         });
     }
 
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.send(successPage("Facebook Connected!", `${profile.name} is now being monitored by Rook.`, profile.name));
+    const ua = (req.headers["user-agent"] ?? "").toLowerCase();
+    const isMobile = ua.includes("iphone") || ua.includes("ipad") || ua.includes("android");
+    if (isMobile) {
+      res.redirect("com.getrook.app://oauth?platform=facebook&status=connected");
+    } else {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(successPage("Facebook Connected!", `${profile.name} is now being monitored by Rook.`, profile.name));
+    }
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
@@ -540,12 +554,18 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
       });
     }
 
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.send(successPage(
-      "X Connected!",
-      `@${profile.username} is now verified and being monitored by Rook.`,
-      profile.username
-    ));
+    const ua = (req.headers["user-agent"] ?? "").toLowerCase();
+    const isMobile = ua.includes("iphone") || ua.includes("ipad") || ua.includes("android");
+    if (isMobile) {
+      res.redirect("com.getrook.app://oauth?platform=x&status=connected");
+    } else {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(successPage(
+        "X Connected!",
+        `@${profile.username} is now verified and being monitored by Rook.`,
+        profile.username
+      ));
+    }
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {

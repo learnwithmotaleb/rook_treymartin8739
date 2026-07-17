@@ -828,42 +828,45 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
         authUrl = buildOAuthUrl(platform, clientId, state, redirectUrl);
       }
 
-      // Open OAuth browser — iOS intercepts the redirect and returns result.url
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+      // The server processes the OAuth code and then redirects to the app scheme.
+      // ASWebAuthenticationSession intercepts the custom scheme and closes automatically.
+      const APP_SCHEME = "com.getrook.app://oauth";
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_SCHEME);
+
       const resultUrl = "url" in result ? result.url ?? "" : "";
       const resultParams = resultUrl.includes("?") ? new URLSearchParams(resultUrl.split("?")[1]!) : null;
-      const urlError = resultParams?.get("error") ?? resultParams?.get("error_reason");
-      const urlCode = resultParams?.get("code");
-      const urlState = resultParams?.get("state") ?? state;
+      const urlStatus = resultParams?.get("status");
+      const urlError = resultParams?.get("error") ?? (urlStatus === "error" ? "auth_failed" : null);
 
-      if (urlCode) {
-        // Forward code to server for token exchange
-        await fetch(
-          `${redirectUrl}?code=${encodeURIComponent(urlCode)}&state=${encodeURIComponent(urlState)}&redirect_uri=${encodeURIComponent(redirectUrl)}`,
-          { method: "GET" }
-        ).catch(() => {});
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-
-      // Poll to detect newly connected account
-      const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
-      if (accountsAfter) {
-        const updated = accountsAfter.find((a) => a.platform === platform);
-        const isNew = updated && (!existing || (updated.lastSynced !== null && updated.lastSynced !== prevLastSynced));
-        if (isNew && updated) {
-          setConnectedAccountId(updated.id);
-          onConnected(platform, updated.id);
-          // Immediately fetch user's own media for photo selection
-          setMediaLoading(true);
-          try {
-            const { items, hasAccess } = await getAccountMedia(updated.id, 15);
-            if (hasAccess && items.length > 0) {
-              setMediaItems(items.filter((m) => m.type === "image"));
-            }
-          } catch { /* graceful — photo picker simply won't show */ }
-          finally { setMediaLoading(false); }
-          return;
+      // Poll with retry — server may still be finishing token exchange when browser closes
+      const connectDetected = async (): Promise<boolean> => {
+        for (let i = 0; i < 4; i++) {
+          if (i > 0) await new Promise((r) => setTimeout(r, 1800));
+          const after = await getAccounts({ bustCache: true }).catch(() => null);
+          if (!after) continue;
+          const updated = after.find((a) => a.platform === platform);
+          const isNew = updated && (!existing || (updated.lastSynced !== null && updated.lastSynced !== prevLastSynced));
+          if (isNew && updated) {
+            setConnectedAccountId(updated.id);
+            onConnected(platform, updated.id);
+            setMediaLoading(true);
+            try {
+              const { items, hasAccess } = await getAccountMedia(updated.id, 15);
+              if (hasAccess && items.length > 0) {
+                setMediaItems(items.filter((m) => m.type === "image"));
+              }
+            } catch { /* graceful — photo picker simply won't show */ }
+            finally { setMediaLoading(false); }
+            return true;
+          }
         }
+        return false;
+      };
+
+      // Try to detect the connection regardless of result type
+      if (result.type !== "cancel") {
+        const found = await connectDetected();
+        if (found) return;
       }
 
       // Handle errors / cancellations
@@ -1111,6 +1114,7 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
   const spinAnim = useRef(new Animated.Value(0)).current;
   const hasStarted = useRef(false);
   const wasScanning = useRef(false);
+  const scanStartedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
   const { startScan, isScanning, scanProgress, scanQuotaError } = useApp();
@@ -1121,8 +1125,12 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
       hasStarted.current = true;
       Promise.resolve(startScan()).catch(() => {});
     }
+    // Fallback A: scan never started within 14s (API error / quota)
     const fallback = setTimeout(() => { if (!wasScanning.current) onDoneRef.current(0); }, 14000);
-    return () => clearTimeout(fallback);
+    return () => {
+      clearTimeout(fallback);
+      if (scanStartedTimer.current) clearTimeout(scanStartedTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -1133,7 +1141,16 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
       setActiveStep(idx);
       setCompleted(Array.from({ length: idx }, (_, i) => i));
       Animated.timing(progressAnim, { toValue: frac, duration: 300, useNativeDriver: false }).start();
+      // Fallback B: scan started but never finished — 55s max wait
+      if (!scanStartedTimer.current) {
+        scanStartedTimer.current = setTimeout(async () => {
+          let count = 0;
+          try { const threats = await listThreats({ resolved: false }); count = threats.length; } catch { /* ignore */ }
+          onDoneRef.current(count);
+        }, 55000);
+      }
     } else if (wasScanning.current) {
+      if (scanStartedTimer.current) { clearTimeout(scanStartedTimer.current); scanStartedTimer.current = null; }
       wasScanning.current = false;
       setCompleted(SCAN_STEPS.map((_, i) => i));
       setActiveStep(SCAN_STEPS.length);

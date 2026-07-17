@@ -193,43 +193,33 @@ function OAuthButton({
         authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
       }
 
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+      // The server processes the OAuth code and redirects to the app scheme.
+      // ASWebAuthenticationSession intercepts the custom scheme and closes automatically.
+      const APP_SCHEME = "com.getrook.app://oauth";
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_SCHEME);
 
       const resultUrl = "url" in result ? result.url ?? "" : "";
       const resultParams = resultUrl.includes("?")
         ? new URLSearchParams(resultUrl.split("?")[1])
         : null;
       const urlError = resultParams?.get("error") ?? resultParams?.get("error_reason");
-      const urlCode  = resultParams?.get("code");
-      const urlState = resultParams?.get("state") ?? state;
 
-      if (urlCode) {
-        // iOS intercepted the redirect — the server callback was never hit.
-        // Forward the code to the server using the HTTPS callback endpoint.
-        // The server token exchange uses the same redirect_uri we sent to Instagram.
-        const redirectUris = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
-        const serverCallbackUrl = redirectUris[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${config.callbackPath}`;
-
-        await fetch(
-          `${serverCallbackUrl}?code=${encodeURIComponent(urlCode)}&state=${encodeURIComponent(urlState)}&redirect_uri=${encodeURIComponent(redirectUrl)}`,
-          { method: "GET" }
-        ).catch((e) => console.warn(`[OAuth:${platform}] server forward failed:`, e));
-
-        await new Promise((r) => setTimeout(r, 1000));
-      } else {
-        await new Promise((r) => setTimeout(r, 600));
-      }
-
-      const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
-      if (accountsAfter) {
-        const updated = accountsAfter.find((a) => a.platform === platform);
-        const isNewlyConnected = updated && (
-          !existingAccount ||
-          (updated.lastSynced !== null && updated.lastSynced !== prevLastSynced)
-        );
-        if (isNewlyConnected) {
-          onSuccess();
-          return;
+      // Poll with retry — server may still be finishing token exchange when browser closes
+      if (result.type !== "cancel") {
+        for (let i = 0; i < 4; i++) {
+          if (i > 0) await new Promise((r) => setTimeout(r, 1800));
+          const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
+          if (accountsAfter) {
+            const updated = accountsAfter.find((a) => a.platform === platform);
+            const isNewlyConnected = updated && (
+              !existingAccount ||
+              (updated.lastSynced !== null && updated.lastSynced !== prevLastSynced)
+            );
+            if (isNewlyConnected) {
+              onSuccess();
+              return;
+            }
+          }
         }
       }
 
@@ -241,8 +231,6 @@ function OAuthButton({
             ? "Instagram rejected the request. Make sure your account is a Business or Creator account connected to a Facebook Page."
             : `Authentication failed: ${urlError}`;
         Alert.alert("Authentication Failed", friendlyMsg, [{ text: "OK" }]);
-      } else if (urlCode) {
-        Alert.alert("Almost there", "We received the sign-in but couldn't confirm the account. Please try again.", [{ text: "OK" }]);
       } else if (result.type === "cancel" || result.type === "dismiss") {
         const isInstagram = platform === "instagram";
         const isFacebook  = platform === "facebook";
