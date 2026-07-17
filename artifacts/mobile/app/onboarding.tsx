@@ -21,7 +21,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { saveOnboardingAnswers, addAccount, listThreats } from "@/lib/api";
+import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris } from "@/lib/api";
+import * as WebBrowser from "expo-web-browser";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { Platform as SocialPlatform } from "@/context/AppContext";
@@ -638,9 +639,9 @@ const prv = StyleSheet.create({
 
 // ─── S10: Social Proof ────────────────────────────────────────────────────────
 const REVIEWS = [
-  { name: "@sarahcreates", meta: "52K followers · Content Creator", review: "Found a fake account using my photos in under an hour. Rook is now non-negotiable for any creator." },
-  { name: "@mkdesign", meta: "18K followers · Graphic Designer", review: "An impersonator had been messaging my followers for weeks. Rook caught it before anyone told me." },
-  { name: "@brandpro", meta: "Business Owner · Tech Startup", review: "Set it up in 5 minutes. Caught 3 accounts using our logo within the first scan. Worth every cent." },
+  { name: "@sarahcreates", meta: "Content Creator", review: "Found a fake account using my photos on the first scan. Essential for any creator." },
+  { name: "@mkdesign", meta: "Graphic Designer", review: "An impersonator was messaging my followers. Rook caught it before I even noticed." },
+  { name: "@brandpro", meta: "Business Owner", review: "Five minutes to set up. Three accounts using our logo — gone." },
 ];
 function SocialProofScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   const anims = useRef(REVIEWS.map(() => new Animated.Value(0))).current;
@@ -742,40 +743,203 @@ const ps = StyleSheet.create({
   stepLabel: { flex: 1, fontSize: 15, lineHeight: 22 },
 });
 
-// ─── S12: Platform Handles (creates real accounts for scan) ───────────────────
-function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleChange, isAddingAccounts }: {
+// ─── OAuth helpers (mirrors connect-account.tsx logic) ───────────────────────
+const ONBOARDING_OAUTH: Record<string, {
+  label: string; color: string; callbackPath: string;
+  scopes: string[]; clientIdEnvKey: string; isX?: boolean;
+}> = {
+  instagram: { label: "Instagram", color: "#E1306C", callbackPath: "/api/oauth/instagram/callback", scopes: ["instagram_business_basic"], clientIdEnvKey: "EXPO_PUBLIC_INSTAGRAM_CLIENT_ID" },
+  x:         { label: "X / Twitter", color: "#1DA1F2", callbackPath: "/api/oauth/x/callback", scopes: ["tweet.read","users.read","offline.access"], clientIdEnvKey: "EXPO_PUBLIC_TWITTER_CLIENT_ID", isX: true },
+  facebook:  { label: "Facebook", color: "#1877F2", callbackPath: "/api/oauth/facebook/callback", scopes: ["public_profile"], clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID" },
+  tiktok:    { label: "TikTok", color: "#010101", callbackPath: "/api/oauth/tiktok/callback", scopes: ["user.info.basic"], clientIdEnvKey: "EXPO_PUBLIC_TIKTOK_CLIENT_ID" },
+  youtube:   { label: "YouTube", color: "#FF0000", callbackPath: "/api/oauth/youtube/callback", scopes: ["https://www.googleapis.com/auth/youtube.readonly","profile","email"], clientIdEnvKey: "EXPO_PUBLIC_GOOGLE_CLIENT_ID" },
+  linkedin:  { label: "LinkedIn", color: "#0A66C2", callbackPath: "/api/oauth/linkedin/callback", scopes: ["r_liteprofile","r_emailaddress"], clientIdEnvKey: "EXPO_PUBLIC_LINKEDIN_CLIENT_ID" },
+  snapchat:  { label: "Snapchat", color: "#FFFC00", callbackPath: "/api/oauth/snapchat/callback", scopes: ["https://auth.snapchat.com/oauth2/api/user.display_name"], clientIdEnvKey: "EXPO_PUBLIC_SNAPCHAT_CLIENT_ID" },
+};
+
+function buildOAuthUrl(platform: string, clientId: string, state: string, redirectUri: string, extra?: Record<string,string>): string {
+  const cfg = ONBOARDING_OAUTH[platform]!;
+  const scopeSep = platform === "x" ? " " : ",";
+  const p = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, scope: cfg.scopes.join(scopeSep), response_type: "code", state, ...extra });
+  const base = platform === "x" ? "https://twitter.com/i/oauth2/authorize"
+    : platform === "instagram" ? "https://www.instagram.com/oauth/authorize"
+    : platform === "facebook" ? "https://www.facebook.com/v22.0/dialog/oauth"
+    : platform === "youtube" ? "https://accounts.google.com/o/oauth2/v2/auth"
+    : platform === "linkedin" ? "https://www.linkedin.com/oauth/v2/authorization"
+    : platform === "snapchat" ? "https://accounts.snapchat.com/login/oauth2/authorize"
+    : "";
+  return `${base}?${p.toString()}`;
+}
+
+// ─── S12: Platform Connect — OAuth + manual handle fallback ──────────────────
+function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHandleChange, onConnected }: {
+  colors: ReturnType<typeof useColors>;
+  platform: string;
+  label: string;
+  isConnected: boolean;
+  handle: string;
+  onHandleChange: (v: string) => void;
+  onConnected: (platform: string) => void;
+}) {
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+
+  const handleOAuth = useCallback(async () => {
+    const cfg = ONBOARDING_OAUTH[platform];
+    if (!cfg) return;
+    const clientId = (process.env as Record<string,string|undefined>)[cfg.clientIdEnvKey];
+    if (!clientId) {
+      setShowManual(true);
+      return;
+    }
+    setOauthLoading(true);
+    try {
+      const redirectUriMap = await getOAuthRedirectUris().catch(() => ({} as Record<string,string>));
+      const redirectUrl = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${cfg.callbackPath}`;
+      let state: string;
+      let authUrl: string;
+      if (platform === "x") {
+        const { state: xState, codeChallenge } = await getXOAuthInit();
+        state = xState;
+        const xClientId = (redirectUriMap as Record<string,string>)["x_client_id"] || clientId;
+        authUrl = buildOAuthUrl(platform, xClientId, state, redirectUrl, { code_challenge: codeChallenge, code_challenge_method: "S256" });
+      } else {
+        state = await getOAuthState();
+        authUrl = buildOAuthUrl(platform, clientId, state, redirectUrl);
+      }
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+      const resultUrl = "url" in result ? result.url ?? "" : "";
+      const params = resultUrl.includes("?") ? new URLSearchParams(resultUrl.split("?")[1]!) : null;
+      const code = params?.get("code");
+      const urlState = params?.get("state") ?? state;
+      if (code) {
+        const serverCb = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${cfg.callbackPath}`;
+        await fetch(`${serverCb}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(urlState)}&redirect_uri=${encodeURIComponent(redirectUrl)}`).catch(() => {});
+        await new Promise((r) => setTimeout(r, 1200));
+        onConnected(platform);
+      } else if (result.type === "cancel" || result.type === "dismiss") {
+        setShowManual(true);
+      }
+    } catch {
+      setShowManual(true);
+    } finally {
+      setOauthLoading(false);
+    }
+  }, [platform, onConnected]);
+
+  const cfg = ONBOARDING_OAUTH[platform];
+  const platformColor = cfg?.color ?? "#3B82F6";
+  const snapchatText = platform === "snapchat" ? "#000" : "#fff";
+
+  if (isConnected) {
+    return (
+      <View style={[ph.connectedRow, { backgroundColor: colors.success + "10", borderColor: colors.success + "44" }]}>
+        <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
+          <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+        </View>
+        <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+          <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Connected</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[ph.platformCard, { backgroundColor: colors.card, borderColor: (handle || showManual) ? colors.primary + "55" : colors.border }]}>
+      <View style={ph.platformHeader}>
+        <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
+          <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+        </View>
+        <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
+      </View>
+      <TouchableOpacity
+        style={[ph.oauthBtn, { backgroundColor: platformColor, opacity: oauthLoading ? 0.7 : 1 }]}
+        onPress={handleOAuth}
+        disabled={oauthLoading}
+        activeOpacity={0.85}
+      >
+        {oauthLoading ? (
+          <ActivityIndicator size="small" color={platform === "snapchat" ? "#000" : "#fff"} />
+        ) : (
+          <>
+            <Ionicons name="log-in-outline" size={16} color={snapchatText} />
+            <Text style={[{ color: snapchatText, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Connect with {label}</Text>
+          </>
+        )}
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => setShowManual((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center" }}>
+        <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>
+          {showManual ? "Hide manual entry" : "Or enter @handle manually"}
+        </Text>
+        <Ionicons name={showManual ? "chevron-up" : "chevron-down"} size={12} color={colors.mutedForeground} />
+      </TouchableOpacity>
+      {showManual && (
+        <View style={[ph.manualRow, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+          <Ionicons name="at" size={16} color={colors.mutedForeground} />
+          <TextInput
+            style={[{ flex: 1, color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }]}
+            placeholder="username"
+            placeholderTextColor={colors.mutedForeground + "88"}
+            value={handle}
+            onChangeText={onHandleChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+          />
+          {handle.length > 0 && (
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleChange, isAddingAccounts, connectedPlatforms, onOAuthConnected }: {
   colors: ReturnType<typeof useColors>;
   selectedPlatforms: string[];
   handles: Record<string, string>;
   onHandleChange: (platformId: string, value: string) => void;
   isAddingAccounts: boolean;
+  connectedPlatforms: Set<string>;
+  onOAuthConnected: (platform: string) => void;
 }) {
   const displayPlatforms = ALL_PLATFORMS.filter((p) => selectedPlatforms.includes(p.id));
+
   if (displayPlatforms.length === 0) {
     return (
       <View style={[s.screenPad, { flex: 1, justifyContent: "center", gap: 20 }]}>
-        <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Enter your account handles</Text>
+        <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Connect your accounts</Text>
         <GlassCard>
-          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }]}>No platforms selected — tap Continue to proceed with the name you entered.</Text>
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }]}>No platforms were selected — tap Continue to run your scan based on the name you entered.</Text>
         </GlassCard>
       </View>
     );
   }
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={100}>
       <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 24 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={{ gap: 8 }}>
-          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Enter your account handles.</Text>
-          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>We'll search each platform for accounts impersonating you. Fields are optional — skip any you prefer.</Text>
+          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Which platforms should we monitor?</Text>
+          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Connect via OAuth for the richest scan — or enter your @handle manually. Read-only access only.</Text>
         </View>
         <View style={{ gap: 12 }}>
           {displayPlatforms.map((p) => (
-            <View key={p.id} style={[ph.row, { backgroundColor: colors.card, borderColor: handles[p.id] ? colors.primary + "55" : colors.border, borderWidth: handles[p.id] ? 1.5 : 1 }]}>
-              <PlatformIcon platform={p.id} size={24} />
-              <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13, width: 80 }]}>{p.label}</Text>
-              <TextInput style={[{ flex: 1, color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }]} placeholder="@username" placeholderTextColor={colors.mutedForeground + "88"} value={handles[p.id] ?? ""} onChangeText={(v) => onHandleChange(p.id, v)} autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
-            </View>
+            <PlatformConnectRow
+              key={p.id}
+              colors={colors}
+              platform={p.id}
+              label={p.label}
+              isConnected={connectedPlatforms.has(p.id)}
+              handle={handles[p.id] ?? ""}
+              onHandleChange={(v) => onHandleChange(p.id, v)}
+              onConnected={onOAuthConnected}
+            />
           ))}
         </View>
         {isAddingAccounts && (
@@ -784,10 +948,10 @@ function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleCha
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Connecting accounts…</Text>
           </View>
         )}
-        <GlassCard style={[{ borderColor: colors.primary + "22", flexDirection: "row", alignItems: "flex-start", gap: 10 }]}>
-          <Ionicons name="information-circle" size={16} color={colors.primary} />
+        <GlassCard style={{ borderColor: colors.success + "22", flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+          <Ionicons name="lock-closed" size={14} color={colors.success} />
           <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, flex: 1, lineHeight: 18 }]}>
-            Handles are used to search for impersonators only. Rook requests no passwords, access tokens, or permissions.
+            Read-only access only — Rook never posts, messages, or follows anyone on your behalf.
           </Text>
         </GlassCard>
       </ScrollView>
@@ -795,7 +959,12 @@ function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleCha
   );
 }
 const ph = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
+  platformCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+  platformHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  platIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  oauthBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 44, borderRadius: 12 },
+  manualRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  connectedRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
 });
 
 // ─── S13: Scan Setup (real) ───────────────────────────────────────────────────
@@ -1052,6 +1221,14 @@ export default function Onboarding() {
   const [platformHandles, setPlatformHandles] = useState<Record<string, string>>({});
   const [isAddingAccounts, setIsAddingAccounts] = useState(false);
   const [scanThreatCount, setScanThreatCount] = useState(0);
+  const [oauthConnectedPlatforms, setOauthConnectedPlatforms] = useState<Set<string>>(new Set());
+
+  const handleOAuthConnected = useCallback((platform: string) => {
+    setOauthConnectedPlatforms((prev) => new Set([...prev, platform]));
+    if (!selectedPlatforms.includes(platform)) {
+      setSelectedPlatforms((p) => [...p, platform]);
+    }
+  }, [selectedPlatforms]);
 
   useEffect(() => { analytics.onboardingStarted(); }, []);
 
@@ -1144,7 +1321,7 @@ export default function Onboarding() {
 
   // Steps that auto-advance on selection — no footer CTA shown
   const AUTO_STEPS = new Set([3, 4, 5]);
-  const NO_FOOTER_STEPS = new Set([10, 13]); // scan auto-advances; S10=social proof still shows footer
+  const NO_FOOTER_STEPS = new Set([13]); // only scan auto-advances; all other steps show footer
   const isAutoStep = AUTO_STEPS.has(step);
   const isNoFooter = NO_FOOTER_STEPS.has(step);
   const isLastStep = step === TOTAL_STEPS - 1;
@@ -1179,7 +1356,7 @@ export default function Onboarding() {
       case 9: return <PrivacyScreen colors={colors} />;
       case 10: return <SocialProofScreen colors={colors} />;
       case 11: return <ProfileSavedScreen colors={colors} identityInput={identityInput} selectedPlatforms={selectedPlatforms} hasPhoto={!!photoUri} />;
-      case 12: return <PlatformHandlesScreen colors={colors} selectedPlatforms={selectedPlatforms} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} />;
+      case 12: return <PlatformHandlesScreen colors={colors} selectedPlatforms={selectedPlatforms} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} />;
       case 13: return <ScanSetupScreen colors={colors} onDone={(count) => { setScanThreatCount(count); animateToStep(14); }} />;
       case 14: return <UrgencyRevealScreen colors={colors} threatCount={scanThreatCount} />;
       case 15: return <ReportBridgeScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} platformCount={selectedPlatforms.length} />;
