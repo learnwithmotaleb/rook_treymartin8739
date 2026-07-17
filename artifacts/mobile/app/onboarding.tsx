@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   Animated,
@@ -58,6 +57,17 @@ function ScaleButton({ onPress, style, disabled, activeOpacity = 0.85, children 
 
 const { width } = Dimensions.get("window");
 const TOTAL_STEPS = 16;
+
+// ─── Shared motion constants ───────────────────────────────────────────────────
+const MOTION = {
+  spring:        { tension: 120, friction: 14 } as const,
+  spring_soft:   { tension: 80,  friction: 9  } as const,
+  spring_bouncy: { tension: 55,  friction: 6  } as const,
+  stagger_tight: 80,
+  stagger_mid:   120,
+  fade_fast:     200,
+  fade_mid:      350,
+};
 
 export interface OnboardingAnswers {
   primaryConcern: string | null;
@@ -568,12 +578,12 @@ function IdentityInputScreen({
             {ALL_PLATFORMS.map((p) => {
               const isSel = selectedPlatforms.includes(p.id);
               return (
-                <TouchableOpacity key={p.id} activeOpacity={0.8} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onTogglePlatform(p.id); }}
+                <ScaleButton key={p.id} activeOpacity={0.8} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onTogglePlatform(p.id); }}
                   style={[inp.platChip, { backgroundColor: isSel ? colors.primary + "18" : colors.card, borderColor: isSel ? colors.primary + "70" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
                   <PlatformIcon platform={p.id} size={18} />
                   <Text style={[{ color: isSel ? colors.primary : colors.mutedForeground, fontFamily: isSel ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 12 }]}>{p.label}</Text>
                   {isSel && <Ionicons name="checkmark" size={12} color={colors.primary} />}
-                </TouchableOpacity>
+                </ScaleButton>
               );
             })}
           </View>
@@ -601,12 +611,32 @@ const inp = StyleSheet.create({
 
 // ─── S7: Proof Visual ─────────────────────────────────────────────────────────
 function ProofVisualScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
-  const detected = useRef(new Animated.Value(0)).current;
-  useEffect(() => { setTimeout(() => Animated.timing(detected, { toValue: 1, duration: 500, useNativeDriver: true }).start(), 700); }, []);
+  const headlineAnim = useRef(new Animated.Value(0)).current;
+  const cardAnim     = useRef(new Animated.Value(0)).current;
+  const detected     = useRef(new Animated.Value(0)).current;
+  const rm = useReduceMotion();
+
+  useEffect(() => {
+    if (rm) { headlineAnim.setValue(1); cardAnim.setValue(1); detected.setValue(1); return; }
+    Animated.sequence([
+      Animated.timing(headlineAnim, { toValue: 1, duration: 380, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.spring(cardAnim, { toValue: 1, ...MOTION.spring_soft, useNativeDriver: true }),
+      Animated.delay(320),
+      Animated.timing(detected, { toValue: 1, duration: 480, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const headY = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const cardY = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [22, 0] });
+  const cardScale = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] });
+
   return (
     <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 24 }]} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Here's what Rook catches.</Text>
+      <Animated.Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold", opacity: headlineAnim, transform: [{ translateY: headY }] }]}>
+        Here's what Rook catches.
+      </Animated.Text>
+      <Animated.View style={{ opacity: cardAnim, transform: [{ translateY: cardY }, { scale: cardScale }] }}>
       <GlassCard style={[pv.card, { borderColor: "#EF444433" }]}>
         <View style={pv.header}>
           <View style={[pv.dot, { backgroundColor: "#EF444420" }]}><Ionicons name="alert-circle" size={14} color="#EF4444" /></View>
@@ -637,6 +667,7 @@ function ProofVisualScreen({ colors }: { colors: ReturnType<typeof useColors> })
           ))}
         </View>
       </GlassCard>
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -659,8 +690,24 @@ function HowRookProtectsScreen({ colors }: { colors: ReturnType<typeof useColors
     { icon: "notifications", label: "Alert you instantly", color: "#F59E0B" },
     { icon: "shield-checkmark", label: "Help you report & remove them", color: colors.success },
   ];
-  const anims = useRef(STEPS.map(() => new Animated.Value(0))).current;
-  useEffect(() => { Animated.stagger(200, anims.map((a) => Animated.spring(a, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }))).start(); }, []);
+  const anims     = useRef(STEPS.map(() => new Animated.Value(0))).current;
+  const lineAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+  const rm = useReduceMotion();
+
+  useEffect(() => {
+    if (rm) { anims.forEach(a => a.setValue(1)); lineAnims.forEach(a => a.setValue(1)); return; }
+    STEPS.forEach((_, i) => {
+      setTimeout(() => {
+        Animated.spring(anims[i]!, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }).start();
+        if (i < STEPS.length - 1) {
+          setTimeout(() => {
+            Animated.timing(lineAnims[i]!, { toValue: 1, duration: 280, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+          }, 260);
+        }
+      }, i * MOTION.stagger_mid + MOTION.stagger_tight);
+    });
+  }, []);
+
   return (
     <View style={[s.screenPad, { flex: 1, justifyContent: "center", gap: 40 }]}>
       <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -671,7 +718,9 @@ function HowRookProtectsScreen({ colors }: { colors: ReturnType<typeof useColors
             <View style={hrp.row}>
               <View style={hrp.iconCol}>
                 <View style={[hrp.icon, { backgroundColor: step.color + "20" }]}><Ionicons name={step.icon as any} size={22} color={step.color} /></View>
-                {i < STEPS.length - 1 && <View style={[hrp.line, { backgroundColor: step.color + "30" }]} />}
+                {i < STEPS.length - 1 && (
+                  <Animated.View style={[hrp.line, { backgroundColor: step.color + "30", opacity: lineAnims[i] }]} />
+                )}
               </View>
               <View style={[hrp.textCol, { paddingBottom: i < STEPS.length - 1 ? 24 : 0 }]}>
                 <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 15, lineHeight: 22 }]}>{step.label}</Text>
@@ -1116,7 +1165,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
         </View>
         <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
       </View>
-      <TouchableOpacity
+      <ScaleButton
         style={[ph.oauthBtn, { backgroundColor: platformColor, opacity: oauthLoading ? 0.7 : 1 }]}
         onPress={handleOAuth}
         disabled={oauthLoading}
@@ -1130,7 +1179,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
             <Text style={[{ color: snapchatText, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Connect with {label}</Text>
           </>
         )}
-      </TouchableOpacity>
+      </ScaleButton>
       <TouchableOpacity onPress={() => setShowManual((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center" }}>
         <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>
           {showManual ? "Hide manual entry" : "Or enter @handle manually"}
@@ -1368,6 +1417,22 @@ function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeo
     }, 100);
     return () => clearInterval(iv);
   }, []);
+  const shieldEntrance = useRef(new Animated.Value(0)).current;
+  const shieldPulse    = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!hasThreats && !rm) {
+      Animated.spring(shieldEntrance, { toValue: 1, ...MOTION.spring_bouncy, useNativeDriver: true }).start(() => {
+        Animated.loop(Animated.sequence([
+          Animated.timing(shieldPulse, { toValue: 1.06, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(shieldPulse, { toValue: 1,    duration: 1200, useNativeDriver: true }),
+        ])).start();
+      });
+    } else if (!hasThreats) {
+      shieldEntrance.setValue(1);
+    }
+  }, [threatCount]);
+
   const hasThreats = threatCount > 0;
   const MOCK_CARDS = [
     { platform: "instagram" as NonNullable<SocialPlatform>, label: "Account flagged" },
@@ -1394,6 +1459,11 @@ function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeo
           </>
         ) : (
           <>
+            <Animated.View style={{ alignItems: "center", marginBottom: 8, opacity: shieldEntrance, transform: [{ scale: shieldEntrance }, { scale: shieldPulse }] }}>
+              <View style={{ width: 84, height: 84, borderRadius: 26, backgroundColor: colors.success + "18", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.success + "44" }}>
+                <Ionicons name="shield-checkmark" size={46} color={colors.success} />
+              </View>
+            </Animated.View>
             <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Your initial scan looks clean.</Text>
             <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>No matches found yet — but impersonators don't wait. Continuous monitoring keeps you protected as new threats emerge.</Text>
           </>
@@ -1511,10 +1581,20 @@ function ReportBridgeScreen({ colors, threatCount, userType, platformCount }: {
 export default function Onboarding() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const rm = useReduceMotion();
   const { completeOnboarding, addIndexedPhotos } = useApp();
   const [step, setStep] = useState(0);
-  const fadeAnim  = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim    = useRef(new Animated.Value(1)).current;
+  const slideAnim   = useRef(new Animated.Value(0)).current;
+  const ambientAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (rm) return;
+    Animated.loop(Animated.sequence([
+      Animated.timing(ambientAnim, { toValue: 1, duration: 5000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+      Animated.timing(ambientAnim, { toValue: 0, duration: 5000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+    ])).start();
+  }, [rm]);
 
   const [answers, setAnswers] = useState<OnboardingAnswers>({
     primaryConcern: null,
@@ -1555,6 +1635,14 @@ export default function Onboarding() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const animateToStep = useCallback((next: number) => {
+    if (rm) {
+      // Reduce-motion: simple cross-fade only, no slide
+      Animated.timing(fadeAnim, { toValue: 0, duration: 100, useNativeDriver: true }).start(() => {
+        setStep(next);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+      });
+      return;
+    }
     Animated.parallel([
       Animated.timing(fadeAnim,  { toValue: 0,   duration: 120, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: -14, duration: 120, useNativeDriver: true }),
@@ -1566,7 +1654,7 @@ export default function Onboarding() {
         Animated.spring(slideAnim, { toValue: 0, tension: 120, friction: 14, useNativeDriver: true }),
       ]).start();
     });
-  }, [fadeAnim, slideAnim]);
+  }, [fadeAnim, slideAnim, rm]);
 
   const handleAutoAdvance = useCallback((next: number) => {
     setTimeout(() => animateToStep(next), 280);
@@ -1692,8 +1780,12 @@ export default function Onboarding() {
 
   const showFooter = !isAutoStep && !isNoFooter;
 
+  const ambientOpacity = ambientAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.032] });
+
   return (
     <View style={[{ flex: 1 }, { backgroundColor: colors.background }]}>
+      {/* Slow-breathing ambient glow — subtle blue warmth cycling in background */}
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: ambientOpacity }]} pointerEvents="none" />
       <View style={[s.header, { paddingTop: topPad + 16 }]}>
         <ProgressBar step={step} colors={colors} />
         {step > 0 && step < 13 && !isAutoStep && (
