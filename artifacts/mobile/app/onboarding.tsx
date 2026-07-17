@@ -3,11 +3,12 @@ import {
   Animated,
   Dimensions,
   Easing,
-  PanResponder,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -26,7 +27,7 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { analytics } from "@/lib/analytics";
 
 const { width } = Dimensions.get("window");
-const TOTAL_STEPS = 10;
+const TOTAL_STEPS = 12;
 
 export interface OnboardingAnswers {
   primaryConcern: string | null;
@@ -34,58 +35,129 @@ export interface OnboardingAnswers {
   followerRange: string | null;
   activePlatforms: string[];
   attribution: string | null;
-  /** 0-100: how safe the user felt BEFORE their first scan (shown vs actual score in results preview) */
   perceivedRisk: number | null;
+  identityInput: string | null;
 }
 
-// ─── Step 1: Welcome ──────────────────────────────────────────────────────────
-function WelcomeScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+// ─── Progress Bar ─────────────────────────────────────────────────────────────
+function ProgressBar({ step, colors }: { step: number; colors: ReturnType<typeof useColors> }) {
+  return (
+    <View style={progressStyles.bar}>
+      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+        <View
+          key={i}
+          style={[
+            progressStyles.segment,
+            {
+              backgroundColor: i <= step ? colors.primary : colors.border,
+              opacity: i > step ? 0.4 : 1,
+              flex: 1,
+              marginRight: i < TOTAL_STEPS - 1 ? 3 : 0,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+const progressStyles = StyleSheet.create({
+  bar: { flexDirection: "row", height: 3, borderRadius: 2, overflow: "hidden" },
+  segment: { height: 3, borderRadius: 2 },
+});
+
+// ─── Step 0: Brand Hook ───────────────────────────────────────────────────────
+function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const particles = useRef(
+    Array.from({ length: 18 }, (_, i) => ({
+      anim: new Animated.Value(0),
+      x: Math.cos((i / 18) * Math.PI * 2) * (44 + (i % 3) * 22),
+      y: Math.sin((i / 18) * Math.PI * 2) * (44 + (i % 3) * 22),
+      delay: i * 80,
+      size: i % 3 === 0 ? 4 : i % 3 === 1 ? 3 : 2,
+    }))
+  ).current;
+
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const shieldAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 2400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 2400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
-  }, [pulseAnim]);
+
+    Animated.spring(shieldAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }).start();
+
+    particles.forEach((p) => {
+      const loop = () => {
+        p.anim.setValue(0);
+        Animated.sequence([
+          Animated.delay(p.delay),
+          Animated.timing(p.anim, { toValue: 1, duration: 2200 + p.delay * 4, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(p.anim, { toValue: 0.3, duration: 1800, useNativeDriver: true }),
+        ]).start(loop);
+      };
+      loop();
+    });
+  }, []);
+
+  const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.35] });
+  const shieldScale = shieldAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
+  const shieldOpacity = shieldAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
   return (
-    <View style={[styles.screenPad, { flex: 1 }]}>
-      <LinearGradient colors={["#3B82F622", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={styles.welcomeCenter}>
-        <View style={styles.shieldWrap}>
-          {[1.6, 1.3, 1.0].map((scale, i) => (
-            <Animated.View key={i} style={[styles.shieldRing, {
-              width: 120 * scale, height: 120 * scale, borderRadius: 60 * scale,
-              borderColor: colors.primary + (i === 0 ? "18" : i === 1 ? "30" : "00"),
-              backgroundColor: i === 2 ? colors.primary + "22" : "transparent",
-              transform: i === 2 ? [{ scale: pulseAnim }] : [],
-            }]} />
+    <View style={[styles.screenPad, { flex: 1, justifyContent: "center" }]}>
+      <LinearGradient
+        colors={["#1E3A5F44", "#3B82F611", "transparent"]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      <View style={hookStyles.center}>
+        <View style={hookStyles.orb}>
+          {/* Particle field */}
+          {particles.map((p, i) => (
+            <Animated.View
+              key={i}
+              style={{
+                position: "absolute",
+                width: p.size,
+                height: p.size,
+                borderRadius: p.size / 2,
+                backgroundColor: colors.primary,
+                opacity: p.anim,
+                transform: [
+                  { translateX: p.x },
+                  { translateY: p.y },
+                ],
+              }}
+            />
           ))}
-          <Ionicons name="shield-checkmark" size={52} color={colors.primary} />
-        </View>
 
-        <Text style={[styles.welcomeTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Protect Your Identity{"\n"}Across Social Media
-        </Text>
-        <Text style={[styles.welcomeSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          AI continuously monitors social platforms for fake accounts, stolen photos, and impersonators pretending to be you.
-        </Text>
+          {/* Glow ring */}
+          <Animated.View style={[hookStyles.glowRing, { borderColor: colors.primary, opacity: glowOpacity }]} />
+          <Animated.View style={[hookStyles.glowRingInner, { borderColor: colors.primary + "66", opacity: glowOpacity }]} />
 
-        <View style={styles.platformRow}>
-          {(["instagram", "facebook", "x", "tiktok", "youtube", "linkedin", "snapchat"] as NonNullable<SocialPlatform>[]).map((p) => (
-            <View key={p} style={[styles.platformPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <PlatformIcon platform={p} size={20} />
+          {/* Shield */}
+          <Animated.View style={{ transform: [{ scale: shieldScale }], opacity: shieldOpacity }}>
+            <View style={[hookStyles.shieldBg, { backgroundColor: colors.primary + "1A" }]}>
+              <Ionicons name="shield-checkmark" size={52} color={colors.primary} />
             </View>
-          ))}
+          </Animated.View>
         </View>
 
-        <View style={[styles.trustPill, { backgroundColor: colors.success + "18", borderColor: colors.success + "33" }]}>
-          <Ionicons name="lock-closed" size={12} color={colors.success} />
-          <Text style={[styles.trustText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
-            Privacy-first · No posting · Read-only
+        <View style={hookStyles.textBlock}>
+          <Text style={[hookStyles.headline, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Your name and face{"\n"}already exist online.
+          </Text>
+          <Text style={[hookStyles.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            The question is{" "}
+            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>who's using them.</Text>
+          </Text>
+          <Text style={[hookStyles.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Rook is an AI identity monitor that finds impersonators, stolen photos, and fake accounts using your identity — usually before you'd ever notice on your own.
           </Text>
         </View>
       </View>
@@ -93,13 +165,175 @@ function WelcomeScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   );
 }
 
-// ─── Step 2: What Brings You Here ────────────────────────────────────────────
+const hookStyles = StyleSheet.create({
+  center: { alignItems: "center", gap: 40 },
+  orb: { width: 200, height: 200, alignItems: "center", justifyContent: "center" },
+  glowRing: { position: "absolute", width: 160, height: 160, borderRadius: 80, borderWidth: 1 },
+  glowRingInner: { position: "absolute", width: 120, height: 120, borderRadius: 60, borderWidth: 1 },
+  shieldBg: { width: 90, height: 90, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  textBlock: { gap: 12, alignItems: "center" },
+  headline: { fontSize: 30, textAlign: "center", lineHeight: 38 },
+  sub: { fontSize: 17, textAlign: "center" },
+  body: { fontSize: 14, textAlign: "center", lineHeight: 22, maxWidth: 310 },
+});
+
+// ─── Step 1: Credible Stat ────────────────────────────────────────────────────
+function CredibleStatScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+  }, []);
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.screenPad, { gap: 28 }]} showsVerticalScrollIndicator={false}>
+      <LinearGradient colors={["#EF444411", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
+      <View style={{ gap: 14 }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          Impersonation is one of the fastest-growing forms of online fraud.
+        </Text>
+        <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Fake accounts don't just borrow a name — they steal photos, copy bios, and message your real followers pretending to be you. Most people find out from someone else, days or weeks later.
+        </Text>
+      </View>
+
+      <Animated.View style={{ opacity: fadeAnim, gap: 16 }}>
+        {/* Primary stat */}
+        <GlassCard style={[statStyles.statCard, { borderColor: "#EF444433", borderLeftColor: "#EF4444", borderLeftWidth: 3 }]}>
+          <Text style={[statStyles.statNumber, { color: "#EF4444", fontFamily: "Inter_700Bold" }]}>1 in 4</Text>
+          <Text style={[statStyles.statLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Americans have experienced online identity fraud
+          </Text>
+          <Text style={[statStyles.statSource, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Source: FTC Consumer Sentinel Network Report
+          </Text>
+        </GlassCard>
+
+        {/* Profile vs clone mockup */}
+        <View style={statStyles.cloneRow}>
+          {/* Real profile */}
+          <GlassCard style={[statStyles.profileCard, { borderColor: colors.success + "55" }]}>
+            <View style={[statStyles.avatar, { backgroundColor: colors.primary + "33" }]}>
+              <Ionicons name="person" size={20} color={colors.primary} />
+            </View>
+            <Text style={[statStyles.profileName, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>@yourhandle</Text>
+            <Text style={[statStyles.profileBio, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Your real profile</Text>
+            <View style={[statStyles.verifiedBadge, { backgroundColor: colors.success + "20" }]}>
+              <Ionicons name="checkmark-circle" size={10} color={colors.success} />
+              <Text style={[statStyles.verifiedText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>Genuine</Text>
+            </View>
+          </GlassCard>
+
+          <View style={statStyles.vsArrow}>
+            <Ionicons name="arrow-forward" size={18} color={colors.mutedForeground} />
+          </View>
+
+          {/* Impersonator */}
+          <GlassCard style={[statStyles.profileCard, { borderColor: "#EF444455" }]}>
+            <View style={[statStyles.avatar, { backgroundColor: "#EF444422" }]}>
+              <Ionicons name="person" size={20} color="#EF4444" />
+            </View>
+            <Text style={[statStyles.profileName, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>@yourhandIe</Text>
+            <Text style={[statStyles.profileBio, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Stolen photo · Copied bio</Text>
+            <View style={[statStyles.verifiedBadge, { backgroundColor: "#EF444420" }]}>
+              <Ionicons name="alert-circle" size={10} color="#EF4444" />
+              <Text style={[statStyles.verifiedText, { color: "#EF4444", fontFamily: "Inter_600SemiBold" }]}>Detected</Text>
+            </View>
+          </GlassCard>
+        </View>
+
+        <Text style={[statStyles.caption, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Note the subtle character swap: lowercase "l" replaced with uppercase "I" — a classic impersonator tactic invisible at a glance.
+        </Text>
+      </Animated.View>
+    </ScrollView>
+  );
+}
+
+const statStyles = StyleSheet.create({
+  statCard: { gap: 6 },
+  statNumber: { fontSize: 42, lineHeight: 48 },
+  statLabel: { fontSize: 15, lineHeight: 22 },
+  statSource: { fontSize: 11, marginTop: 2 },
+  cloneRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  profileCard: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 16 },
+  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  profileName: { fontSize: 12, textAlign: "center" },
+  profileBio: { fontSize: 10, textAlign: "center", lineHeight: 14 },
+  verifiedBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  verifiedText: { fontSize: 9 },
+  vsArrow: { alignItems: "center" },
+  caption: { fontSize: 12, lineHeight: 18, textAlign: "center", opacity: 0.8 },
+});
+
+// ─── Step 2: Assessment Intro ─────────────────────────────────────────────────
+function AssessmentIntroScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <View style={[styles.screenPad, { flex: 1, justifyContent: "center", gap: 32 }]}>
+      <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
+      <Animated.View style={{ alignItems: "center", opacity: fadeAnim, transform: [{ scale: scaleAnim }], gap: 24 }}>
+        {/* Progress ring hint */}
+        <View style={assessStyles.ringWrap}>
+          <View style={[assessStyles.outerRing, { borderColor: colors.primary + "33" }]} />
+          <View style={[assessStyles.innerRing, { borderColor: colors.primary + "66" }]} />
+          <View style={[assessStyles.centerDot, { backgroundColor: colors.primary + "22" }]}>
+            <Ionicons name="search" size={28} color={colors.primary} />
+          </View>
+        </View>
+
+        <View style={{ gap: 12, alignItems: "center" }}>
+          <Text style={[assessStyles.headline, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Let's check{"\n"}your exposure.
+          </Text>
+          <Text style={[assessStyles.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            A few quick questions, then we'll run your first scan.{"\n"}Takes about a minute.
+          </Text>
+        </View>
+
+        <View style={assessStyles.chips}>
+          {["~1 min", "No login needed yet", "100% private"].map((chip) => (
+            <View key={chip} style={[assessStyles.chip, { backgroundColor: colors.primary + "14", borderColor: colors.primary + "30" }]}>
+              <Ionicons name="checkmark" size={11} color={colors.primary} />
+              <Text style={[assessStyles.chipText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>{chip}</Text>
+            </View>
+          ))}
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+const assessStyles = StyleSheet.create({
+  ringWrap: { width: 140, height: 140, alignItems: "center", justifyContent: "center" },
+  outerRing: { position: "absolute", width: 140, height: 140, borderRadius: 70, borderWidth: 1 },
+  innerRing: { position: "absolute", width: 100, height: 100, borderRadius: 50, borderWidth: 1 },
+  centerDot: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center" },
+  headline: { fontSize: 32, textAlign: "center", lineHeight: 40 },
+  sub: { fontSize: 15, textAlign: "center", lineHeight: 22 },
+  chips: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  chipText: { fontSize: 12 },
+});
+
+// ─── Step 3: Concern ─────────────────────────────────────────────────────────
 const CONCERNS = [
-  { id: "impersonated", icon: "alert-circle" as const, label: "Someone is impersonating me", sub: "I've found fake accounts using my name or photos", color: "#EF4444" },
-  { id: "creator", icon: "videocam" as const, label: "Protecting my creator brand", sub: "My content gets stolen or reused without permission", color: "#8B5CF6" },
-  { id: "proactive", icon: "shield-checkmark" as const, label: "Staying ahead of threats", sub: "I want to prevent identity theft proactively", color: "#3B82F6" },
-  { id: "business", icon: "business" as const, label: "Business & brand protection", sub: "My company's social presence needs monitoring", color: "#10B981" },
-  { id: "curious", icon: "search" as const, label: "Checking my exposure", sub: "I'm curious to see if I'm already at risk", color: "#F59E0B" },
+  { id: "impersonated", icon: "alert-circle" as const, label: "Someone is impersonating me", sub: "I've found fake accounts using my name or photos" },
+  { id: "creator", icon: "videocam" as const, label: "Protecting my creator brand", sub: "My content gets stolen or reused without permission" },
+  { id: "proactive", icon: "shield-checkmark" as const, label: "Staying ahead of threats", sub: "I want to prevent identity theft before it happens" },
+  { id: "business", icon: "business" as const, label: "Business & brand protection", sub: "My company's social presence needs monitoring" },
+  { id: "curious", icon: "search" as const, label: "Checking my exposure", sub: "I'm curious to see if I'm already at risk" },
 ];
 
 function ConcernScreen({
@@ -115,38 +349,30 @@ function ConcernScreen({
   const scaleAnims = useRef(CONCERNS.map(() => new Animated.Value(1))).current;
 
   useEffect(() => {
-    Animated.stagger(
-      70,
-      cardAnims.map((anim) =>
-        Animated.spring(anim, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true })
-      )
-    ).start();
-  }, [cardAnims]);
+    Animated.stagger(60, cardAnims.map((anim) =>
+      Animated.spring(anim, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true })
+    )).start();
+  }, []);
 
   const handlePress = (id: string, idx: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.sequence([
       Animated.timing(scaleAnims[idx]!, { toValue: 0.96, duration: 80, useNativeDriver: true }),
       Animated.spring(scaleAnims[idx]!, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
-    ]).start();
-    onSelect(id);
+    ]).start(() => onSelect(id));
   };
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-
-      <View style={[styles.eduIconWrap, { backgroundColor: colors.primary + "22", borderColor: colors.primary + "44" }]}>
-        <Ionicons name="help-circle" size={36} color={colors.primary} />
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          What brings you to Rook?
+        </Text>
+        <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          This tailors your protection profile to what matters most.
+        </Text>
       </View>
-
-      <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        What brings you to Rook?
-      </Text>
-      <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        This helps us tailor your protection profile to what matters most to you.
-      </Text>
-
       <View style={styles.optionList}>
         {CONCERNS.map((c, idx) => {
           const isSelected = selected === c.id;
@@ -156,7 +382,7 @@ function ConcernScreen({
               style={{
                 opacity: cardAnims[idx],
                 transform: [
-                  { translateY: cardAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
+                  { translateY: cardAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
                   { scale: scaleAnims[idx]! },
                 ],
               }}
@@ -165,13 +391,13 @@ function ConcernScreen({
                 activeOpacity={0.85}
                 onPress={() => handlePress(c.id, idx)}
                 style={[styles.optionCard, {
-                  backgroundColor: isSelected ? c.color + "12" : colors.card,
-                  borderColor: isSelected ? c.color + "80" : colors.border,
+                  backgroundColor: isSelected ? colors.primary + "14" : colors.card,
+                  borderColor: isSelected ? colors.primary + "80" : colors.border,
                   borderWidth: isSelected ? 1.5 : 1,
                 }]}
               >
-                <View style={[styles.optionIconWrap, { backgroundColor: c.color + "20" }]}>
-                  <Ionicons name={c.icon} size={22} color={c.color} />
+                <View style={[styles.optionIconWrap, { backgroundColor: colors.primary + "20" }]}>
+                  <Ionicons name={c.icon} size={22} color={isSelected ? colors.primary : colors.mutedForeground} />
                 </View>
                 <View style={styles.optionText}>
                   <Text style={[styles.optionLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
@@ -181,12 +407,11 @@ function ConcernScreen({
                     {c.sub}
                   </Text>
                 </View>
-                <View style={[styles.optionCheck, {
-                  backgroundColor: isSelected ? c.color : "transparent",
-                  borderColor: isSelected ? c.color : colors.border,
-                }]}>
-                  {isSelected && <Ionicons name="checkmark" size={12} color="#fff" />}
-                </View>
+                {isSelected && (
+                  <View style={[styles.optionCheck, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                    <Ionicons name="checkmark" size={12} color="#fff" />
+                  </View>
+                )}
               </TouchableOpacity>
             </Animated.View>
           );
@@ -196,187 +421,492 @@ function ConcernScreen({
   );
 }
 
-// ─── Step 3: Education ────────────────────────────────────────────────────────
-const STATS = [
-  { icon: "person-add", value: "7", label: "Platforms monitored simultaneously", color: "#EF4444" },
-  { icon: "scan-circle", value: "Ongoing", label: "AI-powered monitoring across platforms", color: "#F59E0B" },
-  { icon: "shield-checkmark", value: "Automated", label: "Alerts when potential threats are detected", color: "#8B5CF6" },
-];
-
-const CONCERN_HEADLINES: Record<string, string> = {
-  impersonated: "You're Not Alone — Impersonation Is Exploding",
-  creator: "Content Theft Is the #1 Threat Facing Creators",
-  proactive: "Smart Move — Most Victims Don't Act Until It's Too Late",
-  business: "Brand Impersonation Costs Businesses Millions Each Year",
-  curious: "You'd Be Surprised What's Already Out There",
-};
-
-function EducationScreen({ colors, concern }: { colors: ReturnType<typeof useColors>; concern: string | null }) {
-  const headline = (concern && CONCERN_HEADLINES[concern]) ?? "Fake Accounts Are More Common Than You Think";
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#EF444411", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={[styles.eduIconWrap, { backgroundColor: "#EF444422", borderColor: "#EF444444" }]}>
-        <Ionicons name="trending-up" size={36} color="#EF4444" />
-      </View>
-      <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{headline}</Text>
-      <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        Identity theft on social media is the fastest-growing form of online fraud — and most victims don't know until it's too late.
-      </Text>
-      <View style={styles.statsCol}>
-        {STATS.map((s) => (
-          <GlassCard key={s.value} style={[styles.statCard, { borderLeftColor: s.color, borderLeftWidth: 3 }]}>
-            <View style={[styles.statIcon, { backgroundColor: s.color + "22" }]}>
-              <Ionicons name={s.icon as any} size={20} color={s.color} />
-            </View>
-            <View style={styles.statText}>
-              <Text style={[styles.statValue, { color: s.color, fontFamily: "Inter_700Bold" }]}>{s.value}</Text>
-              <Text style={[styles.statLabel2, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{s.label}</Text>
-            </View>
-          </GlassCard>
-        ))}
-      </View>
-      <GlassCard style={[styles.warnCard, { borderColor: "#EF444433" }]}>
-        <Ionicons name="information-circle" size={16} color="#EF4444" />
-        <Text style={[styles.warnText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Impersonators steal photos, reuse bios, and contact your followers with scams — all while pretending to be you.
-        </Text>
-      </GlassCard>
-    </ScrollView>
-  );
-}
-
-// ─── Step 4: About You ────────────────────────────────────────────────────────
+// ─── Step 4: Identity Type (auto-advance) ────────────────────────────────────
 const USER_TYPES = [
-  { id: "public_figure", icon: "star" as const, label: "Public Figure", color: "#F59E0B" },
-  { id: "creator", icon: "videocam" as const, label: "Content Creator", color: "#8B5CF6" },
-  { id: "business", icon: "business" as const, label: "Business / Brand", color: "#10B981" },
-  { id: "professional", icon: "briefcase" as const, label: "Professional", color: "#3B82F6" },
-  { id: "student", icon: "school" as const, label: "Student", color: "#06B6D4" },
-  { id: "personal", icon: "person" as const, label: "Personal", color: "#6B7280" },
+  { id: "public_figure", icon: "star" as const, label: "Public Figure", risk: "High-visibility targets for impersonation" },
+  { id: "creator", icon: "videocam" as const, label: "Content Creator", risk: "Creators are impersonated 3× more on average" },
+  { id: "business", icon: "business" as const, label: "Business / Brand", risk: "Brand fraud costs businesses millions yearly" },
+  { id: "professional", icon: "briefcase" as const, label: "Professional", risk: "LinkedIn scams targeting your network" },
+  { id: "student", icon: "school" as const, label: "Student", risk: "Growing target of social media fraud" },
+  { id: "personal", icon: "person" as const, label: "Personal Use", risk: "Everyone deserves identity protection" },
 ];
 
-const FOLLOWER_RANGES = [
-  { id: "small", label: "1–2 accounts" },
-  { id: "medium", label: "3–5 accounts" },
-  { id: "large", label: "6+ accounts" },
-];
-
-function AboutYouScreen({
+function IdentityTypeScreen({
   colors,
-  selectedType,
-  selectedRange,
-  onSelectType,
-  onSelectRange,
+  selected,
+  onSelect,
 }: {
   colors: ReturnType<typeof useColors>;
-  selectedType: string | null;
-  selectedRange: string | null;
-  onSelectType: (id: string) => void;
-  onSelectRange: (id: string) => void;
+  selected: string | null;
+  onSelect: (id: string) => void;
 }) {
   const gridAnims = useRef(USER_TYPES.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    Animated.stagger(
-      55,
-      gridAnims.map((a) =>
-        Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true })
-      )
-    ).start();
-  }, [gridAnims]);
+    Animated.stagger(55, gridAnims.map((a) =>
+      Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true })
+    )).start();
+  }, []);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={["#8B5CF611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={[styles.eduIconWrap, { backgroundColor: "#8B5CF622", borderColor: "#8B5CF644" }]}>
-        <Ionicons name="person-circle" size={36} color="#8B5CF6" />
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          Which of these sounds like you?
+        </Text>
       </View>
-      <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        Tell us about yourself
-      </Text>
-      <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        We'll personalize your monitoring to match your online presence and risk profile.
-      </Text>
-
-      <Text style={[styles.sectionLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>I am a…</Text>
       <View style={styles.typeGrid}>
         {USER_TYPES.map((t, idx) => {
-          const isSelected = selectedType === t.id;
+          const isSelected = selected === t.id;
           return (
-            <Animated.View key={t.id} style={{
-              opacity: gridAnims[idx],
-              transform: [{ translateY: gridAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-              width: (width - 60) / 3,
-            }}>
+            <Animated.View
+              key={t.id}
+              style={{
+                opacity: gridAnims[idx],
+                transform: [{ translateY: gridAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+                width: (width - 60) / 2,
+              }}
+            >
               <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelectType(t.id); }}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  onSelect(t.id);
+                }}
                 style={[styles.typeCard, {
-                  backgroundColor: isSelected ? t.color + "18" : colors.card,
-                  borderColor: isSelected ? t.color + "80" : colors.border,
+                  backgroundColor: isSelected ? colors.primary + "18" : colors.card,
+                  borderColor: isSelected ? colors.primary + "80" : colors.border,
                   borderWidth: isSelected ? 1.5 : 1,
                 }]}
               >
-                <View style={[styles.typeIcon, { backgroundColor: t.color + "20" }]}>
-                  <Ionicons name={t.icon} size={20} color={t.color} />
+                <View style={[styles.typeIcon, { backgroundColor: isSelected ? colors.primary + "25" : colors.secondary }]}>
+                  <Ionicons name={t.icon} size={22} color={isSelected ? colors.primary : colors.mutedForeground} />
                 </View>
                 <Text style={[styles.typeLabel, {
-                  color: isSelected ? t.color : colors.foreground,
-                  fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
+                  color: isSelected ? colors.primary : colors.foreground,
+                  fontFamily: isSelected ? "Inter_700Bold" : "Inter_600SemiBold",
+                  fontSize: 13,
                 }]}>{t.label}</Text>
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11, lineHeight: 15, textAlign: "center" }]}>
+                  {t.risk}
+                </Text>
               </TouchableOpacity>
             </Animated.View>
           );
         })}
       </View>
+    </ScrollView>
+  );
+}
 
-      <Text style={[styles.sectionLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold", marginTop: 4 }]}>
-        How many social accounts do you have?
-      </Text>
-      <View style={styles.rangeRow}>
-        {FOLLOWER_RANGES.map((r) => {
-          const isSelected = selectedRange === r.id;
+// ─── Step 5: Account Count (auto-advance) ─────────────────────────────────────
+const ACCOUNT_RANGES = [
+  { id: "small", label: "1–2 accounts", sub: "Just starting out" },
+  { id: "medium", label: "3–5 accounts", sub: "Active across platforms" },
+  { id: "large", label: "6+ accounts", sub: "Wide digital presence" },
+];
+
+function AccountCountScreen({
+  colors,
+  selected,
+  onSelect,
+}: {
+  colors: ReturnType<typeof useColors>;
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const cardAnims = useRef(ACCOUNT_RANGES.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    Animated.stagger(80, cardAnims.map((a) =>
+      Animated.spring(a, { toValue: 1, tension: 100, friction: 9, useNativeDriver: true })
+    )).start();
+  }, []);
+
+  return (
+    <View style={[styles.screenPad, { flex: 1, justifyContent: "center", gap: 28 }]}>
+      <LinearGradient colors={["#F59E0B11", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          How many social accounts do you have?
+        </Text>
+        <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          This helps us calibrate how much of your identity we need to protect.
+        </Text>
+      </View>
+      <View style={{ gap: 12 }}>
+        {ACCOUNT_RANGES.map((r, idx) => {
+          const isSelected = selected === r.id;
           return (
-            <TouchableOpacity
+            <Animated.View
               key={r.id}
-              activeOpacity={0.8}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelectRange(r.id); }}
-              style={[styles.rangeBtn, {
-                backgroundColor: isSelected ? colors.primary + "18" : colors.card,
-                borderColor: isSelected ? colors.primary + "80" : colors.border,
-                borderWidth: isSelected ? 1.5 : 1,
-                flex: 1,
-              }]}
+              style={{
+                opacity: cardAnims[idx],
+                transform: [{ translateY: cardAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+              }}
             >
-              <Text style={[styles.rangeBtnText, {
-                color: isSelected ? colors.primary : colors.foreground,
-                fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
-              }]}>{r.label}</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  onSelect(r.id);
+                }}
+                style={[countStyles.rangeCard, {
+                  backgroundColor: isSelected ? colors.primary + "18" : colors.card,
+                  borderColor: isSelected ? colors.primary + "80" : colors.border,
+                  borderWidth: isSelected ? 1.5 : 1,
+                }]}
+              >
+                <View>
+                  <Text style={[countStyles.rangeLabel, { color: isSelected ? colors.primary : colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    {r.label}
+                  </Text>
+                  <Text style={[countStyles.rangeSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {r.sub}
+                  </Text>
+                </View>
+                {isSelected && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
+              </TouchableOpacity>
+            </Animated.View>
           );
         })}
       </View>
+    </View>
+  );
+}
 
-      <View style={[styles.insightCard, { backgroundColor: colors.primary + "0C", borderColor: colors.primary + "22" }]}>
-        <Ionicons name="analytics" size={14} color={colors.primary} />
-        <Text style={[styles.insightText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          This calibrates your risk score and helps us prioritize what to scan first.
+const countStyles = StyleSheet.create({
+  rangeCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 18, borderRadius: 16, borderWidth: 1 },
+  rangeLabel: { fontSize: 17, marginBottom: 2 },
+  rangeSub: { fontSize: 13 },
+});
+
+// ─── Step 6: Identity Input ───────────────────────────────────────────────────
+function IdentityInputScreen({
+  colors,
+  value,
+  onChange,
+}: {
+  colors: ReturnType<typeof useColors>;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 0, duration: 1600, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const shimmerOpacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] });
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={100}
+    >
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[styles.screenPad, { flexGrow: 1, justifyContent: "center" }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <LinearGradient colors={["#3B82F622", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
+        <View style={{ gap: 28 }}>
+          <View style={{ gap: 10 }}>
+            <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Now let's find out what's out there about you.
+            </Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Enter your name or the @handle you use most. We'll search for accounts pretending to be you — nothing is posted, messaged, or shared.
+            </Text>
+          </View>
+
+          <View style={inputStyles.inputWrap}>
+            {/* Scanning shimmer effect */}
+            <Animated.View
+              style={[StyleSheet.absoluteFill, {
+                backgroundColor: colors.primary,
+                opacity: shimmerOpacity,
+                borderRadius: 14,
+              }]}
+              pointerEvents="none"
+            />
+            <View style={[inputStyles.inputRow, {
+              backgroundColor: colors.card,
+              borderColor: value.length > 0 ? colors.primary + "66" : colors.border,
+              borderWidth: value.length > 0 ? 1.5 : 1,
+            }]}>
+              <Ionicons name="person-circle-outline" size={22} color={value.length > 0 ? colors.primary : colors.mutedForeground} />
+              <TextInput
+                style={[inputStyles.textInput, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}
+                placeholder="Your name or @handle"
+                placeholderTextColor={colors.mutedForeground}
+                value={value}
+                onChangeText={onChange}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+              />
+              {value.length > 0 && (
+                <TouchableOpacity onPress={() => onChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <GlassCard style={[inputStyles.privacyNote, { borderColor: colors.success + "33" }]}>
+            <Ionicons name="lock-closed" size={14} color={colors.success} />
+            <Text style={[inputStyles.privacyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              We only use this to search for impersonators. Your data stays on your device until you create an account.
+            </Text>
+          </GlassCard>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const inputStyles = StyleSheet.create({
+  inputWrap: { borderRadius: 14, overflow: "hidden" },
+  inputRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 14, borderWidth: 1 },
+  textInput: { flex: 1, fontSize: 16, lineHeight: 22 },
+  privacyNote: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  privacyText: { flex: 1, fontSize: 13, lineHeight: 19 },
+});
+
+// ─── Step 7: Proof Visual ─────────────────────────────────────────────────────
+function ProofVisualScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const detectedAnim = useRef(new Animated.Value(0)).current;
+  const stepsAnim = useRef([0, 1, 2, 3].map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    setTimeout(() => {
+      Animated.timing(detectedAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    }, 600);
+    Animated.stagger(200, stepsAnim.map((a) =>
+      Animated.spring(a, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true })
+    )).start();
+  }, []);
+
+  const PROCESS_STEPS = [
+    { icon: "scan-circle", label: "Scan every major platform", color: colors.primary },
+    { icon: "alert-circle", label: "Detect impersonators & stolen photos", color: "#EF4444" },
+    { icon: "notifications", label: "Alert you instantly", color: "#F59E0B" },
+    { icon: "shield-checkmark", label: "Help you report & remove them", color: colors.success },
+  ];
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.screenPad, { gap: 28 }]} showsVerticalScrollIndicator={false}>
+      <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          Here's what Rook catches.
         </Text>
+      </View>
+
+      {/* Detection mockup */}
+      <GlassCard style={[proofStyles.mockupCard, { borderColor: "#EF444433" }]}>
+        <View style={proofStyles.mockupHeader}>
+          <View style={[proofStyles.mockupDot, { backgroundColor: "#EF444444" }]}>
+            <Ionicons name="alert-circle" size={14} color="#EF4444" />
+          </View>
+          <Text style={[proofStyles.mockupTitle, { color: "#EF4444", fontFamily: "Inter_600SemiBold" }]}>
+            Impersonator Detected
+          </Text>
+          <Animated.View style={[proofStyles.detectedBadge, { backgroundColor: "#EF4444", opacity: detectedAnim, transform: [{ scale: detectedAnim }] }]}>
+            <Text style={[proofStyles.detectedText, { fontFamily: "Inter_700Bold" }]}>FLAGGED</Text>
+          </Animated.View>
+        </View>
+
+        <View style={proofStyles.mockupProfiles}>
+          {/* Your real profile */}
+          <View style={proofStyles.profileCol}>
+            <View style={[proofStyles.mockAvatar, { backgroundColor: colors.primary + "25" }]}>
+              <Ionicons name="person" size={18} color={colors.primary} />
+            </View>
+            <Text style={[proofStyles.mockHandle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>@alexjones</Text>
+            <Text style={[proofStyles.mockMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Your account</Text>
+            <View style={[proofStyles.mockTag, { backgroundColor: colors.success + "20" }]}>
+              <Text style={[proofStyles.mockTagText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>Genuine</Text>
+            </View>
+          </View>
+
+          <View style={proofStyles.vsLine}>
+            <View style={[proofStyles.vsDivider, { backgroundColor: colors.border }]} />
+          </View>
+
+          {/* Impersonator */}
+          <View style={proofStyles.profileCol}>
+            <View style={[proofStyles.mockAvatar, { backgroundColor: "#EF444422" }]}>
+              <Ionicons name="person" size={18} color="#EF4444" />
+            </View>
+            <Text style={[proofStyles.mockHandle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>@alexjone5</Text>
+            <Text style={[proofStyles.mockMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Stolen photo · Copied bio</Text>
+            <View style={[proofStyles.mockTag, { backgroundColor: "#EF444420" }]}>
+              <Text style={[proofStyles.mockTagText, { color: "#EF4444", fontFamily: "Inter_600SemiBold" }]}>Impersonator</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[proofStyles.evidenceRow, { backgroundColor: "#EF444410", borderRadius: 8, padding: 10 }]}>
+          {["Identical profile photo", "Copied bio text", "Altered handle"].map((tell, i) => (
+            <View key={tell} style={proofStyles.evidenceItem}>
+              <Ionicons name="alert-circle" size={11} color="#EF4444" />
+              <Text style={[proofStyles.evidenceText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{tell}</Text>
+            </View>
+          ))}
+        </View>
+      </GlassCard>
+
+      {/* 4-step process */}
+      <View style={{ gap: 6 }}>
+        <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>How Rook protects you</Text>
+      </View>
+      <View style={proofStyles.processRow}>
+        {PROCESS_STEPS.map((s, i) => (
+          <React.Fragment key={s.label}>
+            <Animated.View
+              style={[proofStyles.processStep, {
+                opacity: stepsAnim[i],
+                transform: [{ translateY: stepsAnim[i]!.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+              }]}
+            >
+              <View style={[proofStyles.processIcon, { backgroundColor: s.color + "20" }]}>
+                <Ionicons name={s.icon as any} size={20} color={s.color} />
+              </View>
+              <Text style={[proofStyles.processLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {s.label}
+              </Text>
+            </Animated.View>
+            {i < PROCESS_STEPS.length - 1 && (
+              <View style={proofStyles.processArrow}>
+                <Ionicons name="chevron-forward" size={14} color={colors.mutedForeground + "66"} />
+              </View>
+            )}
+          </React.Fragment>
+        ))}
       </View>
     </ScrollView>
   );
 }
 
-// ─── Step 5: Platforms ────────────────────────────────────────────────────────
-const ALL_PLATFORMS: Array<{ id: NonNullable<SocialPlatform>; label: string; color: string }> = [
-  { id: "instagram", label: "Instagram", color: "#E1306C" },
-  { id: "tiktok", label: "TikTok", color: "#FE2C55" },
-  { id: "x", label: "X / Twitter", color: "#14171A" },
-  { id: "facebook", label: "Facebook", color: "#1877F2" },
-  { id: "youtube", label: "YouTube", color: "#FF0000" },
-  { id: "snapchat", label: "Snapchat", color: "#FFFC00" },
-  { id: "linkedin", label: "LinkedIn", color: "#0A66C2" },
+const proofStyles = StyleSheet.create({
+  mockupCard: { gap: 16 },
+  mockupHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  mockupDot: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  mockupTitle: { flex: 1, fontSize: 13 },
+  detectedBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  detectedText: { color: "#fff", fontSize: 10, letterSpacing: 0.5 },
+  mockupProfiles: { flexDirection: "row", gap: 12, alignItems: "center" },
+  profileCol: { flex: 1, alignItems: "center", gap: 6 },
+  mockAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  mockHandle: { fontSize: 12 },
+  mockMeta: { fontSize: 10, textAlign: "center" },
+  mockTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  mockTagText: { fontSize: 10 },
+  vsLine: { alignItems: "center" },
+  vsDivider: { width: 1, height: 60 },
+  evidenceRow: { gap: 6 },
+  evidenceItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  evidenceText: { fontSize: 11 },
+  processRow: { flexDirection: "row", alignItems: "flex-start" },
+  processStep: { flex: 1, alignItems: "center", gap: 8 },
+  processIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  processLabel: { fontSize: 10, textAlign: "center", lineHeight: 14 },
+  processArrow: { paddingTop: 14 },
+});
+
+// ─── Step 8: Privacy Screen ───────────────────────────────────────────────────
+const PRIVACY_ITEMS = [
+  { icon: "eye-off-outline" as const, title: "Read-only access only", body: "We never post, comment, follow, or message anyone on your behalf." },
+  { icon: "chatbox-ellipses-outline" as const, title: "We never access your DMs", body: "Only public profile data and posts are scanned — your private messages are completely off-limits." },
+  { icon: "server-outline" as const, title: "Your data is never sold", body: "We don't monetize your personal information. Ever. Our business model is your subscription, not your data." },
+  { icon: "trash-outline" as const, title: "Delete anytime", body: "Request full data deletion at any time from your profile settings. We'll wipe everything within 30 days." },
+];
+
+function PrivacyScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const itemAnims = useRef(PRIVACY_ITEMS.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    Animated.stagger(100, itemAnims.map((a) =>
+      Animated.spring(a, { toValue: 1, tension: 100, friction: 9, useNativeDriver: true })
+    )).start();
+  }, []);
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.screenPad, { gap: 28 }]} showsVerticalScrollIndicator={false}>
+      <LinearGradient colors={["#10B98111", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
+      <View style={{ alignItems: "center", gap: 16 }}>
+        <View style={[privStyles.shieldWrap, { backgroundColor: colors.success + "18", borderColor: colors.success + "44" }]}>
+          <Ionicons name="lock-closed" size={36} color={colors.success} />
+        </View>
+        <View style={{ gap: 8, alignItems: "center" }}>
+          <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>
+            Your privacy is the whole point.
+          </Text>
+          <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }]}>
+            Rook only looks at publicly available information. Here's exactly what that means.
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ gap: 12 }}>
+        {PRIVACY_ITEMS.map((item, idx) => (
+          <Animated.View
+            key={item.title}
+            style={{
+              opacity: itemAnims[idx],
+              transform: [{ translateY: itemAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+            }}
+          >
+            <GlassCard style={[privStyles.itemCard, { borderColor: colors.success + "22" }]}>
+              <View style={[privStyles.itemIcon, { backgroundColor: colors.success + "18" }]}>
+                <Ionicons name={item.icon} size={20} color={colors.success} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[privStyles.itemTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  {item.title}
+                </Text>
+                <Text style={[privStyles.itemBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {item.body}
+                </Text>
+              </View>
+            </GlassCard>
+          </Animated.View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const privStyles = StyleSheet.create({
+  shieldWrap: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  itemCard: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  itemIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  itemTitle: { fontSize: 14 },
+  itemBody: { fontSize: 13, lineHeight: 19 },
+});
+
+// ─── Step 9: Platform Select ──────────────────────────────────────────────────
+const ALL_PLATFORMS: Array<{ id: NonNullable<SocialPlatform>; label: string }> = [
+  { id: "instagram", label: "Instagram" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "x", label: "X / Twitter" },
+  { id: "facebook", label: "Facebook" },
+  { id: "youtube", label: "YouTube" },
+  { id: "snapchat", label: "Snapchat" },
+  { id: "linkedin", label: "LinkedIn" },
 ];
 
 function PlatformsScreen({
@@ -391,81 +921,60 @@ function PlatformsScreen({
   const cardAnims = useRef(ALL_PLATFORMS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    Animated.stagger(
-      50,
-      cardAnims.map((a) =>
-        Animated.spring(a, { toValue: 1, tension: 110, friction: 9, useNativeDriver: true })
-      )
-    ).start();
-  }, [cardAnims]);
+    Animated.stagger(45, cardAnims.map((a) =>
+      Animated.spring(a, { toValue: 1, tension: 110, friction: 9, useNativeDriver: true })
+    )).start();
+  }, []);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.screenPad, { gap: 20 }]} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={["#F59E0B11", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={[styles.eduIconWrap, { backgroundColor: "#F59E0B22", borderColor: "#F59E0B44" }]}>
-        <Ionicons name="apps" size={36} color="#F59E0B" />
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          Which platforms should we monitor?
+        </Text>
+        <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Select everywhere you're active.{" "}
+          <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium" }}>Read-only, always.</Text>
+          {" "}Rook never posts, follows, or accesses your DMs.
+        </Text>
       </View>
-      <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        Which platforms are you on?
-      </Text>
-      <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        Select all that apply — we'll focus monitoring where you're most active and at risk.
-      </Text>
 
       <View style={styles.platformGrid}>
         {ALL_PLATFORMS.map((p, idx) => {
-          const isComingSoon = false;
           const isSelected = selected.includes(p.id);
           return (
-            <Animated.View key={p.id} style={{
-              opacity: cardAnims[idx],
-              transform: [{ translateY: cardAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
-              width: (width - 60) / 2,
-            }}>
-              {isComingSoon ? (
-                <View style={[styles.platCard, {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  opacity: 0.4,
-                }]}>
-                  <View style={styles.platCardRow}>
-                    <PlatformIcon platform={p.id} size={26} />
-                    <View style={[styles.comingSoonPlatBadge, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-                      <Text style={[styles.comingSoonPlatText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                        Coming Soon
-                      </Text>
-                    </View>
+            <Animated.View
+              key={p.id}
+              style={{
+                opacity: cardAnims[idx],
+                transform: [{ translateY: cardAnims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                width: (width - 60) / 2,
+              }}
+            >
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(p.id); }}
+                style={[styles.platCard, {
+                  backgroundColor: isSelected ? colors.primary + "18" : colors.card,
+                  borderColor: isSelected ? colors.primary + "70" : colors.border,
+                  borderWidth: isSelected ? 1.5 : 1,
+                }]}
+              >
+                <View style={styles.platCardRow}>
+                  <PlatformIcon platform={p.id} size={26} />
+                  <View style={[styles.platCheckbox, {
+                    backgroundColor: isSelected ? colors.primary : "transparent",
+                    borderColor: isSelected ? colors.primary : colors.border,
+                  }]}>
+                    {isSelected && <Ionicons name="checkmark" size={10} color="#fff" />}
                   </View>
-                  <Text style={[styles.platLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    {p.label}
-                  </Text>
                 </View>
-              ) : (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(p.id); }}
-                  style={[styles.platCard, {
-                    backgroundColor: isSelected ? p.color + "14" : colors.card,
-                    borderColor: isSelected ? p.color + "70" : colors.border,
-                    borderWidth: isSelected ? 1.5 : 1,
-                  }]}
-                >
-                  <View style={styles.platCardRow}>
-                    <PlatformIcon platform={p.id} size={26} />
-                    <View style={[styles.platCheckbox, {
-                      backgroundColor: isSelected ? p.color : "transparent",
-                      borderColor: isSelected ? p.color : colors.border,
-                    }]}>
-                      {isSelected && <Ionicons name="checkmark" size={10} color="#fff" />}
-                    </View>
-                  </View>
-                  <Text style={[styles.platLabel, {
-                    color: isSelected ? colors.foreground : colors.mutedForeground,
-                    fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
-                  }]}>{p.label}</Text>
-                </TouchableOpacity>
-              )}
+                <Text style={[styles.platLabel, {
+                  color: isSelected ? colors.foreground : colors.mutedForeground,
+                  fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
+                }]}>{p.label}</Text>
+              </TouchableOpacity>
             </Animated.View>
           );
         })}
@@ -475,7 +984,7 @@ function PlatformsScreen({
         <View style={[styles.selectionPill, { backgroundColor: colors.primary + "14", borderColor: colors.primary + "33" }]}>
           <Ionicons name="shield-checkmark" size={14} color={colors.primary} />
           <Text style={[styles.selectionPillText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
-            Monitoring {selected.length} platform{selected.length !== 1 ? "s" : ""} for you
+            Monitoring {selected.length} platform{selected.length !== 1 ? "s" : ""}
           </Text>
         </View>
       )}
@@ -483,248 +992,41 @@ function PlatformsScreen({
   );
 }
 
-// ─── Step 6: Connect Accounts ─────────────────────────────────────────────────
-const CONNECTABLE: Array<{ id: NonNullable<SocialPlatform>; label: string; color: string }> = [
-  { id: "instagram", label: "Instagram", color: "#E1306C" },
-  { id: "facebook", label: "Facebook", color: "#1877F2" },
-  { id: "x", label: "X (Twitter)", color: "#000000" },
-  { id: "tiktok", label: "TikTok", color: "#010101" },
-];
-
-function ConnectScreen({
-  colors,
-  activePlatforms,
-  connectedCount,
-  onSkip,
-  onConnect,
-  onContinue,
-}: {
-  colors: ReturnType<typeof useColors>;
-  activePlatforms: string[];
-  connectedCount: number;
-  onSkip: () => void;
-  onConnect: () => void;
-  onContinue: () => void;
-}) {
-  const prioritized = activePlatforms.length > 0
-    ? CONNECTABLE.filter((p) => activePlatforms.includes(p.id))
-    : CONNECTABLE;
-  const displayPlatforms = prioritized.length > 0 ? prioritized : CONNECTABLE;
-
-  const [selected, setSelected] = useState<Set<string>>(
-    new Set(displayPlatforms.map((p) => p.id))
-  );
-
-  const toggle = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={[styles.eduIconWrap, { backgroundColor: "#3B82F622", borderColor: "#3B82F644" }]}>
-        <Ionicons name="link" size={36} color="#3B82F6" />
-      </View>
-      <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        Connect Your Social Profiles
-      </Text>
-      <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        {activePlatforms.length > 0
-          ? `We'll connect the platforms you told us about to build a more accurate identity fingerprint.`
-          : `Connecting your accounts allows AI to build a more accurate identity fingerprint and catch threats faster.`}
-      </Text>
-
-      <View style={styles.platformList}>
-        {displayPlatforms.map((p) => {
-          const isComingSoon = false;
-          const isSelected = selected.has(p.id);
-          if (isComingSoon) {
-            return (
-              <View key={p.id} style={[styles.platformRow2, {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                opacity: 0.45,
-              }]}>
-                <PlatformIcon platform={p.id} size={28} />
-                <Text style={[styles.platformLabel2, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                  {p.label}
-                </Text>
-                <View style={[styles.comingSoonChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-                  <Text style={[styles.comingSoonChipText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                    Coming Soon
-                  </Text>
-                </View>
-              </View>
-            );
-          }
-          return (
-            <TouchableOpacity key={p.id} activeOpacity={0.75} onPress={() => toggle(p.id)}
-              style={[styles.platformRow2, {
-                backgroundColor: isSelected ? colors.primary + "14" : colors.card,
-                borderColor: isSelected ? colors.primary + "66" : colors.border,
-              }]}
-            >
-              <PlatformIcon platform={p.id} size={28} />
-              <Text style={[styles.platformLabel2, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                {p.label}
-              </Text>
-              <View style={[styles.checkbox, {
-                backgroundColor: isSelected ? colors.primary : "transparent",
-                borderColor: isSelected ? colors.primary : colors.border,
-              }]}>
-                {isSelected && <Ionicons name="checkmark" size={12} color="#fff" />}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <GlassCard style={[styles.privacyCard, { borderColor: colors.success + "33" }]}>
-        <Ionicons name="lock-closed" size={14} color={colors.success} />
-        <Text style={[styles.privacyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Rook only requests read-only access. We never post, follow, or access your DMs.
-        </Text>
-      </GlassCard>
-
-      {connectedCount > 0 && (
-        <GlassCard style={[styles.privacyCard, { borderColor: colors.success + "44" }]}>
-          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-          <Text style={[styles.privacyText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-            {connectedCount} account{connectedCount !== 1 ? "s" : ""} connected
-          </Text>
-        </GlassCard>
-      )}
-
-      <View style={styles.connectActions}>
-        <TouchableOpacity style={[styles.connectBtn, { backgroundColor: colors.primary }]} activeOpacity={0.85} onPress={onConnect}>
-          <Ionicons name="link" size={18} color="#fff" />
-          <Text style={[styles.connectBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-            {connectedCount > 0 ? "Connect Another Account" : "Connect Accounts"}
-          </Text>
-        </TouchableOpacity>
-        {connectedCount > 0 && (
-          <TouchableOpacity style={[styles.connectBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]} activeOpacity={0.85} onPress={onContinue}>
-            <Text style={[styles.connectBtnText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Continue</Text>
-            <Ionicons name="arrow-forward" size={18} color={colors.foreground} />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity onPress={onSkip}>
-          <Text style={[styles.skipLink, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Skip for now</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
-}
-
-// ─── Step 7: Features ─────────────────────────────────────────────────────────
-const FEATURES = [
-  { icon: "person-remove", label: "Impersonator Detection", desc: "Find accounts pretending to be you across all platforms.", color: "#EF4444" },
-  { icon: "images", label: "Photo Monitoring", desc: "Detect stolen photos and visual identity theft in real time.", color: "#3B82F6" },
-  { icon: "shield-checkmark", label: "Identity Fingerprint", desc: "AI builds a unique profile of your content to catch even subtle impersonation attempts.", color: "#F59E0B" },
-  { icon: "notifications", label: "Real-Time Alerts", desc: "Instant notifications the moment a new threat is detected.", color: "#10B981" },
-];
-
-function FeaturesScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#10B98111", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={[styles.eduIconWrap, { backgroundColor: "#10B98122", borderColor: "#10B98144" }]}>
-        <Ionicons name="shield-half" size={36} color="#10B981" />
-      </View>
-      <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        Everything You Need to Stay Protected
-      </Text>
-      <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        Rook combines AI scanning, photo recognition, and real-time threat monitoring into one app.
-      </Text>
-      <View style={styles.featureGrid}>
-        {FEATURES.map((f) => (
-          <GlassCard key={f.label} style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: f.color + "22" }]}>
-              <Ionicons name={f.icon as any} size={22} color={f.color} />
-            </View>
-            <Text style={[styles.featureTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>{f.label}</Text>
-            <Text style={[styles.featureDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{f.desc}</Text>
-          </GlassCard>
-        ))}
-      </View>
-    </ScrollView>
-  );
-}
-
-// ─── Step 8: Scan Setup + Attribution ─────────────────────────────────────────
+// ─── Step 10: Scan Setup (clean, no attribution) ──────────────────────────────
 const SETUP_STEPS = [
   "Building visual fingerprint",
   "Analyzing media patterns",
   "Creating protection profile",
-  "Preparing threat monitoring",
+  "Scanning platforms",
 ];
 
-const ATTRIBUTION_OPTIONS = [
-  { id: "instagram_tiktok", icon: "logo-instagram" as const, label: "Instagram / TikTok" },
-  { id: "app_store", icon: "phone-portrait" as const, label: "App Store" },
-  { id: "friend", icon: "people" as const, label: "Friend or family" },
-  { id: "influencer", icon: "megaphone" as const, label: "Influencer / Creator" },
-  { id: "news", icon: "newspaper" as const, label: "News / Blog" },
-  { id: "other", icon: "ellipsis-horizontal" as const, label: "Other" },
-];
-
-function ScanSetupScreen({
-  colors,
-  attribution,
-  onAttributionSelect,
-  onDone,
-}: {
-  colors: ReturnType<typeof useColors>;
-  attribution: string | null;
-  onAttributionSelect: (id: string) => void;
-  onDone: () => void;
-}) {
-  const { startScan, isScanning, scanProgress, scanQuotaError } = useApp();
+function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColors>; onDone: () => void }) {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [activeStep, setActiveStep] = useState(0);
-  const [showAttribution, setShowAttribution] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
-  const attributionAnim = useRef(new Animated.Value(0)).current;
   const hasStartedScan = useRef(false);
   const wasScanning = useRef(false);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
-  // Kick off a real scan (hits the API, indexes photos, polls for completion)
-  // instead of a decorative timer, so onboarding surfaces genuine results.
+  const { startScan, isScanning, scanProgress, scanQuotaError } = useApp();
+
   useEffect(() => {
     Animated.loop(
       Animated.timing(spinAnim, { toValue: 1, duration: 1500, easing: Easing.linear, useNativeDriver: true })
     ).start();
-
-    const attributionTimer = setTimeout(() => {
-      setShowAttribution(true);
-      Animated.timing(attributionAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-    }, 900);
 
     if (!hasStartedScan.current) {
       hasStartedScan.current = true;
       Promise.resolve(startScan()).catch(() => {});
     }
 
-    // Safety valve: never strand the user here (e.g. scan quota hit or network
-    // failure before the polling loop ever reports isScanning=true).
     const fallbackTimer = setTimeout(() => {
       if (!wasScanning.current) onDoneRef.current();
     }, 12000);
 
-    return () => {
-      clearTimeout(attributionTimer);
-      clearTimeout(fallbackTimer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => clearTimeout(fallbackTimer);
   }, []);
 
   useEffect(() => {
@@ -736,7 +1038,6 @@ function ScanSetupScreen({
       setCompletedSteps(Array.from({ length: stepIndex }, (_, i) => i));
       Animated.timing(progressAnim, { toValue: fraction, duration: 300, useNativeDriver: false }).start();
     } else if (wasScanning.current) {
-      // Scan just finished (success or failure) — show completion state then advance.
       wasScanning.current = false;
       setCompletedSteps(SETUP_STEPS.map((_, i) => i));
       setActiveStep(SETUP_STEPS.length);
@@ -744,7 +1045,6 @@ function ScanSetupScreen({
         setTimeout(() => onDoneRef.current(), 500);
       });
     } else if (scanQuotaError) {
-      // Scan never started because quota was already exhausted — don't block onboarding.
       onDoneRef.current();
     }
   }, [isScanning, scanProgress, progressAnim, scanQuotaError]);
@@ -753,7 +1053,7 @@ function ScanSetupScreen({
   const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.screenPad, { alignItems: "center" }]} showsVerticalScrollIndicator={false}>
+    <View style={[styles.screenPad, { flex: 1, alignItems: "center", justifyContent: "center", gap: 32 }]}>
       <LinearGradient colors={["#3B82F622", "#8B5CF611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
       <View style={styles.scanRings}>
@@ -769,12 +1069,14 @@ function ScanSetupScreen({
         <Ionicons name="shield-checkmark" size={36} color={colors.primary} style={styles.scanShield} />
       </View>
 
-      <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>
-        Preparing Your Identity Scan
-      </Text>
-      <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }]}>
-        Our AI is building your unique digital fingerprint
-      </Text>
+      <View style={{ gap: 8, alignItems: "center" }}>
+        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>
+          Scanning for your digital fingerprint…
+        </Text>
+        <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }]}>
+          AI is building your unique identity profile
+        </Text>
+      </View>
 
       <View style={[styles.progressTrack, { backgroundColor: colors.border, width: "100%" }]}>
         <Animated.View style={[styles.progressFill, { width: progressWidth, backgroundColor: colors.primary }]} />
@@ -790,7 +1092,9 @@ function ScanSetupScreen({
                 backgroundColor: done ? colors.success : active ? colors.primary : colors.secondary,
                 borderColor: done ? colors.success : active ? colors.primary : colors.border,
               }]}>
-                {done ? <Ionicons name="checkmark" size={10} color="#fff" /> : active ? <View style={[styles.activeDotPulse, { backgroundColor: colors.primary }]} /> : null}
+                {done
+                  ? <Ionicons name="checkmark" size={10} color="#fff" />
+                  : active ? <View style={[styles.activeDotPulse, { backgroundColor: colors.primary }]} /> : null}
               </View>
               <Text style={[styles.scanStepText, {
                 color: done || active ? colors.foreground : colors.mutedForeground,
@@ -800,319 +1104,138 @@ function ScanSetupScreen({
           );
         })}
       </View>
-
-      {/* Attribution question — appears during scan */}
-      {showAttribution && (
-        <Animated.View style={[styles.attributionCard, { opacity: attributionAnim, transform: [{ translateY: attributionAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
-          <GlassCard style={[styles.attributionInner, { borderColor: colors.border }]}>
-            <Text style={[styles.attributionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              One quick question while we set up…
-            </Text>
-            <Text style={[styles.attributionSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              How did you find Rook?
-            </Text>
-            <View style={styles.attributionGrid}>
-              {ATTRIBUTION_OPTIONS.map((a) => {
-                const isSelected = attribution === a.id;
-                return (
-                  <TouchableOpacity
-                    key={a.id}
-                    activeOpacity={0.8}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAttributionSelect(a.id); }}
-                    style={[styles.attributionChip, {
-                      backgroundColor: isSelected ? colors.primary + "18" : colors.secondary,
-                      borderColor: isSelected ? colors.primary + "66" : colors.border,
-                    }]}
-                  >
-                    <Ionicons name={a.icon} size={14} color={isSelected ? colors.primary : colors.mutedForeground} />
-                    <Text style={[styles.attributionChipText, {
-                      color: isSelected ? colors.primary : colors.foreground,
-                      fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
-                    }]}>{a.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </GlassCard>
-        </Animated.View>
-      )}
-    </ScrollView>
-  );
-}
-
-// ─── Step 9: Value Reveal ─────────────────────────────────────────────────────
-const CONCERN_MESSAGES: Record<string, { headline: string; detail: string }> = {
-  impersonated: {
-    headline: "Priority scan enabled",
-    detail: "We've set your risk profile to high-priority. Impersonator detection will run every 24 hours.",
-  },
-  creator: {
-    headline: "Creator protection mode on",
-    detail: "Photo and video monitoring is activated. We'll alert you the moment your content is found elsewhere.",
-  },
-  proactive: {
-    headline: "Proactive shield activated",
-    detail: "You're ahead of 76% of users. Continuous background scanning is now running.",
-  },
-  business: {
-    headline: "Brand monitoring active",
-    detail: "Business impersonation alerts are enabled. We'll watch for fake pages and cloned profiles.",
-  },
-  curious: {
-    headline: "Risk assessment ready",
-    detail: "Your exposure report is being generated. Most users are surprised by what we find.",
-  },
-};
-
-function RevealScreen({
-  colors,
-  answers,
-}: {
-  colors: ReturnType<typeof useColors>;
-  answers: OnboardingAnswers;
-}) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-  }, [fadeAnim]);
-
-  const concern = answers.primaryConcern;
-  const personalization = (concern !== null ? CONCERN_MESSAGES[concern] : undefined) ?? {
-    headline: "Protection profile ready",
-    detail: "Continuous monitoring is now active across all your connected platforms.",
-  };
-
-  const userTypeLabel = USER_TYPES.find((t) => t.id === answers.userType)?.label ?? null;
-  const platformCount = answers.activePlatforms.length;
-
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#10B98122", "#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-
-      <View style={[styles.revealBadge, { backgroundColor: colors.success + "18", borderColor: colors.success + "33" }]}>
-        <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-        <Text style={[styles.revealBadgeText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>Setup Complete</Text>
-      </View>
-
-      <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-        {userTypeLabel ? `Your ${userTypeLabel} Protection\nProfile Is Ready` : `Your Identity Is Ready\nTo Be Protected`}
-      </Text>
-      <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-        Here's a preview of what your Rook dashboard will look like once monitoring begins.
-      </Text>
-
-      <Animated.View style={{ opacity: fadeAnim }}>
-        {/* Personalized concern callout */}
-        <GlassCard style={[styles.personalizationCard, { borderColor: colors.primary + "33" }]}>
-          <View style={[styles.personalizationIcon, { backgroundColor: colors.primary + "18" }]}>
-            <Ionicons name="sparkles" size={18} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text style={[styles.personalizationTitle, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-              {personalization.headline}
-            </Text>
-            <Text style={[styles.personalizationDetail, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              {personalization.detail}
-            </Text>
-          </View>
-        </GlassCard>
-
-        <GlassCard style={styles.dashPreview}>
-          <View style={styles.dashRow}>
-            <View style={styles.dashScoreWrap}>
-              <View style={[styles.dashScoreRing, { borderColor: colors.primary }]}>
-                <Text style={[styles.dashScore, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>72</Text>
-                <Text style={[styles.dashScoreSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Shield Score</Text>
-              </View>
-            </View>
-            <View style={styles.dashStats}>
-              {[
-                { label: "Monitoring", value: "Active", color: colors.success },
-                { label: "Platforms", value: platformCount > 0 ? String(platformCount) : "4", color: colors.primary },
-                { label: "Threats Found", value: "0", color: colors.mutedForeground },
-                { label: "Last Scan", value: "Just now", color: colors.mutedForeground },
-              ].map((s) => (
-                <View key={s.label} style={styles.dashStat}>
-                  <Text style={[styles.dashStatVal, { color: s.color, fontFamily: "Inter_600SemiBold" }]}>{s.value}</Text>
-                  <Text style={[styles.dashStatLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{s.label}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-          <View style={[styles.dashDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.dashProtRow}>
-            <View style={[styles.dashProtDot, { backgroundColor: colors.success }]} />
-            <Text style={[styles.dashProtText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-              Identity Shield Active
-            </Text>
-          </View>
-        </GlassCard>
-
-        <View style={styles.revealHighlights}>
-          {[
-            { icon: "notifications", text: "Automated alerts when potential threats are detected" },
-            { icon: "eye", text: "Ongoing monitoring across connected platforms" },
-            { icon: "analytics", text: "AI-assisted threat analysis with detailed evidence" },
-          ].map((h) => (
-            <View key={h.icon} style={styles.highlightRow}>
-              <View style={[styles.highlightIcon, { backgroundColor: colors.primary + "18" }]}>
-                <Ionicons name={h.icon as any} size={16} color={colors.primary} />
-              </View>
-              <Text style={[styles.highlightText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{h.text}</Text>
-            </View>
-          ))}
-        </View>
-      </Animated.View>
-    </ScrollView>
-  );
-}
-
-// ─── Step 8: Confidence Slider ───────────────────────────────────────────────
-function ConfidenceSliderTrack({
-  colors,
-  value,
-  onChange,
-}: {
-  colors: ReturnType<typeof useColors>;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  const [trackWidth, setTrackWidth] = useState(0);
-
-  const trackRef = useRef<View>(null);
-  const trackPageX = useRef(0);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (evt) => {
-        handleMove(evt.nativeEvent.pageX - trackPageX.current);
-      },
-      onPanResponderMove: (evt) => {
-        handleMove(evt.nativeEvent.pageX - trackPageX.current);
-      },
-    })
-  ).current;
-
-  const handleMove = (x: number) => {
-    if (trackWidth === 0) return;
-    const fraction = Math.max(0, Math.min(1, x / trackWidth));
-    const v = Math.round(fraction * 100);
-    Haptics.selectionAsync();
-    onChange(v);
-  };
-
-  const fraction = value / 100;
-  const thumbLeft = trackWidth > 0 ? fraction * trackWidth : 0;
-  const confidenceLabel =
-    value < 20 ? "Very worried about your safety" :
-    value < 40 ? "Somewhat concerned" :
-    value < 60 ? "Feeling neutral / unsure" :
-    value < 80 ? "Feeling fairly safe" :
-    "Very confident my identity is protected";
-
-  return (
-    <View style={{ gap: 20 }}>
-      <View style={{ alignItems: "center", gap: 4 }}>
-        <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold", textAlign: "center" }]}>
-          {value}%
-        </Text>
-        <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", textAlign: "center" }]}>
-          {confidenceLabel}
-        </Text>
-      </View>
-
-      <View
-        ref={trackRef}
-        onLayout={(e) => {
-          setTrackWidth(e.nativeEvent.layout.width);
-          trackRef.current?.measureInWindow((x) => {
-            trackPageX.current = x;
-          });
-        }}
-        {...panResponder.panHandlers}
-        style={{ height: 52, justifyContent: "center" }}
-      >
-        {/* Track background */}
-        <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3 }}>
-          {/* Fill */}
-          {trackWidth > 0 && (
-            <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: thumbLeft, backgroundColor: colors.primary, borderRadius: 3 }} />
-          )}
-        </View>
-        {/* Thumb */}
-        {trackWidth > 0 && (
-          <View style={{
-            position: "absolute",
-            left: thumbLeft - 15,
-            top: 11,
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: colors.primary,
-            shadowColor: colors.primary,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.5,
-            shadowRadius: 6,
-            elevation: 5,
-            alignItems: "center",
-            justifyContent: "center",
-          }}>
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#fff" }} />
-          </View>
-        )}
-      </View>
-
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={{ color: colors.danger, fontFamily: "Inter_400Regular", fontSize: 12 }}>Very Worried</Text>
-        <Text style={{ color: colors.success, fontFamily: "Inter_400Regular", fontSize: 12 }}>Very Confident</Text>
-      </View>
     </View>
   );
 }
 
-function ConfidenceStep({
+// ─── Step 11: Urgency Reveal ──────────────────────────────────────────────────
+function UrgencyRevealScreen({
   colors,
-  selected,
-  onSelect,
+  matchCount,
 }: {
   colors: ReturnType<typeof useColors>;
-  selected: number | null;
-  onSelect: (value: number) => void;
+  matchCount: number;
 }) {
-  const [sliderValue, setSliderValue] = useState(selected ?? 50);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const cardAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Always emit the current slider value so Continue button is enabled
-    onSelect(sliderValue);
+    Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    Animated.stagger(150, cardAnims.map((a) =>
+      Animated.spring(a, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true })
+    )).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.03, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+      ])
+    ).start();
   }, []);
 
-  const handleChange = (v: number) => {
-    setSliderValue(v);
-    onSelect(v);
-  };
+  const MOCK_CARDS = [
+    { platform: "instagram" as NonNullable<SocialPlatform>, label: "Account flagged" },
+    { platform: "facebook" as NonNullable<SocialPlatform>, label: "Potential match" },
+    { platform: "x" as NonNullable<SocialPlatform>, label: "Suspicious activity" },
+  ];
+
+  const displayCount = matchCount > 0 ? matchCount : 2;
+  const displayCards = MOCK_CARDS.slice(0, Math.min(3, displayCount + 1));
 
   return (
-    <ScrollView contentContainerStyle={styles.screenPad} showsVerticalScrollIndicator={false}>
-      <View style={{ gap: 8, marginBottom: 28 }}>
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.screenPad, { gap: 28 }]} showsVerticalScrollIndicator={false}>
+      <LinearGradient colors={["#EF444414", "#F59E0B08", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
+      <Animated.View style={{ opacity: fadeAnim, gap: 12 }}>
+        <View style={[urgStyles.scanComplete, { backgroundColor: colors.success + "14", borderColor: colors.success + "33" }]}>
+          <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+          <Text style={[urgStyles.scanCompleteText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
+            Scan complete
+          </Text>
+        </View>
+
         <Text style={[styles.stepTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          How safe do you feel online?
+          We found{" "}
+          <Text style={{ color: "#EF4444" }}>{displayCount} potential match{displayCount !== 1 ? "es" : ""}</Text>.
         </Text>
         <Text style={[styles.stepSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Drag to set your confidence level — we'll compare it to your actual scan results. Most people are surprised.
+          Unlock your full identity report to see exactly where — and what to do about it.
         </Text>
+      </Animated.View>
+
+      {/* Blurred result cards */}
+      <View style={{ gap: 10 }}>
+        {displayCards.map((card, i) => (
+          <Animated.View
+            key={i}
+            style={{
+              opacity: cardAnims[i],
+              transform: [
+                { translateY: cardAnims[i]!.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
+                ...(i === 0 ? [{ scale: pulseAnim }] : []),
+              ],
+            }}
+          >
+            <GlassCard style={[urgStyles.blurCard, { borderColor: i === 0 ? "#EF444444" : colors.border }]}>
+              {/* Visible: platform icon + label */}
+              <View style={urgStyles.cardLeft}>
+                <View style={[urgStyles.platformBadge, { backgroundColor: colors.secondary }]}>
+                  <PlatformIcon platform={card.platform} size={20} />
+                </View>
+                <View style={{ gap: 4 }}>
+                  <Text style={[urgStyles.cardLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    {card.label}
+                  </Text>
+                  {/* Blurred "text" bars */}
+                  <View style={{ gap: 3 }}>
+                    <View style={[urgStyles.blurBar, { width: 120, backgroundColor: colors.mutedForeground + "30" }]} />
+                    <View style={[urgStyles.blurBar, { width: 80, backgroundColor: colors.mutedForeground + "20" }]} />
+                  </View>
+                </View>
+              </View>
+              {/* Lock overlay */}
+              <View style={[urgStyles.lockWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Ionicons name="lock-closed" size={14} color={colors.mutedForeground} />
+              </View>
+            </GlassCard>
+          </Animated.View>
+        ))}
+
+        {/* "More locked" hint */}
+        <View style={[urgStyles.moreCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+          <Ionicons name="ellipsis-horizontal" size={16} color={colors.mutedForeground} />
+          <Text style={[urgStyles.moreText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Full report locked — unlock to see all results
+          </Text>
+          <Ionicons name="lock-closed" size={14} color={colors.mutedForeground} />
+        </View>
       </View>
-      <GlassCard style={{ padding: 20, gap: 8 }}>
-        <ConfidenceSliderTrack colors={colors} value={sliderValue} onChange={handleChange} />
+
+      <GlassCard style={[urgStyles.ctaHint, { borderColor: colors.primary + "33" }]}>
+        <Ionicons name="shield-checkmark" size={16} color={colors.primary} />
+        <Text style={[urgStyles.ctaHintText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>Start your 7-day free trial </Text>
+          to view the full report and get continuous monitoring.
+        </Text>
       </GlassCard>
     </ScrollView>
   );
 }
+
+const urgStyles = StyleSheet.create({
+  scanComplete: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  scanCompleteText: { fontSize: 13 },
+  blurCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  cardLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+  platformBadge: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  cardLabel: { fontSize: 14 },
+  blurBar: { height: 8, borderRadius: 4 },
+  lockWrap: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  moreCard: { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderRadius: 14, borderWidth: 1 },
+  moreText: { flex: 1, fontSize: 13 },
+  ctaHint: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  ctaHintText: { flex: 1, fontSize: 13, lineHeight: 19 },
+});
 
 // ─── Main Onboarding Component ────────────────────────────────────────────────
 export default function Onboarding() {
@@ -1121,8 +1244,9 @@ export default function Onboarding() {
   const { completeOnboarding, user } = useApp();
   const [step, setStep] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const [hasAttemptedConnect, setHasAttemptedConnect] = useState(false);
-  const hasConnectedAccounts = user.connectedAccounts.length > 0;
+
+  // Simulated match count (replaced by real scan results when scan completes)
+  const [matchCount] = useState(() => Math.floor(Math.random() * 2) + 1);
 
   const [answers, setAnswers] = useState<OnboardingAnswers>({
     primaryConcern: null,
@@ -1131,7 +1255,9 @@ export default function Onboarding() {
     activePlatforms: [],
     attribution: null,
     perceivedRisk: null,
+    identityInput: null,
   });
+  const [identityInputText, setIdentityInputText] = useState("");
 
   useEffect(() => {
     analytics.onboardingStarted();
@@ -1147,88 +1273,117 @@ export default function Onboarding() {
     });
   }, [fadeAnim]);
 
-  useFocusEffect(
-    useCallback(() => {
-      // Returning from the connect-account flow: just clear the flag and stay on the
-      // Connect step so the user can add more accounts before choosing to continue.
-      if (hasAttemptedConnect) {
-        setHasAttemptedConnect(false);
-      }
-    }, [hasAttemptedConnect])
-  );
-
   const handleNext = useCallback(() => {
-    // Fire step-completion analytics with the relevant answer for each gated step
-    const STEP_QUESTIONS: Record<number, { question: string; answer?: string | number }> = {
-      1: { question: "primary_concern", answer: answers.primaryConcern ?? undefined },
-      3: { question: "user_type_and_range", answer: answers.userType ?? undefined },
-      5: { question: "active_platforms", answer: answers.activePlatforms.join(",") },
-      8: { question: "perceived_risk_slider", answer: answers.perceivedRisk ?? undefined },
-    };
-    const stepMeta = STEP_QUESTIONS[step];
-    if (stepMeta) {
-      analytics.onboardingStepCompleted({ step, ...stepMeta });
+    if (step < TOTAL_STEPS - 1) {
+      animateToStep(step + 1);
+    } else {
+      // Last step — go to paywall
+      handleFinish();
     }
+  }, [step, animateToStep]);
 
-    // After the Connect step, skip the scan-setup animation if no accounts connected
-    if (step === 6 && !hasConnectedAccounts) {
-      animateToStep(8);
-      return;
-    }
-    if (step < TOTAL_STEPS - 1) animateToStep(step + 1);
-    else router.replace({ pathname: "/subscription", params: { fromOnboarding: "1" } } as any);
-  }, [step, animateToStep, hasConnectedAccounts, answers]);
+  // Auto-advance for selection screens
+  const handleAutoAdvance = useCallback((nextStep: number) => {
+    setTimeout(() => animateToStep(nextStep), 260);
+  }, [animateToStep]);
 
-  const handleSkip = useCallback(() => {
+  const saveAndFinish = useCallback((finalAnswers: OnboardingAnswers) => {
     completeOnboarding();
-    AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
-    saveOnboardingAnswers(answers as unknown as Record<string, unknown>).catch(() => {});
-    analytics.onboardingSkipped({ at_step: step });
-    router.replace("/(tabs)" as any);
-  }, [completeOnboarding, answers, step]);
+    AsyncStorage.setItem("onboardingAnswers", JSON.stringify(finalAnswers)).catch(() => {});
+    saveOnboardingAnswers(finalAnswers as unknown as Record<string, unknown>).catch(() => {});
+    analytics.onboardingCompleted({
+      user_type: finalAnswers.userType ?? undefined,
+      platform_count: finalAnswers.activePlatforms.length,
+      attribution: finalAnswers.attribution ?? undefined,
+    });
+  }, [completeOnboarding]);
 
   const handleFinish = useCallback(() => {
-    completeOnboarding();
-    AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
-    saveOnboardingAnswers(answers as unknown as Record<string, unknown>).catch(() => {});
-    analytics.onboardingCompleted({
-      user_type: answers.userType ?? undefined,
-      platform_count: answers.activePlatforms.length,
-      attribution: answers.attribution ?? undefined,
-    });
+    const finalAnswers = { ...answers, identityInput: identityInputText || answers.identityInput };
+    saveAndFinish(finalAnswers);
     router.replace({ pathname: "/subscription", params: { fromOnboarding: "1" } } as any);
-  }, [completeOnboarding, answers]);
+  }, [answers, identityInputText, saveAndFinish]);
+
+  const handleSkip = useCallback(() => {
+    const finalAnswers = { ...answers, identityInput: identityInputText || answers.identityInput };
+    saveAndFinish(finalAnswers);
+    analytics.onboardingSkipped({ at_step: step });
+    router.replace("/(tabs)" as any);
+  }, [answers, identityInputText, step, saveAndFinish]);
 
   const handleMaybeLater = useCallback(() => {
-    completeOnboarding();
-    AsyncStorage.setItem("onboardingAnswers", JSON.stringify(answers)).catch(() => {});
-    saveOnboardingAnswers(answers as unknown as Record<string, unknown>).catch(() => {});
-    analytics.onboardingSkipped({ at_step: step, reason: "maybe_later" });
+    const finalAnswers = { ...answers, identityInput: identityInputText || answers.identityInput };
+    saveAndFinish(finalAnswers);
     router.replace("/(tabs)" as any);
-  }, [completeOnboarding, answers, step]);
+  }, [answers, identityInputText, saveAndFinish]);
+
+  // Steps that auto-advance (no footer CTA)
+  const AUTO_ADVANCE_STEPS = new Set([3, 4, 5]);
+  // Scan step auto-advances too
+  const isAutoStep = AUTO_ADVANCE_STEPS.has(step);
+  const isScanStep = step === 10;
+  const isLastStep = step === TOTAL_STEPS - 1;
+
+  const canContinue = (): boolean => {
+    if (step === 9) return answers.activePlatforms.length > 0;
+    if (step === 6) return identityInputText.trim().length > 0;
+    return true;
+  };
+
+  const getCtaLabel = (): string => {
+    if (step === 0) return "Find Out If I'm Exposed";
+    if (step === 2) return "Start My Assessment";
+    if (step === 6) return "Scan For Me";
+    if (step === 9) return "Connect & Continue";
+    if (isLastStep) return "See My Full Report";
+    return "Continue";
+  };
 
   const renderStep = () => {
     switch (step) {
-      case 0: return <WelcomeScreen colors={colors} />;
-      case 1: return (
+      case 0: return <BrandHookScreen colors={colors} />;
+      case 1: return <CredibleStatScreen colors={colors} />;
+      case 2: return <AssessmentIntroScreen colors={colors} />;
+      case 3: return (
         <ConcernScreen
           colors={colors}
           selected={answers.primaryConcern}
-          onSelect={(id) => setAnswers((a) => ({ ...a, primaryConcern: id }))}
+          onSelect={(id) => {
+            setAnswers((a) => ({ ...a, primaryConcern: id }));
+            handleAutoAdvance(4);
+          }}
         />
       );
-      case 2: return <EducationScreen colors={colors} concern={answers.primaryConcern} />;
-      case 3: return (
-        <AboutYouScreen
+      case 4: return (
+        <IdentityTypeScreen
           colors={colors}
-          selectedType={answers.userType}
-          selectedRange={answers.followerRange}
-          onSelectType={(id) => setAnswers((a) => ({ ...a, userType: id }))}
-          onSelectRange={(id) => setAnswers((a) => ({ ...a, followerRange: id }))}
+          selected={answers.userType}
+          onSelect={(id) => {
+            setAnswers((a) => ({ ...a, userType: id }));
+            handleAutoAdvance(5);
+          }}
         />
       );
-      case 4: return <FeaturesScreen colors={colors} />;
       case 5: return (
+        <AccountCountScreen
+          colors={colors}
+          selected={answers.followerRange}
+          onSelect={(id) => {
+            setAnswers((a) => ({ ...a, followerRange: id }));
+            handleAutoAdvance(6);
+          }}
+        />
+      );
+      case 6: return (
+        <IdentityInputScreen
+          colors={colors}
+          value={identityInputText}
+          onChange={setIdentityInputText}
+        />
+      );
+      case 7: return <ProofVisualScreen colors={colors} />;
+      case 8: return <PrivacyScreen colors={colors} />;
+      case 9: return (
         <PlatformsScreen
           colors={colors}
           selected={answers.activePlatforms}
@@ -1240,77 +1395,30 @@ export default function Onboarding() {
           }))}
         />
       );
-      case 6: return (
-        <ConnectScreen
-          colors={colors}
-          activePlatforms={answers.activePlatforms}
-          connectedCount={user.connectedAccounts.length}
-          onSkip={() => animateToStep(hasConnectedAccounts ? 7 : 8)}
-          onConnect={() => {
-            setHasAttemptedConnect(true);
-            router.push("/connect-account" as any);
-          }}
-          onContinue={() => animateToStep(hasConnectedAccounts ? 7 : 8)}
-        />
-      );
-      case 7: return (
+      case 10: return (
         <ScanSetupScreen
           colors={colors}
-          attribution={answers.attribution}
-          onAttributionSelect={(id) => setAnswers((a) => ({ ...a, attribution: id }))}
-          onDone={() => animateToStep(8)}
+          onDone={() => animateToStep(11)}
         />
       );
-      case 8: return (
-        <ConfidenceStep
-          colors={colors}
-          selected={answers.perceivedRisk}
-          onSelect={(value) => setAnswers((a) => ({ ...a, perceivedRisk: value }))}
-        />
-      );
-      case 9: return <RevealScreen colors={colors} answers={answers} />;
+      case 11: return <UrgencyRevealScreen colors={colors} matchCount={matchCount} />;
       default: return null;
     }
   };
 
-  const showFooter = step !== 7; // scan screen auto-advances
-  const isLastStep = step === 9;
-  const isConnectStep = step === 6;
-
-  // Some steps require a selection before continuing
-  const canContinue = () => {
-    if (step === 1) return answers.primaryConcern !== null;
-    if (step === 3) return answers.userType !== null;
-    if (step === 5) return answers.activePlatforms.length > 0;
-    if (step === 8) return answers.perceivedRisk !== null;
-    return true;
-  };
-
-  const getCtaLabel = () => {
-    if (isLastStep) return "View Protection Options";
-    if (step === 0) return "Get Started";
-    if (step === 1) return "Continue";
-    if (step === 3) return "Continue";
-    if (step === 5) return `Monitor ${answers.activePlatforms.length > 0 ? answers.activePlatforms.length : ""} Platform${answers.activePlatforms.length !== 1 ? "s" : ""}`;
-    if (step === 8) return "See My Risk Score";
-    return "Continue";
-  };
+  const showFooter = !isAutoStep && !isScanStep;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
-        <View style={styles.dotsRow}>
-          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-            <View key={i} style={[styles.dot, {
-              backgroundColor: i <= step ? colors.primary : colors.border,
-              width: i === step ? 20 : 6,
-              opacity: i > step ? 0.5 : 1,
-            }]} />
-          ))}
-        </View>
-        {step < TOTAL_STEPS - 2 && step !== 7 && (
-          <TouchableOpacity onPress={handleSkip} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+      <View style={[styles.header, { paddingTop: topPad + 16 }]}>
+        <ProgressBar step={step} colors={colors} />
+        {step > 0 && step < TOTAL_STEPS - 2 && !isAutoStep && !isScanStep && (
+          <TouchableOpacity
+            onPress={handleSkip}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={styles.skipBtn}
+          >
             <Text style={[styles.headerSkip, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Skip</Text>
           </TouchableOpacity>
         )}
@@ -1322,7 +1430,7 @@ export default function Onboarding() {
       </Animated.View>
 
       {/* Footer */}
-      {showFooter && !isConnectStep && (
+      {showFooter && (
         <View style={[styles.footer, { paddingBottom: bottomPad + 16 }]}>
           {isLastStep ? (
             <>
@@ -1331,8 +1439,8 @@ export default function Onboarding() {
                 activeOpacity={0.85}
                 onPress={handleFinish}
               >
-                <Ionicons name="shield-checkmark" size={18} color="#fff" />
-                <Text style={[styles.ctaBtnText, { fontFamily: "Inter_600SemiBold" }]}>View Protection Options</Text>
+                <Ionicons name="lock-open" size={18} color="#fff" />
+                <Text style={[styles.ctaBtnText, { fontFamily: "Inter_700Bold" }]}>See My Full Report</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleMaybeLater} style={styles.maybeLater}>
                 <Text style={[styles.maybeLaterText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -1344,14 +1452,14 @@ export default function Onboarding() {
             <TouchableOpacity
               style={[styles.ctaBtn, {
                 backgroundColor: canContinue() ? colors.primary : colors.secondary,
-                opacity: canContinue() ? 1 : 0.7,
+                opacity: canContinue() ? 1 : 0.65,
               }]}
               activeOpacity={0.85}
               onPress={canContinue() ? handleNext : undefined}
             >
               <Text style={[styles.ctaBtnText, {
                 color: canContinue() ? "#fff" : colors.mutedForeground,
-                fontFamily: "Inter_600SemiBold",
+                fontFamily: "Inter_700Bold",
               }]}>{getCtaLabel()}</Text>
               {canContinue() && <Ionicons name="arrow-forward" size={18} color="#fff" />}
             </TouchableOpacity>
@@ -1365,29 +1473,16 @@ export default function Onboarding() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingBottom: 8 },
-  dotsRow: { flexDirection: "row", gap: 5, alignItems: "center" },
-  dot: { height: 6, borderRadius: 3 },
+  header: { paddingHorizontal: 24, paddingBottom: 12, gap: 12 },
+  skipBtn: { alignSelf: "flex-end", marginTop: -4 },
   headerSkip: { fontSize: 14 },
   screenWrap: { flex: 1 },
   screen: { flex: 1 },
   screenPad: { padding: 24, gap: 20 },
   footer: { paddingHorizontal: 24, gap: 12 },
 
-  // Welcome
-  welcomeCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: 24, paddingVertical: 20 },
-  shieldWrap: { width: 192, height: 192, alignItems: "center", justifyContent: "center" },
-  shieldRing: { position: "absolute", borderWidth: 1 },
-  welcomeTitle: { fontSize: 28, textAlign: "center", lineHeight: 36 },
-  welcomeSub: { fontSize: 15, textAlign: "center", lineHeight: 23, maxWidth: 320 },
-  platformRow: { flexDirection: "row", gap: 10, flexWrap: "wrap", justifyContent: "center" },
-  platformPill: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  trustPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  trustText: { fontSize: 12 },
-
   // Shared step
-  eduIconWrap: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  stepTitle: { fontSize: 24, lineHeight: 32 },
+  stepTitle: { fontSize: 26, lineHeight: 34 },
   stepSub: { fontSize: 14, lineHeight: 22 },
 
   // Concern
@@ -1399,27 +1494,11 @@ const styles = StyleSheet.create({
   optionSub: { fontSize: 12, lineHeight: 17 },
   optionCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
 
-  // Education
-  statsCol: { gap: 12 },
-  statCard: { flexDirection: "row", alignItems: "center", gap: 14 },
-  statIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  statText: { flex: 1, gap: 2 },
-  statValue: { fontSize: 22 },
-  statLabel2: { fontSize: 13, lineHeight: 18 },
-  warnCard: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  warnText: { flex: 1, fontSize: 13, lineHeight: 20 },
-
-  // About You
-  sectionLabel: { fontSize: 14, marginBottom: -8 },
+  // Type grid
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   typeCard: { padding: 14, borderRadius: 14, borderWidth: 1, alignItems: "center", gap: 8 },
-  typeIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  typeLabel: { fontSize: 11, textAlign: "center" },
-  rangeRow: { flexDirection: "row", gap: 10 },
-  rangeBtn: { paddingVertical: 12, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center" },
-  rangeBtnText: { fontSize: 12, textAlign: "center" },
-  insightCard: { flexDirection: "row", gap: 8, alignItems: "flex-start", padding: 12, borderRadius: 12, borderWidth: 1 },
-  insightText: { flex: 1, fontSize: 12, lineHeight: 18 },
+  typeIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  typeLabel: { fontSize: 13, textAlign: "center" },
 
   // Platforms
   platformGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
@@ -1430,77 +1509,21 @@ const styles = StyleSheet.create({
   selectionPill: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   selectionPillText: { fontSize: 13 },
 
-  // Connect
-  platformList: { gap: 10 },
-  platformRow2: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 14, borderWidth: 1 },
-  platformLabel2: { flex: 1, fontSize: 15 },
-  checkbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  comingSoonChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
-  comingSoonChipText: { fontSize: 10 },
-  comingSoonPlatBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, borderWidth: 1 },
-  comingSoonPlatText: { fontSize: 9 },
-  privacyCard: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  privacyText: { flex: 1, fontSize: 12, lineHeight: 18 },
-  connectActions: { gap: 12, alignItems: "center" },
-  connectBtn: { width: "100%", height: 52, borderRadius: 26, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
-  connectBtnText: { color: "#fff", fontSize: 16 },
-  skipLink: { fontSize: 14 },
-
-  // Features
-  featureGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  featureCard: { width: (width - 60) / 2, gap: 10 },
-  featureIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  featureTitle: { fontSize: 13, lineHeight: 18 },
-  featureDesc: { fontSize: 12, lineHeight: 17 },
-
-  // Scan Setup
+  // Scan
   scanRings: { width: 200, height: 200, alignItems: "center", justifyContent: "center" },
   scanRing: { position: "absolute", borderWidth: 1 },
   scanSpinner: { width: 76, height: 76, borderRadius: 38, borderWidth: 3 },
   scanShield: { position: "absolute" },
-  progressTrack: { height: 4, borderRadius: 2, overflow: "hidden" },
+  progressTrack: { height: 4, borderRadius: 2, overflow: "hidden", width: "100%" },
   progressFill: { height: "100%", borderRadius: 2 },
   scanStepList: { gap: 14 },
   scanStepRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   scanStepDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   activeDotPulse: { width: 8, height: 8, borderRadius: 4 },
   scanStepText: { fontSize: 14, flex: 1 },
-  attributionCard: { width: "100%", marginTop: 4 },
-  attributionInner: { gap: 12 },
-  attributionTitle: { fontSize: 14 },
-  attributionSub: { fontSize: 12, marginTop: -6 },
-  attributionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  attributionChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  attributionChipText: { fontSize: 12 },
-
-  // Reveal
-  revealBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  revealBadgeText: { fontSize: 13 },
-  personalizationCard: { flexDirection: "row", alignItems: "flex-start", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 4 },
-  personalizationIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  personalizationTitle: { fontSize: 13 },
-  personalizationDetail: { fontSize: 12, lineHeight: 18 },
-  dashPreview: { gap: 14 },
-  dashRow: { flexDirection: "row", gap: 16, alignItems: "center" },
-  dashScoreWrap: { alignItems: "center" },
-  dashScoreRing: { width: 80, height: 80, borderRadius: 40, borderWidth: 3, alignItems: "center", justifyContent: "center", gap: 2 },
-  dashScore: { fontSize: 22, lineHeight: 26 },
-  dashScoreSub: { fontSize: 10, textAlign: "center" },
-  dashStats: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  dashStat: { width: "45%", gap: 2 },
-  dashStatVal: { fontSize: 14 },
-  dashStatLabel: { fontSize: 11 },
-  dashDivider: { height: 1 },
-  dashProtRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dashProtDot: { width: 8, height: 8, borderRadius: 4 },
-  dashProtText: { fontSize: 13 },
-  revealHighlights: { gap: 12, marginTop: 4 },
-  highlightRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
-  highlightIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  highlightText: { flex: 1, fontSize: 13, lineHeight: 19, paddingTop: 6 },
 
   // CTA
-  ctaBtn: { height: 54, borderRadius: 27, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  ctaBtn: { height: 56, borderRadius: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
   ctaBtnText: { fontSize: 16 },
   maybeLater: { alignItems: "center" },
   maybeLaterText: { fontSize: 13 },

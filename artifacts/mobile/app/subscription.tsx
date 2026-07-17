@@ -372,18 +372,70 @@ export default function Subscription() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 32 }]}
       >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <View style={[styles.heroIcon, { backgroundColor: colors.warning + "22" }]}>
-            <MaterialCommunityIcons name="crown" size={40} color={colors.warning} />
+        {/* Hero — urgency variant when arriving from onboarding */}
+        {isFromOnboarding ? (
+          <View style={styles.urgencyHero}>
+            <View style={[styles.urgencyBadge, { backgroundColor: colors.danger + "14", borderColor: colors.danger + "44" }]}>
+              <View style={[styles.urgencyDot, { backgroundColor: colors.danger }]} />
+              <Text style={[styles.urgencyBadgeText, { color: colors.danger, fontFamily: "Inter_600SemiBold" }]}>
+                Identity scan complete
+              </Text>
+            </View>
+            <Text style={[styles.urgencyTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Your Identity Report{"\n"}Is Ready.
+            </Text>
+            <Text style={[styles.urgencySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Unlock your full report to see exactly where your identity appears — and what to do about it.
+            </Text>
+
+            {/* Blurred result teaser */}
+            <View style={styles.teaserCards}>
+              {[
+                { label: "Account flagged", platform: "Instagram" },
+                { label: "Potential match", platform: "Facebook" },
+              ].map((card, i) => (
+                <View key={i} style={[styles.teaserCard, {
+                  backgroundColor: colors.card,
+                  borderColor: i === 0 ? colors.danger + "44" : colors.border,
+                }]}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={[styles.teaserLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                      {card.label}
+                    </Text>
+                    <View style={{ gap: 4 }}>
+                      <View style={[styles.teaserBar, { width: 110, backgroundColor: colors.mutedForeground + "30" }]} />
+                      <View style={[styles.teaserBar, { width: 70, backgroundColor: colors.mutedForeground + "20" }]} />
+                    </View>
+                    <Text style={[styles.teaserPlatform, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {card.platform}
+                    </Text>
+                  </View>
+                  <View style={[styles.teaserLock, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                    <Ionicons name="lock-closed" size={13} color={colors.mutedForeground} />
+                  </View>
+                </View>
+              ))}
+              <View style={[styles.teaserMore, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                <Ionicons name="ellipsis-horizontal" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.teaserMoreText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Full report locked — subscribe to unlock
+                </Text>
+              </View>
+            </View>
           </View>
-          <Text style={[styles.heroTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            AI Watching the Internet{"\n"}So You Don't Have To
-          </Text>
-          <Text style={[styles.heroSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Detect impersonators, stolen photos, and fake accounts across every major platform.
-          </Text>
-        </View>
+        ) : (
+          <View style={styles.hero}>
+            <View style={[styles.heroIcon, { backgroundColor: colors.warning + "22" }]}>
+              <MaterialCommunityIcons name="crown" size={40} color={colors.warning} />
+            </View>
+            <Text style={[styles.heroTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              AI Watching the Internet{"\n"}So You Don't Have To
+            </Text>
+            <Text style={[styles.heroSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Detect impersonators, stolen photos, and fake accounts across every major platform.
+            </Text>
+          </View>
+        )}
 
         {/* Billing cycle toggle */}
         <View style={[styles.toggleRow, { backgroundColor: colors.secondary, borderRadius: 14 }]}>
@@ -671,16 +723,27 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17 },
   content: { padding: 20, gap: 16 },
 
+  // Standard hero
   hero: { alignItems: "center", gap: 12, paddingVertical: 8 },
-  heroIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  heroIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
   heroTitle: { fontSize: 22, textAlign: "center", lineHeight: 30 },
   heroSub: { fontSize: 14, textAlign: "center", lineHeight: 20 },
+
+  // Urgency hero (from onboarding)
+  urgencyHero: { gap: 14 },
+  urgencyBadge: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  urgencyDot: { width: 6, height: 6, borderRadius: 3 },
+  urgencyBadgeText: { fontSize: 13 },
+  urgencyTitle: { fontSize: 28, lineHeight: 36 },
+  urgencySub: { fontSize: 14, lineHeight: 21 },
+  teaserCards: { gap: 10, marginTop: 4 },
+  teaserCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
+  teaserLabel: { fontSize: 14 },
+  teaserBar: { height: 8, borderRadius: 4 },
+  teaserPlatform: { fontSize: 12 },
+  teaserLock: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  teaserMore: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
+  teaserMoreText: { flex: 1, fontSize: 12 },
 
   toggleRow: {
     flexDirection: "row",
