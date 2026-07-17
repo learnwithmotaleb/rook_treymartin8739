@@ -1,0 +1,253 @@
+You are acting as a senior Meta Developer Platform engineer performing a production readiness audit for our app before Meta App Review.
+
+Our app is ROOK, an AI-powered identity protection platform that helps users connect their social media accounts, detect impersonation accounts, identify stolen profile photos, and monitor identity threats.
+
+Your goal is to make this application pass Meta App Review on the first submission.
+
+Perform a complete audit of the entire codebase and infrastructure.
+
+========================
+PART 1 - APP CONFIGURATION
+========================
+
+Verify:
+
+- Facebook Login is configured correctly.
+- Instagram Graph API integration is production ready.
+- OAuth redirect URIs match exactly.
+- HTTPS is used everywhere.
+- No localhost URLs remain.
+- Environment variables are secure.
+- No hardcoded secrets exist.
+- Business Manager is connected properly.
+- App IDs are correct.
+- Redirect flow is correct.
+
+========================
+PART 2 - PERMISSIONS
+========================
+
+List every Meta permission currently used.
+
+For each permission:
+
+- Explain exactly where it is used.
+- Explain why it is required.
+- Verify it is actually called in code.
+- Identify permissions that are unnecessary and should be removed before review.
+
+========================
+PART 3 - REVIEW FLOW
+========================
+
+Pretend you are a Meta reviewer.
+
+Walk through the app from beginning to end.
+
+Document:
+
+- Every screen.
+- Every button.
+- Every API call.
+- Every OAuth flow.
+- Every permission request.
+
+Identify anything confusing to a reviewer.
+
+========================
+PART 4 - LOGIN FLOW
+========================
+
+Test:
+
+Facebook Login
+
+Instagram Connection
+
+Token Exchange
+
+Refresh Tokens
+
+Logout
+
+Expired Tokens
+
+Denied Permissions
+
+Cancelled Login
+
+Invalid Session
+
+Handle every error gracefully.
+
+========================
+PART 5 - API VALIDATION
+========================
+
+Verify every Meta API endpoint.
+
+Ensure:
+
+No deprecated endpoints.
+
+No deprecated permissions.
+
+Correct API version.
+
+Proper error handling.
+
+Rate limit handling.
+
+Retry logic.
+
+Timeout handling.
+
+========================
+PART 6 - SECURITY
+========================
+
+Audit for:
+
+Token leakage
+
+Logging sensitive information
+
+PII exposure
+
+Unsafe storage
+
+Missing encryption
+
+Improper authentication
+
+Session vulnerabilities
+
+Missing CSRF protection (if applicable)
+
+========================
+PART 7 - USER EXPERIENCE
+========================
+
+Review:
+
+Loading states
+
+Error states
+
+Empty states
+
+Permission denied screens
+
+Disconnected account handling
+
+Reconnect flow
+
+Network failure handling
+
+========================
+PART 8 - APP REVIEW VIDEO
+========================
+
+Generate a reviewer script.
+
+Include:
+
+Every click
+
+Every screen
+
+Expected results
+
+Talking points
+
+Order of operations
+
+Keep the video under five minutes.
+
+========================
+PART 9 - REVIEW DOCUMENTATION
+========================
+
+Generate:
+
+1. Permission justification for every permission.
+
+2. Reviewer instructions.
+
+3. Test account instructions.
+
+4. Sample reviewer notes.
+
+5. Common reviewer questions with answers.
+
+========================
+PART 10 - FINAL REPORT
+========================
+
+Produce a report with:
+
+PASS
+
+WARNING
+
+FAIL
+
+for every category.
+
+List every issue preventing Meta approval.
+
+Rank them by severity.
+
+Provide exact files requiring modification.
+
+Generate code fixes where needed.
+
+========================
+PART 11 - APP STORE READINESS
+========================
+
+Also audit the app for Apple App Store readiness.
+
+Check:
+
+Privacy labels
+
+Required permissions
+
+Privacy policy compliance
+
+Terms of Service
+
+Data deletion process
+
+Account deletion
+
+App icons
+
+Launch screens
+
+Metadata
+
+Screenshots
+
+Subscriptions
+
+Restore Purchases
+
+Production build readiness
+
+========================
+FINAL GOAL
+========================
+
+The objective is to leave the project in a state where it is ready for:
+
+1. Meta App Review
+2. Apple App Store Review
+3. Production launch
+
+Do not stop after reporting problems.
+
+Continue fixing every issue automatically where possible.
+
+When complete, produce a launch checklist with every item checked off and identify anything that still requires manual action outside the codebase.
