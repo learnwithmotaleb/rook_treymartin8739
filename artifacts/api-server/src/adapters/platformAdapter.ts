@@ -7,7 +7,7 @@
  *
  * Instagram / Facebook:
  *   - Register at: https://developers.facebook.com/
- *   - Required permissions: instagram_basic, pages_show_list, instagram_manage_insights
+ *   - Required permission: instagram_business_basic (replaces deprecated instagram_basic since Jan 2025)
  *   - OAuth 2.0 flow with user authorization
  *   - Set: INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET
  *
@@ -35,6 +35,8 @@
  * and may result in legal liability. Rook only accesses data that
  * users explicitly authorize via OAuth.
  */
+
+import { metaFetch } from "../lib/metaFetch";
 
 export interface MediaItem {
   platformMediaId: string;
@@ -89,7 +91,7 @@ export class InstagramAdapter implements PlatformAdapter {
     // instagram_business_basic scope (replaces deprecated instagram_basic since Jan 2025)
     // provides: id, username, name, account_type, media_count,
     //           profile_picture_url, followers_count, biography
-    const response = await fetch(
+    const response = await metaFetch(
       `https://graph.instagram.com/me?fields=id,username,name,account_type,media_count,profile_picture_url,followers_count,biography&access_token=${accessToken}`
     );
     if (!response.ok) {
@@ -121,7 +123,7 @@ export class InstagramAdapter implements PlatformAdapter {
     platformUserId: string,
     limit = 50
   ): Promise<MediaItem[]> {
-    const response = await fetch(
+    const response = await metaFetch(
       `https://graph.instagram.com/${platformUserId}/media?fields=id,media_type,media_url,thumbnail_url,caption,timestamp&limit=${limit}&access_token=${accessToken}`
     );
     if (!response.ok) {
@@ -349,8 +351,8 @@ export class FacebookAdapter implements PlatformAdapter {
   }
 
   async getProfile(accessToken: string): Promise<ProfileData> {
-    const response = await fetch(
-      `https://graph.facebook.com/me?fields=id,name&access_token=${accessToken}`
+    const response = await metaFetch(
+      `https://graph.facebook.com/v22.0/me?fields=id,name&access_token=${accessToken}`
     );
     if (!response.ok) throw new Error(`Facebook API error: ${response.status}`);
     const data = (await response.json()) as {
@@ -377,8 +379,8 @@ export class FacebookAdapter implements PlatformAdapter {
     limit = 50
   ): Promise<MediaItem[]> {
     // user_photos permission requires App Review — gracefully return empty if not granted
-    const response = await fetch(
-      `https://graph.facebook.com/me/photos?type=uploaded&fields=id,picture,name,created_time&limit=${limit}&access_token=${accessToken}`
+    const response = await metaFetch(
+      `https://graph.facebook.com/v22.0/me/photos?type=uploaded&fields=id,picture,name,created_time&limit=${limit}&access_token=${accessToken}`
     );
     if (!response.ok) return [];
     const data = (await response.json()) as {

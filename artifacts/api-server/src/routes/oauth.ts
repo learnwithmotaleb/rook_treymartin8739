@@ -3,6 +3,7 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth";
+import { metaFetch } from "../lib/metaFetch";
 
 const router: IRouter = Router();
 
@@ -193,7 +194,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
 
     req.log?.info({ clientId, redirectUri }, "Exchanging Instagram auth code for token");
 
-    const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
+    const tokenRes = await metaFetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
       body: tokenParams,
     });
@@ -222,13 +223,13 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
     // Fetch profile — instagram_business_basic provides username + followers_count + profile_picture_url
     // Try /me first (works with new Instagram Login), fall back to /{user_id}
     let profile: { id: string; username: string; followers_count?: number; profile_picture_url?: string };
-    const meRes = await fetch(
+    const meRes = await metaFetch(
       `https://graph.instagram.com/me?fields=id,username,followers_count,profile_picture_url&access_token=${access_token}`
     );
     if (meRes.ok) {
       profile = await meRes.json() as typeof profile;
     } else {
-      const userRes = await fetch(
+      const userRes = await metaFetch(
         `https://graph.instagram.com/${user_id}?fields=id,username,followers_count,profile_picture_url&access_token=${access_token}`
       );
       if (!userRes.ok) {
@@ -242,7 +243,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
     req.log?.info({ igUsername: profile.username, igId: profile.id }, "Instagram profile fetched");
 
     // Exchange for long-lived token (60 days)
-    const longLivedRes = await fetch(
+    const longLivedRes = await metaFetch(
       `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${clientSecret}&access_token=${access_token}`
     );
     const longLivedBody = await longLivedRes.text();
@@ -341,9 +342,9 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
 
   try {
     const redirectUri = `https://${DOMAIN}/api/oauth/facebook/callback`;
-    const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${clientSecret}&code=${code}`;
+    const tokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${clientSecret}&code=${code}`;
 
-    const tokenRes = await fetch(tokenUrl);
+    const tokenRes = await metaFetch(tokenUrl);
     const tokenData = await tokenRes.json() as { access_token?: string; error?: { message: string } };
 
     if (!tokenRes.ok || !tokenData.access_token) {
@@ -352,8 +353,8 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
 
     const { access_token } = tokenData;
 
-    const profileRes = await fetch(
-      `https://graph.facebook.com/me?fields=id,name&access_token=${access_token}`
+    const profileRes = await metaFetch(
+      `https://graph.facebook.com/v22.0/me?fields=id,name&access_token=${access_token}`
     );
     const profile = await profileRes.json() as { id: string; name: string; error?: { message: string } };
 

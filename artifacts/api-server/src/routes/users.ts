@@ -191,7 +191,7 @@ router.delete("/me", async (req, res): Promise<void> => {
           if (account.platform === "facebook" || account.platform === "instagram") {
             // Meta revocation endpoint
             await fetch(
-              `https://graph.facebook.com/${account.platformUserId ?? "me"}/permissions?access_token=${token}`,
+              `https://graph.facebook.com/v22.0/${account.platformUserId ?? "me"}/permissions?access_token=${token}`,
               { method: "DELETE" }
             );
           }

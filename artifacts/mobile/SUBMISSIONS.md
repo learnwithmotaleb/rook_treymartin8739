@@ -272,3 +272,149 @@ PERMISSIONS:
 • Face ID: Used to protect the app (optional, can be declined)
 • Network: Required for API communication (standard)
 ```
+
+---
+
+## 11. Meta App Review
+
+### 11a. Permission Justification Table
+
+| Permission | Platform | Review Required | Where Called | Why Needed |
+|---|---|---|---|---|
+| `instagram_business_basic` | Instagram | No (business permission) | `platformAdapter.ts` `InstagramAdapter.getProfile()` · `oauth.ts` Instagram callback | Fetches username, profile picture, and follower count so Rook can display the connected account and use it as an identity anchor for impersonator detection |
+| `public_profile` | Facebook | No (basic permission) | `platformAdapter.ts` `FacebookAdapter.getProfile()` · `oauth.ts` Facebook callback | Fetches Facebook ID and display name so Rook can identify and display the connected account |
+| `user_photos` | Facebook | **Yes — deferred** | Intentionally removed from initial submission | Would allow photo monitoring for Facebook uploads; to be submitted for App Review after initial approval |
+
+### 11b. Reviewer Step-by-Step Instructions
+
+**Prerequisites:**
+1. Install via TestFlight link provided in App Store Connect review notes.
+2. Launch the app — auth screen appears immediately.
+
+**Step 1 — Create account & onboarding:**
+1. Auth screen → tap **Sign in with Apple** (or Google / Email)
+2. Account created — onboarding slides appear (4 slides)
+3. Tap **Next** through all → **Get Started** → select protection goal → **Continue**
+4. Dashboard appears (security score at 0 until accounts are connected)
+
+**Step 2 — Demo Mode (recommended for review — no social accounts needed):**
+1. Dashboard → tap 📊 icon (top right) → **Try Demo Mode**
+2. App fills with simulated Instagram/Facebook/X accounts and 3 pre-seeded threats
+3. Security score ring animates to 72, Alerts tab shows threat cards, Scan tab becomes active
+4. All features fully usable in demo mode without real OAuth connections
+
+**Step 3 — Connect Instagram (uses test tester account from 11c):**
+1. Dashboard → **Connect Accounts** → **Instagram**
+2. In-app browser opens → sign in with the test Instagram account
+3. Grant `instagram_business_basic` permission → browser closes
+4. Dashboard: "Instagram Connected ✓" — account card shows username + follower count
+
+**Step 4 — Connect Facebook (uses test account from 11c):**
+1. Dashboard → **Connect Accounts** → **Facebook**
+2. In-app browser opens → sign in with the test Facebook account
+3. Grant `public_profile` → browser closes
+4. Dashboard: "Facebook Connected ✓" — account card shows display name
+
+**Step 5 — Run a scan:**
+1. Tap **Scan** tab → radar animation
+2. Tap **Start Full Scan** → progress bar → results in ~5–10 s
+3. "No new threats found — you're protected" **or** threat cards if demo mode active
+
+**Step 6 — Alerts & Threat Detail:**
+1. Tap **Alerts** tab → threat feed with filter bar (All / High / Medium / Low)
+2. Tap any threat card → Threat Detail screen (suspicious account, similarity score, AI analysis)
+3. Tap **Resolve** → threat dismissed from feed
+
+**Step 7 — Tools tab:**
+1. **AI Scam Analyzer** → paste text → **Analyze** → AI verdict
+2. **Photo Monitor** → upload a photo → photo indexed for monitoring
+3. **Recovery Hub** → informational resource screen
+
+**Step 8 — Profile & data deletion:**
+1. Tap **Profile** → edit avatar / name / username
+2. **Subscription** → paywall (Pro/Premium, 7-day trial, restore purchases)
+3. **Security Settings** → active sessions, biometric lock
+4. **Legal** → Privacy Policy + Terms of Service web view
+5. **Delete Account** → confirmation dialog → full data deletion
+
+### 11c. Test Account Setup Guide
+
+**Instagram tester account:**
+1. Meta Developer Console → Rook app → **Instagram → Roles → Add Tester**
+2. Enter the reviewer's Instagram username → **Submit**
+3. Reviewer accepts: Instagram app → Settings → Apps and Websites → Tester Invites → Accept
+4. Tester can now complete Instagram OAuth without App Review approval
+
+**Facebook test user:**
+1. Meta Developer Console → Rook app → **Roles → Test Users → Add**
+2. Create a test user or add an existing Facebook account as a tester
+3. Test users can grant `public_profile` immediately (no App Review needed)
+4. Provide reviewer with the test user login link + credentials
+
+**Seed reviewer account with demo data:**
+```bash
+curl -X POST https://getrook.app/api/admin/seed-reviewer \
+  -H "Content-Type: application/json" \
+  -H "x-admin-key: $ADMIN_API_KEY" \
+  -d '{"clerkId": "<reviewer_clerk_id>"}'
+```
+Populates the reviewer's Rook account with connected accounts, 3 threat cards, AI analysis, and identity fingerprint data. The reviewer's Clerk ID appears in the URL bar after sign-in or can be retrieved from the Profile tab → user ID display.
+
+### 11d. App Review Video Script (< 5 minutes)
+
+| Time | Action | Talking Point |
+|---|---|---|
+| 0:00–0:15 | Launch from home screen → auth screen | "Rook — AI identity protection. Users sign in via Apple, Google, or email using Clerk." |
+| 0:15–0:35 | Sign in with Apple → onboarding | "New users see a 4-step onboarding. Swipe through → Get Started → select protection goal." |
+| 0:35–1:00 | Dashboard → enable Demo Mode | "Demo Mode loads simulated data so reviewers can see all features instantly." |
+| 1:00–1:15 | Dashboard overview | "Security score ring (72/100), connected accounts, 3 active alerts, recent scan time." |
+| 1:15–1:50 | Connect Instagram (live OAuth) | "Tap Connect → Instagram. Browser opens, user signs in, grants `instagram_business_basic`. Browser closes — account connected." |
+| 1:50–2:10 | Connect Facebook (live OAuth) | "Tap Connect → Facebook. User grants `public_profile` only. Account connected immediately." |
+| 2:10–2:45 | Scan tab → Start Full Scan | "Radar pulse animation while scanning. Results appear: no threats or threat cards." |
+| 2:45–3:15 | Alerts → Threat Detail | "Tap a threat: suspicious account, similarity score, AI analysis. Tap Resolve to dismiss." |
+| 3:15–3:40 | Tools → AI Scam Analyzer | "Paste a suspicious message → Analyze → AI verdict with confidence level." |
+| 3:40–4:00 | Photo Monitor | "Upload photo → indexed for similarity matching across social platforms." |
+| 4:00–4:30 | Profile → Subscription paywall | "Tap Subscription → Pro ($4.99/mo) and Premium ($9.99/mo) with 7-day trial. Restore Purchases available." |
+| 4:30–4:50 | Delete Account flow | "Profile → Delete Account → confirmation → all data purged within 30 days." |
+| 4:50–5:00 | Closing | "All Meta API calls use v22.0. Permissions: `instagram_business_basic` (no review), `public_profile` (no review). HTTPS + HMAC state + PKCE throughout." |
+
+### 11e. Pre-Flight Launch Checklist
+
+#### Meta App Review
+- [x] `instagram_business_basic` — business permission, no App Review needed
+- [x] `public_profile` — basic permission, no App Review needed
+- [x] `user_photos` — removed from scope; to be submitted for review post-launch
+- [x] Facebook auth URL upgraded to v22.0
+- [x] Facebook Graph API token exchange pinned to v22.0
+- [x] Facebook Graph API profile + permissions endpoints pinned to v22.0
+- [x] Data deletion callback at `POST /api/oauth/facebook/data-deletion`
+- [x] Privacy Policy live at `https://getrook.app/privacy`
+- [x] Terms of Service live at `https://getrook.app/terms`
+- [x] Business address + phone in Privacy Policy and Terms of Service
+- [x] Instagram tokens auto-refreshed every 24 h (before 60-day expiry)
+- [x] HMAC-signed OAuth state token (CSRF protection, 15-min window)
+- [x] PKCE implemented for X/Twitter OAuth
+- [x] All Meta API fetch calls: 10-second timeout + 429 exponential-backoff retry
+- [x] CORS restricted to explicit allowlist (getrook.app, tryrook.app, Replit domains)
+- [ ] **[M1 — Manual]** Register `com.getrook.app://oauth` as OAuth redirect URI in Meta App Dashboard → Products → Instagram/Facebook → Valid OAuth Redirect URIs
+- [ ] **[M2 — Manual]** Add reviewer Instagram and Facebook accounts as Testers in Meta Developer Console
+- [ ] **[M3 — Manual]** Set `ADMIN_API_KEY` in production deployment for seed-reviewer endpoint
+- [ ] **[M4 — Manual]** Record ≤5-min App Review video following Section 11d script
+- [ ] **[M5 — Manual]** Submit `user_photos` for Facebook App Review after initial approval
+
+#### Apple App Store
+- [x] Bundle ID: `com.getrook.app`
+- [x] URL scheme: `com.getrook.app`
+- [x] Privacy Policy URL in `app.json`
+- [x] Camera, Photo Library, Notifications, Face ID usage strings in `infoPlist`
+- [x] `ITSAppUsesNonExemptEncryption: false` (standard HTTPS/TLS only)
+- [x] `UIBackgroundModes`: fetch, remote-notification declared
+- [x] EAS production `EXPO_PUBLIC_API_URL` → `https://getrook.app`
+- [x] Age rating: 4+ All Ages with Unrestricted Web Access flagged (OAuth browser flows)
+- [x] RevenueCat in-app purchases: Pro + Premium subscriptions with 7-day free trial
+- [x] Restore Purchases flow implemented in paywall screen
+- [ ] **[M6 — Manual]** Fill EAS submit placeholders in `eas.json` (Apple ID, ASC App ID, Team ID)
+- [ ] **[M7 — Manual]** Upload 5 iPhone 6.9" screenshots in App Store Connect (see Section 5)
+- [ ] **[M8 — Manual]** Complete App Privacy nutrition label in App Store Connect
+- [ ] **[M9 — Manual]** Set age rating questionnaire in App Store Connect (see Section 2a)
+- [ ] **[M10 — Manual]** Configure RevenueCat product IDs in App Store Connect IAP catalog

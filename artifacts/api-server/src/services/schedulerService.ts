@@ -1,4 +1,5 @@
 import { logger } from "../lib/logger";
+import { metaFetch } from "../lib/metaFetch";
 import { db, usersTable, connectedAccountsTable } from "@workspace/db";
 import { lte, and, isNotNull, eq } from "drizzle-orm";
 import { startScan } from "./scanOrchestrator";
@@ -97,7 +98,7 @@ async function runTokenRefreshes(): Promise<void> {
           `https://graph.instagram.com/refresh_access_token` +
           `?grant_type=ig_refresh_token&access_token=${encodeURIComponent(account.accessToken)}`;
 
-        const res = await fetch(url);
+        const res = await metaFetch(url);
         if (!res.ok) {
           const body = await res.text();
           logger.warn(

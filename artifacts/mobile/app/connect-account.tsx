@@ -86,8 +86,10 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
   facebook: {
     label: "Facebook",
     color: "#1877F2",
-    authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
-    scopes: ["public_profile", "user_photos"],
+    authUrl: "https://www.facebook.com/v22.0/dialog/oauth",
+    // user_photos requires Meta App Review — request only after approval.
+    // Until then, public_profile (no review needed) is sufficient to connect the account.
+    scopes: ["public_profile"],
     clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID",
     callbackPath: "/api/oauth/facebook/callback",
     usernameHint: "your.profile.name",
