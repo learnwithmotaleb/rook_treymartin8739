@@ -5,6 +5,8 @@ import {
   Animated,
   Dimensions,
   Easing,
+  FlatList,
+  Image as RNImage,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,7 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris } from "@/lib/api";
+import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris, getAccounts, getAccountMedia, type AccountMediaItem } from "@/lib/api";
 import * as WebBrowser from "expo-web-browser";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -771,33 +773,51 @@ function buildOAuthUrl(platform: string, clientId: string, state: string, redire
   return `${base}?${p.toString()}`;
 }
 
-// ─── S12: Platform Connect — OAuth + manual handle fallback ──────────────────
-function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHandleChange, onConnected }: {
+// ─── S12: Platform Connect — OAuth + photo picker + manual handle fallback ────
+const PHOTO_CELL = (width - 48 - 16) / 3; // 3 cols, 24px side padding + 8px gaps
+
+function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHandleChange, onConnected, onPhotosPicked }: {
   colors: ReturnType<typeof useColors>;
   platform: string;
   label: string;
   isConnected: boolean;
   handle: string;
   onHandleChange: (v: string) => void;
-  onConnected: (platform: string) => void;
+  onConnected: (platform: string, accountId: string) => void;
+  onPhotosPicked?: (platform: string, urls: string[]) => void;
 }) {
   const [oauthLoading, setOauthLoading] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  const [connectedAccountId, setConnectedAccountId] = useState<string | null>(null);
+  const [mediaItems, setMediaItems] = useState<AccountMediaItem[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  const [photosConfirmed, setPhotosConfirmed] = useState(false);
 
   const handleOAuth = useCallback(async () => {
     const cfg = ONBOARDING_OAUTH[platform];
     if (!cfg) return;
     const clientId = (process.env as Record<string,string|undefined>)[cfg.clientIdEnvKey];
-    if (!clientId) {
-      setShowManual(true);
-      return;
-    }
+
     setOauthLoading(true);
     try {
+      // Snapshot existing accounts so we can detect a newly added one
+      const accountsBefore = await getAccounts().catch(() => [] as Awaited<ReturnType<typeof getAccounts>>);
+      const existing = accountsBefore.find((a) => a.platform === platform);
+      const prevLastSynced = existing?.lastSynced ?? null;
+
       const redirectUriMap = await getOAuthRedirectUris().catch(() => ({} as Record<string,string>));
       const redirectUrl = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${cfg.callbackPath}`;
+
       let state: string;
       let authUrl: string;
+
+      if (!clientId) {
+        // No client ID available — fall back to manual entry
+        setShowManual(true);
+        return;
+      }
+
       if (platform === "x") {
         const { state: xState, codeChallenge } = await getXOAuthInit();
         state = xState;
@@ -807,16 +827,49 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
         state = await getOAuthState();
         authUrl = buildOAuthUrl(platform, clientId, state, redirectUrl);
       }
+
+      // Open OAuth browser — iOS intercepts the redirect and returns result.url
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
       const resultUrl = "url" in result ? result.url ?? "" : "";
-      const params = resultUrl.includes("?") ? new URLSearchParams(resultUrl.split("?")[1]!) : null;
-      const code = params?.get("code");
-      const urlState = params?.get("state") ?? state;
-      if (code) {
-        const serverCb = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${cfg.callbackPath}`;
-        await fetch(`${serverCb}?code=${encodeURIComponent(code)}&state=${encodeURIComponent(urlState)}&redirect_uri=${encodeURIComponent(redirectUrl)}`).catch(() => {});
+      const resultParams = resultUrl.includes("?") ? new URLSearchParams(resultUrl.split("?")[1]!) : null;
+      const urlError = resultParams?.get("error") ?? resultParams?.get("error_reason");
+      const urlCode = resultParams?.get("code");
+      const urlState = resultParams?.get("state") ?? state;
+
+      if (urlCode) {
+        // Forward code to server for token exchange
+        await fetch(
+          `${redirectUrl}?code=${encodeURIComponent(urlCode)}&state=${encodeURIComponent(urlState)}&redirect_uri=${encodeURIComponent(redirectUrl)}`,
+          { method: "GET" }
+        ).catch(() => {});
         await new Promise((r) => setTimeout(r, 1200));
-        onConnected(platform);
+      }
+
+      // Poll to detect newly connected account
+      const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
+      if (accountsAfter) {
+        const updated = accountsAfter.find((a) => a.platform === platform);
+        const isNew = updated && (!existing || (updated.lastSynced !== null && updated.lastSynced !== prevLastSynced));
+        if (isNew && updated) {
+          setConnectedAccountId(updated.id);
+          onConnected(platform, updated.id);
+          // Immediately fetch user's own media for photo selection
+          setMediaLoading(true);
+          try {
+            const { items, hasAccess } = await getAccountMedia(updated.id, 15);
+            if (hasAccess && items.length > 0) {
+              setMediaItems(items.filter((m) => m.type === "image"));
+            }
+          } catch { /* graceful — photo picker simply won't show */ }
+          finally { setMediaLoading(false); }
+          return;
+        }
+      }
+
+      // Handle errors / cancellations
+      if (urlError) {
+        Alert.alert("Authentication Failed", `Could not sign in: ${urlError}`, [{ text: "OK" }]);
+        setShowManual(true);
       } else if (result.type === "cancel" || result.type === "dismiss") {
         setShowManual(true);
       }
@@ -827,27 +880,103 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
     }
   }, [platform, onConnected]);
 
+  const togglePhoto = useCallback((url: string) => {
+    setSelectedUrls((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url); else next.add(url);
+      return next;
+    });
+  }, []);
+
+  const confirmPhotos = useCallback(() => {
+    const urls = Array.from(selectedUrls);
+    if (onPhotosPicked && urls.length > 0) onPhotosPicked(platform, urls);
+    setPhotosConfirmed(true);
+  }, [selectedUrls, platform, onPhotosPicked]);
+
   const cfg = ONBOARDING_OAUTH[platform];
   const platformColor = cfg?.color ?? "#3B82F6";
   const snapchatText = platform === "snapchat" ? "#000" : "#fff";
 
+  // ── Connected state ──────────────────────────────────────────────────────
   if (isConnected) {
     return (
-      <View style={[ph.connectedRow, { backgroundColor: colors.success + "10", borderColor: colors.success + "44" }]}>
-        <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
-          <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+      <View style={[ph.outerCard, { backgroundColor: colors.card, borderColor: colors.success + "44" }]}>
+        {/* Connected header */}
+        <View style={[ph.connectedRow]}>
+          <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
+            <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+          </View>
+          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+            <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Connected</Text>
+          </View>
         </View>
-        <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-          <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-          <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Connected</Text>
-        </View>
+
+        {/* Photo picker (only when we have media + not yet confirmed) */}
+        {!photosConfirmed && mediaLoading && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 }}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Loading your photos…</Text>
+          </View>
+        )}
+        {!photosConfirmed && !mediaLoading && mediaItems.length > 0 && (
+          <View style={{ gap: 10 }}>
+            <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>
+              Select your reference photos for scanning:
+            </Text>
+            <FlatList
+              data={mediaItems}
+              keyExtractor={(item) => item.id}
+              numColumns={3}
+              scrollEnabled={false}
+              columnWrapperStyle={{ gap: 8 }}
+              contentContainerStyle={{ gap: 8 }}
+              renderItem={({ item }) => {
+                const selected = selectedUrls.has(item.thumbnailUrl);
+                return (
+                  <TouchableOpacity
+                    style={[ph.photoCell, { width: PHOTO_CELL, height: PHOTO_CELL, borderColor: selected ? colors.primary : "transparent", borderWidth: selected ? 2 : 0 }]}
+                    onPress={() => togglePhoto(item.thumbnailUrl)}
+                    activeOpacity={0.8}
+                  >
+                    <RNImage source={{ uri: item.thumbnailUrl }} style={{ width: "100%", height: "100%", borderRadius: 10 }} resizeMode="cover" />
+                    {selected && (
+                      <View style={[ph.photoCheck, { backgroundColor: colors.primary }]}>
+                        <Ionicons name="checkmark" size={12} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            <TouchableOpacity
+              style={[ph.photoConfirmBtn, { backgroundColor: selectedUrls.size > 0 ? colors.primary : colors.secondary, borderColor: colors.border }]}
+              onPress={confirmPhotos}
+              activeOpacity={0.85}
+            >
+              <Text style={[{ color: selectedUrls.size > 0 ? "#fff" : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>
+                {selectedUrls.size > 0 ? `Use ${selectedUrls.size} photo${selectedUrls.size !== 1 ? "s" : ""} for scan` : "Skip — use profile photo only"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {photosConfirmed && selectedUrls.size > 0 && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name="images" size={14} color={colors.success} />
+            <Text style={[{ color: colors.success, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
+              {selectedUrls.size} reference photo{selectedUrls.size !== 1 ? "s" : ""} added
+            </Text>
+          </View>
+        )}
       </View>
     );
   }
 
+  // ── Not yet connected ────────────────────────────────────────────────────
   return (
-    <View style={[ph.platformCard, { backgroundColor: colors.card, borderColor: (handle || showManual) ? colors.primary + "55" : colors.border }]}>
+    <View style={[ph.outerCard, { backgroundColor: colors.card, borderColor: (handle || showManual) ? colors.primary + "55" : colors.border }]}>
       <View style={ph.platformHeader}>
         <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
           <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
@@ -897,14 +1026,15 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   );
 }
 
-function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleChange, isAddingAccounts, connectedPlatforms, onOAuthConnected }: {
+function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleChange, isAddingAccounts, connectedPlatforms, onOAuthConnected, onPhotosPicked }: {
   colors: ReturnType<typeof useColors>;
   selectedPlatforms: string[];
   handles: Record<string, string>;
   onHandleChange: (platformId: string, value: string) => void;
   isAddingAccounts: boolean;
   connectedPlatforms: Set<string>;
-  onOAuthConnected: (platform: string) => void;
+  onOAuthConnected: (platform: string, accountId: string) => void;
+  onPhotosPicked?: (platform: string, urls: string[]) => void;
 }) {
   const displayPlatforms = ALL_PLATFORMS.filter((p) => selectedPlatforms.includes(p.id));
 
@@ -939,6 +1069,7 @@ function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleCha
               handle={handles[p.id] ?? ""}
               onHandleChange={(v) => onHandleChange(p.id, v)}
               onConnected={onOAuthConnected}
+              onPhotosPicked={onPhotosPicked}
             />
           ))}
         </View>
@@ -959,12 +1090,16 @@ function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleCha
   );
 }
 const ph = StyleSheet.create({
-  platformCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
-  platformHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  platIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  oauthBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 44, borderRadius: 12 },
-  manualRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
-  connectedRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
+  outerCard:       { borderRadius: 16, borderWidth: 1, padding: 14, gap: 12 },
+  connectedRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
+  platformCard:    { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+  platformHeader:  { flexDirection: "row", alignItems: "center", gap: 12 },
+  platIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  oauthBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 44, borderRadius: 12 },
+  manualRow:       { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  photoCell:       { borderRadius: 10, overflow: "hidden", position: "relative" },
+  photoCheck:      { position: "absolute", top: 5, right: 5, width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  photoConfirmBtn: { height: 42, borderRadius: 11, borderWidth: 1, alignItems: "center", justifyContent: "center" },
 });
 
 // ─── S13: Scan Setup (real) ───────────────────────────────────────────────────
@@ -1223,12 +1358,19 @@ export default function Onboarding() {
   const [scanThreatCount, setScanThreatCount] = useState(0);
   const [oauthConnectedPlatforms, setOauthConnectedPlatforms] = useState<Set<string>>(new Set());
 
-  const handleOAuthConnected = useCallback((platform: string) => {
+  const handleOAuthConnected = useCallback((platform: string, _accountId: string) => {
     setOauthConnectedPlatforms((prev) => new Set([...prev, platform]));
     if (!selectedPlatforms.includes(platform)) {
       setSelectedPlatforms((p) => [...p, platform]);
     }
   }, [selectedPlatforms]);
+
+  const handlePhotosPicked = useCallback(async (platform: string, urls: string[]) => {
+    if (!addIndexedPhotos) return;
+    try {
+      await addIndexedPhotos(urls.map((uri) => ({ uri })));
+    } catch { /* silent — photos still available via platform sync */ }
+  }, [addIndexedPhotos]);
 
   useEffect(() => { analytics.onboardingStarted(); }, []);
 
@@ -1356,7 +1498,7 @@ export default function Onboarding() {
       case 9: return <PrivacyScreen colors={colors} />;
       case 10: return <SocialProofScreen colors={colors} />;
       case 11: return <ProfileSavedScreen colors={colors} identityInput={identityInput} selectedPlatforms={selectedPlatforms} hasPhoto={!!photoUri} />;
-      case 12: return <PlatformHandlesScreen colors={colors} selectedPlatforms={selectedPlatforms} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} />;
+      case 12: return <PlatformHandlesScreen colors={colors} selectedPlatforms={selectedPlatforms} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} onPhotosPicked={handlePhotosPicked} />;
       case 13: return <ScanSetupScreen colors={colors} onDone={(count) => { setScanThreatCount(count); animateToStep(14); }} />;
       case 14: return <UrgencyRevealScreen colors={colors} threatCount={scanThreatCount} />;
       case 15: return <ReportBridgeScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} platformCount={selectedPlatforms.length} />;

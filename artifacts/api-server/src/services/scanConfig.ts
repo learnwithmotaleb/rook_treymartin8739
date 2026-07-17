@@ -9,11 +9,12 @@
  *   weights.contentReuse + weights.bioSimilarity +
  *   weights.usernameSimilarity + weights.accountTrust + weights.temporalReuse === 100
  *
- * Phase 8 rebalance: media evidence is now the primary signal.
- *   profilePhoto: 25 → 20  (reduced; a single photo match is not sufficient alone)
- *   bioSimilarity: 10 → 5  (reduced; bio text is easily spoofed)
- *   accountTrust: 5 → 10   (increased; low-trust accounts are a key impersonation signal)
- *   temporalReuse: 0 → 5   (new; rewards post-dating evidence across matched images)
+ * Phase 10 rebalance: photo evidence is the primary signal; username alone cannot
+ *   drive a High-severity finding — only actual visual matches can.
+ *   usernameSimilarity: 10 → 5   (reduced; username overlap is a weak signal alone)
+ *   mediaOverlap:       35 → 40  (increased; stolen photos under ANY username detected)
+ *   identityMatchMaxRaw: 35 → 30 (was 20+5+10; now 20+5+5)
+ *   impersonationMaxRaw: 65 → 70 (was 35+15+10+5; now 40+15+10+5)
  *
  * Phase 9 High severity gate: replaces scattered individual gates with a clean
  *   OR-condition that requires actual stolen media evidence for High.
@@ -22,26 +23,26 @@
 export const SCAN_CONFIG = {
   // ── Score weight allocation (must sum to 100) ──────────────────────────────
   weights: {
-    profilePhoto: 20,        // ↓ was 25 — one photo match alone is insufficient
-    mediaOverlap: 35,        // unchanged — stolen media is the strongest evidence
+    profilePhoto: 20,        // unchanged — strong single-photo identity anchor
+    mediaOverlap: 40,        // ↑ was 35 — stolen photos under ANY username, primary signal
     contentReuse: 15,        // unchanged — verbatim caption reuse
-    bioSimilarity: 5,        // ↓ was 10 — bio is easily spoofed; less weight
-    usernameSimilarity: 10,  // unchanged
-    accountTrust: 10,        // ↑ was behavioral:5 — renamed; low-trust = more suspicious
-    temporalReuse: 5,        // NEW — fraction of matched images where suspect posted after victim
+    bioSimilarity: 5,        // unchanged — bio is easily spoofed; low weight
+    usernameSimilarity: 5,   // ↓ was 10 — username alone cannot gate High findings
+    accountTrust: 10,        // unchanged — low-trust account = more suspicious
+    temporalReuse: 5,        // unchanged — fraction of matched images where suspect posted after victim
   },
 
   // ── Identity Match sub-score (how closely does the account resemble the target?)
   // Components: profilePhoto + bioSimilarity + usernameSimilarity
-  // Max raw points: 20 + 5 + 10 = 35 → scaled to 0-100
+  // Max raw points: 20 + 5 + 5 = 30 → scaled to 0-100
   identityMatchComponents: ["profilePhoto", "bioSimilarity", "usernameSimilarity"] as const,
-  identityMatchMaxRaw: 35,
+  identityMatchMaxRaw: 30,
 
   // ── Impersonation Confidence sub-score (how clearly is it intentional?)
   // Components: mediaOverlap + contentReuse + accountTrust + temporalReuse
-  // Max raw points: 35 + 15 + 10 + 5 = 65 → scaled to 0-100
+  // Max raw points: 40 + 15 + 10 + 5 = 70 → scaled to 0-100
   impersonationComponents: ["mediaOverlap", "contentReuse", "accountTrust", "temporalReuse"] as const,
-  impersonationMaxRaw: 65,
+  impersonationMaxRaw: 70,
 
   // ── Profile photo classification caps ─────────────────────────────────────
   // A weak profile photo match overrides the combined score ceiling.
