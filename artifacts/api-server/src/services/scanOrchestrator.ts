@@ -71,12 +71,21 @@ export function normalizeSuppressUsername(raw: string | null | undefined): strin
   return (raw ?? "").replace(/^@/, "").toLowerCase().trim();
 }
 
+/** Canonicalize platform name so historical aliases map to current Rook platform keys.
+ *  "twitter" → "x": threats resolved under either name stay suppressed regardless of
+ *  which alias the web search or platform adapter returns on the next scan. */
+function normalizePlatformKey(raw: string): string {
+  const s = raw.toLowerCase().trim();
+  if (s === "twitter") return "x";
+  return s;
+}
+
 /** Build the canonical lookup key: "platform:username" (both normalized). */
 export function buildSuppressKey(
   platform: string,
   username: string | null | undefined
 ): string {
-  return `${platform.toLowerCase()}:${normalizeSuppressUsername(username)}`;
+  return `${normalizePlatformKey(platform)}:${normalizeSuppressUsername(username)}`;
 }
 
 const SCAN_STEPS = [
@@ -584,8 +593,10 @@ function webCandidateToImpersonator(
     detectedSignals,
     matchedMediaCount: suspectedStolenCount,
     suspiciousPostDate: wc.datePublished,
-    // Map the web search candidate's image URL so pHash comparison fires in Step 6
-    suspiciousProfileImageUrl: wc.imageUrl ?? undefined,
+    // Use the fully-resolved photo URL (Vision URL when available, unavatar.io fallback)
+    // so pHash comparison fires in Step 6 for ALL web candidates — not just the subset
+    // where Google Vision returned a direct image URL.
+    suspiciousProfileImageUrl: stolenProfilePhotoUrl,
   };
 }
 

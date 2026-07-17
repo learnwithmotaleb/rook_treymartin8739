@@ -5,7 +5,7 @@
  * fire-and-forget so a tracking failure never blocks a scan.
  *
  * Estimated costs (conservative; update as pricing changes):
- *   OpenAI gpt-4o-mini explanation:  $0.0006 / 1K tokens → ~$0.0002 per call
+ *   OpenAI gpt-4o explanation:       $0.0025 / 1K tokens → ~$0.0005 per call
  *   OpenAI gpt-5.1 scam analysis:    $0.0150 / 1K tokens → ~$0.0060 per call
  *   Google Cloud Vision:             $1.50  / 1K images  → $0.0015 per image
  *   Google CSE:                      $5.00  / 1K queries → $0.0050 per query
@@ -18,7 +18,7 @@ import { logger } from "../lib/logger";
 // ─── Cost table ───────────────────────────────────────────────────────────────
 
 const COST_USD: Record<string, number> = {
-  openai_explanation: 0.0002,   // gpt-4o-mini, ~300 tokens
+  openai_explanation: 0.0005,   // gpt-4o, ~200 tokens
   openai_scam_analysis: 0.0060, // gpt-5.1, ~400 tokens
   google_vision: 0.0015,        // Cloud Vision WEB_DETECTION per image
   google_cse: 0.0050,           // Custom Search per query

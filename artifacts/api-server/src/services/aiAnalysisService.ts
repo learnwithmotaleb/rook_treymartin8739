@@ -181,7 +181,7 @@ async function _callExplanationApi(
 ): Promise<string> {
   logger.info(
     { threatType: input.threatType, platform: input.platform },
-    "Generating threat explanation via gpt-4o-mini"
+    "Generating threat explanation via gpt-4o"
   );
 
   // Compact prompt — only include populated fields
@@ -193,8 +193,8 @@ async function _callExplanationApi(
   lines.push(`Signals: ${input.signals.slice(0, 5).join("; ")}`);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    max_completion_tokens: 120, // 2 sentences max
+    model: "gpt-4o",
+    max_completion_tokens: 200, // 3-4 sentences
     messages: [
       { role: "system", content: EXPLANATION_SYSTEM_PROMPT },
       { role: "user", content: lines.join("\n") },
