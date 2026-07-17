@@ -1,0 +1,116 @@
+ROOK Onboarding Polish & Motion Direction
+
+The redesigned onboarding flow is structurally complete. Your objective is not to redesign the screens or change the copy. Instead, elevate the experience so it feels like a world-class consumer product that users immediately associate with quality, trust, and advanced AI.
+
+Approach this as a senior product designer and motion designer, not as an engineer adding animations.
+
+Overall Goal
+
+Transform the onboarding from a collection of screens into a cohesive, emotionally engaging journey. Every interaction should reinforce the ROOK brand as premium, intelligent, trustworthy, and technologically advanced.
+
+Avoid making the interface feel like a generic cybersecurity app. Instead, aim for the level of polish found in Apple’s first-party apps, Arc Browser, Linear, Cash App, and other industry-leading consumer products.
+
+Motion Philosophy
+
+Motion should have purpose.
+
+Every animation should either:
+
+* reinforce trust,
+* communicate intelligence,
+* guide attention,
+* create anticipation,
+* provide feedback,
+* or make the product feel more alive.
+
+Avoid decorative animations that exist only because they look interesting.
+
+Favor subtlety over spectacle.
+
+Visual Character
+
+Review every screen and identify opportunities to introduce visual character through thoughtful motion, depth, lighting, transitions, illustration, and interactive feedback.
+
+Nothing should feel static or lifeless.
+
+The experience should feel continuously active without becoming distracting.
+
+Cohesion
+
+Every screen should feel like it belongs to the same product.
+
+Ensure there is a consistent visual language across:
+
+* transitions
+* spacing
+* motion timing
+* iconography
+* illustrations
+* interaction patterns
+* progress indicators
+* backgrounds
+* component behavior
+
+Avoid introducing different animation styles or visual motifs from one screen to another.
+
+Interaction Quality
+
+Audit every user interaction.
+
+Selections, taps, loading states, progress indicators, navigation, and confirmations should all provide premium feedback.
+
+Interactions should feel intentional and refined rather than default or mechanical.
+
+Emotional Journey
+
+Evaluate the emotional progression throughout onboarding.
+
+Each screen should naturally build upon the previous one and guide the user through a complete narrative rather than presenting isolated information.
+
+Look for opportunities to strengthen:
+
+* curiosity
+* personalization
+* confidence
+* anticipation
+* trust
+* perceived intelligence
+* perceived product quality
+
+without adding unnecessary friction.
+
+Brand Presence
+
+Find tasteful ways to strengthen ROOK’s identity throughout the onboarding.
+
+Rather than relying on logos or repeated branding, create a subtle visual language that makes the experience feel memorable and uniquely ROOK.
+
+The onboarding should leave users with a recognizable impression of the brand.
+
+Polish Pass
+
+Perform a comprehensive polish pass across the entire onboarding experience.
+
+Identify anything that feels:
+
+* generic
+* unfinished
+* abrupt
+* repetitive
+* visually flat
+* emotionally weak
+* inconsistent
+* overly utilitarian
+
+and improve it while preserving the overall flow and usability.
+
+Constraints
+
+* Do not change the onboarding structure unless absolutely necessary.
+* Do not rewrite the copy unless it improves clarity or conversion.
+* Prioritize quality over quantity.
+* Maintain excellent performance on iOS.
+* Keep accessibility in mind for all motion and interactions.
+* Every enhancement should feel deliberate and contribute to a premium user experience.
+
+The final onboarding should feel launch-ready and comparable in polish to the best subscription apps currently available on the App Store.
