@@ -168,13 +168,7 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
 
   return (
     <View style={[s.screenPad, { flex: 1, justifyContent: "center" }]}>
-      {/* Full-bleed hero image with a deep dark overlay so particles + orb pop on top */}
-      <RNImage
-        source={require("../assets/images/onboarding/s0-hero.png")}
-        style={[StyleSheet.absoluteFill, { opacity: 0.38 }]}
-        resizeMode="cover"
-      />
-      <LinearGradient colors={["#070B12CC", "#070B1288", "#070B12EE"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <LinearGradient colors={["#1E3A5F44", "#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={{ alignItems: "center", gap: 44 }}>
         <View style={hook.orb}>
           {particles.map((p, i) => (
@@ -296,12 +290,14 @@ const stat = StyleSheet.create({
 function AssessmentIntroScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   const scale = useRef(new Animated.Value(0.85)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const rmS2 = useReduceMotion();
   useEffect(() => {
+    if (rmS2) { scale.setValue(1); opacity.setValue(1); return; }
     Animated.parallel([
       Animated.spring(scale, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
       Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [rmS2]);
   return (
     <View style={[s.screenPad, { flex: 1, justifyContent: "center" }]}>
       <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -509,12 +505,14 @@ function IdentityInputScreen({
   onPhotoSelect: (uri: string, base64?: string) => void;
 }) {
   const shimmer = useRef(new Animated.Value(0)).current;
+  const rmS6 = useReduceMotion();
   useEffect(() => {
+    if (rmS6) return;
     Animated.loop(Animated.sequence([
       Animated.timing(shimmer, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       Animated.timing(shimmer, { toValue: 0, duration: 1800, useNativeDriver: true }),
     ])).start();
-  }, []);
+  }, [rmS6]);
 
   const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -651,8 +649,9 @@ function ProofVisualScreen({ colors }: { colors: ReturnType<typeof useColors> })
         </View>
         <View style={pv.profiles}>
           <View style={pv.profileCol}>
+            {/* Genuine account — same real photo the impersonator stole */}
             <RNImage
-              source={require("../assets/images/onboarding/s7-genuine-alex.png")}
+              source={require("../assets/images/onboarding/s7-impersonator.png")}
               style={[pv.avatar, { borderWidth: 2, borderColor: colors.success + "80" }]}
               resizeMode="cover"
             />
@@ -662,6 +661,7 @@ function ProofVisualScreen({ colors }: { colors: ReturnType<typeof useColors> })
           </View>
           <View style={[{ width: 1, height: 70, backgroundColor: colors.border }]} />
           <View style={pv.profileCol}>
+            {/* Impersonator — identical photo, different handle */}
             <RNImage
               source={require("../assets/images/onboarding/s7-impersonator.png")}
               style={[pv.avatar, { borderWidth: 2, borderColor: "#EF444466" }]}
@@ -882,7 +882,6 @@ function ProfileSavedScreen({ colors, identityInput, selectedPlatforms, hasPhoto
   const cardY   = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
   const stepsY  = stepsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 
-  const fade = useRef(new Animated.Value(1)).current;
   const steps = [
     { label: "Scan profile set", done: true },
     { label: "Enter your account handles", done: false, current: true },
@@ -1376,12 +1375,6 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
     <View style={[s.screenPad, { flex: 1, alignItems: "center", justifyContent: "center", gap: 32 }]}>
       <LinearGradient colors={["#3B82F622", "#8B5CF611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={sc.rings}>
-        {/* World network map bleeds through the pulse rings for geographic depth */}
-        <RNImage
-          source={require("../assets/images/onboarding/s13-scan-world.png")}
-          style={{ position: "absolute", width: 200, height: 200, borderRadius: 100, opacity: 0.28 }}
-          resizeMode="cover"
-        />
         <ScanPulse size={200} active={true} />
         <Animated.View style={{ position: "absolute", transform: [{ rotate: spin }] }}>
           <View style={[sc.spinner, { borderColor: colors.primary + "44", borderTopColor: colors.primary }]} />
@@ -1425,19 +1418,25 @@ const sc = StyleSheet.create({
 // ─── S14: Result Reveal (real threat count) ────────────────────────────────────
 function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeof useColors>; threatCount: number }) {
   const [displayCount, setDisplayCount] = useState(0);
-  const fade = useRef(new Animated.Value(0)).current;
-  const cardAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
-  const pulse = useRef(new Animated.Value(1)).current;
+  const fade          = useRef(new Animated.Value(0)).current;
+  const cardAnims     = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+  const pulse         = useRef(new Animated.Value(1)).current;
+  const shieldEntrance = useRef(new Animated.Value(0)).current;
+  const shieldPulse    = useRef(new Animated.Value(1)).current;
   const rm = useReduceMotion();
+
+  // Declare hasThreats early so all effects below can reference it
+  const hasThreats = threatCount > 0;
 
   useEffect(() => {
     Animated.timing(fade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     Animated.stagger(150, cardAnims.map((a) => Animated.spring(a, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }))).start();
-    Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 1.02, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
-    ])).start();
-
+    if (!rm) {
+      Animated.loop(Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.02, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
+      ])).start();
+    }
     if (rm || threatCount === 0) { setDisplayCount(threatCount); return; }
     const steps = Math.min(threatCount, 8);
     const stepSize = Math.ceil(threatCount / steps);
@@ -1449,8 +1448,6 @@ function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeo
     }, 100);
     return () => clearInterval(iv);
   }, []);
-  const shieldEntrance = useRef(new Animated.Value(0)).current;
-  const shieldPulse    = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!hasThreats && !rm) {
@@ -1463,9 +1460,7 @@ function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeo
     } else if (!hasThreats) {
       shieldEntrance.setValue(1);
     }
-  }, [threatCount]);
-
-  const hasThreats = threatCount > 0;
+  }, [hasThreats, rm]);
   const MOCK_CARDS = [
     { platform: "instagram" as NonNullable<SocialPlatform>, label: "Account flagged" },
     { platform: "facebook" as NonNullable<SocialPlatform>, label: "Potential match" },
@@ -1570,19 +1565,6 @@ function ReportBridgeScreen({ colors, threatCount, userType, platformCount }: {
         <View style={{ gap: 10 }}>
           <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Your Identity Protection{"\n"}Report is ready.</Text>
           <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Free accounts get a one-time scan. Rook Premium monitors continuously — every platform, every day.</Text>
-        </View>
-        {/* Locked report preview — blurred to create paywall FOMO */}
-        <View style={{ borderRadius: 16, overflow: "hidden", height: 180 }}>
-          <RNImage
-            source={require("../assets/images/onboarding/s15-report-locked.png")}
-            style={{ width: "100%", height: "100%" }}
-            resizeMode="cover"
-          />
-          <LinearGradient
-            colors={["transparent", "#070B12CC"]}
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
         </View>
         <Animated.View style={{ opacity: summaryAnim, transform: [{ translateY: summaryY }] }}>
           <GlassCard style={{ gap: 14, borderColor: colors.primary + "33" }}>
