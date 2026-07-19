@@ -33,6 +33,10 @@ interface PlatformConfig {
   usernameHint: string;
   usernamePrefix?: string;
   businessAccountNote?: string;
+  /** When true, hides the OAuth button and promotes the manual username path. */
+  oauthDisabled?: boolean;
+  /** Shown instead of the OAuth button when oauthDisabled is true. */
+  oauthDisabledReason?: string;
 }
 
 // Custom URL scheme registered in app.json ("scheme": "com.getrook.app").
@@ -51,8 +55,11 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     callbackPath: "/api/oauth/instagram/callback",
     usernameHint: "yourhandle",
     usernamePrefix: "@",
-    businessAccountNote:
-      "Instagram's API requires a Business or Creator account to sign in. Go to Instagram Settings → Account → Switch to Professional Account to enable this. It's free and reversible.",
+    // Meta requires a Business app type + Instagram Login product to enable OAuth.
+    // Until that is configured, manual username entry is the primary connect path.
+    oauthDisabled: true,
+    oauthDisabledReason:
+      "Instagram sign-in requires a Professional account (Business or Creator) and additional Meta app configuration. Add your handle below to start monitoring — we'll scan for impersonators using your public profile.",
   },
   x: {
     label: "X (Twitter)",
@@ -494,78 +501,80 @@ export default function ConnectAccount() {
                 </Text>
               </View>
 
-              {/* OAuth section */}
-              <GlassCard style={styles.authSection}>
-                <View style={styles.authHeader}>
-                  <View style={[styles.authHeaderIcon, { backgroundColor: colors.success + "22" }]}>
-                    <Ionicons name="shield-checkmark" size={16} color={colors.success} />
-                  </View>
-                  <View style={styles.authHeaderText}>
-                    <Text style={[styles.authHeaderTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                      Sign in with {config.label}
-                    </Text>
-                    <Text style={[styles.authHeaderSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                      Verified accounts get automated sync and full monitoring. Rook will only read your public profile and posts — we will never post, like, or message on your behalf.
-                    </Text>
-                  </View>
-                </View>
-
-                {config.businessAccountNote && (
-                  <View style={[styles.businessNoteCard, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
-                    <Ionicons name="information-circle" size={16} color="#F59E0B" style={{ marginTop: 1 }} />
-                    <Text style={[styles.businessNoteText, { color: "#D97706", fontFamily: "Inter_400Regular" }]}>
-                      {config.businessAccountNote}
-                    </Text>
-                  </View>
-                )}
-
-                {oauthDone ? (
-                  <View style={[styles.oauthSuccess, { backgroundColor: colors.success + "18", borderColor: colors.success + "44" }]}>
-                    <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                    <Text style={[styles.oauthSuccessText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
-                      Authenticated successfully
-                    </Text>
-                  </View>
-                ) : (clientId || selectedPlatform === "x") ? (
-                  <OAuthButton
-                    platform={selectedPlatform}
-                    clientId={clientId ?? ""}
-                    onSuccess={handleOAuthDone}
-                    disabled={submitting}
-                  />
-                ) : isExistingAccount ? (
-                  <View style={{ gap: 12 }}>
-                    <View style={[styles.noCredCard, { backgroundColor: colors.success + "0C", borderColor: colors.success + "33" }]}>
+              {/* OAuth section — hidden when oauthDisabled, replaced by inline note below username */}
+              {!config.oauthDisabled && (
+                <GlassCard style={styles.authSection}>
+                  <View style={styles.authHeader}>
+                    <View style={[styles.authHeaderIcon, { backgroundColor: colors.success + "22" }]}>
                       <Ionicons name="shield-checkmark" size={16} color={colors.success} />
-                      <Text style={[styles.noCredText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        This account is already being monitored. OAuth sign-in isn't configured for {config.label} yet, so ownership verification is unavailable — but basic monitoring is active.
+                    </View>
+                    <View style={styles.authHeaderText}>
+                      <Text style={[styles.authHeaderTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                        Sign in with {config.label}
+                      </Text>
+                      <Text style={[styles.authHeaderSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        Verified accounts get automated sync and full monitoring. Rook will only read your public profile and posts — we will never post, like, or message on your behalf.
                       </Text>
                     </View>
-                    <TouchableOpacity
-                      style={[styles.oauthBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]}
-                      activeOpacity={0.8}
-                      onPress={() => router.back()}
-                    >
-                      <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                      <Text style={[styles.oauthBtnText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                        Continue with basic monitoring
-                      </Text>
-                    </TouchableOpacity>
                   </View>
-                ) : (
-                  <View style={[styles.noCredCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-                    <MaterialCommunityIcons name="information" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.noCredText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                      OAuth not configured for {config.label}. Add your{" "}
-                      <Text style={{ fontFamily: "Inter_600SemiBold" }}>{config.clientIdEnvKey}</Text>{" "}
-                      environment secret to enable sign-in.
-                    </Text>
-                  </View>
-                )}
-              </GlassCard>
 
-              {/* Divider */}
-              {!isExistingAccount && (
+                  {config.businessAccountNote && (
+                    <View style={[styles.businessNoteCard, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
+                      <Ionicons name="information-circle" size={16} color="#F59E0B" style={{ marginTop: 1 }} />
+                      <Text style={[styles.businessNoteText, { color: "#D97706", fontFamily: "Inter_400Regular" }]}>
+                        {config.businessAccountNote}
+                      </Text>
+                    </View>
+                  )}
+
+                  {oauthDone ? (
+                    <View style={[styles.oauthSuccess, { backgroundColor: colors.success + "18", borderColor: colors.success + "44" }]}>
+                      <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                      <Text style={[styles.oauthSuccessText, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
+                        Authenticated successfully
+                      </Text>
+                    </View>
+                  ) : (clientId || selectedPlatform === "x") ? (
+                    <OAuthButton
+                      platform={selectedPlatform}
+                      clientId={clientId ?? ""}
+                      onSuccess={handleOAuthDone}
+                      disabled={submitting}
+                    />
+                  ) : isExistingAccount ? (
+                    <View style={{ gap: 12 }}>
+                      <View style={[styles.noCredCard, { backgroundColor: colors.success + "0C", borderColor: colors.success + "33" }]}>
+                        <Ionicons name="shield-checkmark" size={16} color={colors.success} />
+                        <Text style={[styles.noCredText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                          This account is already being monitored. OAuth sign-in isn't configured for {config.label} yet, so ownership verification is unavailable — but basic monitoring is active.
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.oauthBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]}
+                        activeOpacity={0.8}
+                        onPress={() => router.back()}
+                      >
+                        <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                        <Text style={[styles.oauthBtnText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                          Continue with basic monitoring
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={[styles.noCredCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                      <MaterialCommunityIcons name="information" size={16} color={colors.mutedForeground} />
+                      <Text style={[styles.noCredText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        OAuth not configured for {config.label}. Add your{" "}
+                        <Text style={{ fontFamily: "Inter_600SemiBold" }}>{config.clientIdEnvKey}</Text>{" "}
+                        environment secret to enable sign-in.
+                      </Text>
+                    </View>
+                  )}
+                </GlassCard>
+              )}
+
+              {/* Divider — only shown when OAuth is available (manual is secondary) */}
+              {!isExistingAccount && !config.oauthDisabled && (
                 <View style={styles.dividerRow}>
                   <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
                   <Text style={[styles.dividerLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -578,6 +587,14 @@ export default function ConnectAccount() {
               {/* Username + display name inputs */}
               {!isExistingAccount && (
                 <GlassCard style={styles.usernameSection}>
+                  {config.oauthDisabledReason && (
+                    <View style={[styles.businessNoteCard, { backgroundColor: colors.secondary, borderColor: colors.border, marginBottom: 14 }]}>
+                      <Ionicons name="information-circle-outline" size={15} color={colors.mutedForeground} style={{ marginTop: 1 }} />
+                      <Text style={[styles.businessNoteText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        {config.oauthDisabledReason}
+                      </Text>
+                    </View>
+                  )}
                   <Text style={[styles.usernameLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
                     Your {config.label} username
                   </Text>
