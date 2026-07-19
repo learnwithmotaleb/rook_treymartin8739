@@ -41,6 +41,23 @@ if (!_rawSecret) {
 }
 const STATE_SECRET = _rawSecret;
 
+// ── One-time state token guard ────────────────────────────────────────────────
+// After a state token is successfully consumed, we add it to this set so it
+// cannot be replayed within the 15-minute validity window.
+// Entries are pruned lazily whenever we add a new one.
+const _usedStateTokens = new Map<string, number>(); // token → consumed-at (ms)
+
+function consumeStateToken(token: string): boolean {
+  if (_usedStateTokens.has(token)) return false; // already used
+  _usedStateTokens.set(token, Date.now());
+  // Prune tokens older than 15 minutes
+  const cutoff = Date.now() - 900_000;
+  for (const [k, ts] of _usedStateTokens) {
+    if (ts < cutoff) _usedStateTokens.delete(k);
+  }
+  return true;
+}
+
 function createOAuthState(userId: string): string {
   const payload = Buffer.from(
     JSON.stringify({ userId, iat: Math.floor(Date.now() / 1000) })
@@ -68,6 +85,8 @@ function parseOAuthState(state: string): string | null {
     ) as { userId?: string; iat?: number };
     if (!userId || typeof iat !== "number") return null;
     if (Date.now() / 1000 - iat > 900) return null; // 15-min window
+    // One-time use: prevent replay within the validity window
+    if (!consumeStateToken(state)) return null;
     return userId;
   } catch {
     return null;
@@ -358,16 +377,34 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
 
   try {
     const redirectUri = `https://${DOMAIN}/api/oauth/facebook/callback`;
-    const tokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${clientSecret}&code=${code}`;
 
-    const tokenRes = await metaFetch(tokenUrl);
-    const tokenData = await tokenRes.json() as { access_token?: string; error?: { message: string } };
+    // Exchange code for short-lived token via POST (keeps client_secret out of URL / logs)
+    const tokenParams = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      client_secret: clientSecret,
+      code,
+    });
+    const tokenRes = await metaFetch("https://graph.facebook.com/v22.0/oauth/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenParams.toString(),
+    });
+    const tokenData = await tokenRes.json() as { access_token?: string; expires_in?: number; error?: { message: string } };
 
     if (!tokenRes.ok || !tokenData.access_token) {
       throw new Error(tokenData.error?.message ?? `Token exchange failed (HTTP ${tokenRes.status})`);
     }
 
-    const { access_token } = tokenData;
+    // Upgrade to long-lived token (valid ~60 days) — client_secret in query is Meta's required format
+    // metaFetch redacts it from logs automatically
+    const llRes = await metaFetch(
+      `https://graph.facebook.com/v22.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${tokenData.access_token}`
+    );
+    const llData = await llRes.json() as { access_token?: string; expires_in?: number };
+    const access_token = llData.access_token ?? tokenData.access_token;
+    const expiresIn = llData.expires_in ?? tokenData.expires_in;
+    const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 
     const profileRes = await metaFetch(
       `https://graph.facebook.com/v22.0/me?fields=id,name&access_token=${access_token}`
@@ -393,7 +430,7 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     if (existing.length > 0) {
       await db
         .update(connectedAccountsTable)
-        .set({ accessToken: access_token, platformUserId: profile.id, verified: true, lastSynced: new Date() })
+        .set({ accessToken: access_token, platformUserId: profile.id, verified: true, tokenExpiresAt, lastSynced: new Date() })
         .where(eq(connectedAccountsTable.id, existing[0]!.id));
     } else {
       await db
@@ -405,6 +442,7 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
           displayName: profile.name,
           platformUserId: profile.id,
           accessToken: access_token,
+          tokenExpiresAt,
           verified: true,
           followers: 0,
           photosIndexed: 0,
@@ -494,12 +532,21 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
       throw new Error(`Token exchange failed (HTTP ${tokenRes.status}): ${tokenText}`);
     }
 
-    const tokenData = JSON.parse(tokenText) as { access_token?: string; refresh_token?: string; error?: string };
+    const tokenData = JSON.parse(tokenText) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
+    };
     if (!tokenData.access_token) {
       throw new Error(tokenData.error ?? `Token exchange returned no access_token: ${tokenText}`);
     }
 
-    const { access_token } = tokenData;
+    const { access_token, refresh_token } = tokenData;
+    // X access tokens expire in 2 hours; store expiry so the scheduler can refresh proactively
+    const tokenExpiresAt = tokenData.expires_in
+      ? new Date(Date.now() + tokenData.expires_in * 1000)
+      : null;
 
     // Fetch user profile
     const profileRes = await fetch(
@@ -537,6 +584,8 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
         .update(connectedAccountsTable)
         .set({
           accessToken: access_token,
+          refreshToken: refresh_token ?? null,
+          tokenExpiresAt,
           platformUserId: profile.id,
           username: profile.username,
           displayName: profile.name,
@@ -553,6 +602,8 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
         displayName: profile.name,
         platformUserId: profile.id,
         accessToken: access_token,
+        refreshToken: refresh_token ?? null,
+        tokenExpiresAt,
         verified: true,
         followers: profile.public_metrics?.followers_count ?? 0,
         photosIndexed: 0,
@@ -720,8 +771,8 @@ h2 { font-size: 14px; font-weight: 700; color: #94a3b8; text-transform: uppercas
 </div>
 ${igClientId && igPublicId
   ? igClientId === igPublicId
-    ? `<div class="row"><span class="label">IG client_id match?</span><span class="value ok">✅ Match — both equal FACEBOOK_APP_ID</span></div>`
-    : `<div class="row"><span class="label">IG client_id match?</span><span class="value err">❌ MISMATCH — INSTAGRAM_CLIENT_ID ≠ EXPO_PUBLIC_INSTAGRAM_CLIENT_ID</span></div>`
+    ? `<div class="row"><span class="label">IG client_id match?</span><span class="value ok">✅ Match — server and mobile use the same Instagram App ID</span></div>`
+    : `<div class="row"><span class="label">IG client_id match?</span><span class="value err">❌ MISMATCH — INSTAGRAM_CLIENT_ID ≠ EXPO_PUBLIC_INSTAGRAM_CLIENT_ID (must be the same value)</span></div>`
   : ""}
 </div>
 

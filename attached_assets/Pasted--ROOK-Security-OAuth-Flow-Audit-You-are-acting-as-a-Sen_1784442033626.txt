@@ -1,0 +1,370 @@
+# ROOK Security & OAuth Flow Audit
+
+You are acting as a Senior Security Engineer, Senior Mobile Engineer, and Senior QA Engineer performing a production readiness audit of ROOK.
+
+Your objective is **not** to simply make the OAuth flow work. Your objective is to audit the entire authentication and account connection system as if we are preparing for App Store launch, Meta App Review, and a third-party security review.
+
+## Primary Goals
+
+Perform a complete end-to-end audit of every connected account flow including:
+
+* Instagram OAuth
+* Facebook OAuth
+* Any additional social account integrations
+* Session management
+* Token storage
+* Token refresh
+* Token expiration
+* Logout
+* Reconnection
+* Error recovery
+* Permission handling
+
+Do not assume anything is implemented correctly.
+
+---
+
+# Phase 1 — Architecture Audit
+
+Map the complete OAuth architecture.
+
+Document:
+
+* every screen involved
+* every redirect
+* every backend endpoint
+* every callback
+* every token exchange
+* every stored credential
+* every database write
+* every API request
+* every permission request
+
+Identify:
+
+* unnecessary steps
+* race conditions
+* duplicated logic
+* fragile code
+* dead code
+* missing validation
+* missing error handling
+
+Simplify wherever possible.
+
+---
+
+# Phase 2 — End-to-End Testing
+
+Simulate every possible user path.
+
+Examples include:
+
+## New User
+
+* connect Instagram
+* connect Facebook
+* grant permissions
+* deny permissions
+* cancel OAuth
+* reconnect later
+
+## Existing User
+
+* reconnect account
+* expired token
+* revoked permissions
+* deleted Facebook connection
+* deleted Instagram connection
+
+## Failure Cases
+
+Network failures
+
+Backend timeout
+
+OAuth cancellation
+
+Redirect mismatch
+
+Invalid state parameter
+
+Expired authorization code
+
+Invalid refresh token
+
+Invalid access token
+
+Partial account connection
+
+Duplicate account connection
+
+Database write failures
+
+Every path should recover gracefully.
+
+No user should ever become stuck.
+
+---
+
+# Phase 3 — Security Audit
+
+Perform a production security audit.
+
+Verify that:
+
+## Secrets
+
+NO API keys exist in:
+
+* frontend
+* React Native bundle
+* Expo config
+* client logs
+* Git history
+* public environment files
+
+Ensure:
+
+* secrets remain server-side only
+* least privilege is used
+* environment variables are loaded securely
+* production and development secrets are isolated
+
+---
+
+## OAuth Security
+
+Verify:
+
+state parameter validation
+
+PKCE implementation (if applicable)
+
+redirect URI validation
+
+nonce validation where appropriate
+
+CSRF protection
+
+Replay attack protection
+
+Token verification
+
+Secure callback validation
+
+No open redirect vulnerabilities
+
+No authorization bypass
+
+---
+
+## Token Storage
+
+Verify tokens are:
+
+encrypted where appropriate
+
+never logged
+
+never exposed to the frontend unnecessarily
+
+never stored in AsyncStorage unless absolutely required
+
+stored using secure device storage when client-side persistence is necessary
+
+rotated correctly
+
+refreshed correctly
+
+deleted correctly
+
+invalidated correctly
+
+---
+
+## Backend Security
+
+Audit:
+
+authentication middleware
+
+authorization checks
+
+Supabase Row Level Security policies
+
+service role usage
+
+admin privileges
+
+database permissions
+
+API validation
+
+rate limiting
+
+request validation
+
+input sanitization
+
+error responses
+
+No endpoint should expose sensitive information.
+
+---
+
+## Logging
+
+Verify logs never contain:
+
+access tokens
+
+refresh tokens
+
+authorization codes
+
+user secrets
+
+OAuth responses
+
+private identifiers
+
+session cookies
+
+API secrets
+
+---
+
+# Phase 4 — Meta Compliance
+
+Verify our OAuth implementation complies with Meta requirements.
+
+Ensure:
+
+correct permissions requested
+
+minimal permission scope
+
+correct review mode
+
+proper error handling
+
+proper token lifecycle
+
+correct callback URLs
+
+proper handling of rejected permissions
+
+compliance with Meta App Review expectations
+
+---
+
+# Phase 5 — UX Audit
+
+Review the entire connection experience.
+
+Ensure users always understand:
+
+what is happening
+
+why permissions are requested
+
+whether connection succeeded
+
+whether connection failed
+
+how to retry
+
+how to disconnect
+
+how to reconnect
+
+Remove unnecessary friction.
+
+Improve clarity without sacrificing security.
+
+---
+
+# Phase 6 — Code Quality
+
+Identify:
+
+duplicate files
+
+duplicate OAuth logic
+
+dead functions
+
+unused utilities
+
+unreachable code
+
+large components needing refactoring
+
+technical debt
+
+Replace hacks with maintainable implementations.
+
+---
+
+# Phase 7 — Production Hardening
+
+Verify:
+
+timeouts
+
+retry strategy
+
+offline handling
+
+API failure recovery
+
+unexpected backend failures
+
+slow network behavior
+
+multiple taps
+
+double submissions
+
+duplicate callbacks
+
+simultaneous connection attempts
+
+Ensure the application behaves predictably under stress.
+
+---
+
+# Deliverables
+
+Do **not** simply make changes silently.
+
+Produce a complete audit report including:
+
+## Critical Issues (must fix before launch)
+
+## High Priority Issues
+
+## Medium Priority Issues
+
+## Low Priority Improvements
+
+## Security Vulnerabilities
+
+## UX Problems
+
+## Code Quality Problems
+
+## Recommended Refactors
+
+## Performance Improvements
+
+## Compliance Concerns
+
+After presenting the findings, implement the fixes in order of priority.
+
+Do not introduce breaking changes.
+
+Preserve all existing functionality unless it is insecure or fundamentally incorrect.
+
+The final result should be a production-ready OAuth system that is secure, reliable, maintainable, compliant with Meta requirements, resilient to edge cases, and ready for App Store launch.
