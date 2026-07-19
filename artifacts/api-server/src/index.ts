@@ -1,3 +1,21 @@
+// Load .env.local overrides FIRST — these win over Replit-injected env vars.
+// Needed because Replit secrets take a full workspace restart to propagate;
+// .env.local lets us hot-patch values without restarting the entire workspace.
+import { readFileSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+const __dir = dirname(fileURLToPath(import.meta.url));
+const envLocal = resolve(__dir, "../.env.local");
+if (existsSync(envLocal)) {
+  for (const line of readFileSync(envLocal, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    process.env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+  }
+}
+
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startWebhookRetryLoop } from "./services/webhookService";
