@@ -24,6 +24,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris, getAccounts, getAccountMedia, type AccountMediaItem } from "@/lib/api";
+import { INSTAGRAM_APP_ID, FACEBOOK_APP_ID, OAUTH_APP_SCHEME } from "@/constants/oauthConfig";
 import * as WebBrowser from "expo-web-browser";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -997,9 +998,9 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   const handleOAuth = useCallback(async () => {
     const cfg = ONBOARDING_OAUTH[platform];
     if (!cfg) return;
-    // Meta App IDs are hardcoded (public values) to avoid stale Replit env var propagation.
-    const clientId = platform === "instagram" ? "27463822659936313"
-      : platform === "facebook" ? "1042769471484001"
+    // App IDs from shared constants — single source of truth with connect-account.tsx.
+    const clientId = platform === "instagram" ? INSTAGRAM_APP_ID
+      : platform === "facebook" ? FACEBOOK_APP_ID
       : (process.env as Record<string,string|undefined>)[cfg.clientIdEnvKey];
 
     setOauthLoading(true);
@@ -1037,8 +1038,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
 
       // The server processes the OAuth code and then redirects to the app scheme.
       // ASWebAuthenticationSession intercepts the custom scheme and closes automatically.
-      const APP_SCHEME = "com.getrook.app://oauth";
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_SCHEME);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, OAUTH_APP_SCHEME);
 
       const resultUrl = "url" in result ? result.url ?? "" : "";
       const resultParams = resultUrl.includes("?") ? new URLSearchParams(resultUrl.split("?")[1]!) : null;

@@ -47,6 +47,30 @@ const STATE_SECRET = _rawSecret;
 // Entries are pruned lazily whenever we add a new one.
 const _usedStateTokens = new Map<string, number>(); // token → consumed-at (ms)
 
+// ── Per-IP rate limiter for OAuth callbacks ───────────────────────────────────
+// Prevents brute-force / abuse of the OAuth callback endpoints.
+const _oauthRateLimits = new Map<string, { count: number; windowStart: number }>();
+const OAUTH_RL_MAX = 20;           // requests allowed per window per IP
+const OAUTH_RL_WINDOW_MS = 60_000; // 1-minute sliding window
+
+function checkOAuthRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = _oauthRateLimits.get(ip);
+  if (!entry || now - entry.windowStart > OAUTH_RL_WINDOW_MS) {
+    _oauthRateLimits.set(ip, { count: 1, windowStart: now });
+    // Prune old entries lazily (keep map bounded)
+    if (_oauthRateLimits.size > 5000) {
+      for (const [k, v] of _oauthRateLimits) {
+        if (now - v.windowStart > OAUTH_RL_WINDOW_MS) _oauthRateLimits.delete(k);
+      }
+    }
+    return true;
+  }
+  if (entry.count >= OAUTH_RL_MAX) return false;
+  entry.count += 1;
+  return true;
+}
+
 function consumeStateToken(token: string): boolean {
   if (_usedStateTokens.has(token)) return false; // already used
   _usedStateTokens.set(token, Date.now());
@@ -178,6 +202,13 @@ router.post("/oauth/x/init", requireAuth, (req, res): void => {
 // Meta redirects here after the user approves the app.
 // URL: GET /api/oauth/instagram/callback?code=...&state=...
 router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  if (!checkOAuthRateLimit(ip)) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(429).send(errorPage("Too Many Requests", "Too many connection attempts from this device. Please wait a minute and try again."));
+    return;
+  }
+
   const { code, error, error_reason, state } = req.query as Record<string, string>;
 
   if (error || !code) {
@@ -279,9 +310,12 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
       req.log?.warn({ status: longLivedRes.status, body: longLivedBody }, "Long-lived token exchange failed — using short-lived token");
     }
     let longToken: string = access_token; // fallback to short-lived
+    let igTokenExpiresAt: Date | null = null;
     try {
-      const longData = JSON.parse(longLivedBody) as { access_token?: string };
+      const longData = JSON.parse(longLivedBody) as { access_token?: string; expires_in?: number };
       if (longData.access_token) longToken = longData.access_token;
+      // Instagram long-lived tokens are valid 60 days; store expiry for the scheduler
+      if (longData.expires_in) igTokenExpiresAt = new Date(Date.now() + longData.expires_in * 1000);
     } catch {
       req.log?.warn({ body: longLivedBody }, "Could not parse long-lived token response — using short-lived token");
     }
@@ -303,6 +337,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
         .update(connectedAccountsTable)
         .set({
           accessToken: longToken,
+          tokenExpiresAt: igTokenExpiresAt,
           platformUserId: String(profile.id),
           username: profile.username,
           followers: profile.followers_count ?? 0,
@@ -319,6 +354,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
           username: profile.username,
           platformUserId: String(profile.id),
           accessToken: longToken,
+          tokenExpiresAt: igTokenExpiresAt,
           verified: true,
           followers: profile.followers_count ?? 0,
           photosIndexed: 0,
@@ -355,6 +391,13 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
 
 // ─── Facebook OAuth callback ──────────────────────────────────────────────────
 router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  if (!checkOAuthRateLimit(ip)) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(429).send(errorPage("Too Many Requests", "Too many connection attempts from this device. Please wait a minute and try again."));
+    return;
+  }
+
   const { code, error, state } = req.query as Record<string, string>;
 
   if (error || !code) {
@@ -475,6 +518,13 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
 // Twitter redirects here after the user approves the app.
 // URL: GET /api/oauth/x/callback?code=...&state=...
 router.get("/oauth/x/callback", async (req, res): Promise<void> => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  if (!checkOAuthRateLimit(ip)) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(429).send(errorPage("Too Many Requests", "Too many connection attempts from this device. Please wait a minute and try again."));
+    return;
+  }
+
   const { code, error, state } = req.query as Record<string, string>;
 
   if (error || !code) {

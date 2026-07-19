@@ -22,6 +22,7 @@ import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { getAccounts, getOAuthRedirectUris, getOAuthState, getXOAuthInit } from "@/lib/api";
+import { INSTAGRAM_APP_ID, FACEBOOK_APP_ID, OAUTH_APP_SCHEME } from "@/constants/oauthConfig";
 
 interface PlatformConfig {
   label: string;
@@ -39,24 +40,17 @@ interface PlatformConfig {
   oauthDisabledReason?: string;
 }
 
-// Custom URL scheme registered in app.json ("scheme": "com.getrook.app").
-// Instagram/Facebook redirect to com.getrook.app://oauth — iOS intercepts this
-// immediately, closes the browser, and returns result.url to the app.
-// The app then POSTs the code to the server callback for token exchange.
-const OAUTH_SCHEME = "com.getrook.app://oauth";
 
 const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
   instagram: {
     label: "Instagram",
     color: "#E1306C",
     authUrl: "https://www.instagram.com/oauth/authorize",
-    scopes: [
-      "instagram_business_basic",
-      "instagram_business_manage_messages",
-      "instagram_business_manage_comments",
-      "instagram_business_content_publish",
-      "instagram_business_manage_insights",
-    ],
+    // instagram_business_basic is the only scope needed for identity monitoring.
+    // Manage_messages / manage_comments / content_publish / manage_insights are
+    // action permissions Rook does not use — requesting them would bloat the
+    // App Review submission and alarm users on the consent screen.
+    scopes: ["instagram_business_basic"],
     clientIdEnvKey: "EXPO_PUBLIC_INSTAGRAM_CLIENT_ID",
     callbackPath: "/api/oauth/instagram/callback",
     usernameHint: "yourhandle",
@@ -128,15 +122,11 @@ const ALL_PLATFORMS = Object.keys(PLATFORM_CONFIGS) as NonNullable<AppPlatform>[
 // Platforms that are visible in the picker but not yet available for connection.
 const LAUNCH_DISABLED_PLATFORMS = new Set<string>(["tiktok"]);
 
-// App IDs are public values (visible in every OAuth URL).
-// Hardcoded to avoid env-var propagation delays — EXPO_PUBLIC_* vars require
-// a full workspace restart to refresh in Replit.
-const INSTAGRAM_APP_ID = "27463822659936313"; // Instagram-specific Business Login ID
-const FACEBOOK_APP_ID_CONST = "1042769471484001"; // Meta/Facebook App ID
-
+// App IDs imported from shared constants — single source of truth across
+// connect-account.tsx and onboarding.tsx.
 function getClientId(platform: string): string | undefined {
   if (platform === "instagram") return INSTAGRAM_APP_ID;
-  if (platform === "facebook") return FACEBOOK_APP_ID_CONST;
+  if (platform === "facebook") return FACEBOOK_APP_ID;
   const key = PLATFORM_CONFIGS[platform]?.clientIdEnvKey;
   if (!key) return undefined;
   return (process.env as Record<string, string | undefined>)[key];
@@ -211,8 +201,7 @@ function OAuthButton({
 
       // The server processes the OAuth code and redirects to the app scheme.
       // ASWebAuthenticationSession intercepts the custom scheme and closes automatically.
-      const APP_SCHEME = "com.getrook.app://oauth";
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_SCHEME);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, OAUTH_APP_SCHEME);
 
       const resultUrl = "url" in result ? result.url ?? "" : "";
       const resultParams = resultUrl.includes("?")
