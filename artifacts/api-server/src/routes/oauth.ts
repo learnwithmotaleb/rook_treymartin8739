@@ -866,6 +866,78 @@ ${id ? `<p class="code">Confirmation ID: ${id}</p>` : ""}
 </div></body></html>`);
 });
 
+// ─── Instagram Deauthorize Callback ───────────────────────────────────────────
+// Meta calls this when a user removes the app from their Instagram account.
+// Must respond 200 immediately; process async.
+// URL: POST https://<domain>/api/oauth/instagram/deauthorize
+router.post("/oauth/instagram/deauthorize", async (req, res): Promise<void> => {
+  const appSecret = process.env["INSTAGRAM_CLIENT_SECRET"];
+  if (!appSecret) {
+    res.status(503).json({ error: "INSTAGRAM_CLIENT_SECRET not configured" });
+    return;
+  }
+
+  const body = (req.body ?? {}) as Record<string, string>;
+  const rawSignedRequest: string | undefined =
+    body["signed_request"] ??
+    (req.query["signed_request"] as string | undefined);
+
+  if (!rawSignedRequest) {
+    res.status(400).json({ error: "signed_request parameter missing" });
+    return;
+  }
+
+  const dotIdx = rawSignedRequest.indexOf(".");
+  if (dotIdx === -1) {
+    res.status(400).json({ error: "Malformed signed_request" });
+    return;
+  }
+
+  const encodedSig = rawSignedRequest.slice(0, dotIdx);
+  const encodedPayload = rawSignedRequest.slice(dotIdx + 1);
+
+  const expectedSig = crypto
+    .createHmac("sha256", appSecret)
+    .update(encodedPayload)
+    .digest("base64url");
+
+  if (expectedSig !== encodedSig) {
+    res.status(400).json({ error: "Invalid signed_request signature" });
+    return;
+  }
+
+  let payload: { user_id?: string };
+  try {
+    payload = JSON.parse(
+      Buffer.from(encodedPayload, "base64url").toString("utf8")
+    ) as typeof payload;
+  } catch {
+    res.status(400).json({ error: "Could not parse signed_request payload" });
+    return;
+  }
+
+  const instagramUserId = payload.user_id;
+  if (!instagramUserId) {
+    // Respond 200 — Meta will retry otherwise
+    res.json({ status: "ok" });
+    return;
+  }
+
+  // Revoke token and remove access from the connected account row
+  await db
+    .update(connectedAccountsTable)
+    .set({ accessToken: null, verified: false })
+    .where(
+      and(
+        eq(connectedAccountsTable.platform, "instagram"),
+        eq(connectedAccountsTable.platformUserId, instagramUserId)
+      )
+    );
+
+  req.log?.info({ instagramUserId }, "Instagram deauthorize callback processed");
+  res.json({ status: "ok" });
+});
+
 // ─── HTML helpers ─────────────────────────────────────────────────────────────
 function baseHtml(title: string, body: string): string {
   return `<!DOCTYPE html>
