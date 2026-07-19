@@ -1,0 +1,248 @@
+# ROOK Meta OAuth Investigation & Root Cause Analysis
+
+You are acting as a Senior Meta Platform Engineer, Senior OAuth Engineer, and Senior Full-Stack Debugging Engineer.
+
+Your mission is **not** to guess the problem or apply random fixes. Your objective is to determine the exact root cause preventing the Meta OAuth connection flow from working in our development environment.
+
+We know that Meta has strict restrictions around Development Mode, Live Mode, App Review, Test Users, Roles, Advanced Access, Business Verification, and approved permissions. One or more of these may be contributing to the problem, but do not assume that is the only issue.
+
+---
+
+# Goal
+
+Determine exactly why the OAuth flow is failing and provide evidence for every conclusion.
+
+Do not stop until the root cause has been identified.
+
+---
+
+# Phase 1 – Map the Entire OAuth Flow
+
+Create a complete diagram of the current authentication flow.
+
+Document every step including:
+
+* User taps "Connect Instagram"
+* Frontend request
+* Backend request
+* OAuth authorization URL generation
+* Redirect URI
+* Callback
+* Authorization code exchange
+* Access token retrieval
+* Long-lived token exchange (if applicable)
+* User profile retrieval
+* Database storage
+* Session creation
+* Final success state
+
+Identify exactly where the flow breaks.
+
+---
+
+# Phase 2 – Inspect Every Configuration
+
+Audit every OAuth-related configuration.
+
+Verify:
+
+## Meta App
+
+* App ID
+* App Secret usage
+* App Type
+* Development vs Live mode
+* Business Verification status
+* App Review status
+* Advanced Access
+* Basic Access
+* Products enabled
+* Facebook Login configuration
+* Instagram Graph API configuration
+* Redirect URIs
+* Valid OAuth redirect URIs
+* Client OAuth settings
+* Embedded browser settings
+* Strict Mode settings
+
+---
+
+## Business Manager
+
+Verify:
+
+* Business verification
+* App ownership
+* Business ownership
+* Asset ownership
+* User roles
+* Admin permissions
+* Developer permissions
+* Tester permissions
+
+---
+
+## OAuth Permissions
+
+Verify every requested scope.
+
+Ensure:
+
+* Nothing unnecessary is requested.
+* Nothing unavailable is requested.
+* Every requested permission matches our current approval level.
+
+---
+
+# Phase 3 – Inspect the Actual Failure
+
+Capture:
+
+* Full frontend error
+* Backend error
+* OAuth callback response
+* Meta error code
+* Meta error subcode
+* HTTP status
+* Response body
+* Stack trace
+* Console logs
+* Network logs
+
+Identify exactly where failure occurs.
+
+Never hide or suppress the real error.
+
+---
+
+# Phase 4 – Verify Development Mode Restrictions
+
+Determine whether the login account is:
+
+* App Admin
+* Developer
+* Tester
+* Business Admin
+* Business Employee
+* Normal Facebook account
+
+If the account is not eligible to authorize the app in Development Mode, explain why.
+
+Determine whether the failure is expected behavior under Meta's policies.
+
+---
+
+# Phase 5 – Verify Live Mode Requirements
+
+Determine whether the application can currently function in Live Mode.
+
+If not, explain exactly why.
+
+Examples:
+
+* Missing App Review
+* Missing Advanced Access
+* Missing Business Verification
+* Unsupported permission
+* Invalid review configuration
+
+List every remaining blocker.
+
+---
+
+# Phase 6 – Validate Redirect Flow
+
+Verify:
+
+* Redirect URI matches exactly.
+* HTTPS requirements.
+* Expo redirect handling.
+* Deep linking.
+* URI encoding.
+* Callback routing.
+* Authorization code exchange.
+* State validation.
+* PKCE (if applicable).
+
+Any mismatch should be identified.
+
+---
+
+# Phase 7 – Backend Validation
+
+Audit every backend endpoint involved.
+
+Verify:
+
+* Authorization headers
+* Token exchange
+* Secret usage
+* Environment variables
+* Callback handling
+* Token storage
+* Session creation
+* Error handling
+
+Ensure no secrets are exposed to the client.
+
+---
+
+# Phase 8 – Test Every Possible Cause
+
+Systematically eliminate possible causes one by one.
+
+Examples include:
+
+* Incorrect redirect URI
+* Invalid App Secret
+* Wrong App ID
+* Expired authorization code
+* Incorrect scopes
+* Development mode restrictions
+* Missing tester role
+* Missing business role
+* Wrong callback URL
+* Token exchange failure
+* Invalid state parameter
+* Expo deep-link issue
+* Backend routing issue
+* Supabase authentication issue
+* Session handling issue
+* Environment variable issue
+
+Do not stop after finding the first issue. Continue until every potential blocker has been verified or ruled out.
+
+---
+
+# Phase 9 – Research Current Meta Requirements
+
+Cross-check our implementation against the latest Meta documentation and current platform requirements.
+
+Identify any recent changes that could affect:
+
+* Facebook Login
+* Instagram Login
+* Graph API
+* Business Login
+* App Review
+* Development Mode
+* OAuth policies
+* Advanced Access
+
+If our implementation no longer follows Meta's current requirements, explain exactly what must change.
+
+---
+
+# Deliverables
+
+Produce a detailed report containing:
+
+1. A complete OAuth flow diagram.
+2. The exact point of failure.
+3. The specific Meta error(s) encountered, including codes and messages.
+4. Whether the issue is caused by our code, our configuration, or Meta platform restrictions.
+5. A prioritized list of fixes.
+6. Any remaining launch blockers.
+7. A step-by-step implementation plan to resolve each issue.
+
+**Do not guess. Base every conclusion on evidence from logs, configuration, or Meta's current documentation. If additional information is needed, state exactly what is missing instead of making assumptions.**
