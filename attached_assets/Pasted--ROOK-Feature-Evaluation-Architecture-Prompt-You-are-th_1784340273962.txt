@@ -1,0 +1,239 @@
+# ROOK Feature Evaluation & Architecture Prompt
+
+You are the Lead Product Architect, Senior UX Designer, Security Engineer, and Technical Lead for ROOK. Your job is **not** to blindly implement this feature. Your responsibility is to determine whether it should exist at launch, how it should work, and whether it aligns with ROOK's long-term vision of becoming the leading AI-powered identity protection platform.
+
+## Context
+
+ROOK is an AI-powered identity protection application that detects social media impersonators, stolen profile photos, identity theft, and related online threats.
+
+One idea under consideration is a **community-driven reporting system** where users can help other verified users report AI-confirmed impersonation accounts to social media platforms.
+
+The goal is **not** to create another social network.
+
+The goal is to create the safest, most effective identity protection ecosystem possible.
+
+---
+
+# Your Assignment
+
+Do **not** begin coding immediately.
+
+Instead, perform a complete product and engineering evaluation before deciding whether this feature belongs in the MVP.
+
+You should think like an experienced startup CTO and product executive whose primary objective is building a category-defining product—not simply adding features.
+
+---
+
+# Step 1 — Product Evaluation
+
+Evaluate this feature from every perspective, including:
+
+* User value
+* Retention impact
+* Network effects
+* Virality
+* Trust
+* Safety
+* Legal exposure
+* Abuse potential
+* Moderation requirements
+* Scalability
+* Engineering complexity
+* Time-to-market
+* Maintenance burden
+* ROI
+* Competitive differentiation
+
+Then answer:
+
+* Should this feature exist?
+* Should it be included in the initial launch?
+* Should it be delayed?
+* Should it be redesigned?
+* Is there a better alternative?
+
+Challenge assumptions rather than trying to justify the idea.
+
+---
+
+# Step 2 — Competitive Research
+
+Compare this concept against products and communities such as:
+
+* Neighborhood safety networks
+* Crowdsourced moderation systems
+* Bug bounty reputation systems
+* Community reporting workflows
+* Trust & Safety platforms
+* Social moderation systems
+* Identity protection products
+
+Identify what works well, what fails, and how ROOK could create a more trustworthy experience.
+
+---
+
+# Step 3 — Risk Analysis
+
+Identify every possible abuse scenario, including but not limited to:
+
+* Mass false reporting
+* Revenge reporting
+* Coordinated harassment
+* Brigading
+* Fake victims
+* Spam submissions
+* Bot abuse
+* Reputation manipulation
+* Privacy concerns
+* Defamation risks
+* Platform Terms of Service conflicts
+* Legal liabilities
+* Community toxicity
+
+For each risk, propose concrete mitigations.
+
+---
+
+# Step 4 — Product Direction
+
+If you conclude the feature should exist, determine its best form.
+
+Do not assume it should be a social feed.
+
+Consider alternatives such as:
+
+* AI-verified case queue
+* Community Protection Center
+* Defender Dashboard
+* Security Missions
+* Community Cases
+* Incident Review Queue
+* Identity Protection Network
+* Other approaches you believe are stronger
+
+Choose the solution that best supports ROOK's mission.
+
+---
+
+# Step 5 — User Experience
+
+If implemented, design a polished user journey from start to finish.
+
+Define:
+
+* How cases are submitted
+* AI verification flow
+* Eligibility requirements
+* Community review process
+* Reporting workflow
+* Progress tracking
+* Success notifications
+* Rewards or recognition (if appropriate)
+* Failure handling
+* Appeals process
+* Accessibility considerations
+
+The experience should feel premium, trustworthy, and purpose-built—not like another social app.
+
+---
+
+# Step 6 — Technical Architecture
+
+Design an implementation plan that includes:
+
+* Backend architecture
+* Database schema
+* API endpoints
+* Permission model
+* Trust scoring
+* Abuse detection
+* Moderation pipeline
+* AI verification pipeline
+* Rate limiting
+* Notification system
+* Analytics
+* Audit logging
+* Scalability strategy
+
+Recommend technologies that fit the current ROOK stack and explain why.
+
+---
+
+# Step 7 — MVP Recommendation
+
+Recommend one of the following, with justification:
+
+1. Do not build this feature.
+2. Build a minimal version for launch.
+3. Launch without it and prioritize it immediately after release.
+4. Build a more ambitious version now because the upside outweighs the delay.
+
+Explain the tradeoffs clearly.
+
+---
+
+# Step 8 — Success Metrics
+
+Define measurable KPIs to evaluate success, such as:
+
+* Community participation
+* Verified case resolution rate
+* Average removal time
+* User retention impact
+* Engagement
+* False-positive rate
+* Abuse rate
+* Trust score
+* App Store review impact
+* Subscription conversion influence
+
+---
+
+# Step 9 — Execution Plan
+
+If implementation is recommended, produce:
+
+* A phased roadmap
+* Engineering milestones
+* UX milestones
+* Database changes
+* Security checkpoints
+* Testing strategy
+* Rollout plan
+* Feature flags
+* Analytics instrumentation
+* Launch checklist
+
+---
+
+# Deliverables
+
+Produce a professional product proposal containing:
+
+1. Executive Summary
+2. Recommendation
+3. Product Analysis
+4. Competitive Analysis
+5. Risk Assessment
+6. UX Proposal
+7. Technical Architecture
+8. Engineering Complexity Estimate
+9. Launch Recommendation
+10. Roadmap
+11. Final Decision
+
+---
+
+# Decision Standard
+
+Your responsibility is to make the best decision for ROOK's long-term success.
+
+Do **not** optimize for adding more features.
+
+Optimize for creating a trusted, scalable, category-leading identity protection platform.
+
+If the feature weakens the product, recommend against building it.
+
+If it strengthens the product, recommend the smallest, highest-impact version that can realistically be shipped while maintaining quality.
+
+Be candid, challenge assumptions, and prioritize long-term product excellence over short-term feature count.

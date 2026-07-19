@@ -24,6 +24,11 @@ const publicLimiter = rateLimit({
 
 const app: Express = express();
 
+// Replit (and most cloud hosts) sit behind a reverse proxy that sets
+// X-Forwarded-For. Trust the first hop so express-rate-limit can correctly
+// identify client IPs instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
