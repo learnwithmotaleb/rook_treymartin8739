@@ -997,7 +997,10 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   const handleOAuth = useCallback(async () => {
     const cfg = ONBOARDING_OAUTH[platform];
     if (!cfg) return;
-    const clientId = (process.env as Record<string,string|undefined>)[cfg.clientIdEnvKey];
+    // Meta App IDs are hardcoded (public values) to avoid stale Replit env var propagation.
+    const clientId = platform === "instagram" ? "27463822659936313"
+      : platform === "facebook" ? "1042769471484001"
+      : (process.env as Record<string,string|undefined>)[cfg.clientIdEnvKey];
 
     setOauthLoading(true);
     try {
