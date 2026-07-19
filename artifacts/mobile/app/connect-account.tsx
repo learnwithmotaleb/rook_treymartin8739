@@ -128,13 +128,15 @@ const ALL_PLATFORMS = Object.keys(PLATFORM_CONFIGS) as NonNullable<AppPlatform>[
 // Platforms that are visible in the picker but not yet available for connection.
 const LAUNCH_DISABLED_PLATFORMS = new Set<string>(["tiktok"]);
 
-// Meta App ID is a public value (visible in every OAuth URL).
-// Hardcoded to avoid env-var propagation delays when the secret is updated
-// in Replit — EXPO_PUBLIC_* vars require a full workspace restart to refresh.
-const META_APP_ID = "1042769471484001";
+// App IDs are public values (visible in every OAuth URL).
+// Hardcoded to avoid env-var propagation delays — EXPO_PUBLIC_* vars require
+// a full workspace restart to refresh in Replit.
+const INSTAGRAM_APP_ID = "27463822659936313"; // Instagram-specific Business Login ID
+const FACEBOOK_APP_ID_CONST = "1042769471484001"; // Meta/Facebook App ID
 
 function getClientId(platform: string): string | undefined {
-  if (platform === "instagram" || platform === "facebook") return META_APP_ID;
+  if (platform === "instagram") return INSTAGRAM_APP_ID;
+  if (platform === "facebook") return FACEBOOK_APP_ID_CONST;
   const key = PLATFORM_CONFIGS[platform]?.clientIdEnvKey;
   if (!key) return undefined;
   return (process.env as Record<string, string | undefined>)[key];
