@@ -55,11 +55,6 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     callbackPath: "/api/oauth/instagram/callback",
     usernameHint: "yourhandle",
     usernamePrefix: "@",
-    // Meta requires a Business app type + Instagram Login product to enable OAuth.
-    // Until that is configured, manual username entry is the primary connect path.
-    oauthDisabled: true,
-    oauthDisabledReason:
-      "Instagram sign-in requires a Professional account (Business or Creator) and additional Meta app configuration. Add your handle below to start monitoring — we'll scan for impersonators using your public profile.",
   },
   x: {
     label: "X (Twitter)",
