@@ -15,9 +15,17 @@ class StateResolutionError extends Error {
   }
 }
 
-const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
+// OAUTH_REDIRECT_BASE_URL overrides the auto-detected domain for all OAuth
+// callbacks. Set this to your canonical domain (e.g. https://tryrook.app) so
+// the redirect_uri sent to Meta/X always matches what's registered in their
+// developer portals, regardless of which Replit environment is running.
+const _rawDomain =
+  process.env["OAUTH_REDIRECT_BASE_URL"]?.replace(/\/$/, "").replace(/^https?:\/\//, "")
+  ?? process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? process.env["REPLIT_DEV_DOMAIN"]
   ?? "localhost";
+
+const DOMAIN = _rawDomain;
 
 // ── HMAC-signed OAuth state token ────────────────────────────────────────────
 // Solves the Clerk JWT expiry problem: Clerk JWTs live ~60 s, but a user
