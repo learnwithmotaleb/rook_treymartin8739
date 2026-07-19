@@ -17,12 +17,14 @@ import waitlistRouter from "./waitlist";
 import photosRouter from "./photos";
 import intelligenceRouter from "./intelligence";
 import identityRouter from "./identity";
+import webhooksRouter from "./webhooks";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(legalRouter);
 router.use(oauthRouter);
+router.use(webhooksRouter);
 router.use(waitlistRouter);
 router.use(adminRouter); // admin routes use their own X-Admin-Key auth
 
