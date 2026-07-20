@@ -7,6 +7,7 @@ import {
   scheduledNotificationsTable,
 } from "@workspace/db";
 import { logger } from "../lib/logger.js";
+import { scheduleTrialReminder } from "../services/schedulerService.js";
 
 const router: IRouter = Router();
 
@@ -30,8 +31,6 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
   const webhookSecret = process.env["REVENUECAT_WEBHOOK_SECRET"];
 
   if (!webhookSecret) {
-    // Fail-closed: reject all requests when secret is not configured.
-    // Set REVENUECAT_WEBHOOK_SECRET in Replit Secrets to enable this endpoint.
     logger.error(
       "REVENUECAT_WEBHOOK_SECRET is not set — rc-webhook endpoint is locked. " +
       "Configure the secret in Replit Secrets and restart the server."
@@ -78,7 +77,6 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
     .limit(1);
 
   if (!user) {
-    // User not yet registered in our DB — ack but don't error (RC may fire before first login)
     logger.info({ clerkId, eventType: event.type }, "RC webhook: user not found, skipping");
     res.json({ ok: true });
     return;
@@ -114,46 +112,30 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
 });
 
 async function handleTrialStarted(userId: string, expirationAtMs: number | null): Promise<void> {
-  // Derive the trial end timestamp — fall back to 7 days from now if RC didn't supply it
   const trialEndMs = expirationAtMs ?? (Date.now() + 7 * 24 * 60 * 60 * 1000);
   const trialEndsAt = new Date(trialEndMs);
 
-  // Day-5 reminder fires 2 days before the trial ends
-  const fireAt = new Date(trialEndMs - 2 * 24 * 60 * 60 * 1000);
-
-  // Persist trialing status AND trialEndsAt so the mobile countdown banner can render
+  // Upsert: creates the subscription row if it doesn't exist yet
   await db
-    .update(subscriptionsTable)
-    .set({ status: "trialing", trialEndsAt, updatedAt: new Date() })
-    .where(eq(subscriptionsTable.userId, userId));
+    .insert(subscriptionsTable)
+    .values({ userId, tier: "free", status: "trialing", trialEndsAt, billingCycle: "monthly" })
+    .onConflictDoUpdate({
+      target: [subscriptionsTable.userId],
+      set: { status: "trialing", trialEndsAt, updatedAt: new Date() },
+    });
 
-  // Cancel any existing trial reminders before inserting a fresh one
-  await db
-    .update(scheduledNotificationsTable)
-    .set({ cancelled: true })
-    .where(
-      and(
-        eq(scheduledNotificationsTable.userId, userId),
-        eq(scheduledNotificationsTable.type, "trial_day5_reminder"),
-        eq(scheduledNotificationsTable.fired, false),
-        eq(scheduledNotificationsTable.cancelled, false)
-      )
-    );
-
-  await db.insert(scheduledNotificationsTable).values({
-    userId,
-    type: "trial_day5_reminder",
-    fireAt,
-  });
-
-  logger.info({ userId, trialEndsAt, fireAt }, "Scheduled trial day-5 reminder");
+  await scheduleTrialReminder(userId, trialEndsAt);
 }
 
 async function handleCancellationOrExpiration(userId: string): Promise<void> {
+  // Upsert: creates the subscription row if it doesn't exist yet
   await db
-    .update(subscriptionsTable)
-    .set({ status: "canceled", updatedAt: new Date() })
-    .where(eq(subscriptionsTable.userId, userId));
+    .insert(subscriptionsTable)
+    .values({ userId, tier: "free", status: "canceled", billingCycle: "monthly" })
+    .onConflictDoUpdate({
+      target: [subscriptionsTable.userId],
+      set: { status: "canceled", updatedAt: new Date() },
+    });
 
   // Cancel any pending trial reminders — trial is over
   await db
@@ -193,10 +175,14 @@ async function handleCancellationOrExpiration(userId: string): Promise<void> {
 }
 
 async function handleReactivation(userId: string): Promise<void> {
+  // Upsert: creates the subscription row if it doesn't exist yet
   await db
-    .update(subscriptionsTable)
-    .set({ status: "active", updatedAt: new Date() })
-    .where(eq(subscriptionsTable.userId, userId));
+    .insert(subscriptionsTable)
+    .values({ userId, tier: "free", status: "active", billingCycle: "monthly" })
+    .onConflictDoUpdate({
+      target: [subscriptionsTable.userId],
+      set: { status: "active", updatedAt: new Date() },
+    });
 
   // Cancel any pending win-back — user resubscribed before the 30-day window
   await db

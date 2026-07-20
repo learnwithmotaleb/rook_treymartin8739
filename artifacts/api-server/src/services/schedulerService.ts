@@ -17,6 +17,35 @@ const INTERVAL_MS = 15 * 60 * 1000;
 // ── Scheduled push notification loop ─────────────────────────────────────────
 // Checks for due trial reminders and win-back notifications every 15 minutes.
 
+/**
+ * Schedule a day-5 trial reminder for a user. Cancels any existing pending
+ * reminder first to avoid duplicates (idempotent). Fires 2 days before trialEndsAt.
+ * Called from both the RC webhook handler and the manual revenuecat-sync route.
+ */
+export async function scheduleTrialReminder(userId: string, trialEndsAt: Date): Promise<void> {
+  const fireAt = new Date(trialEndsAt.getTime() - 2 * 24 * 60 * 60 * 1000);
+
+  await db
+    .update(scheduledNotificationsTable)
+    .set({ cancelled: true })
+    .where(
+      and(
+        eq(scheduledNotificationsTable.userId, userId),
+        eq(scheduledNotificationsTable.type, "trial_day5_reminder"),
+        eq(scheduledNotificationsTable.fired, false),
+        eq(scheduledNotificationsTable.cancelled, false)
+      )
+    );
+
+  await db.insert(scheduledNotificationsTable).values({
+    userId,
+    type: "trial_day5_reminder",
+    fireAt,
+  });
+
+  logger.info({ userId, trialEndsAt, fireAt }, "Scheduled trial day-5 reminder");
+}
+
 export function startNotificationSchedulerLoop(): void {
   logger.info("Notification scheduler loop started (15-min interval)");
   const timer = setInterval(runScheduledNotifications, INTERVAL_MS);

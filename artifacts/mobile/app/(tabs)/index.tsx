@@ -79,12 +79,10 @@ function TrialCountdownBanner() {
 
   const msRemaining = new Date(trialEndsAt).getTime() - Date.now();
   const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
-  if (daysRemaining > 2 || daysRemaining < 0) return null;
+  // Only show banner on the last 1–2 days (day 6 or 7 of a 7-day trial)
+  if (daysRemaining > 1 || daysRemaining < 0) return null;
 
-  const label =
-    daysRemaining === 0 ? "today" :
-    daysRemaining === 1 ? "tomorrow" :
-    `in ${daysRemaining} days`;
+  const label = daysRemaining === 0 ? "today" : "tomorrow";
 
   const handleDismiss = () => {
     setDismissed(true);

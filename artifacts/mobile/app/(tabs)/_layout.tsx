@@ -14,7 +14,7 @@ import { useApp } from "@/context/AppContext";
 import { setApiAuthToken, syncSubscriptionTier } from "@/lib/api";
 import { CancellationSurveyModal } from "@/components/CancellationSurveyModal";
 import { useNotifications } from "@/hooks/useNotifications";
-import { useSubscription } from "@/lib/revenuecat";
+import { useSubscription, ENTITLEMENT_PREMIUM, ENTITLEMENT_PRO } from "@/lib/revenuecat";
 import Purchases from "react-native-purchases";
 import Constants from "expo-constants";
 
@@ -197,7 +197,17 @@ export default function TabLayout() {
     if (!isLoaded || isInitializing || !isSignedIn) return;
     if (!customerInfo) return;
     if (Constants.executionEnvironment === "storeClient") return;
-    syncSubscriptionTier(tier).catch(() => {
+    // Detect if the user is currently in a free-trial period from RC.
+    const activeEntitlement =
+      customerInfo.entitlements.active[ENTITLEMENT_PREMIUM] ??
+      customerInfo.entitlements.active[ENTITLEMENT_PRO];
+    const isInTrial = activeEntitlement?.periodType === "TRIAL";
+    const trialEndsAt = isInTrial ? (activeEntitlement?.expirationDate ?? undefined) : undefined;
+
+    syncSubscriptionTier(
+      tier,
+      isInTrial ? { status: "trialing", trialEndsAt } : undefined
+    ).catch(() => {
       Alert.alert(
         "Subscription Sync Failed",
         "Your subscription is active on this device but could not be confirmed with the server. Scan limits may not reflect your plan. Please check your connection and try again.",

@@ -445,11 +445,12 @@ export async function reverseImageSearch(input: {
 }
 
 export async function syncSubscriptionTier(
-  tier: "free" | "pro" | "premium"
+  tier: "free" | "pro" | "premium",
+  options?: { status?: "active" | "trialing" | "canceled"; trialEndsAt?: string }
 ): Promise<void> {
   await apiFetch("/billing/revenuecat-sync", {
     method: "POST",
-    body: JSON.stringify({ tier }),
+    body: JSON.stringify({ tier, ...options }),
   });
 }
 
