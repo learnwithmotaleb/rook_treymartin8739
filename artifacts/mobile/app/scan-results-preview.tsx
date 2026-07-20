@@ -321,35 +321,27 @@ export default function ScanResultsPreview() {
         </Animated.View>
       </ScrollView>
 
-      {/* Sticky CTA footer */}
+      {/* Sticky CTA footer — Premium trial is the sole primary action.
+          Scan unlock ($4.99) is available as a fallback inside scan-unlock.tsx
+          after the user explicitly taps "Not now" on the trial offer. */}
       <View style={[styles.footer, { paddingBottom: bottomPad + 12, backgroundColor: colors.background, borderTopColor: colors.border }]}>
         <TouchableOpacity
-          style={[styles.primaryCta, { backgroundColor: colors.danger }]}
-          activeOpacity={0.85}
-          onPress={() => {
-            analytics.paywallViewed({ source: "scan_results_preview", tier: "free" });
-            router.push("/scan-unlock" as any);
-          }}
-        >
-          <Ionicons name="lock-open" size={18} color="#fff" />
-          <Text style={[styles.primaryCtaText, { fontFamily: "Inter_700Bold" }]}>
-            Unlock Full Results — $4.99
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.secondaryCta, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "44" }]}
+          style={[styles.primaryCta, { backgroundColor: colors.primary }]}
           activeOpacity={0.85}
           onPress={() => {
             analytics.paywallViewed({ source: "scan_results_preview", tier: "free", option: "premium" });
             router.push("/scan-unlock" as any);
           }}
         >
-          <MaterialCommunityIcons name="crown" size={16} color={colors.primary} />
-          <Text style={[styles.secondaryCtaText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-            Start Premium — $9.99/mo · Continuous monitoring
+          <MaterialCommunityIcons name="crown" size={18} color="#fff" />
+          <Text style={[styles.primaryCtaText, { fontFamily: "Inter_700Bold" }]}>
+            Start 7-Day Free Trial
           </Text>
         </TouchableOpacity>
+
+        <Text style={[styles.trialNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          No charge today · $9.99/mo after trial · cancel anytime
+        </Text>
 
         <TouchableOpacity
           onPress={() => router.push("/scan-unlock" as any)}
@@ -451,5 +443,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   secondaryCtaText: { fontSize: 14 },
+  trialNote:   { textAlign: "center", fontSize: 11 },
   restoreLink: { textAlign: "center", fontSize: 12, paddingVertical: 4 },
 });
