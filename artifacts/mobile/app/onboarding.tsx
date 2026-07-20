@@ -511,7 +511,8 @@ function CombinedQuizScreen({
       if (rm) { q2Anim.setValue(1); q2Anims.forEach(a => a.setValue(1)); return; }
       Animated.spring(q2Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
       Animated.stagger(50, q2Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true }))).start();
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 500);
+      // Scroll gently to reveal Q2 — wait for spring to fully settle first
+      setTimeout(() => scrollRef.current?.scrollTo({ y: 340, animated: true }), 620);
     } else if (selectedConcern) { prevConcern.current = selectedConcern; }
   }, [selectedConcern]);
 
@@ -521,7 +522,8 @@ function CombinedQuizScreen({
       if (rm) { q3Anim.setValue(1); q3Anims.forEach(a => a.setValue(1)); return; }
       Animated.spring(q3Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
       Animated.stagger(80, q3Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 100, friction: 9, useNativeDriver: true }))).start();
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 550);
+      // Scroll to bring Q3 into view after spring settles
+      setTimeout(() => scrollRef.current?.scrollTo({ y: 720, animated: true }), 680);
     } else if (selectedUserType) { prevUserType.current = selectedUserType; }
   }, [selectedUserType]);
 
@@ -819,16 +821,16 @@ function ProofVisualScreen({ colors }: { colors: ReturnType<typeof useColors> })
         </GlassCard>
       </Animated.View>
 
-      {/* Card 2 — Data Breach */}
+      {/* Card 2 — Scam Account */}
       <Animated.View style={{ opacity: card2Anim, transform: [{ translateY: card2Y }] }}>
         <GlassCard style={[pv.card, { borderColor: "#F59E0B33" }]}>
           <View style={pv.header}>
             <View style={[pv.dot, { backgroundColor: "#F59E0B20" }]}><Ionicons name="warning" size={14} color="#F59E0B" /></View>
-            <Text style={[{ color: "#F59E0B", fontFamily: "Inter_600SemiBold", fontSize: 13, flex: 1 }]}>Data Breach Exposure</Text>
+            <Text style={[{ color: "#F59E0B", fontFamily: "Inter_600SemiBold", fontSize: 13, flex: 1 }]}>Scam Account Detected</Text>
             <View style={[pv.badge, { backgroundColor: "#F59E0B" }]}><Text style={[{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 }]}>FOUND</Text></View>
           </View>
           <View style={{ gap: 6 }}>
-            {["Email + password hash leaked", "Breach from 2 platforms", "Dark web listing detected"].map((t) => (
+            {["Using your name to scam followers", "Fake giveaway posts targeting fans", "AI verified: high-confidence match"].map((t) => (
               <View key={t} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Ionicons name="remove-circle" size={12} color="#F59E0B" />
                 <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>{t}</Text>
@@ -1057,9 +1059,9 @@ function ProfileSavedScreen({ colors, identityInput, selectedPlatforms, hasPhoto
   const stepsY  = stepsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 
   const steps = [
-    { label: "Scan profile set", done: true },
-    { label: "Enter your account handles", done: false, current: true },
-    { label: "AI scans across your platforms", done: false },
+    { label: "Identity profile created", done: true },
+    { label: "Connect your accounts", done: false, current: true },
+    { label: "AI scans across platforms", done: false },
     { label: "View your results", done: false },
   ];
   return (
@@ -1955,15 +1957,16 @@ export default function Onboarding() {
   const isLastStep = step === TOTAL_STEPS - 1;
 
   const canContinue = (): boolean => {
-    if (step === 4) return identityInput.trim().length > 0 || selectedPlatforms.length > 0;
+    // Step 8 = IdentityInputScreen — must have a name or at least one platform
+    if (step === 8) return identityInput.trim().length > 0 || selectedPlatforms.length > 0;
     return true;
   };
 
   const getCtaLabel = (): string => {
     if (step === 0) return "Find Out If I'm Exposed";
     if (step === 2) return "Start My Assessment";
-    if (step === 4) return "Scan For Me";
-    if (step === 9) return "Set Up My Accounts";
+    if (step === 8) return "Save My Profile";
+    if (step === 9) return "Connect My Accounts";
     if (step === 10) return isAddingAccounts ? "Connecting…" : "Start My Scan";
     if (step === 13) return "Unlock Full Protection";
     return "Continue";
@@ -1971,9 +1974,11 @@ export default function Onboarding() {
 
   const renderStep = () => {
     switch (step) {
+      // ── Hook + credibility + assessment intro ──
       case 0:  return <BrandHookScreen colors={colors} />;
       case 1:  return <CredibleStatScreen colors={colors} />;
       case 2:  return <AssessmentIntroScreen colors={colors} />;
+      // ── Personalisation quiz (auto-advances to step 4) ──
       case 3:  return (
         <CombinedQuizScreen
           colors={colors}
@@ -1986,13 +1991,16 @@ export default function Onboarding() {
           }}
         />
       );
-      case 4:  return <IdentityInputScreen colors={colors} nameValue={identityInput} onNameChange={setIdentityInput} selectedPlatforms={selectedPlatforms} onTogglePlatform={handleTogglePlatform} photoUri={photoUri} onPhotoSelect={handlePhotoSelect} />;
-      case 5:  return <ProofVisualScreen colors={colors} />;
-      case 6:  return <HowRookProtectsScreen colors={colors} />;
-      case 7:  return <PrivacyScreen colors={colors} />;
-      case 8:  return <SocialProofScreen colors={colors} />;
+      // ── Education block (motivate before asking for data) ──
+      case 4:  return <ProofVisualScreen colors={colors} />;
+      case 5:  return <HowRookProtectsScreen colors={colors} />;
+      case 6:  return <PrivacyScreen colors={colors} />;
+      case 7:  return <SocialProofScreen colors={colors} />;
+      // ── Data collection + account connection + scan ──
+      case 8:  return <IdentityInputScreen colors={colors} nameValue={identityInput} onNameChange={setIdentityInput} selectedPlatforms={selectedPlatforms} onTogglePlatform={handleTogglePlatform} photoUri={photoUri} onPhotoSelect={handlePhotoSelect} />;
       case 9:  return <ProfileSavedScreen colors={colors} identityInput={identityInput} selectedPlatforms={selectedPlatforms} hasPhoto={!!photoUri} />;
       case 10: return <PlatformHandlesScreen colors={colors} selectedPlatforms={selectedPlatforms} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} onPhotosPicked={handlePhotosPicked} />;
+      // ── Scan + results + paywall bridge ──
       case 11: return <ScanSetupScreen colors={colors} onDone={(count) => { setScanThreatCount(count); animateToStep(12); }} />;
       case 12: return <UrgencyRevealScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} followerRange={answers.followerRange} />;
       case 13: return <ReportBridgeScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} platformCount={selectedPlatforms.length} />;
@@ -2010,7 +2018,8 @@ export default function Onboarding() {
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: ambientOpacity }]} pointerEvents="none" />
       <View style={[s.header, { paddingTop: topPad + 16 }]}>
         <ProgressBar step={step} colors={colors} />
-        {step > 0 && step < 11 && !isAutoStep && (
+        {/* Show Skip during the education phase only; hide during data collection */}
+        {step > 0 && step < 8 && !isAutoStep && (
           <TouchableOpacity onPress={handleSkip} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ alignSelf: "flex-end", marginTop: -2 }}>
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Skip</Text>
           </TouchableOpacity>
