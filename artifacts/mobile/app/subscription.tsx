@@ -183,7 +183,7 @@ function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad
           <View style={[s0.badge, { backgroundColor: "#EF444414", borderColor: "#EF444440" }]}>
             <View style={[s0.badgeDot, { backgroundColor: "#EF4444" }]} />
             <Text style={[{ color: "#EF4444", fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>
-              {threatCount} threat{threatCount !== 1 ? "s" : ""} detected
+              {threatCount} potential match{threatCount !== 1 ? "es" : ""} found
             </Text>
           </View>
         )}

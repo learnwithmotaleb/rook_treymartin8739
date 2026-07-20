@@ -57,7 +57,7 @@ function ScaleButton({ onPress, style, disabled, activeOpacity = 0.85, children 
 }
 
 const { width } = Dimensions.get("window");
-const TOTAL_STEPS = 16;
+const TOTAL_STEPS = 14;
 
 // ─── Shared motion constants ───────────────────────────────────────────────────
 const MOTION = {
@@ -477,7 +477,138 @@ const cnt = StyleSheet.create({
   label: { fontSize: 17, marginBottom: 2 },
 });
 
-// ─── S6: Identity + Platform Select + Photo Upload (combined) ─────────────────
+// ─── S3 (combined): Concern + Identity Type + Account Count ──────────────────
+// Three questions previously on separate auto-advance screens are now one
+// progressive-reveal screen. Each section slides in after the previous is answered.
+// Reduces total flow from 16 → 14 steps with no loss of collected data.
+function CombinedQuizScreen({
+  colors, selectedConcern, selectedUserType, selectedFollowerRange, onSelect,
+}: {
+  colors: ReturnType<typeof useColors>;
+  selectedConcern: string | null;
+  selectedUserType: string | null;
+  selectedFollowerRange: string | null;
+  onSelect: (field: "primaryConcern" | "userType" | "followerRange", id: string) => void;
+}) {
+  const scrollRef  = useRef<import("react-native").ScrollView>(null);
+  const rm         = useReduceMotion();
+  const q1Anims    = useRef(CONCERNS.map(() => new Animated.Value(0))).current;
+  const q2Anim     = useRef(new Animated.Value(selectedConcern ? 1 : 0)).current;
+  const q2Anims    = useRef(USER_TYPES.map(() => new Animated.Value(selectedConcern ? 1 : 0))).current;
+  const q3Anim     = useRef(new Animated.Value(selectedUserType ? 1 : 0)).current;
+  const q3Anims    = useRef(ACCOUNT_RANGES.map(() => new Animated.Value(selectedUserType ? 1 : 0))).current;
+
+  useEffect(() => {
+    Animated.stagger(55, q1Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true }))).start();
+  }, []);
+
+  const prevConcern  = useRef(selectedConcern);
+  const prevUserType = useRef(selectedUserType);
+
+  useEffect(() => {
+    if (selectedConcern && !prevConcern.current) {
+      prevConcern.current = selectedConcern;
+      if (rm) { q2Anim.setValue(1); q2Anims.forEach(a => a.setValue(1)); return; }
+      Animated.spring(q2Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
+      Animated.stagger(50, q2Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true }))).start();
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 160);
+    } else if (selectedConcern) { prevConcern.current = selectedConcern; }
+  }, [selectedConcern]);
+
+  useEffect(() => {
+    if (selectedUserType && !prevUserType.current) {
+      prevUserType.current = selectedUserType;
+      if (rm) { q3Anim.setValue(1); q3Anims.forEach(a => a.setValue(1)); return; }
+      Animated.spring(q3Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
+      Animated.stagger(80, q3Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 100, friction: 9, useNativeDriver: true }))).start();
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 160);
+    } else if (selectedUserType) { prevUserType.current = selectedUserType; }
+  }, [selectedUserType]);
+
+  return (
+    <ScrollView ref={scrollRef} style={s.screen} contentContainerStyle={[s.screenPad, { gap: 28, paddingBottom: 40 }]} showsVerticalScrollIndicator={false}>
+      <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
+      {/* Q1 — What brings you here */}
+      <View style={{ gap: 14 }}>
+        <View style={{ gap: 6 }}>
+          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>What brings you to Rook?</Text>
+          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>This tailors your protection profile.</Text>
+        </View>
+        <View style={{ gap: 10 }}>
+          {CONCERNS.map((c, idx) => {
+            const isSel = selectedConcern === c.id;
+            return (
+              <Animated.View key={c.id} style={{ opacity: q1Anims[idx], transform: [{ translateY: q1Anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }}>
+                <TouchableOpacity activeOpacity={0.85}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect("primaryConcern", c.id); }}
+                  style={[opt.card, { backgroundColor: isSel ? colors.primary + "14" : colors.card, borderColor: isSel ? colors.primary + "80" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
+                  <View style={[opt.iconWrap, { backgroundColor: colors.primary + "18" }]}><Ionicons name={c.icon} size={22} color={isSel ? colors.primary : colors.mutedForeground} /></View>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={[opt.label, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>{c.label}</Text>
+                    <Text style={[opt.optSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>{c.sub}</Text>
+                  </View>
+                  {isSel && <View style={[opt.check, { backgroundColor: colors.primary }]}><Ionicons name="checkmark" size={12} color="#fff" /></View>}
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Q2 — Which sounds like you (slides in after Q1) */}
+      <Animated.View style={{ gap: 14, opacity: q2Anim, transform: [{ translateY: q2Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}
+        pointerEvents={selectedConcern ? "auto" : "none"}>
+        <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Which sounds like you?</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+          {USER_TYPES.map((t, idx) => {
+            const isSel = selectedUserType === t.id;
+            return (
+              <Animated.View key={t.id} style={{ opacity: q2Anims[idx], transform: [{ translateY: q2Anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }], width: (width - 60) / 2 }}>
+                <TouchableOpacity activeOpacity={0.8}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect("userType", t.id); }}
+                  style={[type.card, { backgroundColor: isSel ? colors.primary + "18" : colors.card, borderColor: isSel ? colors.primary + "80" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
+                  <View style={[type.icon, { backgroundColor: isSel ? colors.primary + "25" : colors.secondary }]}><Ionicons name={t.icon} size={22} color={isSel ? colors.primary : colors.mutedForeground} /></View>
+                  <Text style={[{ color: isSel ? colors.primary : colors.foreground, fontFamily: isSel ? "Inter_700Bold" : "Inter_600SemiBold", fontSize: 13, textAlign: "center" }]}>{t.label}</Text>
+                  <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11, lineHeight: 15, textAlign: "center" }]}>{t.risk}</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })}
+        </View>
+      </Animated.View>
+
+      {/* Q3 — How many accounts (slides in after Q2) */}
+      <Animated.View style={{ gap: 14, opacity: q3Anim, transform: [{ translateY: q3Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}
+        pointerEvents={selectedUserType ? "auto" : "none"}>
+        <View style={{ gap: 4 }}>
+          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>How many social accounts do you have?</Text>
+          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Helps us calibrate your coverage.</Text>
+        </View>
+        <View style={{ gap: 12 }}>
+          {ACCOUNT_RANGES.map((r, idx) => {
+            const isSel = selectedFollowerRange === r.id;
+            return (
+              <Animated.View key={r.id} style={{ opacity: q3Anims[idx], transform: [{ translateY: q3Anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                <TouchableOpacity activeOpacity={0.85}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onSelect("followerRange", r.id); }}
+                  style={[cnt.card, { backgroundColor: isSel ? colors.primary + "18" : colors.card, borderColor: isSel ? colors.primary + "80" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
+                  <View>
+                    <Text style={[cnt.label, { color: isSel ? colors.primary : colors.foreground, fontFamily: "Inter_700Bold" }]}>{r.label}</Text>
+                    <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>{r.sub}</Text>
+                  </View>
+                  {isSel && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })}
+        </View>
+      </Animated.View>
+    </ScrollView>
+  );
+}
+
+// ─── S4 (was S6): Identity + Platform Select + Photo Upload (combined) ─────────
 const ALL_PLATFORMS: Array<{ id: NonNullable<SocialPlatform>; label: string }> = [
   { id: "instagram", label: "Instagram" },
   { id: "tiktok", label: "TikTok" },
@@ -1419,7 +1550,7 @@ const sc = StyleSheet.create({
 });
 
 // ─── S14: Result Reveal (real threat count) ────────────────────────────────────
-function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeof useColors>; threatCount: number }) {
+function UrgencyRevealScreen({ colors, threatCount, userType, followerRange }: { colors: ReturnType<typeof useColors>; threatCount: number; userType: string | null; followerRange: string | null }) {
   const [displayCount, setDisplayCount] = useState(0);
   const fade          = useRef(new Animated.Value(0)).current;
   const cardAnims     = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
@@ -1430,6 +1561,7 @@ function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeo
 
   // Declare hasThreats early so all effects below can reference it
   const hasThreats = threatCount > 0;
+  const userTypeLabel = USER_TYPES.find((t) => t.id === userType)?.label ?? null;
 
   useEffect(() => {
     Animated.timing(fade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
@@ -1484,7 +1616,9 @@ function UrgencyRevealScreen({ colors, threatCount }: { colors: ReturnType<typeo
               We found{" "}<Text style={{ color: "#EF4444" }}>{displayCount} potential match{displayCount !== 1 ? "es" : ""}</Text>.
             </Text>
             <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Unlock your full identity report to see exactly where — and what to do about it.
+              {userTypeLabel
+                ? `Your ${userTypeLabel} profile matched ${threatCount} account${threatCount !== 1 ? "s" : ""} in our scan. Unlock your full report to see each one.`
+                : "Unlock your full identity report to see exactly where — and what to do about it."}
             </Text>
           </>
         ) : (
@@ -1736,9 +1870,9 @@ export default function Onboarding() {
   }), [answers, identityInput, selectedPlatforms, platformHandles]);
 
   const handleNext = useCallback(async () => {
-    if (step === 12) {
+    if (step === 10) {
       await addAccountsForHandles();
-      animateToStep(13);
+      animateToStep(11);
       return;
     }
     if (step < TOTAL_STEPS - 1) {
@@ -1764,46 +1898,54 @@ export default function Onboarding() {
   }, [buildFinalAnswers, saveAndFinish]);
 
   // Steps that auto-advance on selection — no footer CTA shown
-  const AUTO_STEPS = new Set([3, 4, 5]);
-  const NO_FOOTER_STEPS = new Set([13]); // only scan auto-advances; all other steps show footer
+  const AUTO_STEPS = new Set([3]);
+  const NO_FOOTER_STEPS = new Set([11]); // only scan auto-advances; all other steps show footer
   const isAutoStep = AUTO_STEPS.has(step);
   const isNoFooter = NO_FOOTER_STEPS.has(step);
   const isLastStep = step === TOTAL_STEPS - 1;
 
   const canContinue = (): boolean => {
-    if (step === 6) return identityInput.trim().length > 0 || selectedPlatforms.length > 0;
-    if (step === 9) return true; // social proof — always can continue
+    if (step === 4) return identityInput.trim().length > 0 || selectedPlatforms.length > 0;
     return true;
   };
 
   const getCtaLabel = (): string => {
     if (step === 0) return "Find Out If I'm Exposed";
     if (step === 2) return "Start My Assessment";
-    if (step === 6) return "Scan For Me";
-    if (step === 11) return "Set Up My Accounts";
-    if (step === 12) return isAddingAccounts ? "Connecting…" : "Start My Scan";
-    if (step === 15) return "Unlock Full Protection";
+    if (step === 4) return "Scan For Me";
+    if (step === 9) return "Set Up My Accounts";
+    if (step === 10) return isAddingAccounts ? "Connecting…" : "Start My Scan";
+    if (step === 13) return "Unlock Full Protection";
     return "Continue";
   };
 
   const renderStep = () => {
     switch (step) {
-      case 0: return <BrandHookScreen colors={colors} />;
-      case 1: return <CredibleStatScreen colors={colors} />;
-      case 2: return <AssessmentIntroScreen colors={colors} />;
-      case 3: return <ConcernScreen colors={colors} selected={answers.primaryConcern} onSelect={(id) => { setAnswers((a) => ({ ...a, primaryConcern: id })); handleAutoAdvance(4); }} />;
-      case 4: return <IdentityTypeScreen colors={colors} selected={answers.userType} onSelect={(id) => { setAnswers((a) => ({ ...a, userType: id })); handleAutoAdvance(5); }} />;
-      case 5: return <AccountCountScreen colors={colors} selected={answers.followerRange} onSelect={(id) => { setAnswers((a) => ({ ...a, followerRange: id })); handleAutoAdvance(6); }} />;
-      case 6: return <IdentityInputScreen colors={colors} nameValue={identityInput} onNameChange={setIdentityInput} selectedPlatforms={selectedPlatforms} onTogglePlatform={handleTogglePlatform} photoUri={photoUri} onPhotoSelect={handlePhotoSelect} />;
-      case 7: return <ProofVisualScreen colors={colors} />;
-      case 8: return <HowRookProtectsScreen colors={colors} />;
-      case 9: return <PrivacyScreen colors={colors} />;
-      case 10: return <SocialProofScreen colors={colors} />;
-      case 11: return <ProfileSavedScreen colors={colors} identityInput={identityInput} selectedPlatforms={selectedPlatforms} hasPhoto={!!photoUri} />;
-      case 12: return <PlatformHandlesScreen colors={colors} selectedPlatforms={selectedPlatforms} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} onPhotosPicked={handlePhotosPicked} />;
-      case 13: return <ScanSetupScreen colors={colors} onDone={(count) => { setScanThreatCount(count); animateToStep(14); }} />;
-      case 14: return <UrgencyRevealScreen colors={colors} threatCount={scanThreatCount} />;
-      case 15: return <ReportBridgeScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} platformCount={selectedPlatforms.length} />;
+      case 0:  return <BrandHookScreen colors={colors} />;
+      case 1:  return <CredibleStatScreen colors={colors} />;
+      case 2:  return <AssessmentIntroScreen colors={colors} />;
+      case 3:  return (
+        <CombinedQuizScreen
+          colors={colors}
+          selectedConcern={answers.primaryConcern}
+          selectedUserType={answers.userType}
+          selectedFollowerRange={answers.followerRange}
+          onSelect={(field, id) => {
+            setAnswers((a) => ({ ...a, [field]: id }));
+            if (field === "followerRange") handleAutoAdvance(4);
+          }}
+        />
+      );
+      case 4:  return <IdentityInputScreen colors={colors} nameValue={identityInput} onNameChange={setIdentityInput} selectedPlatforms={selectedPlatforms} onTogglePlatform={handleTogglePlatform} photoUri={photoUri} onPhotoSelect={handlePhotoSelect} />;
+      case 5:  return <ProofVisualScreen colors={colors} />;
+      case 6:  return <HowRookProtectsScreen colors={colors} />;
+      case 7:  return <PrivacyScreen colors={colors} />;
+      case 8:  return <SocialProofScreen colors={colors} />;
+      case 9:  return <ProfileSavedScreen colors={colors} identityInput={identityInput} selectedPlatforms={selectedPlatforms} hasPhoto={!!photoUri} />;
+      case 10: return <PlatformHandlesScreen colors={colors} selectedPlatforms={selectedPlatforms} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} onPhotosPicked={handlePhotosPicked} />;
+      case 11: return <ScanSetupScreen colors={colors} onDone={(count) => { setScanThreatCount(count); animateToStep(12); }} />;
+      case 12: return <UrgencyRevealScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} followerRange={answers.followerRange} />;
+      case 13: return <ReportBridgeScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} platformCount={selectedPlatforms.length} />;
       default: return null;
     }
   };
@@ -1818,7 +1960,7 @@ export default function Onboarding() {
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: ambientOpacity }]} pointerEvents="none" />
       <View style={[s.header, { paddingTop: topPad + 16 }]}>
         <ProgressBar step={step} colors={colors} />
-        {step > 0 && step < 13 && !isAutoStep && (
+        {step > 0 && step < 11 && !isAutoStep && (
           <TouchableOpacity onPress={handleSkip} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ alignSelf: "flex-end", marginTop: -2 }}>
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Skip</Text>
           </TouchableOpacity>
