@@ -8,6 +8,8 @@ import {
   recordPhashFeedback,
   type FeedbackOutcome,
 } from "../services/phashIntelligenceService";
+import { getSubscription } from "../services/subscriptionService";
+import { normalizeTier } from "../lib/planConfig";
 
 
 const router: IRouter = Router();
@@ -161,6 +163,39 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
     return;
   }
 
+  // Gate full evidence behind Premium — free users see only metadata
+  const sub = await getSubscription(userId);
+  const tier = normalizeTier(sub.tier ?? "free");
+  const isFree = tier === "free";
+
+  if (isFree) {
+    const signals = parseSignals(threat.detectedSignalsJson);
+    res.json({
+      id: threat.id,
+      type: threat.type,
+      severity: threat.severity,
+      platform: threat.platform,
+      title: threat.title,
+      description: null,
+      details: null,
+      aiExplanation: null,
+      threatScore: threat.threatScore,
+      suspiciousUsername: threat.suspiciousUsername,
+      matchedMediaCount: threat.matchedMediaCount,
+      evidence: [],
+      scoreBreakdown: {},
+      detectedSignals: signals.flags,
+      confirmedVictims: signals.confirmedVictims ?? null,
+      crossUserEscalation: signals.crossUserEscalation ?? false,
+      postDatingDays: signals.postDatingDays ?? null,
+      resolved: threat.resolved,
+      resolvedAt: threat.resolvedAt?.toISOString() ?? null,
+      createdAt: threat.createdAt.toISOString(),
+      isLocked: true,
+    });
+    return;
+  }
+
   // Enrich with shared threat actor intelligence (if linked)
   let threatActor = undefined;
   if (threat.threatActorId) {
@@ -181,7 +216,7 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
     }
   }
 
-  res.json({ ...parseThreat(threat), ...(threatActor !== undefined ? { threatActor } : {}) });
+  res.json({ ...parseThreat(threat), isLocked: false, ...(threatActor !== undefined ? { threatActor } : {}) });
 });
 
 const BulkResolveBody = z.object({ ids: z.array(z.string()).min(1) });

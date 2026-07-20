@@ -15,6 +15,7 @@ import {
   startScan as apiStartScan,
   getScanStatus,
   getLatestScan,
+  getScanQuotaState,
   resolveThreat as apiResolveThreat,
   addAccount as apiAddAccount,
   removeAccount as apiRemoveAccount,
@@ -172,6 +173,7 @@ interface AppContextType {
   logout: () => void;
   completeOnboarding: () => void;
   startScan: () => void;
+  checkScanQuota: () => Promise<void>;
   resolveThreat: (id: string, action?: string) => Promise<void>;
   refreshData: () => Promise<void>;
   addAccount: (platform: string, username: string, accessToken?: string, displayName?: string) => Promise<ConnectedAccount>;
@@ -332,13 +334,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshData = useCallback(async () => {
     const attempt = async (): Promise<boolean> => {
       try {
-        const [profile, accounts, summaries] = await Promise.all([
+        const [profile, accounts, summaries, quotaState] = await Promise.all([
           getMe(),
           getAccounts(),
           listThreats(),
+          getScanQuotaState().catch(() => null),
         ]);
         setUser(mapProfileToUser(profile, accounts));
         setThreats(summaries.map(mapSummaryToThreat));
+        // Proactively show quota error banner if the free monthly scan is already used.
+        // This surfaces immediately on app open rather than requiring a failed scan attempt.
+        if (quotaState && !quotaState.canScan && quotaState.message) {
+          setScanQuotaError({ message: quotaState.message, upgradeTo: quotaState.upgradeTo ?? "premium" });
+        }
         // The server is the durable source of truth for onboarding completion
         // (onboardingAnswers persisted in the DB). Device-local AsyncStorage
         // flags can be lost on reinstall or stale after account deletion, so
@@ -458,6 +466,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const [scanQuotaError, setScanQuotaError] = useState<{ message: string; upgradeTo: string } | null>(null);
+
+  const checkScanQuota = useCallback(async () => {
+    try {
+      const state = await getScanQuotaState();
+      if (!state.canScan && state.message) {
+        setScanQuotaError({ message: state.message, upgradeTo: state.upgradeTo ?? "premium" });
+      } else if (state.canScan) {
+        setScanQuotaError(null);
+      }
+    } catch {
+      // Ignore — quota check is best-effort
+    }
+  }, []);
 
   const startScan = useCallback(async () => {
     if (isScanning) return;
@@ -669,6 +690,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         logout,
         completeOnboarding,
         startScan,
+        checkScanQuota,
         scanQuotaError,
         resolveThreat,
         refreshData,

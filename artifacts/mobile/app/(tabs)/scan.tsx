@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -23,6 +23,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
+import { getScanQuotaState } from "@/lib/api";
 
 function formatNextScan(iso: string): string {
   const due = new Date(iso);
@@ -37,6 +38,7 @@ function formatNextScan(iso: string): string {
 export default function ScanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const {
     user,
     isScanning,
@@ -44,12 +46,22 @@ export default function ScanScreen() {
     scanCurrentStep,
     scanQuotaError,
     startScan,
+    checkScanQuota,
     threats,
     indexedPhotos,
   } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  // Proactively check quota whenever the Scan tab comes into focus so the
+  // quota banner surfaces before the user attempts a scan, not just after.
+  useEffect(() => {
+    const unsub = navigation.addListener("focus", () => {
+      if (!isScanning) checkScanQuota().catch(() => {});
+    });
+    return unsub;
+  }, [navigation, isScanning, checkScanQuota]);
 
   const [lastResult, setLastResult] = useState<{
     threatsFound: number;

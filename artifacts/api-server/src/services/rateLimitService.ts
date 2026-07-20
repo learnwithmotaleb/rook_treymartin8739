@@ -5,8 +5,8 @@
  * Quotas are stored in PostgreSQL so they survive server restarts.
  *
  * Tier limits:
- *   Free    — 3 scans / month, 1 deep scan / day, 24h repeat-profile block
- *   Pro     — 15 scans / month, 5 deep scans / day
+ *   Free    — 1 scan / month, 1 deep scan / day
+ *   Pro     — 15 scans / month (sunset; treated as Premium via normalizeTier)
  *   Premium — unlimited scans and deep scans
  *
  * A "deep scan" triggers the full Vision + CSE pipeline.  A lightweight scan
@@ -30,7 +30,7 @@ interface TierLimits {
 
 const TIER_LIMITS: Record<string, TierLimits> = {
   free: {
-    scansPerMonth: 3,
+    scansPerMonth: 1,
     deepScansPerDay: 1,
     abuseThresholdPerDay: 8,
   },

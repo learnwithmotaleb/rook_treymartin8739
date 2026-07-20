@@ -22,10 +22,8 @@ import { ThreatCard } from "@/components/ThreatCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analytics } from "@/lib/analytics";
-import { useSubscription } from "@/lib/revenuecat";
 
 const SHOW_UPSELL_KEY = "rook:show_post_unlock_upsell";
-const SCAN_UNLOCK_KEY = "rook:scan_unlocked";
 
 type Tab = "active" | "resolved";
 type Filter = "all" | Severity;
@@ -116,69 +114,6 @@ function ResolvedThreatRow({ threat, colors }: { threat: Threat; colors: ReturnT
         </View>
       </View>
     </TouchableOpacity>
-  );
-}
-
-const FREE_VISIBLE_THREATS = 5;
-
-function LockedThreatCard({ threat, colors }: { threat: Threat; colors: ReturnType<typeof useColors> }) {
-  const severityColor =
-    threat.severity === "high"
-      ? colors.danger
-      : threat.severity === "medium"
-      ? colors.warning
-      : colors.success;
-
-  const severityLabel =
-    threat.severity === "high" ? "HIGH" : threat.severity === "medium" ? "MED" : "LOW";
-
-  return (
-    <View style={[lockedStyles.wrapper, { backgroundColor: colors.card, borderColor: severityColor + "30" }]}>
-      <View style={[lockedStyles.accentBar, { backgroundColor: severityColor }]} />
-      <View style={lockedStyles.body}>
-        <View style={lockedStyles.topRow}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={[lockedStyles.severityPill, { backgroundColor: severityColor + "20", borderColor: severityColor + "50" }]}>
-              <View style={[lockedStyles.severityDot, { backgroundColor: severityColor }]} />
-              <Text style={[lockedStyles.severityText, { color: severityColor, fontFamily: "Inter_700Bold" }]}>
-                {severityLabel}
-              </Text>
-            </View>
-            {threat.platform ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <PlatformIcon platform={threat.platform} size={14} />
-                <Text style={[lockedStyles.platformLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {threat.platform.charAt(0).toUpperCase() + threat.platform.slice(1)}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <View style={[lockedStyles.lockBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            <Ionicons name="lock-closed" size={11} color={colors.mutedForeground} />
-          </View>
-        </View>
-        <View style={lockedStyles.skeletonGroup}>
-          <Text style={[lockedStyles.threatHint, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            {threat.type === "impersonator" || threat.type === "fake_account"
-              ? "Impersonation detected"
-              : threat.type === "stolen_photo"
-              ? "Photo theft found"
-              : "Identity threat detected"}
-          </Text>
-          <View style={[lockedStyles.skeletonLine, { backgroundColor: colors.border, width: "45%", opacity: 0.4 }]} />
-        </View>
-        <View style={lockedStyles.bottomRow}>
-          <View style={[lockedStyles.skeletonChip, { backgroundColor: colors.border }]} />
-        </View>
-      </View>
-      <LinearGradient
-        colors={["transparent", colors.card + "E0"]}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        pointerEvents="none"
-      />
-    </View>
   );
 }
 
@@ -298,18 +233,10 @@ export default function AlertsScreen() {
   const navigation = useNavigation();
   const hasMounted = useRef(false);
   const [showUpsell, setShowUpsell] = useState(false);
-  const [scanUnlocked, setScanUnlocked] = useState(false);
-  const { isScanUnlocked: rcScanUnlocked } = useSubscription();
 
   useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(SHOW_UPSELL_KEY),
-      AsyncStorage.getItem(SCAN_UNLOCK_KEY),
-    ])
-      .then(([upsellVal, unlockVal]) => {
-        if (upsellVal === "1") setShowUpsell(true);
-        if (unlockVal === "1") setScanUnlocked(true);
-      })
+    AsyncStorage.getItem(SHOW_UPSELL_KEY)
+      .then((val) => { if (val === "1") setShowUpsell(true); })
       .catch(() => {});
   }, []);
 
@@ -342,10 +269,6 @@ export default function AlertsScreen() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const isFree = user.tier === "free";
-  // Gating: free users who haven't unlocked.
-  // RC entitlement (scan_unlocked) is authoritative; AsyncStorage is local cache fallback.
-  // Non-free tier always bypasses.
-  const isGated = isFree && !rcScanUnlocked && !scanUnlocked;
 
   const activeFiltered = threats.filter((t) => {
     if (t.resolved) return false;
@@ -369,8 +292,10 @@ export default function AlertsScreen() {
     (t) => t.resolveAction === "false_positive" || t.resolveAction === "approved"
   ).length;
 
-  const visibleThreats = isGated ? activeFiltered.slice(0, FREE_VISIBLE_THREATS) : activeFiltered;
-  const lockedThreats = isGated ? activeFiltered.slice(FREE_VISIBLE_THREATS) : [];
+  // Free users always see locked threat cards — detail is a Premium feature.
+  // Premium users see all threats fully unlocked.
+  const visibleThreats = activeFiltered;
+  const lockedThreats: typeof activeFiltered = [];
 
   const filterColor = (f: Filter) => {
     if (f === "high") return colors.danger;
@@ -415,10 +340,10 @@ export default function AlertsScreen() {
   const renderItem = useCallback(
     ({ item, index }: { item: Threat; index: number }) => (
       <Animated.View entering={FadeInDown.delay(index * 80).springify()}>
-        <ThreatCard threat={item} />
+        <ThreatCard threat={item} isLocked={isFree} />
       </Animated.View>
     ),
-    []
+    [isFree]
   );
 
   const renderResolved = useCallback(
@@ -510,42 +435,29 @@ export default function AlertsScreen() {
             ListHeaderComponent={
               showUpsell ? (
                 <PostUnlockUpsellBanner onDismiss={dismissUpsell} colors={colors} />
+              ) : isFree && activeFiltered.length > 0 ? (
+                <PaywallBanner threats={activeFiltered} colors={colors} />
               ) : null
             }
-            ListFooterComponent={
-              <>
-                {lockedThreats.length > 0 && (
-                  <View style={styles.lockedSection}>
-                    <PaywallBanner threats={lockedThreats} colors={colors} />
-                    {lockedThreats.map((t, index) => (
-                      <Animated.View key={t.id} entering={FadeInDown.delay((visibleThreats.length + index) * 80).springify()}>
-                        <LockedThreatCard threat={t} colors={colors} />
-                      </Animated.View>
-                    ))}
-                  </View>
-                )}
-              </>
-            }
+            ListFooterComponent={null}
             ListEmptyComponent={
-              lockedThreats.length > 0 ? null : (
-                <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.empty}>
-                  <View style={[styles.emptyIcon, { backgroundColor: colors.success + "22" }]}>
-                    <Ionicons name="shield-checkmark" size={48} color={colors.success} />
-                  </View>
-                  <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>All Clear</Text>
-                  <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    {filter === "all"
-                      ? "No active threats detected. Run a scan to check for new impersonators."
-                      : `No ${filter}-severity threats detected. You're fully protected.`}
-                  </Text>
-                  {filter === "all" && (
-                    <TouchableOpacity style={[styles.runScanBtn, { backgroundColor: colors.primary }]} onPress={() => router.push("/(tabs)/scan" as any)} activeOpacity={0.85}>
-                      <Ionicons name="scan" size={18} color="#FFFFFF" />
-                      <Text style={[styles.runScanBtnText, { fontFamily: "Inter_600SemiBold" }]}>Run a Scan</Text>
-                    </TouchableOpacity>
-                  )}
-                </Animated.View>
-              )
+              <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.empty}>
+                <View style={[styles.emptyIcon, { backgroundColor: colors.success + "22" }]}>
+                  <Ionicons name="shield-checkmark" size={48} color={colors.success} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>All Clear</Text>
+                <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {filter === "all"
+                    ? "No active threats detected. Run a scan to check for new impersonators."
+                    : `No ${filter}-severity threats detected. You're fully protected.`}
+                </Text>
+                {filter === "all" && (
+                  <TouchableOpacity style={[styles.runScanBtn, { backgroundColor: colors.primary }]} onPress={() => router.push("/(tabs)/scan" as any)} activeOpacity={0.85}>
+                    <Ionicons name="scan" size={18} color="#FFFFFF" />
+                    <Text style={[styles.runScanBtnText, { fontFamily: "Inter_600SemiBold" }]}>Run a Scan</Text>
+                  </TouchableOpacity>
+                )}
+              </Animated.View>
             }
           />
         </>
@@ -699,56 +611,6 @@ const resolvedStyles = StyleSheet.create({
   date: { fontSize: 12 },
 });
 
-const lockedStyles = StyleSheet.create({
-  wrapper: {
-    borderRadius: 14,
-    borderWidth: 1,
-    overflow: "hidden",
-    flexDirection: "row",
-    height: 100,
-  },
-  accentBar: {
-    width: 4,
-    alignSelf: "stretch",
-  },
-  body: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 8,
-    justifyContent: "center",
-  },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  severityPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  severityDot: { width: 6, height: 6, borderRadius: 3 },
-  severityText: { fontSize: 11, letterSpacing: 0.6 },
-  lockBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  skeletonGroup: { gap: 7 },
-  skeletonLine: { height: 9, borderRadius: 5 },
-  bottomRow: { flexDirection: "row", gap: 8 },
-  skeletonChip: { height: 7, width: 64, borderRadius: 4 },
-  platformLabel: { fontSize: 11 },
-  threatHint: { fontSize: 13, opacity: 0.5 },
-});
 
 const paywallStyles = StyleSheet.create({
   banner: {

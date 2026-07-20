@@ -33,9 +33,9 @@ export const PLAN_CONFIG: Record<Tier, PlanLimits> = {
     scanIntervalDays: 14,
     autoScan: false,
     dailyScans: false,
-    scansPerMonth: 3,
+    scansPerMonth: 1,
     imagesPerScan: 1,
-    historyDays: 1,             // 24h
+    historyDays: 30,            // threats always locked; retention matches premium
     realTimeAlerts: false,
     fullEvidence: false,
     downloadableReports: false,

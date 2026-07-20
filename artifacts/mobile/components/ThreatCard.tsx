@@ -2,8 +2,9 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { useColors } from "@/hooks/useColors";
-import { Threat, ThreatType, Severity } from "@/context/AppContext";
+import { Threat, ThreatType } from "@/context/AppContext";
 import { GlassCard } from "./GlassCard";
 import { severityColor } from "@/lib/severity";
 
@@ -21,9 +22,10 @@ function threatIcon(type: ThreatType): { name: string; lib: "ionicons" | "mci" }
 interface ThreatCardProps {
   threat: Threat;
   compact?: boolean;
+  isLocked?: boolean;
 }
 
-export function ThreatCard({ threat, compact }: ThreatCardProps) {
+export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
   const colors = useColors();
   const sc = severityColor(threat.severity, colors);
   const icon = threatIcon(threat.type);
@@ -34,6 +36,65 @@ export function ThreatCard({ threat, compact }: ThreatCardProps) {
       : threat.threatScore >= 55
       ? colors.warning
       : colors.success;
+
+  const severityLabel =
+    threat.severity === "high" ? "HIGH" : threat.severity === "medium" ? "MED" : "LOW";
+
+  if (isLocked) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => router.push("/subscription" as any)}
+      >
+        <View style={[lockedStyles.wrapper, { backgroundColor: colors.card, borderColor: sc + "30" }]}>
+          <View style={[lockedStyles.accentBar, { backgroundColor: sc }]} />
+          <View style={lockedStyles.body}>
+            <View style={lockedStyles.topRow}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={[lockedStyles.severityPill, { backgroundColor: sc + "20", borderColor: sc + "50" }]}>
+                  <View style={[lockedStyles.severityDot, { backgroundColor: sc }]} />
+                  <Text style={[lockedStyles.severityText, { color: sc, fontFamily: "Inter_700Bold" }]}>
+                    {severityLabel}
+                  </Text>
+                </View>
+                {threat.platform ? (
+                  <Text style={[lockedStyles.platformLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {threat.platform.charAt(0).toUpperCase() + threat.platform.slice(1)}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={[lockedStyles.lockBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Ionicons name="lock-closed" size={11} color={colors.mutedForeground} />
+              </View>
+            </View>
+            <View style={lockedStyles.skeletonGroup}>
+              <Text style={[lockedStyles.threatHint, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+                {threat.type === "impersonator" || threat.type === "fake_account"
+                  ? "Impersonation detected"
+                  : threat.type === "stolen_photo"
+                  ? "Photo theft found"
+                  : "Identity threat detected"}
+              </Text>
+              <View style={[lockedStyles.skeletonLine, { backgroundColor: colors.border, width: "45%", opacity: 0.4 }]} />
+            </View>
+            <View style={lockedStyles.ctaRow}>
+              <Text style={[lockedStyles.ctaText, { color: colors.premium, fontFamily: "Inter_600SemiBold" }]}>
+                Unlock with Premium
+              </Text>
+              <Ionicons name="arrow-forward" size={12} color={colors.premium} />
+            </View>
+          </View>
+          <LinearGradient
+            colors={["transparent", colors.card + "E0"]}
+            style={StyleSheet.absoluteFill}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            pointerEvents="none"
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
@@ -184,4 +245,61 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   aiDisclaimerText: { fontSize: 9 },
+});
+
+const lockedStyles = StyleSheet.create({
+  wrapper: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    flexDirection: "row",
+    marginBottom: 10,
+    minHeight: 90,
+  },
+  accentBar: {
+    width: 4,
+    alignSelf: "stretch",
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 6,
+    justifyContent: "center",
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  severityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  severityDot: { width: 6, height: 6, borderRadius: 3 },
+  severityText: { fontSize: 11, letterSpacing: 0.6 },
+  lockBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  platformLabel: { fontSize: 11 },
+  skeletonGroup: { gap: 6 },
+  skeletonLine: { height: 9, borderRadius: 5 },
+  threatHint: { fontSize: 13, opacity: 0.55 },
+  ctaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  ctaText: { fontSize: 12 },
 });

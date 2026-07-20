@@ -234,6 +234,19 @@ export async function getLatestScan(): Promise<ScanJob> {
   return apiFetch<ScanJob>("/scan/latest");
 }
 
+export interface ScanQuotaState {
+  canScan: boolean;
+  scansUsed: number;
+  scansAllowed: number;
+  tier: string;
+  upgradeTo?: string;
+  message: string | null;
+}
+
+export async function getScanQuotaState(): Promise<ScanQuotaState> {
+  return apiFetch<ScanQuotaState>("/scan/quota-state");
+}
+
 export async function listThreats(params?: {
   severity?: string;
   resolved?: boolean;

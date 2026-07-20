@@ -2,9 +2,10 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, scanJobsTable } from "@workspace/db";
 import { startScan } from "../services/scanOrchestrator";
-import { checkAndIncrementQuota } from "../services/rateLimitService";
+import { checkAndIncrementQuota, getQuotaState } from "../services/rateLimitService";
 import { getSubscription } from "../services/subscriptionService";
 import type { Tier } from "../lib/planConfig";
+import { normalizeTier } from "../lib/planConfig";
 
 const router: IRouter = Router();
 
@@ -52,17 +53,16 @@ router.post("/scan", async (req, res): Promise<void> => {
   const quota = await checkAndIncrementQuota(userId, planTier, isDeepScan);
 
   if (!quota.allowed) {
-    const upgradeTier: Tier = planTier === "free" ? "pro" : "premium";
     res.status(429).json({
       error: "scan_limit_reached",
       reason: quota.reason,
       tier: planTier,
-      upgradeTo: upgradeTier,
+      upgradeTo: "premium",
       message:
         quota.reason === "monthly_limit"
-          ? `You've used all ${planTier === "free" ? "3" : "15"} scans for this month. Upgrade to ${upgradeTier} for more.`
+          ? "Your free scan for this month has been used. Upgrade to Premium for unlimited scans anytime."
           : quota.reason === "daily_deep_scan_limit"
-          ? `You've used your ${planTier === "free" ? "1" : "5"} deep scan${planTier === "free" ? "" : "s"} for today. Upgrade for more.`
+          ? "You've used your deep scan for today. Upgrade to Premium for unlimited daily scans."
           : "Your account has been temporarily throttled due to unusual scan activity. Contact support.",
     });
     return;
@@ -96,6 +96,31 @@ router.get("/scan/latest", async (req, res): Promise<void> => {
   }
 
   res.json(serializeJob(job));
+});
+
+router.get("/scan/quota-state", async (req, res): Promise<void> => {
+  const userId = req.userId;
+  const sub = await getSubscription(userId);
+  const planTier = normalizeTier(sub.tier ?? "free");
+  const state = await getQuotaState(userId);
+
+  if (planTier !== "free") {
+    res.json({ canScan: true, scansUsed: state?.scansThisMonth ?? 0, scansAllowed: -1, tier: planTier });
+    return;
+  }
+
+  const scansUsed = state?.scansThisMonth ?? 0;
+  const scansAllowed = 1;
+  res.json({
+    canScan: scansUsed < scansAllowed,
+    scansUsed,
+    scansAllowed,
+    tier: planTier,
+    upgradeTo: "premium",
+    message: scansUsed >= scansAllowed
+      ? "Your free scan for this month has been used. Upgrade to Premium for unlimited scans anytime."
+      : null,
+  });
 });
 
 router.get("/scan/:jobId", async (req, res): Promise<void> => {
