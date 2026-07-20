@@ -202,7 +202,7 @@ function PostUnlockUpsellBanner({ onDismiss, colors }: { onDismiss: () => void; 
             Scan results unlocked!
           </Text>
           <Text style={[upsellStyles.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Upgrade to Pro for continuous monitoring — $14.99/mo →
+            Upgrade to Premium for continuous monitoring — $9.99/mo →
           </Text>
         </View>
         <TouchableOpacity
@@ -237,7 +237,7 @@ function PaywallBanner({ threats, colors }: { threats: Threat[]; colors: ReturnT
         <View style={[paywallStyles.crownBadge, { backgroundColor: colors.premium + "22", borderColor: colors.premium + "44" }]}>
           <MaterialCommunityIcons name="crown" size={13} color={colors.premium} />
           <Text style={[paywallStyles.crownLabel, { color: colors.premium, fontFamily: "Inter_700Bold" }]}>
-            Rook Pro
+            Rook Premium
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={colors.premium + "99"} />

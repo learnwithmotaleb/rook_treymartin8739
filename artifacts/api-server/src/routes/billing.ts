@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, subscriptionsTable, usersTable } from "@workspace/db";
 
-import { PLAN_CONFIG } from "../lib/planConfig";
+import { PLAN_CONFIG, normalizeTier } from "../lib/planConfig";
 import { getSubscription } from "../services/subscriptionService";
 
 const router: IRouter = Router();
@@ -11,7 +11,7 @@ const router: IRouter = Router();
 router.get("/billing/subscription", async (req, res): Promise<void> => {
   const userId = req.userId;
   const sub = await getSubscription(userId);
-  const limits = PLAN_CONFIG[sub.tier];
+  const limits = PLAN_CONFIG[normalizeTier(sub.tier)];
   res.json({ ...sub, limits });
 });
 

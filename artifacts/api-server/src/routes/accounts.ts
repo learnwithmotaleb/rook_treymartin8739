@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable } from "@workspace/db";
 
 import { getSubscription } from "../services/subscriptionService";
-import { PLAN_CONFIG } from "../lib/planConfig";
+import { PLAN_CONFIG, normalizeTier } from "../lib/planConfig";
 import { recomputeForUser } from "../services/identityAnchorService";
 
 const router: IRouter = Router();
@@ -87,7 +87,7 @@ router.post("/accounts", async (req, res): Promise<void> => {
   }
 
   const sub = await getSubscription(userId);
-  const limits = PLAN_CONFIG[sub.tier as keyof typeof PLAN_CONFIG] ?? PLAN_CONFIG.free;
+  const limits = PLAN_CONFIG[normalizeTier(sub.tier)] ?? PLAN_CONFIG.free;
   const allAccounts = await db
     .select({ id: connectedAccountsTable.id })
     .from(connectedAccountsTable)

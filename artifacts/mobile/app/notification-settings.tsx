@@ -99,7 +99,7 @@ function ToggleRow({
         >
           <MaterialCommunityIcons name="crown" size={11} color={colors.warning} />
           <Text style={[styles.lockedText, { color: colors.warning, fontFamily: "Inter_600SemiBold" }]}>
-            {lockedLabel ?? "Pro"}
+            {lockedLabel ?? "Premium"}
           </Text>
         </TouchableOpacity>
       ) : (
@@ -298,11 +298,11 @@ export default function NotificationSettings() {
             icon="mail"
             iconColor={colors.primary}
             label="Email Alerts"
-            sublabel={isPro ? "Sent to your registered email" : "Upgrade to Pro to enable"}
+            sublabel={isPro ? "Sent to your registered email" : "Upgrade to Premium to enable"}
             value={isPro ? prefs.emailAlerts : false}
             onToggle={(v) => toggle("emailAlerts", v)}
             locked={!isPro}
-            lockedLabel="Pro"
+            lockedLabel="Premium"
             last
           />
         </GlassCard>

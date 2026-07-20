@@ -26,7 +26,7 @@ const FAQ = [
   },
   {
     q: "How often are scans performed?",
-    a: "Free accounts get manual scans once per month. Pro accounts scan weekly with automated scheduling. Premium accounts scan daily with deep AI analysis.",
+    a: "Free accounts get one manual scan per month. Premium accounts scan daily with automated scheduling and deep AI analysis.",
   },
   {
     q: "What do I do if I find an impersonator?",

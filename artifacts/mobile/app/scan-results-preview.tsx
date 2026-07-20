@@ -333,7 +333,7 @@ export default function ScanResultsPreview() {
         >
           <Ionicons name="lock-open" size={18} color="#fff" />
           <Text style={[styles.primaryCtaText, { fontFamily: "Inter_700Bold" }]}>
-            Unlock Full Results — $2.99
+            Unlock Full Results — $4.99
           </Text>
         </TouchableOpacity>
 
@@ -341,13 +341,13 @@ export default function ScanResultsPreview() {
           style={[styles.secondaryCta, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "44" }]}
           activeOpacity={0.85}
           onPress={() => {
-            analytics.paywallViewed({ source: "scan_results_preview", tier: "free", option: "pro" });
+            analytics.paywallViewed({ source: "scan_results_preview", tier: "free", option: "premium" });
             router.push("/scan-unlock" as any);
           }}
         >
           <MaterialCommunityIcons name="crown" size={16} color={colors.primary} />
           <Text style={[styles.secondaryCtaText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-            Start Pro — $14.99/mo · Continuous monitoring
+            Start Premium — $9.99/mo · Continuous monitoring
           </Text>
         </TouchableOpacity>
 

@@ -24,7 +24,7 @@ import { getIdentityBadge, type IdentityBadge } from "@/lib/api";
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free Plan",
-  pro: "Pro",
+  pro: "Premium",    // Legacy Pro users are treated as Premium
   premium: "Premium",
 };
 
@@ -242,7 +242,7 @@ export default function ProfileScreen() {
                 <MaterialCommunityIcons name="crown" size={24} color={colors.premium} />
                 <View style={styles.upgradeText}>
                   <Text style={[styles.upgradeTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                    Upgrade to Pro or Premium
+                    Upgrade to Premium
                   </Text>
                   <Text style={[styles.upgradeSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                     Automated alerts, photo monitoring & more
