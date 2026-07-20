@@ -374,7 +374,9 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
       {/* Main content */}
       <View style={[s2.body, { paddingBottom: bottomPad + 24 }]}>
         <Text style={[s2.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Start your {FALLBACK.trialDays}-day free{"\n"}trial to continue
+          {billingCycle === "annual"
+            ? `Start your ${FALLBACK.trialDays}-day free\ntrial to continue`
+            : "Start your Rook\nProtection plan"}
         </Text>
 
         {/* Plan cards */}
@@ -439,7 +441,7 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
         <Text style={[s2.finePrint, { color: colors.mutedForeground + "99", fontFamily: "Inter_400Regular" }]}>
           {billingCycle === "annual"
             ? `${FALLBACK.trialDays} days free, then ${annualTotal} per year.\nBilled annually and renews automatically unless cancelled in the App Store.`
-            : `${FALLBACK.trialDays} days free, then ${monthlyPrice} per month.\nRenews automatically unless cancelled in the App Store.`}
+            : `${monthlyPrice} per month.\nRenews automatically unless cancelled in the App Store.`}
         </Text>
 
         {/* Links */}

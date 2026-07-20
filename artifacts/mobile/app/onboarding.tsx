@@ -511,7 +511,7 @@ function CombinedQuizScreen({
       if (rm) { q2Anim.setValue(1); q2Anims.forEach(a => a.setValue(1)); return; }
       Animated.spring(q2Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
       Animated.stagger(50, q2Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true }))).start();
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 160);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 500);
     } else if (selectedConcern) { prevConcern.current = selectedConcern; }
   }, [selectedConcern]);
 
@@ -521,7 +521,7 @@ function CombinedQuizScreen({
       if (rm) { q3Anim.setValue(1); q3Anims.forEach(a => a.setValue(1)); return; }
       Animated.spring(q3Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
       Animated.stagger(80, q3Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 100, friction: 9, useNativeDriver: true }))).start();
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 160);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 550);
     } else if (selectedUserType) { prevUserType.current = selectedUserType; }
   }, [selectedUserType]);
 
@@ -748,77 +748,119 @@ const inp = StyleSheet.create({
 // ─── S7: Proof Visual ─────────────────────────────────────────────────────────
 function ProofVisualScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   const headlineAnim = useRef(new Animated.Value(0)).current;
-  const cardAnim     = useRef(new Animated.Value(0)).current;
+  const card1Anim    = useRef(new Animated.Value(0)).current;
+  const card2Anim    = useRef(new Animated.Value(0)).current;
+  const card3Anim    = useRef(new Animated.Value(0)).current;
   const detected     = useRef(new Animated.Value(0)).current;
   const rm = useReduceMotion();
 
   useEffect(() => {
-    if (rm) { headlineAnim.setValue(1); cardAnim.setValue(1); detected.setValue(1); return; }
+    if (rm) {
+      headlineAnim.setValue(1); card1Anim.setValue(1); card2Anim.setValue(1);
+      card3Anim.setValue(1); detected.setValue(1); return;
+    }
     Animated.sequence([
-      Animated.timing(headlineAnim, { toValue: 1, duration: 380, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-      Animated.spring(cardAnim, { toValue: 1, ...MOTION.spring_soft, useNativeDriver: true }),
-      Animated.delay(320),
-      Animated.timing(detected, { toValue: 1, duration: 480, useNativeDriver: true }),
+      Animated.timing(headlineAnim, { toValue: 1, duration: 340, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.spring(card1Anim, { toValue: 1, ...MOTION.spring_soft, useNativeDriver: true }),
+      Animated.delay(220),
+      Animated.timing(detected, { toValue: 1, duration: 380, useNativeDriver: true }),
+      Animated.delay(100),
+      Animated.spring(card2Anim, { toValue: 1, ...MOTION.spring_soft, useNativeDriver: true }),
+      Animated.spring(card3Anim, { toValue: 1, ...MOTION.spring_soft, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  const headY = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
-  const cardY = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [22, 0] });
-  const cardScale = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] });
+  const headY     = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
+  const card1Y    = card1Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
+  const card1Scale = card1Anim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] });
+  const card2Y    = card2Anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const card3Y    = card3Anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
   return (
-    <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 24 }]} showsVerticalScrollIndicator={false}>
+    <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 20, paddingBottom: 32 }]} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <Animated.Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold", opacity: headlineAnim, transform: [{ translateY: headY }] }]}>
         Here's what Rook catches.
       </Animated.Text>
-      <Animated.View style={{ opacity: cardAnim, transform: [{ translateY: cardY }, { scale: cardScale }] }}>
-      <GlassCard style={[pv.card, { borderColor: "#EF444433" }]}>
-        <View style={pv.header}>
-          <View style={[pv.dot, { backgroundColor: "#EF444420" }]}><Ionicons name="alert-circle" size={14} color="#EF4444" /></View>
-          <Text style={[{ color: "#EF4444", fontFamily: "Inter_600SemiBold", fontSize: 13, flex: 1 }]}>Impersonator Detected</Text>
-          <Animated.View style={[pv.badge, { backgroundColor: "#EF4444", opacity: detected, transform: [{ scale: detected }] }]}><Text style={[{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 }]}>FLAGGED</Text></Animated.View>
-        </View>
-        <View style={pv.profiles}>
-          <View style={pv.profileCol}>
-            {/* Genuine account — same real photo the impersonator stole */}
-            <RNImage
-              source={require("../assets/images/onboarding/s7-impersonator.png")}
-              style={[pv.avatar, { borderWidth: 2, borderColor: colors.success + "80" }]}
-              resizeMode="cover"
-            />
-            <Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 12 }]}>@alexjones</Text>
-            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 10 }]}>Your account</Text>
-            <View style={[pv.tag, { backgroundColor: colors.success + "20" }]}><Text style={[{ color: colors.success, fontSize: 10, fontFamily: "Inter_600SemiBold" }]}>Genuine</Text></View>
+
+      {/* Card 1 — Impersonator */}
+      <Animated.View style={{ opacity: card1Anim, transform: [{ translateY: card1Y }, { scale: card1Scale }] }}>
+        <GlassCard style={[pv.card, { borderColor: "#EF444433" }]}>
+          <View style={pv.header}>
+            <View style={[pv.dot, { backgroundColor: "#EF444420" }]}><Ionicons name="alert-circle" size={14} color="#EF4444" /></View>
+            <Text style={[{ color: "#EF4444", fontFamily: "Inter_600SemiBold", fontSize: 13, flex: 1 }]}>Impersonator Detected</Text>
+            <Animated.View style={[pv.badge, { backgroundColor: "#EF4444", opacity: detected, transform: [{ scale: detected }] }]}>
+              <Text style={[{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 }]}>FLAGGED</Text>
+            </Animated.View>
           </View>
-          <View style={[{ width: 1, height: 70, backgroundColor: colors.border }]} />
-          <View style={pv.profileCol}>
-            {/* Impersonator — identical photo, different handle */}
-            <RNImage
-              source={require("../assets/images/onboarding/s7-impersonator.png")}
-              style={[pv.avatar, { borderWidth: 2, borderColor: "#EF444466" }]}
-              resizeMode="cover"
-            />
-            <Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 12 }]}>@alexjone5</Text>
-            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 10, textAlign: "center" }]}>Stolen photo · Copied bio</Text>
-            <View style={[pv.tag, { backgroundColor: "#EF444420" }]}><Text style={[{ color: "#EF4444", fontSize: 10, fontFamily: "Inter_600SemiBold" }]}>Impersonator</Text></View>
-          </View>
-        </View>
-        <View style={[{ backgroundColor: "#EF444410", borderRadius: 8, padding: 10, gap: 5 }]}>
-          {["Identical profile photo", "Copied bio text", "Altered handle (5 vs s)"].map((t) => (
-            <View key={t} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Ionicons name="alert-circle" size={11} color="#EF4444" />
-              <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11 }]}>{t}</Text>
+          <View style={pv.profiles}>
+            <View style={pv.profileCol}>
+              <RNImage source={require("../assets/images/onboarding/s7-impersonator.png")} style={[pv.avatar, { borderWidth: 2, borderColor: colors.success + "80" }]} resizeMode="cover" />
+              <Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 12 }]}>@alexjones</Text>
+              <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 10 }]}>Your account</Text>
+              <View style={[pv.tag, { backgroundColor: colors.success + "20" }]}><Text style={[{ color: colors.success, fontSize: 10, fontFamily: "Inter_600SemiBold" }]}>Genuine</Text></View>
             </View>
-          ))}
-        </View>
-      </GlassCard>
+            <View style={[{ width: 1, height: 70, backgroundColor: colors.border }]} />
+            <View style={pv.profileCol}>
+              <RNImage source={require("../assets/images/onboarding/s7-impersonator.png")} style={[pv.avatar, { borderWidth: 2, borderColor: "#EF444466" }]} resizeMode="cover" />
+              <Text style={[{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 12 }]}>@alexjone5</Text>
+              <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 10, textAlign: "center" }]}>Stolen photo · Copied bio</Text>
+              <View style={[pv.tag, { backgroundColor: "#EF444420" }]}><Text style={[{ color: "#EF4444", fontSize: 10, fontFamily: "Inter_600SemiBold" }]}>Impersonator</Text></View>
+            </View>
+          </View>
+          <View style={[{ backgroundColor: "#EF444410", borderRadius: 8, padding: 10, gap: 5 }]}>
+            {["Identical profile photo", "Copied bio text", "Altered handle (5 vs s)"].map((t) => (
+              <View key={t} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="alert-circle" size={11} color="#EF4444" />
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11 }]}>{t}</Text>
+              </View>
+            ))}
+          </View>
+        </GlassCard>
+      </Animated.View>
+
+      {/* Card 2 — Data Breach */}
+      <Animated.View style={{ opacity: card2Anim, transform: [{ translateY: card2Y }] }}>
+        <GlassCard style={[pv.card, { borderColor: "#F59E0B33" }]}>
+          <View style={pv.header}>
+            <View style={[pv.dot, { backgroundColor: "#F59E0B20" }]}><Ionicons name="warning" size={14} color="#F59E0B" /></View>
+            <Text style={[{ color: "#F59E0B", fontFamily: "Inter_600SemiBold", fontSize: 13, flex: 1 }]}>Data Breach Exposure</Text>
+            <View style={[pv.badge, { backgroundColor: "#F59E0B" }]}><Text style={[{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 }]}>FOUND</Text></View>
+          </View>
+          <View style={{ gap: 6 }}>
+            {["Email + password hash leaked", "Breach from 2 platforms", "Dark web listing detected"].map((t) => (
+              <View key={t} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="remove-circle" size={12} color="#F59E0B" />
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>{t}</Text>
+              </View>
+            ))}
+          </View>
+        </GlassCard>
+      </Animated.View>
+
+      {/* Card 3 — Stolen Photo */}
+      <Animated.View style={{ opacity: card3Anim, transform: [{ translateY: card3Y }] }}>
+        <GlassCard style={[pv.card, { borderColor: "#8B5CF633" }]}>
+          <View style={pv.header}>
+            <View style={[pv.dot, { backgroundColor: "#8B5CF620" }]}><Ionicons name="image" size={14} color="#8B5CF6" /></View>
+            <Text style={[{ color: "#8B5CF6", fontFamily: "Inter_600SemiBold", fontSize: 13, flex: 1 }]}>Stolen Photo Detected</Text>
+            <View style={[pv.badge, { backgroundColor: "#8B5CF6" }]}><Text style={[{ color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 }]}>ALERT</Text></View>
+          </View>
+          <View style={{ gap: 6 }}>
+            {["Photo reused on 3 accounts", "Different name + bio", "Cross-platform matches found"].map((t) => (
+              <View key={t} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="remove-circle" size={12} color="#8B5CF6" />
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>{t}</Text>
+              </View>
+            ))}
+          </View>
+        </GlassCard>
       </Animated.View>
     </ScrollView>
   );
 }
 const pv = StyleSheet.create({
-  card: { gap: 16 },
+  card: { gap: 14 },
   header: { flexDirection: "row", alignItems: "center", gap: 8 },
   dot: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
@@ -1461,10 +1503,18 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
     Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1500, easing: Easing.linear, useNativeDriver: true })).start();
     if (!hasStarted.current) {
       hasStarted.current = true;
-      Promise.resolve(startScan()).catch(() => {});
+      // Brief delay so the transition from step 10 fully settles before the scan fires.
+      // This also prevents any residual OAuth-browser-dismissal state from interfering.
+      const startDelay = setTimeout(() => {
+        Promise.resolve(startScan()).catch(() => {});
+      }, 1200);
+      return () => {
+        clearTimeout(startDelay);
+        if (scanStartedTimer.current) clearTimeout(scanStartedTimer.current);
+      };
     }
-    // Fallback A: scan never started within 14s (API error / quota)
-    const fallback = setTimeout(() => { if (!wasScanning.current) onDoneRef.current(0); }, 14000);
+    // Fallback A: scan never started within 16s (API error / quota)
+    const fallback = setTimeout(() => { if (!wasScanning.current) onDoneRef.current(0); }, 16000);
     return () => {
       clearTimeout(fallback);
       if (scanStartedTimer.current) clearTimeout(scanStartedTimer.current);
