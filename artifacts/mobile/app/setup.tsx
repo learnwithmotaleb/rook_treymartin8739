@@ -253,7 +253,7 @@ export default function Setup() {
               { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
             ]}
           >
-            Rook will scan these platforms for impersonators and alert you immediately. Pro & Premium subscribers get automated weekly or daily scans.
+            Rook will scan these platforms for impersonators and alert you immediately. Premium subscribers get automated daily scans.
           </Text>
         </View>
 
