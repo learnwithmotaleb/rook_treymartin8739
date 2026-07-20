@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./shield";
 
+
 export const subscriptionsTable = pgTable("subscriptions", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")
@@ -46,3 +47,29 @@ export const usageTrackingTable = pgTable(
 );
 
 export type UsageTracking = typeof usageTrackingTable.$inferSelect;
+
+export const cancellationFeedbackTable = pgTable("cancellation_feedback", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CancellationFeedback = typeof cancellationFeedbackTable.$inferSelect;
+
+export const scheduledNotificationsTable = pgTable("scheduled_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  fireAt: timestamp("fire_at", { withTimezone: true }).notNull(),
+  fired: boolean("fired").notNull().default(false),
+  cancelled: boolean("cancelled").notNull().default(false),
+  data: text("data"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ScheduledNotification = typeof scheduledNotificationsTable.$inferSelect;

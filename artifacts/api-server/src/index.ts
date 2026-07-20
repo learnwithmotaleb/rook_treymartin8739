@@ -19,7 +19,7 @@ if (existsSync(envLocal)) {
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startWebhookRetryLoop } from "./services/webhookService";
-import { startScheduledScanLoop, startTokenRefreshLoop } from "./services/schedulerService";
+import { startScheduledScanLoop, startTokenRefreshLoop, startNotificationSchedulerLoop } from "./services/schedulerService";
 
 const rawPort = process.env["PORT"];
 
@@ -48,4 +48,5 @@ app.listen(port, (err) => {
   try { startWebhookRetryLoop(); } catch (err) { logger.error({ err }, "Failed to start webhook retry loop"); }
   try { startScheduledScanLoop(); } catch (err) { logger.error({ err }, "Failed to start scheduled scan loop"); }
   try { startTokenRefreshLoop(); } catch (err) { logger.error({ err }, "Failed to start token refresh loop"); }
+  try { startNotificationSchedulerLoop(); } catch (err) { logger.error({ err }, "Failed to start notification scheduler loop"); }
 });

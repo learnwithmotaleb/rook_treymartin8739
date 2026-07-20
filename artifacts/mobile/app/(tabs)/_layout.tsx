@@ -12,6 +12,7 @@ import { useAuth, useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { setApiAuthToken, syncSubscriptionTier } from "@/lib/api";
+import { CancellationSurveyModal } from "@/components/CancellationSurveyModal";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useSubscription } from "@/lib/revenuecat";
 import Purchases from "react-native-purchases";
@@ -140,7 +141,7 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user: clerkUser } = useUser();
-  const { login, logout, hasSeenOnboarding, isInitializing, isOnboardingReady, isLoggedIn } = useApp();
+  const { login, logout, hasSeenOnboarding, isInitializing, isOnboardingReady, isLoggedIn, showCancellationSurvey, dismissCancellationSurvey } = useApp();
   const colors = useColors();
   const { tier, customerInfo } = useSubscription();
   useNotifications(isLoggedIn);
@@ -242,8 +243,13 @@ export default function TabLayout() {
     return <Redirect href="/onboarding" />;
   }
 
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
+  return (
+    <>
+      {isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />}
+      <CancellationSurveyModal
+        visible={showCancellationSurvey}
+        onDismiss={dismissCancellationSurvey}
+      />
+    </>
+  );
 }

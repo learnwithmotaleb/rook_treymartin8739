@@ -1,11 +1,102 @@
 import { logger } from "../lib/logger";
 import { metaFetch } from "../lib/metaFetch";
-import { db, usersTable, connectedAccountsTable } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  connectedAccountsTable,
+  scheduledNotificationsTable,
+  subscriptionsTable,
+} from "@workspace/db";
 import { lte, and, isNotNull, eq } from "drizzle-orm";
+import { sendPushToUser } from "./notificationService";
 import { startScan } from "./scanOrchestrator";
 import { getSubscription } from "./subscriptionService";
 
 const INTERVAL_MS = 15 * 60 * 1000;
+
+// ── Scheduled push notification loop ─────────────────────────────────────────
+// Checks for due trial reminders and win-back notifications every 15 minutes.
+
+export function startNotificationSchedulerLoop(): void {
+  logger.info("Notification scheduler loop started (15-min interval)");
+  const timer = setInterval(runScheduledNotifications, INTERVAL_MS);
+  timer.unref();
+  // Run once shortly after startup to pick up any already-due notifications.
+  setTimeout(runScheduledNotifications, 15_000).unref();
+}
+
+async function runScheduledNotifications(): Promise<void> {
+  try {
+    const dueRows = await db
+      .select()
+      .from(scheduledNotificationsTable)
+      .where(
+        and(
+          eq(scheduledNotificationsTable.fired, false),
+          eq(scheduledNotificationsTable.cancelled, false),
+          lte(scheduledNotificationsTable.fireAt, new Date())
+        )
+      );
+
+    if (dueRows.length === 0) return;
+
+    logger.info({ count: dueRows.length }, "Processing due scheduled notifications");
+
+    for (const row of dueRows) {
+      try {
+        await fireScheduledNotification(row.id, row.userId, row.type);
+      } catch (err) {
+        logger.warn({ err, notifId: row.id, type: row.type }, "Scheduled notification failed");
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Notification scheduler loop error");
+  }
+}
+
+async function fireScheduledNotification(
+  notifId: string,
+  userId: string,
+  type: string
+): Promise<void> {
+  // Mark fired first to prevent double-send on retry
+  await db
+    .update(scheduledNotificationsTable)
+    .set({ fired: true })
+    .where(eq(scheduledNotificationsTable.id, notifId));
+
+  const [sub] = await db
+    .select({ status: subscriptionsTable.status })
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, userId))
+    .limit(1);
+
+  if (type === "trial_day5_reminder") {
+    // Only fire if still in trial
+    if (sub?.status !== "trialing") {
+      logger.info({ userId }, "Skipping trial reminder — user no longer in trial");
+      return;
+    }
+    await sendPushToUser(userId, {
+      title: "⏳ Your Rook protection ends in 2 days",
+      body: "Keep your accounts monitored — upgrade to Premium before your trial expires.",
+      data: { screen: "subscription" },
+    });
+    logger.info({ userId }, "Trial day-5 reminder sent");
+  } else if (type === "win_back_30d") {
+    // Only fire if still cancelled (not resubscribed)
+    if (sub?.status === "active" || sub?.status === "trialing") {
+      logger.info({ userId }, "Skipping win-back — user already resubscribed");
+      return;
+    }
+    await sendPushToUser(userId, {
+      title: "🛡️ Come back to Rook",
+      body: "Your identity doesn't stop being a target. Restart monitoring today.",
+      data: { screen: "subscription" },
+    });
+    logger.info({ userId }, "Win-back 30d notification sent");
+  }
+}
 
 // ── Scheduled scan loop ───────────────────────────────────────────────────────
 

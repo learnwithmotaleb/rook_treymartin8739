@@ -14,6 +14,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { SecurityScoreRing } from "@/components/SecurityScoreRing";
@@ -55,6 +56,65 @@ function StatCard({
     );
   }
   return inner;
+}
+
+function TrialCountdownBanner() {
+  const colors = useColors();
+  const { trialEndsAt, subscriptionStatus } = useApp();
+  const [dismissed, setDismissed] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const storageKey = `rook:trial_banner_dismissed:${todayKey}`;
+
+  useEffect(() => {
+    AsyncStorage.getItem(storageKey).then((val) => {
+      if (val === "1") setDismissed(true);
+      setChecked(true);
+    }).catch(() => setChecked(true));
+  }, [storageKey]);
+
+  if (!checked || dismissed) return null;
+  if (subscriptionStatus !== "trialing" || !trialEndsAt) return null;
+
+  const msRemaining = new Date(trialEndsAt).getTime() - Date.now();
+  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+  if (daysRemaining > 2 || daysRemaining < 0) return null;
+
+  const label =
+    daysRemaining === 0 ? "today" :
+    daysRemaining === 1 ? "tomorrow" :
+    `in ${daysRemaining} days`;
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    AsyncStorage.setItem(storageKey, "1").catch(() => {});
+  };
+
+  return (
+    <Animated.View entering={FadeInDown.springify()}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => router.push("/subscription" as any)}
+        style={[styles.trialBanner, { backgroundColor: colors.warning + "18", borderColor: colors.warning + "50" }]}
+      >
+        <View style={[styles.trialBannerIcon, { backgroundColor: colors.warning + "22" }]}>
+          <Ionicons name="time-outline" size={18} color={colors.warning} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.trialBannerTitle, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
+            Trial ends {label}
+          </Text>
+          <Text style={[styles.trialBannerSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Tap to keep your protection active →
+          </Text>
+        </View>
+        <TouchableOpacity onPress={handleDismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="close" size={16} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
+  );
 }
 
 export default function Dashboard() {
@@ -139,6 +199,9 @@ export default function Dashboard() {
           />
         }
       >
+        {/* Trial countdown banner — shown when trial is within 2 days of expiry */}
+        <TrialCountdownBanner />
+
         {/* Dashboard State Banner */}
         {dashState === "not_protected" && (
           <Animated.View entering={FadeInDown.delay(0).springify()}>
@@ -374,6 +437,23 @@ export default function Dashboard() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  trialBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  trialBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trialBannerTitle: { fontSize: 13, lineHeight: 18 },
+  trialBannerSub: { fontSize: 12, lineHeight: 16 },
   header: {
     flexDirection: "row",
     alignItems: "center",

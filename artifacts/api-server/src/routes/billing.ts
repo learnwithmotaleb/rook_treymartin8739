@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { db, subscriptionsTable, usersTable } from "@workspace/db";
+import { db, subscriptionsTable, usersTable, cancellationFeedbackTable } from "@workspace/db";
 
 import { PLAN_CONFIG, normalizeTier } from "../lib/planConfig";
 import { getSubscription } from "../services/subscriptionService";
@@ -43,6 +43,27 @@ router.post("/billing/revenuecat-sync", async (req, res): Promise<void> => {
     });
 
   res.json({ tier: validTier, synced: true });
+});
+
+
+const CancellationSurveyBody = z.object({
+  reason: z.string().min(1).max(500),
+});
+
+router.post("/billing/cancellation-survey", async (req, res): Promise<void> => {
+  const userId = req.userId;
+
+  const parsed = CancellationSurveyBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "reason is required" });
+    return;
+  }
+
+  await db
+    .insert(cancellationFeedbackTable)
+    .values({ userId, reason: parsed.data.reason });
+
+  res.status(204).end();
 });
 
 export default router;

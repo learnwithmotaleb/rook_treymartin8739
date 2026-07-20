@@ -18,6 +18,7 @@ import photosRouter from "./photos";
 import intelligenceRouter from "./intelligence";
 import identityRouter from "./identity";
 import webhooksRouter from "./webhooks";
+import rcWebhookRouter from "./rcWebhook";
 
 const router: IRouter = Router();
 
@@ -25,6 +26,7 @@ router.use(healthRouter);
 router.use(legalRouter);
 router.use(oauthRouter);
 router.use(webhooksRouter);
+router.use(rcWebhookRouter);
 router.use(waitlistRouter);
 router.use(adminRouter); // admin routes use their own X-Admin-Key auth
 

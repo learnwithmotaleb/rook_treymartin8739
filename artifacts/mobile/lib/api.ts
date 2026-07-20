@@ -377,6 +377,13 @@ export async function deregisterPushToken(
   });
 }
 
+export async function postCancellationSurvey(reason: string): Promise<void> {
+  await apiFetch("/billing/cancellation-survey", {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export async function getOAuthRedirectUris(): Promise<Record<string, string>> {
   return apiFetch<Record<string, string>>("/oauth/redirect-uris");
 }

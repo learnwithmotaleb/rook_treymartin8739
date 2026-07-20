@@ -16,6 +16,7 @@ import {
   getScanStatus,
   getLatestScan,
   getScanQuotaState,
+  getSubscription,
   resolveThreat as apiResolveThreat,
   addAccount as apiAddAccount,
   removeAccount as apiRemoveAccount,
@@ -169,6 +170,13 @@ interface AppContextType {
   fakeAccounts: number;
   resolvedCount: number;
   leakedPasswords: number;
+  /** ISO string or null — present while user is in a trial */
+  trialEndsAt: string | null;
+  /** "active" | "trialing" | "canceled" | "past_due" — null until first fetch */
+  subscriptionStatus: "active" | "trialing" | "canceled" | "past_due" | null;
+  /** true when survey modal should be shown (subscription just cancelled, not yet surveyed) */
+  showCancellationSurvey: boolean;
+  dismissCancellationSurvey: () => void;
   login: (name: string, email: string, userId?: string) => void;
   logout: () => void;
   completeOnboarding: () => void;
@@ -267,6 +275,8 @@ function mapProfileToUser(
   };
 }
 
+const SURVEY_SHOWN_KEY = "rook:cancellation_survey_shown";
+
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -334,11 +344,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshData = useCallback(async () => {
     const attempt = async (): Promise<boolean> => {
       try {
-        const [profile, accounts, summaries, quotaState] = await Promise.all([
+        const [profile, accounts, summaries, quotaState, sub] = await Promise.all([
           getMe(),
           getAccounts(),
           listThreats(),
           getScanQuotaState().catch(() => null),
+          getSubscription().catch(() => null),
         ]);
         setUser(mapProfileToUser(profile, accounts));
         setThreats(summaries.map(mapSummaryToThreat));
@@ -346,6 +357,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // This surfaces immediately on app open rather than requiring a failed scan attempt.
         if (quotaState && !quotaState.canScan && quotaState.message) {
           setScanQuotaError({ message: quotaState.message, upgradeTo: quotaState.upgradeTo ?? "premium" });
+        }
+        // Subscription state for trial banner and cancellation survey
+        if (sub) {
+          setTrialEndsAt(sub.trialEndsAt ?? null);
+          setSubscriptionStatus(sub.status as "active" | "trialing" | "canceled" | "past_due");
+          // Show cancellation survey once after subscription lapses
+          if (sub.status === "canceled") {
+            AsyncStorage.getItem(SURVEY_SHOWN_KEY).then((shown) => {
+              if (shown !== "true") setShowCancellationSurvey(true);
+            }).catch(() => {});
+          }
         }
         // The server is the durable source of truth for onboarding completion
         // (onboardingAnswers persisted in the DB). Device-local AsyncStorage
@@ -466,6 +488,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const [scanQuotaError, setScanQuotaError] = useState<{ message: string; upgradeTo: string } | null>(null);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<"active" | "trialing" | "canceled" | "past_due" | null>(null);
+  const [showCancellationSurvey, setShowCancellationSurvey] = useState(false);
+
+  const dismissCancellationSurvey = useCallback(() => {
+    setShowCancellationSurvey(false);
+    AsyncStorage.setItem(SURVEY_SHOWN_KEY, "true").catch(() => {});
+  }, []);
 
   const checkScanQuota = useCallback(async () => {
     try {
@@ -686,6 +716,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fakeAccounts,
         resolvedCount,
         leakedPasswords,
+        trialEndsAt,
+        subscriptionStatus,
+        showCancellationSurvey,
+        dismissCancellationSurvey,
         login,
         logout,
         completeOnboarding,
