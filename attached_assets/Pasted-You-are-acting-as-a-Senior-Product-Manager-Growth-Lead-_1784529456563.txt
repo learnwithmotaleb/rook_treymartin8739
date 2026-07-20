@@ -1,0 +1,246 @@
+You are acting as a Senior Product Manager, Growth Lead, Subscription Monetization Strategist, and Consumer SaaS Expert.
+
+Your task is NOT to simply change our pricing.
+
+Your task is to determine the optimal monetization strategy for ROOK before launch.
+
+ROOK is an AI-powered identity protection app that helps users detect impersonation accounts, stolen photos, fake profiles, and identity threats across social media platforms.
+
+You have full access to our existing subscription implementation, onboarding, scan flow, feature gating, RevenueCat integration, and paywall.
+
+Your first objective is to audit our CURRENT subscription model before making any recommendations.
+
+--------------------------------------------------
+
+PHASE 1 — Audit Existing Model
+
+Analyze our current implementation and document:
+
+• Current subscription tiers
+• Current feature limits
+• Free user experience
+• Existing paywall timing
+• Trial implementation (if any)
+• RevenueCat configuration
+• Feature gating logic
+• Scan limitations
+• Dashboard limitations
+• Current upgrade prompts
+
+Then explain:
+
+• What works well
+• What creates friction
+• Where users may abandon
+• Where revenue is likely being lost
+• Where users receive too much value before paying
+• Where users receive too little value before paying
+
+--------------------------------------------------
+
+PHASE 2 — Evaluate Every Monetization Model
+
+Compare ALL major consumer SaaS pricing strategies.
+
+At minimum evaluate:
+
+Option A
+Freemium
+
+Option B
+Hard Paywall
+
+Option C
+3-Day Free Trial
+
+Option D
+7-Day Free Trial
+
+Option E
+Limited Free Scan then Subscription
+
+Option F
+One-Time Scan Purchase + Subscription
+
+Option G
+Hybrid Model
+
+For each option explain:
+
+Advantages
+
+Disadvantages
+
+Expected impact on:
+
+• Conversion
+• Retention
+• Churn
+• Lifetime Value (LTV)
+• Customer Acquisition Cost (CAC)
+• Viral growth
+• App Store reviews
+• Trust
+• Abuse potential
+• Infrastructure costs
+• Support burden
+
+--------------------------------------------------
+
+PHASE 3 — Compare Against Our Current Model
+
+Create a side-by-side comparison.
+
+Current Model
+
+vs
+
+Recommended Model
+
+Compare:
+
+Revenue
+
+User acquisition
+
+Trust
+
+Time-to-value
+
+Likelihood users experience "aha moment"
+
+Subscription conversion
+
+Long-term retention
+
+Engineering complexity
+
+Marketing compatibility
+
+--------------------------------------------------
+
+PHASE 4 — Research Product Fit
+
+Consider how ROOK differs from:
+
+Aura
+
+LifeLock
+
+DeleteMe
+
+Incogni
+
+Truecaller Premium
+
+Canary Mail
+
+Photo security apps
+
+Reverse image search apps
+
+Identity monitoring services
+
+Ask:
+
+How do successful subscription security apps introduce pricing?
+
+How quickly do they ask for payment?
+
+How much value do they provide before charging?
+
+What psychological triggers make users subscribe?
+
+--------------------------------------------------
+
+PHASE 5 — Make ONE Recommendation
+
+After evaluating everything, choose ONLY ONE monetization strategy.
+
+Do NOT compromise.
+
+Defend your decision.
+
+Explain why it is superior to every alternative.
+
+If you recommend changing our current model, explain exactly why.
+
+If you recommend keeping our current model, explain exactly why.
+
+--------------------------------------------------
+
+PHASE 6 — Produce an Implementation Plan
+
+If changes are recommended:
+
+Generate a complete implementation plan including:
+
+• RevenueCat changes
+• Feature gating updates
+• Scan limit changes
+• Dashboard changes
+• Paywall timing
+• Trial implementation
+• Subscription copy
+• Upgrade prompts
+• Edge cases
+• Cancellation handling
+• Trial expiration flow
+• Grace period behavior
+• Restore purchases flow
+
+--------------------------------------------------
+
+PHASE 7 — Engineering Tasks
+
+Break implementation into small development tasks.
+
+For every task include:
+
+Priority
+
+Estimated complexity
+
+Files likely affected
+
+Dependencies
+
+Testing checklist
+
+Rollback plan
+
+--------------------------------------------------
+
+PHASE 8 — Success Metrics
+
+Define the KPIs we should monitor after launch.
+
+Include:
+
+• Trial start rate
+• Trial-to-paid conversion
+• Paywall conversion
+• Subscription conversion
+• Scan completion rate
+• D1 retention
+• D7 retention
+• D30 retention
+• Churn
+• LTV
+• Average Revenue Per User (ARPU)
+• Monthly Recurring Revenue (MRR)
+
+Also identify leading indicators that will tell us within the first few weeks whether the chosen monetization strategy is working.
+
+--------------------------------------------------
+
+Requirements
+
+• Base recommendations on consumer SaaS best practices, especially subscription-based mobile apps.
+• Consider that ROOK is launching as a new product without an established brand.
+• Balance user trust, long-term growth, and sustainable revenue—not just maximizing short-term conversions.
+• Avoid unnecessary complexity unless it provides clear business value.
+• If our current implementation is already strong, say so and explain why.
+• If it is weak, identify specific issues and propose practical improvements.
+
+Do not begin implementing any changes until the full analysis is complete and a single recommended strategy has been selected and justified.
