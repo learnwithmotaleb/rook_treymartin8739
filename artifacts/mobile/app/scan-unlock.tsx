@@ -1,11 +1,14 @@
 /**
- * Scan Unlock Paywall — 3-tier purchase screen.
+ * Scan Unlock Paywall — focused single-tier screen.
  *
- * Tier 1: Single Scan ($2.99 one-time) — stored in AsyncStorage until RC product exists
- * Tier 2: Pro ($14.99/mo) — uses RevenueCat
- * Tier 3: Premium ($24.99/mo) — uses RevenueCat
+ * Primary offer  : Premium subscription ($9.99/mo or $69.99/yr, 7-day free trial)
+ * Secondary offer: Single scan unlock ($4.99 one-time) — visible only below the trial CTA
+ *                  as a "not ready to commit?" fallback.
  *
- * After any purchase, navigates to Alerts and fires the post-unlock upsell flag.
+ * Pro tier is fully removed. RC product IDs:
+ *   premium_monthly_v2  — monthly subscription
+ *   premium_annual_v2   — annual subscription
+ *   scan_unlock_v2      — one-time scan unlock (LIFETIME entitlement)
  */
 
 import React, { useState, useEffect } from "react";
@@ -42,167 +45,20 @@ async function markScanUnlocked() {
   ]);
 }
 
-interface TierOption {
-  id: "scan" | "pro" | "premium";
-  name: string;
-  price: string;
-  pricePer: string;
-  badge?: string;
-  badgeColor?: string;
-  headline: string;
-  bullets: Array<{ icon: string; text: string }>;
-  ctaLabel: string;
-  ctaColor: string;
-  highlight?: boolean;
-}
+const FALLBACK = {
+  annual:     { perMonth: "$5.83", total: "$69.99", savings: "42%" },
+  monthly:    { perMonth: "$9.99" },
+  scanUnlock: "$4.99",
+  trialDays:  7,
+};
 
-const TIERS: TierOption[] = [
-  {
-    id: "scan",
-    name: "Single Scan",
-    price: "$2.99",
-    pricePer: "one-time",
-    badge: "Instant Access",
-    headline: "Unlock this scan only",
-    bullets: [
-      { icon: "lock-open", text: "Full results for this scan" },
-      { icon: "flag", text: "One-tap report to platform" },
-      { icon: "analytics", text: "AI threat analysis" },
-      { icon: "close-circle", text: "No subscription required" },
-    ],
-    ctaLabel: "Unlock for $2.99",
-    ctaColor: "#EF4444",
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "$14.99",
-    pricePer: "/mo",
-    badge: "Most Popular",
-    badgeColor: "#3B82F6",
-    headline: "Continuous identity protection",
-    bullets: [
-      { icon: "shield-checkmark", text: "All scan results + history" },
-      { icon: "people", text: "3 connected accounts" },
-      { icon: "calendar", text: "Weekly automated monitoring" },
-      { icon: "notifications", text: "Real-time threat alerts" },
-    ],
-    ctaLabel: "Start 7-Day Free Trial",
-    ctaColor: "#3B82F6",
-    highlight: true,
-  },
-  {
-    id: "premium",
-    name: "Premium",
-    price: "$24.99",
-    pricePer: "/mo",
-    badge: "Best Value",
-    badgeColor: "#8B5CF6",
-    headline: "Enterprise-grade protection",
-    bullets: [
-      { icon: "infinite", text: "Unlimited accounts + scans" },
-      { icon: "flash", text: "Daily automated monitoring" },
-      { icon: "document-text", text: "Threat reports + 30-day history" },
-      { icon: "analytics", text: "Advanced risk scoring" },
-    ],
-    ctaLabel: "Start 7-Day Free Trial",
-    ctaColor: "#8B5CF6",
-  },
+const PREMIUM_FEATURES = [
+  { icon: "shield-checkmark" as const, text: "Full scan results + 30-day history" },
+  { icon: "infinite"         as const, text: "Unlimited accounts & scans" },
+  { icon: "flash"            as const, text: "Daily automated monitoring" },
+  { icon: "notifications"    as const, text: "Real-time threat alerts" },
+  { icon: "analytics"        as const, text: "Advanced risk scoring" },
 ];
-
-function TierCard({
-  tier,
-  onPress,
-  loading,
-  colors,
-}: {
-  tier: TierOption;
-  onPress: () => void;
-  loading: boolean;
-  colors: ReturnType<typeof useColors>;
-}) {
-  const ctaColor = tier.ctaColor;
-  const badgeColor = tier.badgeColor ?? "#6B7280";
-
-  return (
-    <GlassCard
-      style={[
-        styles.tierCard,
-        tier.highlight && { borderColor: ctaColor + "55", borderWidth: 2 },
-      ]}
-    >
-      {tier.highlight && (
-        <LinearGradient
-          colors={[ctaColor + "0A", "transparent"]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-      )}
-
-      <View style={styles.tierHeader}>
-        <View>
-          <Text style={[styles.tierName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            {tier.name}
-          </Text>
-          <Text style={[styles.tierHeadline, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {tier.headline}
-          </Text>
-        </View>
-        <View style={styles.tierPriceBlock}>
-          <Text style={[styles.tierPrice, { color: ctaColor, fontFamily: "Inter_700Bold" }]}>
-            {tier.price}
-          </Text>
-          <Text style={[styles.tierPricePer, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {tier.pricePer}
-          </Text>
-        </View>
-      </View>
-
-      {tier.badge && (
-        <View style={[styles.badge, { backgroundColor: badgeColor + "18", borderColor: badgeColor + "44" }]}>
-          <Text style={[styles.badgeText, { color: badgeColor, fontFamily: "Inter_600SemiBold" }]}>
-            {tier.badge}
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.bulletList}>
-        {tier.bullets.map((b) => (
-          <View key={b.text} style={styles.bulletRow}>
-            <View style={[styles.bulletIcon, { backgroundColor: ctaColor + "18" }]}>
-              <Ionicons name={b.icon as any} size={12} color={ctaColor} />
-            </View>
-            <Text style={[styles.bulletText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-              {b.text}
-            </Text>
-          </View>
-        ))}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.cta, { backgroundColor: ctaColor, opacity: loading ? 0.7 : 1 }]}
-        onPress={onPress}
-        disabled={loading}
-        activeOpacity={0.85}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <>
-            {tier.id !== "scan" && <MaterialCommunityIcons name="crown" size={16} color="#fff" />}
-            <Text style={[styles.ctaText, { fontFamily: "Inter_700Bold" }]}>{tier.ctaLabel}</Text>
-          </>
-        )}
-      </TouchableOpacity>
-
-      {tier.id !== "scan" && (
-        <Text style={[styles.trialNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          7-day free trial · then {tier.price}{tier.pricePer} · cancel anytime
-        </Text>
-      )}
-    </GlassCard>
-  );
-}
 
 export default function ScanUnlock() {
   const colors = useColors();
@@ -210,27 +66,27 @@ export default function ScanUnlock() {
   const { user } = useApp();
   const { offerings, purchase, restore, isPurchasing, isRestoring } = useSubscription();
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const [loadingTier, setLoadingTier] = useState<"scan" | "pro" | "premium" | null>(null);
-  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+  const [cycle, setCycle]             = useState<"annual" | "monthly">("annual");
+  const [loadingTier, setLoadingTier] = useState<"premium" | "scan" | null>(null);
+  const [restoreMsg, setRestoreMsg]   = useState<string | null>(null);
 
   useEffect(() => {
     analytics.paywallViewed({ source: "scan_unlock" });
   }, []);
 
-  const getSubscriptionPackage = (tierId: "pro" | "premium") => {
+  // ── Package helpers ──────────────────────────────────────────────────────
+  const getPremiumPackage = () => {
     if (!isRevenueCatConfigured) return null;
-    const offering = offerings?.all[tierId];
-    return (
-      offering?.monthly ??
-      offering?.availablePackages.find((p) => p.packageType === "MONTHLY") ??
-      null
-    );
+    const offering = offerings?.all["premium"] ?? offerings?.current ?? null;
+    if (!offering) return null;
+    if (cycle === "annual")
+      return offering.annual ?? offering.availablePackages.find((p) => p.packageType === "ANNUAL") ?? null;
+    return offering.monthly ?? offering.availablePackages.find((p) => p.packageType === "MONTHLY") ?? null;
   };
 
-  /** Non-consumable $2.99 single-scan unlock — lives in the "scan_unlock" offering */
   const getScanUnlockPackage = () => {
     if (!isRevenueCatConfigured) return null;
     const offering = offerings?.all["scan_unlock"];
@@ -242,24 +98,32 @@ export default function ScanUnlock() {
     );
   };
 
-  const handleUnlockScan = async () => {
-    setLoadingTier("scan");
+  const annualPrice  = getPremiumPackage()?.product?.priceString ?? FALLBACK.annual.total;
+  const monthlyPrice = getPremiumPackage()?.product?.priceString ?? FALLBACK.monthly.perMonth;
+  const scanPrice    = getScanUnlockPackage()?.product?.priceString ?? FALLBACK.scanUnlock;
+
+  const annualPerMonth = (() => {
+    const match = annualPrice.replace(/[^0-9.]/g, "");
+    const num   = parseFloat(match);
+    return isNaN(num) ? FALLBACK.annual.perMonth : `$${(num / 12).toFixed(2)}`;
+  })();
+
+  // ── Purchase handlers ────────────────────────────────────────────────────
+  const handleSubscribe = async () => {
+    setLoadingTier("premium");
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (isRevenueCatConfigured) {
-        const pkg = getScanUnlockPackage();
+        const pkg = getPremiumPackage();
         if (!pkg) {
-          Alert.alert(
-            "Not Available",
-            "The single-scan product isn't available right now. Please choose a subscription or try again later."
-          );
+          Alert.alert("Not Available", "Subscription products are loading. Please try again in a moment.");
           return;
         }
         await purchase(pkg);
+        await syncSubscriptionTier("premium");
       }
-      // Mark locally after successful purchase (or in dev when RC not configured)
       await markScanUnlocked();
-      analytics.scanPurchased({ price: "2.99", via: isRevenueCatConfigured ? "revenuecat" : "dev_mode" });
+      analytics.subscriptionStarted({ tier: "premium", source: "scan_unlock" });
       router.replace("/(tabs)/alerts" as any);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Purchase failed";
@@ -271,21 +135,23 @@ export default function ScanUnlock() {
     }
   };
 
-  const handleSubscribe = async (tierId: "pro" | "premium") => {
-    setLoadingTier(tierId);
+  const handleUnlockScan = async () => {
+    setLoadingTier("scan");
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const pkg = getSubscriptionPackage(tierId);
-      if (!pkg) {
-        Alert.alert(
-          "Not Available",
-          "Subscription products are loading. Please try again in a moment."
-        );
-        return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (isRevenueCatConfigured) {
+        const pkg = getScanUnlockPackage();
+        if (!pkg) {
+          Alert.alert(
+            "Not Available",
+            "The single-scan product isn't available right now. Choose a subscription or try again later."
+          );
+          return;
+        }
+        await purchase(pkg);
       }
-      await purchase(pkg);
       await markScanUnlocked();
-      analytics.subscriptionStarted({ tier: tierId, source: "scan_unlock" });
+      analytics.scanPurchased({ price: "4.99", via: isRevenueCatConfigured ? "revenuecat" : "dev_mode" });
       router.replace("/(tabs)/alerts" as any);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Purchase failed";
@@ -299,16 +165,13 @@ export default function ScanUnlock() {
 
   const handleRestore = async () => {
     try {
-      const info = await restore();
-      const hasPro = !!info.entitlements.active["pro"];
-      const hasPremium = !!info.entitlements.active["premium"];
+      const info       = await restore();
+      const hasPremium    = !!info.entitlements.active["premium"];
       const hasScanUnlock = !!info.entitlements.active["scan_unlocked"];
-      if (hasPro || hasPremium || hasScanUnlock) {
+      if (hasPremium || hasScanUnlock) {
         await markScanUnlocked();
         analytics.subscriptionRestored({ source: "scan_unlock" });
-        if (hasPro || hasPremium) {
-          syncSubscriptionTier(hasPremium ? "premium" : "pro").catch(() => {});
-        }
+        if (hasPremium) syncSubscriptionTier("premium").catch(() => {});
         router.replace("/(tabs)/alerts" as any);
       } else {
         setRestoreMsg("No active purchase found for this account.");
@@ -318,10 +181,7 @@ export default function ScanUnlock() {
     }
   };
 
-  const handleTierPress = (tierId: "scan" | "pro" | "premium") => {
-    if (tierId === "scan") return handleUnlockScan();
-    return handleSubscribe(tierId as "pro" | "premium");
-  };
+  const isLoading = loadingTier !== null || isPurchasing;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -343,7 +203,7 @@ export default function ScanUnlock() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 24 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 32 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -352,23 +212,133 @@ export default function ScanUnlock() {
             <MaterialCommunityIcons name="shield-lock" size={36} color={colors.primary} />
           </View>
           <Text style={[styles.heroTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            Choose Your Protection
+            Premium Protection
           </Text>
           <Text style={[styles.heroSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            One-time unlock for this scan, or continuous monitoring with Pro or Premium.
+            Unlock full results and keep your identity monitored every day.
           </Text>
         </View>
 
-        {/* Tier cards */}
-        {TIERS.map((tier) => (
-          <TierCard
-            key={tier.id}
-            tier={tier}
-            colors={colors}
-            loading={loadingTier === tier.id || (tier.id !== "scan" && isPurchasing)}
-            onPress={() => handleTierPress(tier.id)}
+        {/* ── Primary offer card ──────────────────────────────────────── */}
+        <GlassCard style={[styles.primaryCard, { borderColor: colors.primary + "55", borderWidth: 2 }]}>
+          <LinearGradient
+            colors={[colors.primary + "0A", "transparent"]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
           />
-        ))}
+
+          {/* Billing toggle */}
+          <View style={[styles.toggle, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, cycle === "annual" && { backgroundColor: colors.foreground }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCycle("annual"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.toggleText, { color: cycle === "annual" ? colors.background : colors.mutedForeground, fontFamily: cycle === "annual" ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
+                Annual
+              </Text>
+              <View style={[styles.saveBadge, { backgroundColor: "#10B981", opacity: cycle === "annual" ? 1 : 0 }]}>
+                <Text style={[styles.saveBadgeText, { fontFamily: "Inter_700Bold" }]}>SAVE {FALLBACK.annual.savings}</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, cycle === "monthly" && { backgroundColor: colors.foreground }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCycle("monthly"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.toggleText, { color: cycle === "monthly" ? colors.background : colors.mutedForeground, fontFamily: cycle === "monthly" ? "Inter_600SemiBold" : "Inter_400Regular" }]}>
+                Monthly
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Price display */}
+          <View style={styles.priceRow}>
+            <Text style={[styles.priceMain, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>
+              {cycle === "annual" ? annualPerMonth : monthlyPrice}
+            </Text>
+            <Text style={[styles.pricePer, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              /mo
+            </Text>
+            {cycle === "annual" && (
+              <Text style={[styles.priceSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                · {annualPrice}/yr
+              </Text>
+            )}
+          </View>
+
+          {/* Feature list */}
+          <View style={styles.featureList}>
+            {PREMIUM_FEATURES.map((f) => (
+              <View key={f.text} style={styles.featureRow}>
+                <View style={[styles.featureIcon, { backgroundColor: colors.primary + "18" }]}>
+                  <Ionicons name={f.icon} size={13} color={colors.primary} />
+                </View>
+                <Text style={[styles.featureText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                  {f.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Trial CTA */}
+          <TouchableOpacity
+            style={[styles.trialCta, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
+            onPress={handleSubscribe}
+            disabled={isLoading}
+            activeOpacity={0.85}
+          >
+            {loadingTier === "premium" || isPurchasing ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="crown" size={16} color="#fff" />
+                <Text style={[styles.trialCtaText, { fontFamily: "Inter_700Bold" }]}>
+                  Start {FALLBACK.trialDays}-Day Free Trial
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <Text style={[styles.trialNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            No charge until your trial ends · cancel anytime
+          </Text>
+        </GlassCard>
+
+        {/* ── Secondary fallback ──────────────────────────────────────── */}
+        <View style={styles.divider}>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.dividerText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Not ready to commit?
+          </Text>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.scanUnlockRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleUnlockScan}
+          disabled={isLoading}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.scanUnlockIcon, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="lock-open-outline" size={18} color={colors.mutedForeground} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.scanUnlockTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+              Unlock just this scan
+            </Text>
+            <Text style={[styles.scanUnlockSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              One-time · no subscription required
+            </Text>
+          </View>
+          {loadingTier === "scan" ? (
+            <ActivityIndicator color={colors.mutedForeground} size="small" />
+          ) : (
+            <Text style={[styles.scanUnlockPrice, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              {scanPrice}
+            </Text>
+          )}
+        </TouchableOpacity>
 
         {/* Restore */}
         <TouchableOpacity
@@ -395,9 +365,9 @@ export default function ScanUnlock() {
         {/* Trust signals */}
         <View style={styles.trustRow}>
           {[
-            { icon: "lock-closed", text: "Cancel anytime" },
-            { icon: "checkmark-circle", text: "No contracts" },
-            { icon: "card", text: "Secure checkout" },
+            { icon: "lock-closed",       text: "Cancel anytime" },
+            { icon: "checkmark-circle",  text: "No contracts" },
+            { icon: "card",              text: "Secure checkout" },
           ].map((item) => (
             <View key={item.text} style={styles.trustItem}>
               <Ionicons name={item.icon as any} size={13} color={colors.mutedForeground} />
@@ -409,7 +379,8 @@ export default function ScanUnlock() {
         </View>
 
         <Text style={[styles.legal, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Subscriptions renew automatically. Cancel anytime from your device's subscription settings. Single scan purchase is non-refundable.
+          Subscriptions renew automatically. Cancel anytime from your device's subscription settings.
+          Single-scan purchase is non-refundable.
         </Text>
       </ScrollView>
     </View>
@@ -417,8 +388,9 @@ export default function ScanUnlock() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container:   { flex: 1 },
   topGradient: { position: "absolute", top: 0, left: 0, right: 0, height: 240 },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -428,67 +400,50 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 17 },
-  content: { padding: 20, gap: 16 },
+  content:     { padding: 20, gap: 16 },
 
-  hero: { alignItems: "center", gap: 12, paddingVertical: 8 },
-  heroIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
+  hero:      { alignItems: "center", gap: 12, paddingVertical: 8 },
+  heroIcon:  { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", borderWidth: 1 },
   heroTitle: { fontSize: 22, textAlign: "center" },
-  heroSub: { fontSize: 14, textAlign: "center", lineHeight: 21, maxWidth: 300 },
+  heroSub:   { fontSize: 14, textAlign: "center", lineHeight: 21, maxWidth: 300 },
 
-  tierCard: { gap: 14, padding: 18, overflow: "hidden" },
-  tierHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  tierName: { fontSize: 18, lineHeight: 24 },
-  tierHeadline: { fontSize: 12, lineHeight: 17 },
-  tierPriceBlock: { alignItems: "flex-end", gap: 1 },
-  tierPrice: { fontSize: 22 },
-  tierPricePer: { fontSize: 12 },
+  primaryCard: { gap: 16, padding: 20, overflow: "hidden" },
 
-  badge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginTop: -4,
-  },
-  badgeText: { fontSize: 11 },
+  toggle:        { flexDirection: "row", borderRadius: 14, borderWidth: 1, padding: 3, gap: 2 },
+  toggleBtn:     { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 11 },
+  toggleText:    { fontSize: 14 },
+  saveBadge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+  saveBadgeText: { color: "#fff", fontSize: 10 },
 
-  bulletList: { gap: 9 },
-  bulletRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  bulletIcon: { width: 24, height: 24, borderRadius: 7, alignItems: "center", justifyContent: "center" },
-  bulletText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  priceRow:  { flexDirection: "row", alignItems: "baseline", gap: 4 },
+  priceMain: { fontSize: 34 },
+  pricePer:  { fontSize: 16 },
+  priceSub:  { fontSize: 13 },
 
-  cta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    height: 50,
-    borderRadius: 25,
-  },
-  ctaText: { color: "#fff", fontSize: 15 },
-  trialNote: { fontSize: 11, textAlign: "center", marginTop: -4 },
+  featureList: { gap: 10 },
+  featureRow:  { flexDirection: "row", alignItems: "center", gap: 10 },
+  featureIcon: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  featureText: { fontSize: 13, flex: 1, lineHeight: 18 },
 
-  restoreRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  restoreText: { fontSize: 15 },
+  trialCta:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 54, borderRadius: 27 },
+  trialCtaText: { color: "#fff", fontSize: 16 },
+  trialNote:    { fontSize: 11, textAlign: "center" },
+
+  divider:     { flexDirection: "row", alignItems: "center", gap: 10 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 13 },
+
+  scanUnlockRow:   { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16, borderWidth: 1 },
+  scanUnlockIcon:  { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  scanUnlockTitle: { fontSize: 14, lineHeight: 20 },
+  scanUnlockSub:   { fontSize: 12 },
+  scanUnlockPrice: { fontSize: 16 },
+
+  restoreRow:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, padding: 16, borderRadius: 14, borderWidth: 1 },
+  restoreText:   { fontSize: 15 },
   restoreStatus: { fontSize: 12, textAlign: "center" },
 
-  trustRow: { flexDirection: "row", justifyContent: "center", gap: 20 },
+  trustRow:  { flexDirection: "row", justifyContent: "center", gap: 20 },
   trustItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   trustText: { fontSize: 12 },
 

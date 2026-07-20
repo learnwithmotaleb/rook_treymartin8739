@@ -80,8 +80,17 @@ export const PLAN_CONFIG: Record<Tier, PlanLimits> = {
 
 export const TIER_ORDER: Record<Tier, number> = { free: 0, pro: 1, premium: 2 };
 
+/**
+ * Normalize a tier string before any comparison.
+ * Pro is sunset — all legacy Pro users are treated as Premium.
+ */
+export function normalizeTier(tier: string): Tier {
+  if (tier === "pro") return "premium";
+  return (tier as Tier) in PLAN_CONFIG ? (tier as Tier) : "free";
+}
+
 export function tierAtLeast(userTier: string, required: Tier): boolean {
-  const user = TIER_ORDER[userTier as Tier] ?? 0;
+  const user = TIER_ORDER[normalizeTier(userTier)] ?? 0;
   const req = TIER_ORDER[required];
   return user >= req;
 }

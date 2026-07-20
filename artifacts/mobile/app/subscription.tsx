@@ -1,15 +1,17 @@
 /**
- * Subscription / Paywall — CalAI-style 3-screen flow
+ * Subscription / Paywall — CalAI-style flow
  *
  * Screen 0: Intro — "We want to protect your identity, free."
  * Screen 1: Reminder — "We'll alert you before your trial ends"
+ *           (SKIPPED on threat path: fromOnboarding=1 + threatCount > 0)
  * Screen 2: Plan select — Annual (default) vs Monthly + checkout
  *
- * Pricing strategy (best margin per operating cost):
- *   Premium Annual  — $49.99/year ($4.17/mo) | 7-day free trial | SAVE 68%
- *   Premium Monthly — $12.99/month            | 7-day free trial
+ * Pricing strategy:
+ *   Premium Annual  — $69.99/year ($5.83/mo) | 7-day free trial | SAVE 42%
+ *   Premium Monthly — $9.99/month             | 7-day free trial
  *
  * RevenueCat package prices override fallbacks when available.
+ * RC product IDs: premium_monthly_v2, premium_annual_v2
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -42,8 +44,8 @@ import { syncSubscriptionTier } from "@/lib/api";
 type BillingCycle = "annual" | "monthly";
 
 const FALLBACK = {
-  annual: { perMonth: "$4.17", total: "$49.99", savings: "68%" },
-  monthly: { perMonth: "$12.99" },
+  annual: { perMonth: "$5.83", total: "$69.99", savings: "42%" },
+  monthly: { perMonth: "$9.99" },
   trialDays: 7,
 };
 
@@ -579,8 +581,14 @@ export default function Subscription() {
 
   const handleStep0Continue = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setPaywallStep(1);
-  }, []);
+    // On the high-urgency threat path skip the trial-reminder screen (step 1)
+    // and jump straight to plan select (step 2) to minimise clicks at peak intent.
+    if (isFromOnboarding && threatCount > 0) {
+      setPaywallStep(2);
+    } else {
+      setPaywallStep(1);
+    }
+  }, [isFromOnboarding, threatCount]);
 
   const handleStep1Continue = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -699,7 +707,7 @@ export default function Subscription() {
     <>
       <PlanSelectScreen
         colors={colors}
-        onBack={() => setPaywallStep(1)}
+        onBack={() => setPaywallStep(isFromOnboarding && threatCount > 0 ? 0 : 1)}
         onContinue={handleStep2Continue}
         billingCycle={billingCycle}
         setBillingCycle={setBillingCycle}
