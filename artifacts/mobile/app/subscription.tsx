@@ -43,6 +43,12 @@ import { syncSubscriptionTier } from "@/lib/api";
 
 type BillingCycle = "annual" | "monthly";
 
+/** Normalize legacy "pro" tier to "Premium" in all user-facing labels. */
+function displayTier(tier: string): string {
+  const normalized = tier === "pro" ? "premium" : tier;
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 const FALLBACK = {
   annual: { perMonth: "$5.83", total: "$69.99", savings: "42%" },
   monthly: { perMonth: "$9.99" },
@@ -512,7 +518,7 @@ function ManageScreen({ colors, tier, onClose, topPad }: {
           <Ionicons name="shield-checkmark" size={44} color={colors.primary} />
         </View>
         <Text style={[{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 24, textAlign: "center" }]}>
-          {tier.charAt(0).toUpperCase() + tier.slice(1)} — Active
+          {displayTier(tier)} — Active
         </Text>
         <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center", lineHeight: 23 }]}>
           You're fully protected. Rook continuously monitors your identity across all connected platforms.

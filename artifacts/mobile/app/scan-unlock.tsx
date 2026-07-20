@@ -69,9 +69,11 @@ export default function ScanUnlock() {
   const topPad    = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const [cycle, setCycle]             = useState<"annual" | "monthly">("annual");
-  const [loadingTier, setLoadingTier] = useState<"premium" | "scan" | null>(null);
-  const [restoreMsg, setRestoreMsg]   = useState<string | null>(null);
+  const [cycle, setCycle]               = useState<"annual" | "monthly">("annual");
+  const [loadingTier, setLoadingTier]   = useState<"premium" | "scan" | null>(null);
+  const [restoreMsg, setRestoreMsg]     = useState<string | null>(null);
+  // Scan-unlock fallback is hidden until the user explicitly taps "Not now" on the trial CTA.
+  const [showScanFallback, setShowScanFallback] = useState(false);
 
   useEffect(() => {
     analytics.paywallViewed({ source: "scan_unlock" });
@@ -303,42 +305,59 @@ export default function ScanUnlock() {
           <Text style={[styles.trialNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             No charge until your trial ends · cancel anytime
           </Text>
+
+          {/* "Not now" — only shown before the user has dismissed the trial offer */}
+          {!showScanFallback && (
+            <TouchableOpacity
+              style={styles.notNowBtn}
+              onPress={() => setShowScanFallback(true)}
+              activeOpacity={0.6}
+            >
+              <Text style={[styles.notNowText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Not now
+              </Text>
+            </TouchableOpacity>
+          )}
         </GlassCard>
 
-        {/* ── Secondary fallback ──────────────────────────────────────── */}
-        <View style={styles.divider}>
-          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-          <Text style={[styles.dividerText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Not ready to commit?
-          </Text>
-          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-        </View>
+        {/* ── Secondary fallback — revealed only after explicit "Not now" ── */}
+        {showScanFallback && (
+          <>
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Not ready to commit?
+              </Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            </View>
 
-        <TouchableOpacity
-          style={[styles.scanUnlockRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={handleUnlockScan}
-          disabled={isLoading}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.scanUnlockIcon, { backgroundColor: colors.secondary }]}>
-            <Ionicons name="lock-open-outline" size={18} color={colors.mutedForeground} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.scanUnlockTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-              Unlock just this scan
-            </Text>
-            <Text style={[styles.scanUnlockSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              One-time · no subscription required
-            </Text>
-          </View>
-          {loadingTier === "scan" ? (
-            <ActivityIndicator color={colors.mutedForeground} size="small" />
-          ) : (
-            <Text style={[styles.scanUnlockPrice, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              {scanPrice}
-            </Text>
-          )}
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.scanUnlockRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={handleUnlockScan}
+              disabled={isLoading}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.scanUnlockIcon, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="lock-open-outline" size={18} color={colors.mutedForeground} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.scanUnlockTitle, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                  Unlock just this scan
+                </Text>
+                <Text style={[styles.scanUnlockSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  One-time · no subscription required
+                </Text>
+              </View>
+              {loadingTier === "scan" ? (
+                <ActivityIndicator color={colors.mutedForeground} size="small" />
+              ) : (
+                <Text style={[styles.scanUnlockPrice, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                  {scanPrice}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
 
         {/* Restore */}
         <TouchableOpacity
@@ -428,6 +447,8 @@ const styles = StyleSheet.create({
   trialCta:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 54, borderRadius: 27 },
   trialCtaText: { color: "#fff", fontSize: 16 },
   trialNote:    { fontSize: 11, textAlign: "center" },
+  notNowBtn:    { alignItems: "center", paddingVertical: 6 },
+  notNowText:   { fontSize: 13 },
 
   divider:     { flexDirection: "row", alignItems: "center", gap: 10 },
   dividerLine: { flex: 1, height: 1 },
