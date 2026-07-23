@@ -22,32 +22,6 @@ const MARK_CY   = MARK_TOP + MARK_SIZE / 2;
 const LOGO_MARK = require("../assets/images/logo-mark.png");
 const DECODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ@#$%01";
 
-// ── GlowAura ──────────────────────────────────────────────────────────────────
-// Soft radial bloom behind the mark that breathes once it appears
-function GlowAura({ delay }: { delay: number }) {
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    opacity.value = withDelay(
-      delay,
-      withSequence(
-        withTiming(1, { duration: 500 }),
-        withRepeat(
-          withSequence(
-            withTiming(0.45, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
-            withTiming(1,    { duration: 1400, easing: Easing.inOut(Easing.ease) })
-          ),
-          -1,
-          false
-        )
-      )
-    );
-  }, []);
-
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-  return <Animated.View style={[styles.glowAura, style]} />;
-}
 
 // ── ScanBeam ──────────────────────────────────────────────────────────────────
 // 2 px horizontal line that sweeps top → bottom of the logo area
@@ -312,10 +286,7 @@ export function AnimatedSplash({ isReady, onHidden }: Props) {
   return (
     <Animated.View style={[styles.container, containerStyle, { pointerEvents: "none" }]}>
 
-      {/* ① Radial glow bloom behind the mark */}
-      <GlowAura delay={950} />
-
-      {/* ② Logo mark — glitch entrance */}
+      {/* ① Logo mark — glitch entrance */}
       <Animated.View
         style={[
           { position: "absolute", top: MARK_TOP, left: MARK_LEFT,
@@ -375,20 +346,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 
-  // Glow behind mark
-  glowAura: {
-    position: "absolute",
-    left: MARK_CX - MARK_SIZE * 0.75,
-    top:  MARK_CY - MARK_SIZE * 0.75,
-    width:  MARK_SIZE * 1.5,
-    height: MARK_SIZE * 1.5,
-    borderRadius: MARK_SIZE * 0.75,
-    backgroundColor: "#1D4ED8",
-    shadowColor: "#3B82F6",
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 80,
-    shadowOpacity: 1,
-  },
 
   // Scan beam
   scanBeam: {
