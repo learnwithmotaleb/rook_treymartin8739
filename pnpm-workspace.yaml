@@ -23,7 +23,7 @@ catalog:
   lucide-react: ^0.545.0
   react: 19.1.0
   react-dom: 19.1.0
-  sharp: ^0.34.2
+  sharp: 0.34.5
   tailwind-merge: ^3.3.1
   tailwindcss: ^4.1.14
   tsx: ^4.21.0
@@ -45,16 +45,6 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
-  # Security: undici >=7.28.0 patches GHSA-vmh5-mc38-953g (TLS cert bypass via SOCKS5 ProxyAgent)
-  # Affects the production API server via expo-server-sdk; expo-server-sdk@6.1.0 is latest,
-  # so this override is the only available remediation path.
-  'expo-server-sdk>undici': '>=7.28.0'
-  # Security: ws >=8.21.0 patches GHSA-3h5q-q39x-f9x3 (Memory exhaustion DoS via fragments/chunks)
-  # Transitive dep through Expo Metro bundler and webpack dev server; blanket override to safe range.
-  'ws': '>=8.21.0'
-  # Security: undici >=6.27.0 patches GHSA-g8m3-5g58-fq7m (WebSocket DoS via fragment count bypass)
-  # Remaining undici path not covered by expo-server-sdk scoped override above.
-  'undici': '>=6.27.0'
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
@@ -76,7 +66,6 @@ overrides:
   '@tailwindcss/oxide>@tailwindcss/oxide-linux-x64-musl': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-win32-arm64-msvc': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-win32-x64-msvc': '-'
-  shell-quote: '>=1.8.4'
   esbuild: 0.27.3
   esbuild>@esbuild/aix-ppc64: '-'
   esbuild>@esbuild/android-arm: '-'
@@ -103,6 +92,7 @@ overrides:
   esbuild>@esbuild/win32-arm64: '-'
   esbuild>@esbuild/win32-ia32: '-'
   esbuild>@esbuild/win32-x64: '-'
+  expo-server-sdk>undici: '>=7.28.0'
   lightningcss>lightningcss-android-arm64: '-'
   lightningcss>lightningcss-darwin-arm64: '-'
   lightningcss>lightningcss-darwin-x64: '-'
@@ -137,3 +127,6 @@ overrides:
   rollup>@rollup/rollup-win32-ia32-msvc: '-'
   rollup>@rollup/rollup-win32-x64-gnu: '-'
   rollup>@rollup/rollup-win32-x64-msvc: '-'
+  shell-quote: '>=1.8.4'
+  undici: '>=6.27.0'
+  ws: '>=8.21.0'
