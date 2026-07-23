@@ -524,13 +524,11 @@ const styles = StyleSheet.create({
   heroSection: { alignItems: "center", paddingTop: 12, paddingBottom: 4, gap: 10 },
   logoGlowContainer: { width: 220, height: 220, alignItems: "center", justifyContent: "center" },
   logoBadge: {
-    width: 80, height: 80, borderRadius: 22,
-    backgroundColor: "#0D1B38",
-    borderWidth: 1, borderColor: "#1E3A5F",
+    width: 120, height: 120,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#3B82F6", shadowOpacity: 0.4, shadowRadius: 24, shadowOffset: { width: 0, height: 0 },
+    shadowColor: "#3B82F6", shadowOpacity: 0.35, shadowRadius: 32, shadowOffset: { width: 0, height: 0 },
   },
-  logoImage: { width: 52, height: 52 },
+  logoImage: { width: 110, height: 110 },
   brandName: {
     fontFamily: "Inter_700Bold",
     fontSize: 30, letterSpacing: 8,
