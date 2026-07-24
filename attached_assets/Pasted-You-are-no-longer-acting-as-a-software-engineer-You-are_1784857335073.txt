@@ -1,0 +1,528 @@
+You are no longer acting as a software engineer.
+
+You are now performing a COMPLETE production readiness audit of the entire ROOK codebase.
+
+Your mission is to make this application production-ready and ensure every feature works exactly as intended before Meta App Review and App Store submission.
+
+DO NOT assume anything works.
+
+Verify EVERYTHING.
+
+──────────────────────────────
+
+PHASE 1 — FULL CODEBASE DISCOVERY
+
+Scan the ENTIRE repository.
+
+Build a complete dependency map including:
+
+• frontend
+• backend
+• api routes
+• middleware
+• firebase
+• supabase
+• stripe
+• oauth
+• cron jobs
+• background workers
+• scheduled tasks
+• image processing
+• AI models
+• environment variables
+• authentication
+• notification system
+• analytics
+• database tables
+• storage buckets
+
+Create a visual architecture of how every component communicates.
+
+Nothing should be skipped.
+
+──────────────────────────────
+
+PHASE 2 — DEAD CODE DETECTION
+
+Locate every
+
+• unused function
+• unused endpoint
+• unused component
+• unused hook
+• unused variable
+• duplicate logic
+• duplicate API
+• duplicate utility
+• duplicate imports
+• unreachable code
+
+Either safely remove it or explain why it remains.
+
+──────────────────────────────
+
+PHASE 3 — ENDPOINT AUDIT
+
+Create a complete inventory of EVERY endpoint.
+
+For every endpoint provide:
+
+Endpoint
+
+Method
+
+Purpose
+
+Authentication required
+
+Input validation
+
+Output schema
+
+Possible errors
+
+Rate limiting
+
+Who calls it
+
+Where it is called
+
+Whether it is currently functional
+
+Whether Meta App Review could trigger it
+
+Whether it has been manually tested
+
+Whether automated tests exist
+
+Whether it returns proper HTTP codes
+
+No endpoint should remain undocumented.
+
+──────────────────────────────
+
+PHASE 4 — API FLOW VERIFICATION
+
+Trace every API request.
+
+Starting from:
+
+Button Press
+
+↓
+
+Frontend
+
+↓
+
+API
+
+↓
+
+Middleware
+
+↓
+
+Database
+
+↓
+
+External APIs
+
+↓
+
+Response
+
+↓
+
+UI Update
+
+Verify every request completes successfully.
+
+Find:
+
+Broken calls
+
+Silent failures
+
+Infinite loading
+
+Incorrect promises
+
+Missing await
+
+Unhandled exceptions
+
+Race conditions
+
+Bad retries
+
+Incorrect loading states
+
+Double submissions
+
+Memory leaks
+
+Everything.
+
+──────────────────────────────
+
+PHASE 5 — OAUTH AUDIT
+
+Completely verify:
+
+Instagram Login
+
+Facebook Login
+
+Token Refresh
+
+Permissions
+
+Scopes
+
+Expired Tokens
+
+Revoked Tokens
+
+Logout
+
+Reconnect
+
+Reauthorization
+
+Session persistence
+
+Account switching
+
+Meta Business verification flow
+
+Advanced Access requirements
+
+Review every callback URL.
+
+Review every redirect URI.
+
+Ensure production and development URIs are correct.
+
+Ensure no localhost references remain.
+
+──────────────────────────────
+
+PHASE 6 — META APP REVIEW PREPARATION
+
+Assume Meta reviewers will intentionally try to break everything.
+
+Verify:
+
+Facebook Login
+
+Instagram Login
+
+Permission requests
+
+Error handling
+
+Permission denial
+
+Expired sessions
+
+Missing permissions
+
+Disconnected accounts
+
+Token expiration
+
+Rate limits
+
+API failures
+
+Disabled accounts
+
+Private Instagram
+
+Business Instagram
+
+Creator Instagram
+
+Personal Facebook
+
+Business Facebook
+
+Everything must gracefully recover.
+
+List anything that would cause Meta to reject the application.
+
+──────────────────────────────
+
+PHASE 7 — DATABASE AUDIT
+
+Verify:
+
+Every table
+
+Every column
+
+Indexes
+
+Foreign keys
+
+Constraints
+
+Triggers
+
+Policies
+
+Storage buckets
+
+Row Level Security
+
+Cascade deletes
+
+Duplicate records
+
+Missing indexes
+
+Slow queries
+
+Broken joins
+
+Migration history
+
+Orphaned records
+
+Everything.
+
+──────────────────────────────
+
+PHASE 8 — SECURITY AUDIT
+
+Search for:
+
+Hardcoded secrets
+
+Exposed API keys
+
+Weak authentication
+
+Broken authorization
+
+Missing validation
+
+Injection attacks
+
+XSS
+
+CSRF
+
+SQL Injection
+
+Open redirects
+
+Privilege escalation
+
+Broken JWT validation
+
+Improper storage rules
+
+Unsafe logging
+
+Sensitive console logs
+
+Leaked stack traces
+
+Missing HTTPS enforcement
+
+Weak CORS
+
+Everything.
+
+──────────────────────────────
+
+PHASE 9 — PERFORMANCE AUDIT
+
+Measure:
+
+Startup time
+
+API latency
+
+Render performance
+
+Image loading
+
+Memory usage
+
+Bundle size
+
+Repeated API calls
+
+Duplicate renders
+
+Slow queries
+
+Large payloads
+
+Inefficient loops
+
+Unnecessary rerenders
+
+Unused assets
+
+──────────────────────────────
+
+PHASE 10 — USER FLOW TESTING
+
+Simulate a brand new user.
+
+Complete every workflow.
+
+Onboarding
+
+Create Account
+
+Login
+
+Skip Login
+
+Connect Instagram
+
+Connect Facebook
+
+Upload Photos
+
+Start Scan
+
+Receive Results
+
+Upgrade
+
+Purchase Subscription
+
+Restore Purchase
+
+Cancel Subscription
+
+Reconnect Account
+
+Delete Account
+
+Logout
+
+Login Again
+
+Everything.
+
+Document every failure.
+
+──────────────────────────────
+
+PHASE 11 — FAILURE TESTING
+
+Intentionally break everything.
+
+No internet
+
+Slow internet
+
+API timeout
+
+500 error
+
+401 error
+
+403 error
+
+429 error
+
+Malformed responses
+
+Corrupted database data
+
+Expired tokens
+
+Missing images
+
+Deleted accounts
+
+Invalid JWT
+
+Empty database
+
+Low memory device
+
+App backgrounded
+
+App reopened
+
+Verify graceful recovery.
+
+──────────────────────────────
+
+PHASE 12 — META REVIEW DEMONSTRATION
+
+Produce a reviewer checklist showing:
+
+Every feature
+
+How reviewer accesses it
+
+Expected behavior
+
+Required permissions
+
+Screens involved
+
+Expected API calls
+
+Possible reviewer questions
+
+Anything requiring explanation
+
+──────────────────────────────
+
+PHASE 13 — FINAL SCORECARD
+
+Produce a report containing:
+
+Critical Issues
+
+High Priority
+
+Medium Priority
+
+Low Priority
+
+Suggestions
+
+Security Risks
+
+Performance Risks
+
+Meta Review Risks
+
+App Store Risks
+
+Broken Features
+
+Missing Tests
+
+Coverage %
+
+Production Readiness %
+
+Meta Readiness %
+
+Overall Launch Readiness %
+
+DO NOT stop until every issue has either:
+
+Fixed
+
+Verified
+
+Documented
+
+or marked intentionally ignored.
+
+Return the report in Markdown with clickable sections and checkboxes.
