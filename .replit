@@ -55,14 +55,13 @@ EXPO_PUBLIC_REVENUECAT_TEST_API_KEY = "test_mXSLgUKANWRzlgJEsRkzoVuyjhm"
 EXPO_PUBLIC_REVENUECAT_IOS_API_KEY = "appl_quPffgMMsfSCkLWukRfjzYLMYKp"
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_VYCCTVzYYbXIwHrnFtoZvWdsusH"
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_cGlja2VkLWdyaWZmb24tNDYuY2xlcmsuYWNjb3VudHMuZGV2JA"
-OAUTH_REDIRECT_BASE_URL = "tryrook.app"
 WEBHOOK_VERIFY_TOKEN = "rook_webhook_verify_2025"
 
 [userenv.development]
-EXPO_PUBLIC_DOMAIN = "tryrook.app"
+OAUTH_REDIRECT_BASE_URL = "6c2161a6-7017-4ec4-988f-83e568e76224-00-1qirill5i8g8e.janeway.replit.dev"
 
 [userenv.production]
-EXPO_PUBLIC_DOMAIN = "tryrook.app"
+OAUTH_REDIRECT_BASE_URL = "tryrook.app"
 
 [nix]
 channel = "stable-25_05"
