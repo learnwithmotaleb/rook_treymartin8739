@@ -437,7 +437,9 @@ router.get("/v1/threats/:threatId", ...apiKeyMiddleware, async (req, res): Promi
 });
 
 // ─── Developer documentation ──────────────────────────────────────────────────
-
+// Intentionally public — serves static HTML describing how to authenticate.
+// No user data is exposed; auth would prevent users from reading the docs
+// before they have a key. This is standard practice for developer API docs.
 router.get("/v1/docs", (_req, res): void => {
   res.setHeader("Content-Type", "text/html");
   res.send(`<!DOCTYPE html>

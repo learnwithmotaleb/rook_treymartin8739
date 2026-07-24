@@ -49,14 +49,18 @@ export const usageTrackingTable = pgTable(
 
 export type UsageTracking = typeof usageTrackingTable.$inferSelect;
 
-export const cancellationFeedbackTable = pgTable("cancellation_feedback", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  reason: text("reason").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const cancellationFeedbackTable = pgTable(
+  "cancellation_feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("cancellation_feedback_user_id_idx").on(t.userId)]
+);
 
 export type CancellationFeedback = typeof cancellationFeedbackTable.$inferSelect;
 
