@@ -245,7 +245,12 @@ router.get("/accounts/:accountId/media", async (req, res): Promise<void> => {
       return;
     }
 
-    const limit = Math.min(parseInt(String(req.query["limit"] ?? "30"), 10), 50);
+    const limitParsed = z.coerce.number().int().min(1).max(50).default(30).safeParse(req.query["limit"]);
+    if (!limitParsed.success) {
+      res.status(400).json({ error: "limit must be a number between 1 and 50" });
+      return;
+    }
+    const limit = limitParsed.data;
     const mediaItems = await adapter.getMediaItems(
       account.accessToken,
       account.platformUserId ?? "",

@@ -58,12 +58,21 @@ router.patch("/notifications/token", async (req, res): Promise<void> => {
   }
 });
 
+const DeleteTokenQuery = z.object({
+  platform: z.enum(["ios", "android"]).optional(),
+});
+
 router.delete("/notifications/token", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
-    const platform = (req.query["platform"] as string) || "";
+    const parsed = DeleteTokenQuery.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid platform — must be 'ios' or 'android' if provided", details: parsed.error.flatten() });
+      return;
+    }
+    const { platform } = parsed.data;
 
-    if (platform && ["ios", "android"].includes(platform)) {
+    if (platform) {
       await db
         .delete(devicePushTokensTable)
         .where(
