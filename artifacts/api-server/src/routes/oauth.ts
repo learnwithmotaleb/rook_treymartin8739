@@ -404,6 +404,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
           username: profile.username,
           followers: profile.followers_count ?? 0,
           verified: true,
+          needsReconnect: false,
           lastSynced: new Date(),
         })
         .where(eq(connectedAccountsTable.id, existing[0]!.id));
@@ -547,7 +548,7 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     if (existing.length > 0) {
       await db
         .update(connectedAccountsTable)
-        .set({ accessToken: access_token, platformUserId: profile.id, verified: true, tokenExpiresAt, lastSynced: new Date() })
+        .set({ accessToken: access_token, platformUserId: profile.id, verified: true, needsReconnect: false, tokenExpiresAt, lastSynced: new Date() })
         .where(eq(connectedAccountsTable.id, existing[0]!.id));
     } else {
       await db
@@ -742,6 +743,7 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
           displayName: profile.name,
           followers: profile.public_metrics?.followers_count ?? 0,
           verified: true,
+          needsReconnect: false,
           lastSynced: new Date(),
         })
         .where(eq(connectedAccountsTable.id, existing[0]!.id));
@@ -856,6 +858,7 @@ router.post("/oauth/account-notify", async (req, res): Promise<void> => {
           displayName,
           accessToken,
           verified: true,
+          needsReconnect: false,
           lastSynced: new Date(),
         })
         .where(eq(connectedAccountsTable.id, existing[0]!.id));

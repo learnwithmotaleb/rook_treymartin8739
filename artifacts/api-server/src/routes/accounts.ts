@@ -30,6 +30,7 @@ router.get("/accounts", async (req, res): Promise<void> => {
         displayName: a.displayName,
         followers: a.followers,
         verified: a.verified,
+        needsReconnect: a.needsReconnect,
         photosIndexed: a.photosIndexed,
         captionsIndexed: a.captionsIndexed,
         reelsIndexed: a.reelsIndexed,
@@ -138,6 +139,7 @@ router.post("/accounts", async (req, res): Promise<void> => {
       displayName: account.displayName,
       followers: account.followers,
       verified: account.verified,
+      needsReconnect: account.needsReconnect,
       photosIndexed: account.photosIndexed,
       captionsIndexed: account.captionsIndexed,
       reelsIndexed: account.reelsIndexed,
@@ -202,6 +204,59 @@ router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
     });
   } catch (err) {
     req.log.error({ err }, "PATCH /accounts/:accountId failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+const PLATFORM_SCOPES: Record<string, string[]> = {
+  instagram: ["View basic profile info", "Read posts & photos"],
+  facebook: ["View public profile"],
+  x: ["Read tweets", "View profile", "Auto-refresh tokens"],
+  tiktok: ["View basic profile info"],
+  linkedin: ["View profile"],
+  youtube: ["View public channel info"],
+  snapchat: ["View public profile"],
+};
+
+/**
+ * GET /accounts/:accountId/status
+ * Returns live token health for a specific account.
+ */
+router.get("/accounts/:accountId/status", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+    const accountId = Array.isArray(req.params.accountId)
+      ? req.params.accountId[0]!
+      : req.params.accountId;
+
+    const [account] = await db
+      .select({
+        verified: connectedAccountsTable.verified,
+        tokenExpiresAt: connectedAccountsTable.tokenExpiresAt,
+        needsReconnect: connectedAccountsTable.needsReconnect,
+        platform: connectedAccountsTable.platform,
+      })
+      .from(connectedAccountsTable)
+      .where(
+        and(
+          eq(connectedAccountsTable.id, accountId),
+          eq(connectedAccountsTable.userId, userId)
+        )
+      );
+
+    if (!account) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    res.json({
+      verified: account.verified,
+      tokenExpiresAt: account.tokenExpiresAt?.toISOString() ?? null,
+      needsReconnect: account.needsReconnect,
+      scopesGranted: PLATFORM_SCOPES[account.platform] ?? [],
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /accounts/:accountId/status failed");
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -108,6 +108,7 @@ export interface ConnectedAccount {
   username: string;
   followers: number;
   verified: boolean;
+  needsReconnect: boolean;
   photosIndexed: number;
   captionsIndexed: number;
   lastSynced: string | null;
@@ -245,6 +246,7 @@ function mapAccountToConnected(a: AccountProfile): ConnectedAccount {
     username: a.username,
     followers: a.followers,
     verified: a.verified,
+    needsReconnect: a.needsReconnect ?? false,
     photosIndexed: a.photosIndexed,
     captionsIndexed: a.captionsIndexed,
     lastSynced: a.lastSynced ?? null,

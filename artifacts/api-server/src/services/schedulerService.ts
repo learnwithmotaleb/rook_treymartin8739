@@ -210,34 +210,85 @@ async function runTokenRefreshes(): Promise<void> {
 
     const refreshedIds: string[] = [];
 
+    // Exponential-backoff retry delays: immediate → 30 s → 120 s.
+    // If all three attempts fail the account is flagged needsReconnect = true
+    // and the user receives a push notification directing them to re-auth.
+    const RETRY_DELAYS_MS = [0, 30_000, 120_000] as const;
+
     for (const account of staleAccounts) {
       if (!account.accessToken) continue;
 
-      try {
-        const url =
-          `https://graph.instagram.com/refresh_access_token` +
-          `?grant_type=ig_refresh_token&access_token=${encodeURIComponent(account.accessToken)}`;
+      let succeeded = false;
 
-        const res = await metaFetch(url);
-        if (!res.ok) {
-          const body = await res.text();
-          logger.warn(
-            { accountId: account.id, status: res.status, body: body.slice(0, 200) },
-            "Instagram token refresh failed — account may need re-authentication"
+      for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
+        if (attempt > 0) {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, RETRY_DELAYS_MS[attempt])
           );
-          continue;
         }
+        try {
+          const url =
+            `https://graph.instagram.com/refresh_access_token` +
+            `?grant_type=ig_refresh_token&access_token=${encodeURIComponent(account.accessToken!)}`;
 
-        const data = await res.json() as { access_token?: string };
-        if (data.access_token) {
-          await db
-            .update(connectedAccountsTable)
-            .set({ accessToken: data.access_token, lastSynced: new Date() })
-            .where(eq(connectedAccountsTable.id, account.id));
-          refreshedIds.push(account.id);
+          const res = await metaFetch(url);
+          if (!res.ok) {
+            const body = await res.text();
+            logger.warn(
+              { accountId: account.id, status: res.status, attempt, body: body.slice(0, 200) },
+              "Instagram token refresh attempt failed"
+            );
+            continue; // try next attempt
+          }
+
+          const data = (await res.json()) as { access_token?: string };
+          if (data.access_token) {
+            await db
+              .update(connectedAccountsTable)
+              .set({
+                accessToken: data.access_token,
+                lastSynced: new Date(),
+                needsReconnect: false, // clear any prior failure flag on success
+              })
+              .where(eq(connectedAccountsTable.id, account.id));
+            refreshedIds.push(account.id);
+            succeeded = true;
+            break;
+          }
+        } catch (err) {
+          logger.warn(
+            { err, accountId: account.id, attempt },
+            "Instagram token refresh error"
+          );
         }
-      } catch (err) {
-        logger.warn({ err, accountId: account.id }, "Instagram token refresh error");
+      }
+
+      if (!succeeded) {
+        // All retries exhausted — mark account as needing manual reconnect.
+        await db
+          .update(connectedAccountsTable)
+          .set({ needsReconnect: true })
+          .where(eq(connectedAccountsTable.id, account.id));
+
+        const [accountFull] = await db
+          .select({
+            userId: connectedAccountsTable.userId,
+            username: connectedAccountsTable.username,
+          })
+          .from(connectedAccountsTable)
+          .where(eq(connectedAccountsTable.id, account.id));
+
+        if (accountFull) {
+          void sendPushToUser(accountFull.userId, {
+            title: "Instagram connection expired",
+            body: `Reconnect @${accountFull.username} to keep your identity protected.`,
+            data: { screen: "manage-accounts" },
+          });
+          logger.warn(
+            { accountId: account.id, userId: accountFull.userId },
+            "Instagram token refresh exhausted — needsReconnect flagged"
+          );
+        }
       }
     }
 

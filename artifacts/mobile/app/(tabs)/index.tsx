@@ -115,6 +115,64 @@ function TrialCountdownBanner() {
   );
 }
 
+function ReconnectBanner() {
+  const colors = useColors();
+  const { user } = useApp();
+  const [dismissed, setDismissed] = useState(false);
+
+  const reconnectNeeded = user.connectedAccounts.filter((a) => a.needsReconnect);
+  if (dismissed || reconnectNeeded.length === 0) return null;
+
+  const acctLabel =
+    reconnectNeeded.length === 1
+      ? `@${reconnectNeeded[0]!.username} needs reconnection`
+      : `${reconnectNeeded.length} accounts need reconnection`;
+
+  return (
+    <Animated.View entering={FadeInDown.springify()}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => router.push("/manage-accounts" as any)}
+        style={[
+          styles.reconnectBanner,
+          { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" },
+        ]}
+      >
+        <View style={[styles.reconnectBannerIcon, { backgroundColor: "#F59E0B22" }]}>
+          <Ionicons name="warning" size={18} color="#F59E0B" />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text
+            style={[
+              styles.reconnectBannerTitle,
+              { color: "#F59E0B", fontFamily: "Inter_700Bold" },
+            ]}
+          >
+            Account reconnection needed
+          </Text>
+          <Text
+            style={[
+              styles.reconnectBannerSub,
+              { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+            ]}
+          >
+            {acctLabel} — tap to fix
+          </Text>
+        </View>
+        <TouchableOpacity
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            setDismissed(true);
+          }}
+        >
+          <Ionicons name="close" size={16} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 export default function Dashboard() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -199,6 +257,9 @@ export default function Dashboard() {
       >
         {/* Trial countdown banner — shown when trial is within 2 days of expiry */}
         <TrialCountdownBanner />
+
+        {/* Reconnect banner — shown when any connected account has needsReconnect */}
+        <ReconnectBanner />
 
         {/* Dashboard State Banner */}
         {dashState === "not_protected" && (
@@ -452,6 +513,23 @@ const styles = StyleSheet.create({
   },
   trialBannerTitle: { fontSize: 13, lineHeight: 18 },
   trialBannerSub: { fontSize: 12, lineHeight: 16 },
+  reconnectBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  reconnectBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reconnectBannerTitle: { fontSize: 13, lineHeight: 18 },
+  reconnectBannerSub: { fontSize: 12, lineHeight: 16 },
   header: {
     flexDirection: "row",
     alignItems: "center",

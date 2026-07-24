@@ -330,18 +330,13 @@ export default function ConnectAccount() {
   const handleOAuthDone = useCallback(async () => {
     setOauthDone(true);
     await refreshData();
-    Alert.alert(
-      "Connected!",
-      `Your ${config?.label ?? "account"} was verified via OAuth. Next, choose which photos from this account you'd like Rook to monitor.`,
-      [
-        {
-          text: "Choose Photos",
-          onPress: () => router.replace("/photo-monitor"),
-        },
-        { text: "Later", style: "cancel", onPress: () => router.back() },
-      ]
-    );
-  }, [refreshData, config]);
+    // Navigate directly to photo-monitor so the user can immediately
+    // choose which photos to protect — no intermediate Alert dialog.
+    router.replace({
+      pathname: "/photo-monitor",
+      params: { justConnected: "1" },
+    } as any);
+  }, [refreshData]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedPlatform) return;

@@ -43,16 +43,21 @@ function formatSync(lastSynced: string | null) {
   return `Synced ${Math.floor(diffH / 24)}d ago`;
 }
 
+const AMBER = "#F59E0B";
+
 function AccountCard({
   account,
   onDelete,
+  onReconnect,
   deleting,
 }: {
   account: ConnectedAccount;
   onDelete: (id: string) => void;
+  onReconnect: (id: string, platform: string) => void;
   deleting: boolean;
 }) {
   const colors = useColors();
+  const needsReconnect = account.needsReconnect;
 
   const handleDelete = () => {
     Alert.alert(
@@ -70,7 +75,22 @@ function AccountCard({
   };
 
   return (
-    <GlassCard style={styles.accountCard}>
+    <GlassCard
+      style={[
+        styles.accountCard,
+        needsReconnect && { borderColor: AMBER + "66", borderWidth: 1.5 },
+      ]}
+    >
+      {/* Reconnect warning strip */}
+      {needsReconnect && (
+        <View style={[styles.reconnectStrip, { backgroundColor: AMBER + "18" }]}>
+          <Ionicons name="warning" size={13} color={AMBER} />
+          <Text style={[styles.reconnectStripText, { color: AMBER, fontFamily: "Inter_600SemiBold" }]}>
+            Reconnection required — token expired
+          </Text>
+        </View>
+      )}
+
       <View style={styles.accountTop}>
         <PlatformIcon platform={account.platform ?? "instagram"} size={48} />
         <View style={styles.accountInfo}>
@@ -81,14 +101,21 @@ function AccountCard({
             >
               {account.username}
             </Text>
-            {account.verified && (
+            {needsReconnect ? (
+              <View style={[styles.verifiedBadge, { backgroundColor: AMBER + "22" }]}>
+                <Ionicons name="warning" size={12} color={AMBER} />
+                <Text style={[styles.verifiedText, { color: AMBER, fontFamily: "Inter_600SemiBold" }]}>
+                  Expired
+                </Text>
+              </View>
+            ) : account.verified ? (
               <View style={[styles.verifiedBadge, { backgroundColor: colors.primary + "22" }]}>
                 <Ionicons name="checkmark-circle" size={12} color={colors.primary} />
                 <Text style={[styles.verifiedText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
                   Verified
                 </Text>
               </View>
-            )}
+            ) : null}
           </View>
           <Text style={[styles.platformLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             {PLATFORM_LABELS[account.platform ?? ""] ?? account.platform}
@@ -143,15 +170,53 @@ function AccountCard({
         </View>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.stat}>
-          <View style={[styles.statusDot, { backgroundColor: account.verified ? colors.success : colors.warning }]} />
-          <Text style={[styles.statValue, { color: account.verified ? colors.success : colors.warning, fontFamily: "Inter_600SemiBold" }]}>
-            {account.verified ? "Auth'd" : "Manual"}
+          <View
+            style={[
+              styles.statusDot,
+              {
+                backgroundColor: needsReconnect
+                  ? AMBER
+                  : account.verified
+                  ? colors.success
+                  : colors.warning,
+              },
+            ]}
+          />
+          <Text
+            style={[
+              styles.statValue,
+              {
+                color: needsReconnect
+                  ? AMBER
+                  : account.verified
+                  ? colors.success
+                  : colors.warning,
+                fontFamily: "Inter_600SemiBold",
+              },
+            ]}
+          >
+            {needsReconnect ? "Expired" : account.verified ? "Auth'd" : "Manual"}
           </Text>
         </View>
       </View>
 
-      {/* Verify CTA — hidden for platforms not yet available for OAuth */}
-      {!account.verified && !["tiktok"].includes(account.platform ?? "") && (
+      {/* Reconnect CTA — shown when token has expired */}
+      {needsReconnect && !["tiktok"].includes(account.platform ?? "") && (
+        <TouchableOpacity
+          style={[styles.authCta, { borderColor: AMBER + "55", backgroundColor: AMBER + "0E" }]}
+          activeOpacity={0.7}
+          onPress={() => onReconnect(account.id, account.platform ?? "")}
+        >
+          <Ionicons name="refresh-circle-outline" size={15} color={AMBER} />
+          <Text style={[styles.authCtaText, { color: AMBER, fontFamily: "Inter_500Medium" }]}>
+            Reconnect to restore monitoring
+          </Text>
+          <Ionicons name="chevron-forward" size={13} color={AMBER} />
+        </TouchableOpacity>
+      )}
+
+      {/* Verify CTA — shown for unverified accounts that don't need reconnect */}
+      {!needsReconnect && !account.verified && !["tiktok"].includes(account.platform ?? "") && (
         <TouchableOpacity
           style={[styles.authCta, { borderColor: colors.primary + "44", backgroundColor: colors.primary + "0C" }]}
           activeOpacity={0.7}
@@ -193,6 +258,10 @@ export default function ManageAccounts() {
     },
     [removeAccount]
   );
+
+  const handleReconnect = useCallback((id: string, platform: string) => {
+    router.push({ pathname: "/connect-account", params: { platform, existingId: id } } as any);
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -299,6 +368,7 @@ export default function ManageAccounts() {
               key={acc.id}
               account={acc}
               onDelete={handleDelete}
+              onReconnect={handleReconnect}
               deleting={deletingId === acc.id}
             />
           ))
@@ -381,6 +451,16 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11 },
   statDivider: { width: 1, height: 18 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
+  reconnectStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  reconnectStripText: { fontSize: 12, flex: 1 },
   authCta: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
   authCtaText: { flex: 1, fontSize: 13 },
 

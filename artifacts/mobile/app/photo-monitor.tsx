@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -174,6 +174,8 @@ export default function PhotoMonitorScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { indexedPhotos, addIndexedPhotos, removeIndexedPhoto, threats, user } = useApp();
+  const params = useLocalSearchParams<{ justConnected?: string }>();
+  const justConnected = params.justConnected === "1";
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -181,9 +183,21 @@ export default function PhotoMonitorScreen() {
   const [accountSelections, setAccountSelections] = useState<Record<string, Set<number>>>({});
   const [addingPhotos, setAddingPhotos] = useState(false);
   const [addedFeedback, setAddedFeedback] = useState<string | null>(null);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
 
   const connectedAccounts = user.connectedAccounts;
   const accountIdsKey = connectedAccounts.map((a) => a.id).join(",");
+
+  const totalSelected = Object.values(accountSelections).reduce(
+    (sum, s) => sum + s.size,
+    0
+  );
+  // Approximate: Google Vision processes ~4 s / photo
+  const estScanSecs = totalSelected * 4;
+  const estScanLabel =
+    estScanSecs < 60
+      ? `~${estScanSecs}s`
+      : `~${Math.ceil(estScanSecs / 60)}m`;
 
   const matchedPhotoIds = new Set(
     threats
@@ -322,6 +336,27 @@ export default function PhotoMonitorScreen() {
           Choose which photos you want protected. Selected photos are searched simultaneously when you run a scan from the Scan tab.
         </Text>
 
+        {/* Welcome banner: shown after OAuth connect */}
+        {justConnected && !welcomeDismissed && (
+          <View style={[styles.welcomeBanner, { backgroundColor: colors.primary + "1A", borderColor: colors.primary + "44" }]}>
+            <View style={styles.welcomeRow}>
+              <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
+              <Text style={[styles.welcomeTitle, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+                Account connected!
+              </Text>
+              <TouchableOpacity
+                onPress={() => setWelcomeDismissed(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.welcomeDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Select photos below to start monitoring them. Tap "Monitor" when ready — they'll be protected on your next scan.
+            </Text>
+          </View>
+        )}
+
         {/* Feedback banner */}
         {addedFeedback && (
           <View style={[styles.feedbackBanner, { backgroundColor: colors.success + "18", borderColor: colors.success + "44" }]}>
@@ -412,6 +447,13 @@ export default function PhotoMonitorScreen() {
               <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
                 Import from Accounts
               </Text>
+              {totalSelected > 0 && (
+                <View style={[styles.selectionBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.selectionBadgeText, { fontFamily: "Inter_700Bold" }]}>
+                    {totalSelected} selected
+                  </Text>
+                </View>
+              )}
             </View>
             <Text style={[styles.importDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               Select photos from your connected accounts to include in your next scan.
@@ -483,37 +525,44 @@ export default function PhotoMonitorScreen() {
 
                   {/* Monitor button — only shown when media is accessible */}
                   {mediaState.hasAccess && mediaState.items.length > 0 && (
-                    <TouchableOpacity
-                      style={[
-                        styles.monitorBtn,
-                        {
-                          backgroundColor: selectedCount > 0 ? colors.primary : colors.secondary,
-                          borderColor: selectedCount > 0 ? colors.primary : colors.border,
-                        },
-                      ]}
-                      activeOpacity={0.85}
-                      onPress={() => handleMonitorSelected(account.id, mediaState.items)}
-                      disabled={selectedCount === 0}
-                    >
-                      <MaterialCommunityIcons
-                        name="image-check"
-                        size={18}
-                        color={selectedCount > 0 ? "#FFFFFF" : colors.mutedForeground}
-                      />
-                      <Text
+                    <>
+                      <TouchableOpacity
                         style={[
-                          styles.monitorBtnText,
+                          styles.monitorBtn,
                           {
-                            color: selectedCount > 0 ? "#FFFFFF" : colors.mutedForeground,
-                            fontFamily: "Inter_600SemiBold",
+                            backgroundColor: selectedCount > 0 ? colors.primary : colors.secondary,
+                            borderColor: selectedCount > 0 ? colors.primary : colors.border,
                           },
                         ]}
+                        activeOpacity={0.85}
+                        onPress={() => handleMonitorSelected(account.id, mediaState.items)}
+                        disabled={selectedCount === 0}
                       >
-                        {selectedCount > 0
-                          ? `Monitor ${selectedCount} Photo${selectedCount !== 1 ? "s" : ""}`
-                          : "Select photos to monitor"}
-                      </Text>
-                    </TouchableOpacity>
+                        <MaterialCommunityIcons
+                          name="image-check"
+                          size={18}
+                          color={selectedCount > 0 ? "#FFFFFF" : colors.mutedForeground}
+                        />
+                        <Text
+                          style={[
+                            styles.monitorBtnText,
+                            {
+                              color: selectedCount > 0 ? "#FFFFFF" : colors.mutedForeground,
+                              fontFamily: "Inter_600SemiBold",
+                            },
+                          ]}
+                        >
+                          {selectedCount > 0
+                            ? `Monitor ${selectedCount} Photo${selectedCount !== 1 ? "s" : ""}`
+                            : "Select photos to monitor"}
+                        </Text>
+                      </TouchableOpacity>
+                      {selectedCount > 0 && estScanSecs > 0 && (
+                        <Text style={[styles.scanEstimate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                          Est. scan time for selected: {estScanLabel}
+                        </Text>
+                      )}
+                    </>
                   )}
                 </GlassCard>
               );
@@ -688,4 +737,27 @@ const styles = StyleSheet.create({
   infoCard: { gap: 0 },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   infoText: { flex: 1, fontSize: 13, lineHeight: 20 },
+
+  welcomeBanner: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+  },
+  welcomeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  welcomeTitle: { flex: 1, fontSize: 15 },
+  welcomeDesc: { fontSize: 13, lineHeight: 18 },
+
+  selectionBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  selectionBadgeText: { fontSize: 12, color: "#FFFFFF" },
+
+  scanEstimate: { fontSize: 12, textAlign: "center", marginTop: 6 },
 });

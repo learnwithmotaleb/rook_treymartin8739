@@ -58,6 +58,7 @@ export const connectedAccountsTable = pgTable(
     tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
     followers: integer("followers").notNull().default(0),
     verified: boolean("verified").notNull().default(false),
+    needsReconnect: boolean("needs_reconnect").notNull().default(false),
     photosIndexed: integer("photos_indexed").notNull().default(0),
     captionsIndexed: integer("captions_indexed").notNull().default(0),
     reelsIndexed: integer("reels_indexed").notNull().default(0),

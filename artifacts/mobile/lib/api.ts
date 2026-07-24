@@ -109,10 +109,18 @@ export interface AccountProfile {
   displayName: string | null;
   followers: number;
   verified: boolean;
+  needsReconnect: boolean;
   photosIndexed: number;
   captionsIndexed: number;
   reelsIndexed: number;
   lastSynced: string | null;
+}
+
+export interface AccountStatus {
+  verified: boolean;
+  tokenExpiresAt: string | null;
+  needsReconnect: boolean;
+  scopesGranted: string[];
 }
 
 export interface ScanJob {
@@ -308,6 +316,10 @@ export async function updateAccount(
     method: "PATCH",
     body: JSON.stringify(updates),
   });
+}
+
+export async function getAccountStatus(accountId: string): Promise<AccountStatus> {
+  return apiFetch<AccountStatus>(`/accounts/${accountId}/status`);
 }
 
 export type Tier = "free" | "pro" | "premium";
