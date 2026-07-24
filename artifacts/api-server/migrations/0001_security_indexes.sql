@@ -59,3 +59,6 @@ CREATE INDEX IF NOT EXISTS scheduled_notifs_fire_at_idx ON scheduled_notificatio
 
 -- cancellation_feedback (billing schema)
 CREATE INDEX IF NOT EXISTS cancellation_feedback_user_id_idx ON cancellation_feedback(user_id);
+
+-- messages (FK: conversation_id -> conversations.id)
+CREATE INDEX IF NOT EXISTS messages_conversation_id_idx ON messages(conversation_id);
