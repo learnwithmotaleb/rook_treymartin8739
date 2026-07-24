@@ -1245,13 +1245,14 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
         return false;
       };
 
-      // Try to detect the connection regardless of result type
-      if (result.type !== "cancel") {
-        const found = await connectDetected();
-        if (found) return;
-      }
+      // Always poll — even on cancel/dismiss.
+      // In Expo Go the custom-scheme redirect (com.getrook.app://oauth) cannot be
+      // intercepted, so the browser returns "cancel" or "dismiss" even when the
+      // server completed the token exchange successfully. Polling catches that case.
+      const found = await connectDetected();
+      if (found) return;
 
-      // Handle errors / cancellations
+      // Handle errors / cancellations (only reached if poll found nothing)
       if (urlError) {
         Alert.alert("Authentication Failed", `Could not sign in: ${urlError}`, [{ text: "OK" }]);
         setShowManual(true);

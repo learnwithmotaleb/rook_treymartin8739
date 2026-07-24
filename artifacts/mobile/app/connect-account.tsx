@@ -209,24 +209,29 @@ function OAuthButton({
         : null;
       const urlError = resultParams?.get("error") ?? resultParams?.get("error_reason");
 
-      // Poll with retry — server may still be finishing token exchange when browser closes
-      if (result.type !== "cancel") {
-        for (let i = 0; i < 4; i++) {
-          if (i > 0) await new Promise((r) => setTimeout(r, 1800));
-          const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
-          if (accountsAfter) {
-            const updated = accountsAfter.find((a) => a.platform === platform);
-            const isNewlyConnected = updated && (
-              !existingAccount ||
-              (updated.lastSynced !== null && updated.lastSynced !== prevLastSynced)
-            );
-            if (isNewlyConnected) {
-              onSuccess();
-              return;
-            }
+      // Always poll — even on cancel/dismiss.
+      // In Expo Go the custom-scheme redirect (com.getrook.app://oauth) cannot be
+      // intercepted, so the browser returns "cancel" or "dismiss" even when the
+      // server completed the token exchange successfully. Polling catches that case.
+      let connected = false;
+      for (let i = 0; i < 4; i++) {
+        if (i > 0) await new Promise((r) => setTimeout(r, 1800));
+        const accountsAfter = await getAccounts({ bustCache: true }).catch(() => null);
+        if (accountsAfter) {
+          const updated = accountsAfter.find((a) => a.platform === platform);
+          const isNewlyConnected = updated && (
+            !existingAccount ||
+            (updated.lastSynced !== null && updated.lastSynced !== prevLastSynced)
+          );
+          if (isNewlyConnected) {
+            connected = true;
+            onSuccess();
+            return;
           }
         }
       }
+
+      if (connected) return;
 
       if (urlError) {
         const friendlyMsg =
