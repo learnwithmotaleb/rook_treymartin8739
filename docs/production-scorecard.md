@@ -18,7 +18,7 @@
 | Database | 🟡 Amber | FK indexes added; cascade FKs declared; end-to-end deletion not yet verified (#102) |
 | Security | 🟢 Green | Helmet, CORS allowlist, 0 high vulns, log redaction, rate limiting |
 | Performance | 🟡 Amber | Skeletons + dedup guard done; /me chatty (#103); no offline recovery banner (#105) |
-| App Store Assets | 🟡 Amber | Icon/splash/privacy manifest exist; full asset pass still pending (open task) |
+| App Store Assets | 🟡 Amber | Icon/splash/privacy manifest exist; full asset pass still pending (open task); `user_photos` (Facebook) pending Meta approval |
 
 **Legend:** 🟢 Green = no known blockers · 🟡 Amber = known issues, mitigated or tracked · 🔴 Red = blocks submission
 
@@ -83,7 +83,16 @@ All items that would block App Store submission have been resolved or downgraded
 **Finding:** There are no automated Playwright or Detox tests that exercise the sign-in → scan → view-threat → resolve-threat flow. Regressions are only caught manually.  
 **Status:** Open — tracked as separate task (add live E2E tests).
 
-### M-4 — X OAuth PKCE state token not in the shared one-time-use set
+### M-4 — Facebook `user_photos` permission pending Meta App Review
+
+**Source:** Task #99 audit of `artifacts/mobile/app/connect-account.tsx`  
+**Finding:** The Facebook OAuth scope is currently `public_profile` only (no review required). `user_photos` — the permission required for Facebook photo fingerprinting — has not yet received Meta App Review approval. The Meta reviewer guide (`docs/meta-reviewer-guide.md`) includes the submission copy for this approval, plus a screen recording path for demonstrating the intended flow to Meta reviewers since the live app cannot yet show the `user_photos` consent screen.  
+**Status:** Pending Meta App Review submission. Not a launch blocker for App Store submission but blocks the photo-fingerprinting feature for Facebook-connected users.  
+**Fix outline:** Once Meta grants `user_photos` approval, add `"user_photos"` to the `scopes` array in `connect-account.tsx` and `onboarding.tsx` Facebook OAuth config.
+
+---
+
+### M-5 — X OAuth PKCE state token not in the shared one-time-use set
 **Source:** Task #96 audit  
 **Finding:** PKCE state tokens for X/Twitter are parsed by `parseXPkceState`, which validates the HMAC signature and 15-minute window but does not call `consumeStateToken`. An attacker who intercepts the callback URL could replay it within the validity window.  
 **Status:** Should be fixed before launch. Low exploitability (requires network interception), but easy to close.  
