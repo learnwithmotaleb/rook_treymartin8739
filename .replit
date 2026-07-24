@@ -47,7 +47,6 @@ externalPort = 3003
 [userenv]
 
 [userenv.shared]
-EXPO_PUBLIC_DOMAIN = "6c2161a6-7017-4ec4-988f-83e568e76224-00-1qirill5i8g8e.janeway.replit.dev"
 REVENUECAT_PROJECT_ID = "projdfc72169"
 REVENUECAT_TEST_STORE_APP_ID = "app95134497ae"
 REVENUECAT_APPLE_APP_STORE_APP_ID = "appda4fab2dd3"
@@ -58,6 +57,12 @@ EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_VYCCTVzYYbXIwHrnFtoZvWdsusH"
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_cGlja2VkLWdyaWZmb24tNDYuY2xlcmsuYWNjb3VudHMuZGV2JA"
 OAUTH_REDIRECT_BASE_URL = "tryrook.app"
 WEBHOOK_VERIFY_TOKEN = "rook_webhook_verify_2025"
+
+[userenv.development]
+EXPO_PUBLIC_DOMAIN = "tryrook.app"
+
+[userenv.production]
+EXPO_PUBLIC_DOMAIN = "tryrook.app"
 
 [nix]
 channel = "stable-25_05"
