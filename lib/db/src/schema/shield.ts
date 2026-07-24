@@ -80,22 +80,26 @@ export type InsertConnectedAccount = z.infer<
 >;
 export type ConnectedAccount = typeof connectedAccountsTable.$inferSelect;
 
-export const mediaItemsTable = pgTable("media_items", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  accountId: uuid("account_id")
-    .notNull()
-    .references(() => connectedAccountsTable.id, { onDelete: "cascade" }),
-  platformMediaId: text("platform_media_id").notNull(),
-  type: text("type").notNull(),
-  url: text("url").notNull(),
-  thumbnailUrl: text("thumbnail_url"),
-  caption: text("caption"),
-  postedAt: timestamp("posted_at", { withTimezone: true }),
-  embeddingVector: text("embedding_vector"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const mediaItemsTable = pgTable(
+  "media_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => connectedAccountsTable.id, { onDelete: "cascade" }),
+    platformMediaId: text("platform_media_id").notNull(),
+    type: text("type").notNull(),
+    url: text("url").notNull(),
+    thumbnailUrl: text("thumbnail_url"),
+    caption: text("caption"),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    embeddingVector: text("embedding_vector"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("media_items_account_id_idx").on(t.accountId)]
+);
 
 export const insertMediaItemSchema = createInsertSchema(mediaItemsTable).omit({
   id: true,
@@ -241,6 +245,7 @@ export const threatsTable = pgTable(
   (t) => [
     index("threats_user_id_idx").on(t.userId),
     index("threats_scan_job_id_idx").on(t.scanJobId),
+    index("threats_threat_actor_id_idx").on(t.threatActorId),
     index("threats_user_resolved_idx").on(t.userId, t.resolved),
     index("threats_user_severity_idx").on(t.userId, t.severity),
     index("threats_created_at_idx").on(t.createdAt),
@@ -381,22 +386,26 @@ export type IdentityEmbedding = typeof identityEmbeddingsTable.$inferSelect;
  * Key is stored as a SHA-256 hex digest; plaintext is returned only at creation.
  * Key format shown to users: sid_live_<prefix> where prefix is the first 8 chars of the random hex.
  */
-export const apiKeysTable = pgTable("api_keys", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  /** SHA-256 hex digest of the raw secret. */
-  keyHash: text("key_hash").notNull().unique(),
-  /** First 8 chars of the raw hex — safe to display for identification. */
-  keyPrefix: text("key_prefix").notNull(),
-  name: text("name").notNull().default("Default"),
-  /** Max requests per minute. Defaults to 60. */
-  rateLimitRpm: integer("rate_limit_rpm").notNull().default(60),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }),
-});
+export const apiKeysTable = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    /** SHA-256 hex digest of the raw secret. */
+    keyHash: text("key_hash").notNull().unique(),
+    /** First 8 chars of the raw hex — safe to display for identification. */
+    keyPrefix: text("key_prefix").notNull(),
+    name: text("name").notNull().default("Default"),
+    /** Max requests per minute. Defaults to 60. */
+    rateLimitRpm: integer("rate_limit_rpm").notNull().default(60),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("api_keys_user_id_idx").on(t.userId)]
+);
 
 export type ApiKey = typeof apiKeysTable.$inferSelect;
 
@@ -404,19 +413,23 @@ export type ApiKey = typeof apiKeysTable.$inferSelect;
  * Registered webhook endpoints per API key.
  * Receives signed JSON POST payloads for threat.detected and scan.completed events.
  */
-export const webhooksTable = pgTable("webhooks", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  apiKeyId: uuid("api_key_id")
-    .notNull()
-    .references(() => apiKeysTable.id, { onDelete: "cascade" }),
-  url: text("url").notNull(),
-  /** JSON array of subscribed event types. */
-  eventsJson: text("events_json").notNull().default('["threat.detected","scan.completed"]'),
-  /** HMAC-SHA256 signing secret — shown to user once at registration. */
-  signingSecret: text("signing_secret").notNull(),
-  active: boolean("active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const webhooksTable = pgTable(
+  "webhooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    apiKeyId: uuid("api_key_id")
+      .notNull()
+      .references(() => apiKeysTable.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    /** JSON array of subscribed event types. */
+    eventsJson: text("events_json").notNull().default('["threat.detected","scan.completed"]'),
+    /** HMAC-SHA256 signing secret — shown to user once at registration. */
+    signingSecret: text("signing_secret").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("webhooks_api_key_id_idx").on(t.apiKeyId)]
+);
 
 export type Webhook = typeof webhooksTable.$inferSelect;
 
