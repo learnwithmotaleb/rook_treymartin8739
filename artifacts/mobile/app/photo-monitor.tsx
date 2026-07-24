@@ -174,8 +174,9 @@ export default function PhotoMonitorScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { indexedPhotos, addIndexedPhotos, removeIndexedPhoto, threats, user } = useApp();
-  const params = useLocalSearchParams<{ justConnected?: string }>();
+  const params = useLocalSearchParams<{ justConnected?: string; platform?: string; accountId?: string }>();
   const justConnected = params.justConnected === "1";
+  const connectedAccountId = params.accountId ?? "";
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -468,8 +469,16 @@ export default function PhotoMonitorScreen() {
               const selected = accountSelections[account.id] ?? new Set<number>();
               const selectedCount = selected.size;
 
+              const isNewAccount = justConnected && connectedAccountId === account.id;
+
               return (
-                <GlassCard key={account.id} style={styles.accountCard}>
+                <GlassCard
+                  key={account.id}
+                  style={[
+                    styles.accountCard,
+                    isNewAccount && { borderColor: colors.primary + "66", borderWidth: 1.5 },
+                  ]}
+                >
                   {/* Account header */}
                   <View style={styles.accountHeader}>
                     <PlatformIcon platform={account.platform!} size={32} />

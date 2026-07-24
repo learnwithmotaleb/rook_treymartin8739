@@ -330,13 +330,28 @@ export default function ConnectAccount() {
   const handleOAuthDone = useCallback(async () => {
     setOauthDone(true);
     await refreshData();
-    // Navigate directly to photo-monitor so the user can immediately
-    // choose which photos to protect — no intermediate Alert dialog.
+    // Brief pause (800 ms) so the user can see the "Authenticated successfully"
+    // success banner before being navigated away.
+    await new Promise<void>((resolve) => setTimeout(resolve, 800));
+    // Find the newly connected account so we can pass its ID to photo-monitor,
+    // allowing it to pre-select and load that account's media immediately.
+    let accountId = "";
+    try {
+      const accounts = await getAccounts();
+      const matched = accounts.find((a) => a.platform === selectedPlatform);
+      accountId = matched?.id ?? "";
+    } catch {
+      // Non-fatal: photo-monitor works fine without a pre-selected accountId
+    }
     router.replace({
       pathname: "/photo-monitor",
-      params: { justConnected: "1" },
+      params: {
+        justConnected: "1",
+        platform: selectedPlatform ?? "",
+        accountId,
+      },
     } as any);
-  }, [refreshData]);
+  }, [refreshData, selectedPlatform]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedPlatform) return;

@@ -210,9 +210,9 @@ async function runTokenRefreshes(): Promise<void> {
 
     const refreshedIds: string[] = [];
 
-    // Exponential-backoff retry delays: immediate → 30 s → 120 s.
-    // If all three attempts fail the account is flagged needsReconnect = true
-    // and the user receives a push notification directing them to re-auth.
+    // Exponential-backoff retry delays: immediate → 30 s → 120 s within each
+    // 24-hour cycle. needsReconnect is only set after 2 consecutive failed
+    // cycles so a single transient API outage does not trigger a re-auth prompt.
     const RETRY_DELAYS_MS = [0, 30_000, 120_000] as const;
 
     for (const account of staleAccounts) {
@@ -248,7 +248,8 @@ async function runTokenRefreshes(): Promise<void> {
               .set({
                 accessToken: data.access_token,
                 lastSynced: new Date(),
-                needsReconnect: false, // clear any prior failure flag on success
+                needsReconnect: false,
+                refreshFailCount: 0, // clear consecutive-failure counter on success
               })
               .where(eq(connectedAccountsTable.id, account.id));
             refreshedIds.push(account.id);
@@ -264,29 +265,49 @@ async function runTokenRefreshes(): Promise<void> {
       }
 
       if (!succeeded) {
-        // All retries exhausted — mark account as needing manual reconnect.
-        await db
-          .update(connectedAccountsTable)
-          .set({ needsReconnect: true })
-          .where(eq(connectedAccountsTable.id, account.id));
-
-        const [accountFull] = await db
-          .select({
-            userId: connectedAccountsTable.userId,
-            username: connectedAccountsTable.username,
-          })
+        // Increment the consecutive-failure counter.
+        // Only flag needsReconnect and notify the user after 2 consecutive
+        // failed refresh cycles — one transient failure is tolerated silently.
+        const [current] = await db
+          .select({ refreshFailCount: connectedAccountsTable.refreshFailCount })
           .from(connectedAccountsTable)
           .where(eq(connectedAccountsTable.id, account.id));
 
-        if (accountFull) {
-          void sendPushToUser(accountFull.userId, {
-            title: "Instagram connection expired",
-            body: `Reconnect @${accountFull.username} to keep your identity protected.`,
-            data: { screen: "manage-accounts" },
-          });
+        const newFailCount = (current?.refreshFailCount ?? 0) + 1;
+        const shouldFlag = newFailCount >= 2;
+
+        await db
+          .update(connectedAccountsTable)
+          .set({
+            refreshFailCount: newFailCount,
+            ...(shouldFlag ? { needsReconnect: true } : {}),
+          })
+          .where(eq(connectedAccountsTable.id, account.id));
+
+        if (shouldFlag) {
+          const [accountFull] = await db
+            .select({
+              userId: connectedAccountsTable.userId,
+              username: connectedAccountsTable.username,
+            })
+            .from(connectedAccountsTable)
+            .where(eq(connectedAccountsTable.id, account.id));
+
+          if (accountFull) {
+            void sendPushToUser(accountFull.userId, {
+              title: "Instagram connection expired",
+              body: `Reconnect @${accountFull.username} to keep your identity protected.`,
+              data: { screen: "manage-accounts" },
+            });
+            logger.warn(
+              { accountId: account.id, userId: accountFull.userId, failCount: newFailCount },
+              "Instagram token refresh exhausted (2 cycles) — needsReconnect flagged"
+            );
+          }
+        } else {
           logger.warn(
-            { accountId: account.id, userId: accountFull.userId },
-            "Instagram token refresh exhausted — needsReconnect flagged"
+            { accountId: account.id, failCount: newFailCount },
+            "Instagram token refresh failed (cycle 1/2) — will retry next cycle before flagging"
           );
         }
       }

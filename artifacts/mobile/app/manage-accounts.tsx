@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,35 @@ import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import type { ConnectedAccount } from "@/context/AppContext";
+import { getAccountStatus, type AccountStatus } from "@/lib/api";
+
+const SCOPE_LABELS: Record<string, string> = {
+  instagram_business_basic: "Profile & Media",
+  "tweet.read": "Read Posts",
+  "users.read": "Profile",
+  "offline.access": "Background Refresh",
+  "user.info.basic": "Basic Info",
+  email: "Email",
+  profile: "Profile",
+  openid: "Login",
+  "pages_show_list": "Pages",
+  "instagram_manage_insights": "Insights",
+  "public_profile": "Public Profile",
+};
+
+function formatExpiry(tokenExpiresAt: string | null): { label: string; warn: boolean } | null {
+  if (!tokenExpiresAt) return null;
+  const d = new Date(tokenExpiresAt);
+  const now = new Date();
+  const diffMs = d.getTime() - now.getTime();
+  if (diffMs < 0) return { label: "Token expired", warn: true };
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 1) return { label: "Expires today", warn: true };
+  if (diffDays === 1) return { label: "Expires tomorrow", warn: true };
+  if (diffDays <= 7) return { label: `Expires in ${diffDays} days`, warn: true };
+  if (diffDays < 30) return { label: `Expires in ${Math.floor(diffDays / 7)}w`, warn: false };
+  return { label: `Expires in ${Math.floor(diffDays / 30)}mo`, warn: false };
+}
 
 const PLATFORM_LABELS: Record<string, string> = {
   instagram: "Instagram",
@@ -58,6 +87,14 @@ function AccountCard({
 }) {
   const colors = useColors();
   const needsReconnect = account.needsReconnect;
+  const [status, setStatus] = useState<AccountStatus | null>(null);
+
+  useEffect(() => {
+    if (!account.verified) return;
+    getAccountStatus(account.id)
+      .then(setStatus)
+      .catch(() => {});
+  }, [account.id, account.verified]);
 
   const handleDelete = () => {
     Alert.alert(
@@ -213,6 +250,59 @@ function AccountCard({
           </Text>
           <Ionicons name="chevron-forward" size={13} color={AMBER} />
         </TouchableOpacity>
+      )}
+
+      {/* Token status row — scopes + expiry for verified accounts */}
+      {account.verified && status && !needsReconnect && (
+        <View style={[styles.statusSection, { borderTopColor: colors.border }]}>
+          {status.scopesGranted.length > 0 && (
+            <View style={styles.scopeRow}>
+              <Ionicons name="key-outline" size={13} color={colors.mutedForeground} />
+              <View style={styles.scopePills}>
+                {status.scopesGranted.map((scope) => (
+                  <View key={scope} style={[styles.scopePill, { backgroundColor: colors.primary + "18" }]}>
+                    <Text style={[styles.scopePillText, { color: colors.primary, fontFamily: "Inter_400Regular" }]}>
+                      {SCOPE_LABELS[scope] ?? scope}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+          {(() => {
+            const expiry = formatExpiry(status.tokenExpiresAt);
+            if (!expiry) return null;
+            return (
+              <View style={styles.expiryRow}>
+                <Ionicons
+                  name={expiry.warn ? "time" : "checkmark-circle-outline"}
+                  size={13}
+                  color={expiry.warn ? AMBER : colors.mutedForeground}
+                />
+                <Text
+                  style={[
+                    styles.expiryText,
+                    { color: expiry.warn ? AMBER : colors.mutedForeground, fontFamily: "Inter_400Regular" },
+                  ]}
+                >
+                  {expiry.label}
+                </Text>
+              </View>
+            );
+          })()}
+          {!["tiktok"].includes(account.platform ?? "") && (
+            <TouchableOpacity
+              style={[styles.refreshCta, { borderColor: colors.primary + "33", backgroundColor: colors.primary + "0C" }]}
+              activeOpacity={0.7}
+              onPress={() => onReconnect(account.id, account.platform ?? "")}
+            >
+              <Ionicons name="refresh-outline" size={14} color={colors.primary} />
+              <Text style={[styles.refreshCtaText, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
+                Refresh token
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
 
       {/* Verify CTA — shown for unverified accounts that don't need reconnect */}
@@ -481,4 +571,26 @@ const styles = StyleSheet.create({
   infoText: { flex: 1, gap: 4 },
   infoTitle: { fontSize: 14 },
   infoDesc: { fontSize: 13, lineHeight: 19 },
+
+  statusSection: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+    gap: 8,
+  },
+  scopeRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  scopePills: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  scopePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  scopePillText: { fontSize: 11 },
+  expiryRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  expiryText: { fontSize: 12 },
+  refreshCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  refreshCtaText: { fontSize: 13 },
 });

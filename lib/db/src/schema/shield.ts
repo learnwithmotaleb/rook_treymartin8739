@@ -59,6 +59,7 @@ export const connectedAccountsTable = pgTable(
     followers: integer("followers").notNull().default(0),
     verified: boolean("verified").notNull().default(false),
     needsReconnect: boolean("needs_reconnect").notNull().default(false),
+    refreshFailCount: integer("refresh_fail_count").notNull().default(0),
     photosIndexed: integer("photos_indexed").notNull().default(0),
     captionsIndexed: integer("captions_indexed").notNull().default(0),
     reelsIndexed: integer("reels_indexed").notNull().default(0),
