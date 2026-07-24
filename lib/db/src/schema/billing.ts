@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgTable,
   text,
@@ -59,17 +60,24 @@ export const cancellationFeedbackTable = pgTable("cancellation_feedback", {
 
 export type CancellationFeedback = typeof cancellationFeedbackTable.$inferSelect;
 
-export const scheduledNotificationsTable = pgTable("scheduled_notifications", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  type: text("type").notNull(),
-  fireAt: timestamp("fire_at", { withTimezone: true }).notNull(),
-  fired: boolean("fired").notNull().default(false),
-  cancelled: boolean("cancelled").notNull().default(false),
-  data: text("data"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const scheduledNotificationsTable = pgTable(
+  "scheduled_notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    fireAt: timestamp("fire_at", { withTimezone: true }).notNull(),
+    fired: boolean("fired").notNull().default(false),
+    cancelled: boolean("cancelled").notNull().default(false),
+    data: text("data"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("scheduled_notifs_user_id_idx").on(t.userId),
+    index("scheduled_notifs_fire_at_idx").on(t.fireAt, t.fired),
+  ]
+);
 
 export type ScheduledNotification = typeof scheduledNotificationsTable.$inferSelect;

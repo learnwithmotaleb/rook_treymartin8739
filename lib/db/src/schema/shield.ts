@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -41,28 +42,35 @@ export const selectUserSchema = createSelectSchema(usersTable);
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
 
-export const connectedAccountsTable = pgTable("connected_accounts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  platform: text("platform").notNull(),
-  platformUserId: text("platform_user_id"),
-  username: text("username").notNull(),
-  displayName: text("display_name"),
-  accessToken: text("access_token"),
-  refreshToken: text("refresh_token"),
-  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
-  followers: integer("followers").notNull().default(0),
-  verified: boolean("verified").notNull().default(false),
-  photosIndexed: integer("photos_indexed").notNull().default(0),
-  captionsIndexed: integer("captions_indexed").notNull().default(0),
-  reelsIndexed: integer("reels_indexed").notNull().default(0),
-  lastSynced: timestamp("last_synced", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const connectedAccountsTable = pgTable(
+  "connected_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    platformUserId: text("platform_user_id"),
+    username: text("username").notNull(),
+    displayName: text("display_name"),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    followers: integer("followers").notNull().default(0),
+    verified: boolean("verified").notNull().default(false),
+    photosIndexed: integer("photos_indexed").notNull().default(0),
+    captionsIndexed: integer("captions_indexed").notNull().default(0),
+    reelsIndexed: integer("reels_indexed").notNull().default(0),
+    lastSynced: timestamp("last_synced", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("connected_accounts_user_id_idx").on(t.userId),
+    index("connected_accounts_platform_idx").on(t.platform),
+  ]
+);
 
 export const insertConnectedAccountSchema = createInsertSchema(
   connectedAccountsTable
@@ -120,22 +128,30 @@ export type InsertVisualFingerprint = z.infer<
 >;
 export type VisualFingerprint = typeof visualFingerprintsTable.$inferSelect;
 
-export const scanJobsTable = pgTable("scan_jobs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  status: text("status").notNull().default("queued"),
-  progress: integer("progress").notNull().default(0),
-  currentStep: text("current_step"),
-  threatsFound: integer("threats_found").notNull().default(0),
-  metadataJson: text("metadata_json"),
-  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow(),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const scanJobsTable = pgTable(
+  "scan_jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("queued"),
+    progress: integer("progress").notNull().default(0),
+    currentStep: text("current_step"),
+    threatsFound: integer("threats_found").notNull().default(0),
+    metadataJson: text("metadata_json"),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("scan_jobs_user_id_idx").on(t.userId),
+    index("scan_jobs_status_idx").on(t.status),
+    index("scan_jobs_user_status_idx").on(t.userId, t.status),
+  ]
+);
 
 export const insertScanJobSchema = createInsertSchema(scanJobsTable).omit({
   id: true,
@@ -175,51 +191,61 @@ export const threatActorsTable = pgTable("threat_actors", {
 export type ThreatActor = typeof threatActorsTable.$inferSelect;
 export type InsertThreatActor = typeof threatActorsTable.$inferInsert;
 
-export const threatsTable = pgTable("threats", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  scanJobId: uuid("scan_job_id").references(() => scanJobsTable.id),
-  /** Nullable FK to the shared threat actor record (null until matched). */
-  threatActorId: uuid("threat_actor_id").references(() => threatActorsTable.id),
-  type: text("type").notNull(),
-  severity: text("severity").notNull(),
-  platform: text("platform"),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  details: text("details").notNull(),
-  aiExplanation: text("ai_explanation"),
-  threatScore: integer("threat_score").notNull().default(0),
-  suspiciousUsername: text("suspicious_username"),
-  matchedMediaCount: integer("matched_media_count").notNull().default(0),
-  evidenceJson: text("evidence_json"),
-  scoreBreakdownJson: text("score_breakdown_json"),
-  detectedSignalsJson: text("detected_signals_json"),
-  resolved: boolean("resolved").notNull().default(false),
-  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
-  resolveAction: text("resolve_action"),
-  /**
-   * dHash of the impersonator's profile picture, computed during scan Step 6.
-   * Written at threat-creation time so linkThreatToActor can enrich the
-   * actor's pHash cluster without a second image download.
-   */
-  impersonatorDHash: text("impersonator_d_hash"),
-  /**
-   * Identity Match Score (0-100): how closely the account resembles the target.
-   * Derived from profile photo + bio + username sub-components, scaled to 0-100.
-   */
-  identityMatchScore: integer("identity_match_score").notNull().default(0),
-  /**
-   * Impersonation Confidence Score (0-100): how clearly the act is intentional.
-   * Derived from media reuse + content reuse + behavioral, scaled to 0-100.
-   */
-  impersonationConfidenceScore: integer("impersonation_confidence_score").notNull().default(0),
-  hiddenUntilScan: boolean("hidden_until_scan").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const threatsTable = pgTable(
+  "threats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    scanJobId: uuid("scan_job_id").references(() => scanJobsTable.id),
+    /** Nullable FK to the shared threat actor record (null until matched). */
+    threatActorId: uuid("threat_actor_id").references(() => threatActorsTable.id),
+    type: text("type").notNull(),
+    severity: text("severity").notNull(),
+    platform: text("platform"),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    details: text("details").notNull(),
+    aiExplanation: text("ai_explanation"),
+    threatScore: integer("threat_score").notNull().default(0),
+    suspiciousUsername: text("suspicious_username"),
+    matchedMediaCount: integer("matched_media_count").notNull().default(0),
+    evidenceJson: text("evidence_json"),
+    scoreBreakdownJson: text("score_breakdown_json"),
+    detectedSignalsJson: text("detected_signals_json"),
+    resolved: boolean("resolved").notNull().default(false),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolveAction: text("resolve_action"),
+    /**
+     * dHash of the impersonator's profile picture, computed during scan Step 6.
+     * Written at threat-creation time so linkThreatToActor can enrich the
+     * actor's pHash cluster without a second image download.
+     */
+    impersonatorDHash: text("impersonator_d_hash"),
+    /**
+     * Identity Match Score (0-100): how closely the account resembles the target.
+     * Derived from profile photo + bio + username sub-components, scaled to 0-100.
+     */
+    identityMatchScore: integer("identity_match_score").notNull().default(0),
+    /**
+     * Impersonation Confidence Score (0-100): how clearly the act is intentional.
+     * Derived from media reuse + content reuse + behavioral, scaled to 0-100.
+     */
+    impersonationConfidenceScore: integer("impersonation_confidence_score").notNull().default(0),
+    hiddenUntilScan: boolean("hidden_until_scan").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("threats_user_id_idx").on(t.userId),
+    index("threats_scan_job_id_idx").on(t.scanJobId),
+    index("threats_user_resolved_idx").on(t.userId, t.resolved),
+    index("threats_user_severity_idx").on(t.userId, t.severity),
+    index("threats_created_at_idx").on(t.createdAt),
+  ]
+);
 
 export const insertThreatSchema = createInsertSchema(threatsTable).omit({
   id: true,
@@ -257,17 +283,21 @@ export const suppressedAccountsTable = pgTable(
   ]
 );
 
-export const devicePushTokensTable = pgTable("device_push_tokens", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  token: text("token").notNull(),
-  platform: text("platform").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const devicePushTokensTable = pgTable(
+  "device_push_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    platform: text("platform").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("device_push_tokens_user_id_idx").on(t.userId)]
+);
 
 export type DevicePushToken = typeof devicePushTokensTable.$inferSelect;
 
@@ -284,18 +314,22 @@ export const scanCacheTable = pgTable("scan_cache", {
 });
 export type ScanCache = typeof scanCacheTable.$inferSelect;
 
-export const apiCostLogTable = pgTable("api_cost_log", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(),
-  operation: text("operation").notNull(),
-  costUsd: text("cost_usd").notNull().default("0"),
-  tokensUsed: integer("tokens_used").notNull().default(0),
-  cacheHit: boolean("cache_hit").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const apiCostLogTable = pgTable(
+  "api_cost_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    operation: text("operation").notNull(),
+    costUsd: text("cost_usd").notNull().default("0"),
+    tokensUsed: integer("tokens_used").notNull().default(0),
+    cacheHit: boolean("cache_hit").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("api_cost_log_user_id_idx").on(t.userId)]
+);
 export type ApiCostLog = typeof apiCostLogTable.$inferSelect;
 
 export const usageQuotasTable = pgTable("usage_quotas", {
@@ -322,17 +356,21 @@ export type UsageQuota = typeof usageQuotasTable.$inferSelect;
  * Designed for future upgrade to pgvector native type + HNSW index.
  * For now, cross-user similarity runs via in-memory cosine comparison.
  */
-export const identityEmbeddingsTable = pgTable("identity_embeddings", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  imageUrl: text("image_url").notNull(),
-  /** JSON-serialised number[] — text for now, ready for vector(1536) migration. */
-  embeddingJson: text("embedding_json").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const identityEmbeddingsTable = pgTable(
+  "identity_embeddings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    imageUrl: text("image_url").notNull(),
+    /** JSON-serialised number[] — text for now, ready for vector(1536) migration. */
+    embeddingJson: text("embedding_json").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("identity_embeddings_user_id_idx").on(t.userId)]
+);
 
 export type IdentityEmbedding = typeof identityEmbeddingsTable.$inferSelect;
 
@@ -386,22 +424,29 @@ export type Webhook = typeof webhooksTable.$inferSelect;
  * Log of every webhook delivery attempt.
  * Used for retry logic and delivery auditing.
  */
-export const webhookDeliveryLogTable = pgTable("webhook_delivery_log", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  webhookId: uuid("webhook_id")
-    .notNull()
-    .references(() => webhooksTable.id, { onDelete: "cascade" }),
-  eventType: text("event_type").notNull(),
-  /** JSON-serialised event payload. */
-  payloadJson: text("payload_json").notNull(),
-  /** "pending" | "delivered" | "failed" */
-  status: text("status").notNull().default("pending"),
-  attempts: integer("attempts").notNull().default(0),
-  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
-  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
-  responseCode: integer("response_code"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const webhookDeliveryLogTable = pgTable(
+  "webhook_delivery_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    webhookId: uuid("webhook_id")
+      .notNull()
+      .references(() => webhooksTable.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    /** JSON-serialised event payload. */
+    payloadJson: text("payload_json").notNull(),
+    /** "pending" | "delivered" | "failed" */
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    responseCode: integer("response_code"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("webhook_delivery_log_webhook_id_idx").on(t.webhookId),
+    index("webhook_delivery_log_status_retry_idx").on(t.status, t.nextRetryAt),
+  ]
+);
 
 export type WebhookDeliveryLog = typeof webhookDeliveryLogTable.$inferSelect;
 
@@ -410,15 +455,19 @@ export type WebhookDeliveryLog = typeof webhookDeliveryLogTable.$inferSelect;
  * One row per (keyId, 1-minute window bucket).
  * Rows older than 2 minutes are pruned lazily on each request.
  */
-export const apiKeyRateLimitsTable = pgTable("api_key_rate_limits", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  keyId: uuid("key_id")
-    .notNull()
-    .references(() => apiKeysTable.id, { onDelete: "cascade" }),
-  /** Truncated to the minute: floor(Date.now() / 60000) * 60000 */
-  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
-  count: integer("count").notNull().default(1),
-});
+export const apiKeyRateLimitsTable = pgTable(
+  "api_key_rate_limits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    keyId: uuid("key_id")
+      .notNull()
+      .references(() => apiKeysTable.id, { onDelete: "cascade" }),
+    /** Truncated to the minute: floor(Date.now() / 60000) * 60000 */
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(1),
+  },
+  (t) => [index("api_key_rate_limits_key_window_idx").on(t.keyId, t.windowStart)]
+);
 
 export type ApiKeyRateLimit = typeof apiKeyRateLimitsTable.$inferSelect;
 
@@ -478,6 +527,7 @@ export const userPhotoHashesTable = pgTable(
       table.userId,
       table.platformMediaId
     ),
+    index("user_photo_hashes_account_id_idx").on(table.accountId),
   ]
 );
 
@@ -490,31 +540,38 @@ export type InsertUserPhotoHash = typeof userPhotoHashesTable.$inferInsert;
  *   false_positive → widen threshold (fewer false alarms)
  *   true_positive  → threshold stays tight (real threats are being found)
  */
-export const phashFeedbackTable = pgTable("phash_feedback", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  /** The threat this feedback is attached to (nullable if threat was deleted). */
-  threatId: uuid("threat_id").references(() => threatsTable.id, {
-    onDelete: "set null",
-  }),
-  /** The impersonator's dHash that triggered (or didn't trigger) the match. */
-  candidateDHash: text("candidate_d_hash"),
-  candidateUsername: text("candidate_username"),
-  platform: text("platform"),
-  /**
-   * Outcome of the user's resolve action:
-   *   true_positive     — real threat, correctly detected
-   *   false_positive    — not a real threat (widen threshold)
-   *   approved_contact  — known contact, permanently suppress (no threshold change)
-   *   resolved_manually — handled outside the app (no threshold signal)
-   */
-  outcome: text("outcome").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const phashFeedbackTable = pgTable(
+  "phash_feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    /** The threat this feedback is attached to (nullable if threat was deleted). */
+    threatId: uuid("threat_id").references(() => threatsTable.id, {
+      onDelete: "set null",
+    }),
+    /** The impersonator's dHash that triggered (or didn't trigger) the match. */
+    candidateDHash: text("candidate_d_hash"),
+    candidateUsername: text("candidate_username"),
+    platform: text("platform"),
+    /**
+     * Outcome of the user's resolve action:
+     *   true_positive     — real threat, correctly detected
+     *   false_positive    — not a real threat (widen threshold)
+     *   approved_contact  — known contact, permanently suppress (no threshold change)
+     *   resolved_manually — handled outside the app (no threshold signal)
+     */
+    outcome: text("outcome").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("phash_feedback_user_id_idx").on(t.userId),
+    index("phash_feedback_threat_id_idx").on(t.threatId),
+  ]
+);
 
 export type PhashFeedback = typeof phashFeedbackTable.$inferSelect;
 

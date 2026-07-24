@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { rateLimit } from "express-rate-limit";
 import { clerkMiddleware } from "@clerk/express";
@@ -28,6 +29,16 @@ const app: Express = express();
 // X-Forwarded-For. Trust the first hop so express-rate-limit can correctly
 // identify client IPs instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
 app.set("trust proxy", 1);
+
+// Security headers — applied before any route handlers.
+// contentSecurityPolicy is disabled because the API serves JSON only (no HTML).
+// crossOriginEmbedderPolicy is disabled for compatibility with Clerk's proxy.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
 app.use(
   pinoHttp({

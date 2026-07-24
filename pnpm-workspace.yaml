@@ -23,7 +23,7 @@ catalog:
   lucide-react: ^0.545.0
   react: 19.1.0
   react-dom: 19.1.0
-  sharp: 0.34.5
+  sharp: 0.35.0
   tailwind-merge: ^3.3.1
   tailwindcss: ^4.1.14
   tsx: ^4.21.0
@@ -127,6 +127,16 @@ overrides:
   rollup>@rollup/rollup-win32-ia32-msvc: '-'
   rollup>@rollup/rollup-win32-x64-gnu: '-'
   rollup>@rollup/rollup-win32-x64-msvc: '-'
-  shell-quote: '>=1.8.4'
+  brace-expansion: '>=5.0.7'
+  sharp: '>=0.35.0'
+  fast-uri: '>=3.1.4'
+  'js-yaml': '>=4.3.0'
+  linkify-it: '>=5.0.2'
+  'markdown-it': '>=14.2.0'
+  postcss: '>=8.5.12'
+  qs: '>=6.15.2'
+  uuid: '>=11.1.1'
+  shell-quote: '>=1.9.0'
+  tar: '>=7.5.19'
   undici: '>=6.27.0'
   ws: '>=8.21.0'
