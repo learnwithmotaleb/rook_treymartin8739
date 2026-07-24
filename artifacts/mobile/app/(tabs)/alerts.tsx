@@ -232,6 +232,7 @@ export default function AlertsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
   const hasMounted = useRef(false);
+  const lastFocusRefreshAt = useRef(0);
   const [showUpsell, setShowUpsell] = useState(false);
 
   useEffect(() => {
@@ -251,15 +252,20 @@ export default function AlertsScreen() {
     if (params.tab === "resolved") setTab("resolved");
   }, [params.tab]);
 
-  // Refresh user profile + threats every time this tab comes into focus so
-  // that tier/premium changes (e.g. after a subscription upgrade) are reflected
-  // immediately without requiring a full app restart.
+  // Refresh user profile + threats when this tab comes into focus — but no
+  // more than once every 30 seconds to avoid hammering the API on rapid tab
+  // switches. The initial load after login already populates the data; this
+  // effect handles the case where the user upgrades their plan mid-session or
+  // receives a new threat between app opens.
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       if (!hasMounted.current) {
         hasMounted.current = true;
         return;
       }
+      const now = Date.now();
+      if (now - lastFocusRefreshAt.current < 30_000) return;
+      lastFocusRefreshAt.current = now;
       refreshData().catch(() => {});
     });
     return unsubscribe;

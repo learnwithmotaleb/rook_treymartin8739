@@ -20,6 +20,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { Skeleton } from "@/components/Skeleton";
 import { getIdentityBadge, type IdentityBadge } from "@/lib/api";
 
 const TIER_LABELS: Record<string, string> = {
@@ -81,7 +82,7 @@ function SettingsRow({
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, logout } = useApp();
+  const { user, logout, isLoading } = useApp();
   const { signOut, getToken } = useAuth();
   const { signOut: clerkSignOut } = useClerk();
   const navigation = useNavigation();
@@ -167,35 +168,45 @@ export default function ProfileScreen() {
       >
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity onPress={() => router.push("/edit-profile" as any)} activeOpacity={0.85}>
-            <View style={[styles.avatar, { borderColor: colors.primary + "66" }]}>
-              {user.avatarUrl ? (
-                <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
-              ) : (
-                <>
-                  <LinearGradient
-                    colors={[colors.primaryDark, colors.primary, colors.primaryForeground]}
-                    style={StyleSheet.absoluteFill}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    locations={[0, 0.6, 1]}
-                  />
-                  <Text style={[styles.avatarText, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>
-                    {user.avatarInitials}
-                  </Text>
-                </>
-              )}
-            </View>
-            <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
-              <Ionicons name="pencil" size={12} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
-          <Text style={[styles.userName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            {user.name}
-          </Text>
-          <Text style={[styles.userHandle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {user.username}
-          </Text>
+          {isLoading ? (
+            <>
+              <Skeleton width={96} height={96} borderRadius={48} style={{ marginBottom: 12 }} />
+              <Skeleton width={140} height={22} borderRadius={6} style={{ marginBottom: 6 }} />
+              <Skeleton width={100} height={16} borderRadius={6} />
+            </>
+          ) : (
+            <>
+              <TouchableOpacity onPress={() => router.push("/edit-profile" as any)} activeOpacity={0.85}>
+                <View style={[styles.avatar, { borderColor: colors.primary + "66" }]}>
+                  {user.avatarUrl ? (
+                    <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+                  ) : (
+                    <>
+                      <LinearGradient
+                        colors={[colors.primaryDark, colors.primary, colors.primaryForeground]}
+                        style={StyleSheet.absoluteFill}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        locations={[0, 0.6, 1]}
+                      />
+                      <Text style={[styles.avatarText, { color: "#FFFFFF", fontFamily: "Inter_700Bold" }]}>
+                        {user.avatarInitials}
+                      </Text>
+                    </>
+                  )}
+                </View>
+                <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
+                  <Ionicons name="pencil" size={12} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+              <Text style={[styles.userName, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                {user.name}
+              </Text>
+              <Text style={[styles.userHandle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                {user.username}
+              </Text>
+            </>
+          )}
           <TouchableOpacity
             onPress={() => router.push("/subscription" as any)}
             activeOpacity={0.8}

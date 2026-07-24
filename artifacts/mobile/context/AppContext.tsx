@@ -295,6 +295,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [scanCurrentStep, setScanCurrentStep] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isRefreshingRef = useRef(false);
+  const lastRefreshedAtRef = useRef(0);
   const [indexedPhotos, setIndexedPhotos] = useState<IndexedPhoto[]>([]);
   const indexedPhotosRef = useRef<IndexedPhoto[]>([]);
   const [localPhotoThreats, setLocalPhotoThreats] = useState<Threat[]>([]);
@@ -342,59 +344,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshData = useCallback(async () => {
-    const attempt = async (): Promise<boolean> => {
-      try {
-        const [profile, accounts, summaries, quotaState, sub] = await Promise.all([
-          getMe(),
-          getAccounts(),
-          listThreats(),
-          getScanQuotaState().catch(() => null),
-          getSubscription().catch(() => null),
-        ]);
-        setUser(mapProfileToUser(profile, accounts));
-        setThreats(summaries.map(mapSummaryToThreat));
-        // Proactively show quota error banner if the free monthly scan is already used.
-        // This surfaces immediately on app open rather than requiring a failed scan attempt.
-        if (quotaState && !quotaState.canScan && quotaState.message) {
-          setScanQuotaError({ message: quotaState.message, upgradeTo: quotaState.upgradeTo ?? "premium" });
-        }
-        // Subscription state for trial banner and cancellation survey
-        if (sub) {
-          setTrialEndsAt(sub.trialEndsAt ?? null);
-          setSubscriptionStatus(sub.status as "active" | "trialing" | "canceled" | "past_due");
-          // Show cancellation survey once after subscription lapses
-          if (sub.status === "canceled") {
-            AsyncStorage.getItem(SURVEY_SHOWN_KEY).then((shown) => {
-              if (shown !== "true") setShowCancellationSurvey(true);
-            }).catch(() => {});
+    // Dedup guard: if a refresh is already in flight, skip this call entirely.
+    // This prevents duplicate API bursts when multiple screens call refreshData
+    // concurrently (e.g. login() + Alerts focus listener racing on startup).
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
+    try {
+      const attempt = async (): Promise<boolean> => {
+        try {
+          const [profile, accounts, summaries, quotaState, sub] = await Promise.all([
+            getMe(),
+            getAccounts(),
+            listThreats(),
+            getScanQuotaState().catch(() => null),
+            getSubscription().catch(() => null),
+          ]);
+          setUser(mapProfileToUser(profile, accounts));
+          setThreats(summaries.map(mapSummaryToThreat));
+          // Proactively show quota error banner if the free monthly scan is already used.
+          // This surfaces immediately on app open rather than requiring a failed scan attempt.
+          if (quotaState && !quotaState.canScan && quotaState.message) {
+            setScanQuotaError({ message: quotaState.message, upgradeTo: quotaState.upgradeTo ?? "premium" });
           }
+          // Subscription state for trial banner and cancellation survey
+          if (sub) {
+            setTrialEndsAt(sub.trialEndsAt ?? null);
+            setSubscriptionStatus(sub.status as "active" | "trialing" | "canceled" | "past_due");
+            // Show cancellation survey once after subscription lapses
+            if (sub.status === "canceled") {
+              AsyncStorage.getItem(SURVEY_SHOWN_KEY).then((shown) => {
+                if (shown !== "true") setShowCancellationSurvey(true);
+              }).catch(() => {});
+            }
+          }
+          // The server is the durable source of truth for onboarding completion
+          // (onboardingAnswers persisted in the DB). Device-local AsyncStorage
+          // flags can be lost on reinstall or stale after account deletion, so
+          // once we hear from the server that onboarding is done, trust it and
+          // sync the local cache to match (never downgrade an already-true local flag).
+          if (profile.onboardingCompleted) {
+            setHasSeenOnboarding(true);
+            const userId = clerkUserIdRef.current;
+            AsyncStorage.setItem(userId ? `hasSeenOnboarding:${userId}` : "hasSeenOnboarding", "true");
+          }
+          lastRefreshedAtRef.current = Date.now();
+          return true;
+        } catch {
+          return false;
         }
-        // The server is the durable source of truth for onboarding completion
-        // (onboardingAnswers persisted in the DB). Device-local AsyncStorage
-        // flags can be lost on reinstall or stale after account deletion, so
-        // once we hear from the server that onboarding is done, trust it and
-        // sync the local cache to match (never downgrade an already-true local flag).
-        if (profile.onboardingCompleted) {
-          setHasSeenOnboarding(true);
-          const userId = clerkUserIdRef.current;
-          AsyncStorage.setItem(userId ? `hasSeenOnboarding:${userId}` : "hasSeenOnboarding", "true");
-        }
-        return true;
-      } catch {
-        return false;
-      }
-    };
+      };
 
-    if (await attempt()) return;
-
-    // Retry with exponential backoff — handles the race where Clerk's token
-    // is not yet available on the very first call after login().
-    const delays = [1000, 2500];
-    for (const delay of delays) {
-      await new Promise((r) => setTimeout(r, delay));
       if (await attempt()) return;
+
+      // Retry with exponential backoff — handles the race where Clerk's token
+      // is not yet available on the very first call after login().
+      const delays = [1000, 2500];
+      for (const delay of delays) {
+        await new Promise((r) => setTimeout(r, delay));
+        if (await attempt()) return;
+      }
+      // Silently fail after all retries — user stays on empty default state.
+    } finally {
+      isRefreshingRef.current = false;
     }
-    // Silently fail after all retries — user stays on empty default state.
   }, []);
 
   // NOTE: Do NOT trigger refreshData() from the isLoggedIn useEffect.

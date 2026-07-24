@@ -23,6 +23,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
+import { Skeleton } from "@/components/Skeleton";
 import { getScanQuotaState } from "@/lib/api";
 
 function formatNextScan(iso: string): string {
@@ -42,6 +43,7 @@ export default function ScanScreen() {
   const {
     user,
     isScanning,
+    isLoading,
     scanProgress,
     scanCurrentStep,
     scanQuotaError,
@@ -187,23 +189,29 @@ export default function ScanScreen() {
         >
           Identity Scan
         </Text>
-        <Text
-          style={[
-            styles.headerSub,
-            { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
-          ]}
-        >
-          Last scan: {user.lastScan}
-        </Text>
-        {user.nextScanDue && (
-          <Text
-            style={[
-              styles.headerSub,
-              { color: colors.success + "CC", fontFamily: "Inter_400Regular" },
-            ]}
-          >
-            Auto-scan {formatNextScan(user.nextScanDue)}
-          </Text>
+        {isLoading ? (
+          <Skeleton width={160} height={14} borderRadius={4} style={{ marginTop: 4 }} />
+        ) : (
+          <>
+            <Text
+              style={[
+                styles.headerSub,
+                { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+              ]}
+            >
+              Last scan: {user.lastScan}
+            </Text>
+            {user.nextScanDue && (
+              <Text
+                style={[
+                  styles.headerSub,
+                  { color: colors.success + "CC", fontFamily: "Inter_400Regular" },
+                ]}
+              >
+                Auto-scan {formatNextScan(user.nextScanDue)}
+              </Text>
+            )}
+          </>
         )}
       </View>
 
