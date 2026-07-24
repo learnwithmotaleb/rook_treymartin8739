@@ -14,27 +14,32 @@ const VALID_PLATFORMS = [
 ];
 
 router.get("/accounts", async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const accounts = await db
-    .select()
-    .from(connectedAccountsTable)
-    .where(eq(connectedAccountsTable.userId, userId));
+    const accounts = await db
+      .select()
+      .from(connectedAccountsTable)
+      .where(eq(connectedAccountsTable.userId, userId));
 
-  res.json(
-    accounts.map((a) => ({
-      id: a.id,
-      platform: a.platform,
-      username: a.username,
-      displayName: a.displayName,
-      followers: a.followers,
-      verified: a.verified,
-      photosIndexed: a.photosIndexed,
-      captionsIndexed: a.captionsIndexed,
-      reelsIndexed: a.reelsIndexed,
-      lastSynced: a.lastSynced?.toISOString() ?? null,
-    }))
-  );
+    res.json(
+      accounts.map((a) => ({
+        id: a.id,
+        platform: a.platform,
+        username: a.username,
+        displayName: a.displayName,
+        followers: a.followers,
+        verified: a.verified,
+        photosIndexed: a.photosIndexed,
+        captionsIndexed: a.captionsIndexed,
+        reelsIndexed: a.reelsIndexed,
+        lastSynced: a.lastSynced?.toISOString() ?? null,
+      }))
+    );
+  } catch (err) {
+    req.log.error({ err }, "GET /accounts failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 const PostAccountBody = z.object({
@@ -52,145 +57,153 @@ const PatchAccountBody = z.object({
 });
 
 router.post("/accounts", async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const parsed = PostAccountBody.safeParse(req.body);
-  if (!parsed.success) {
-    const field = parsed.error.issues[0]?.path[0];
-    if (field === "username") {
-      res.status(400).json({ error: "username is required" });
-    } else {
-      res.status(400).json({ error: "platform and username are required" });
+    const parsed = PostAccountBody.safeParse(req.body);
+    if (!parsed.success) {
+      const field = parsed.error.issues[0]?.path[0];
+      if (field === "username") {
+        res.status(400).json({ error: "username is required" });
+      } else {
+        res.status(400).json({ error: "platform and username are required" });
+      }
+      return;
     }
-    return;
-  }
-  const { platform, username, accessToken, displayName } = parsed.data;
+    const { platform, username, accessToken, displayName } = parsed.data;
 
-  if (!VALID_PLATFORMS.includes(platform)) {
-    res.status(400).json({ error: `Invalid platform. Must be one of: ${VALID_PLATFORMS.join(", ")}` });
-    return;
-  }
+    if (!VALID_PLATFORMS.includes(platform)) {
+      res.status(400).json({ error: `Invalid platform. Must be one of: ${VALID_PLATFORMS.join(", ")}` });
+      return;
+    }
 
-  const existing = await db
-    .select({ id: connectedAccountsTable.id })
-    .from(connectedAccountsTable)
-    .where(
-      and(
-        eq(connectedAccountsTable.userId, userId),
-        eq(connectedAccountsTable.platform, platform)
-      )
-    );
+    const existing = await db
+      .select({ id: connectedAccountsTable.id })
+      .from(connectedAccountsTable)
+      .where(
+        and(
+          eq(connectedAccountsTable.userId, userId),
+          eq(connectedAccountsTable.platform, platform)
+        )
+      );
 
-  if (existing.length > 0) {
-    res.status(400).json({ error: `${platform} account is already connected` });
-    return;
-  }
+    if (existing.length > 0) {
+      res.status(400).json({ error: `${platform} account is already connected` });
+      return;
+    }
 
-  const sub = await getSubscription(userId);
-  const limits = PLAN_CONFIG[normalizeTier(sub.tier)] ?? PLAN_CONFIG.free;
-  const allAccounts = await db
-    .select({ id: connectedAccountsTable.id })
-    .from(connectedAccountsTable)
-    .where(eq(connectedAccountsTable.userId, userId));
+    const sub = await getSubscription(userId);
+    const limits = PLAN_CONFIG[normalizeTier(sub.tier)] ?? PLAN_CONFIG.free;
+    const allAccounts = await db
+      .select({ id: connectedAccountsTable.id })
+      .from(connectedAccountsTable)
+      .where(eq(connectedAccountsTable.userId, userId));
 
-  if (limits.maxAccounts !== -1 && allAccounts.length >= limits.maxAccounts) {
-    res.status(403).json({
-      error: "account_limit_reached",
-      message: `Your ${limits.label} plan supports up to ${limits.maxAccounts} connected account${limits.maxAccounts === 1 ? "" : "s"}. Upgrade to add more.`,
-      currentTier: sub.tier,
-      limit: limits.maxAccounts,
+    if (limits.maxAccounts !== -1 && allAccounts.length >= limits.maxAccounts) {
+      res.status(403).json({
+        error: "account_limit_reached",
+        message: `Your ${limits.label} plan supports up to ${limits.maxAccounts} connected account${limits.maxAccounts === 1 ? "" : "s"}. Upgrade to add more.`,
+        currentTier: sub.tier,
+        limit: limits.maxAccounts,
+      });
+      return;
+    }
+
+    const [account] = await db
+      .insert(connectedAccountsTable)
+      .values({
+        userId,
+        platform,
+        username,
+        displayName: displayName ?? null,
+        accessToken: accessToken ?? null,
+        verified: !!accessToken,
+        followers: 0,
+        photosIndexed: 0,
+        captionsIndexed: 0,
+        reelsIndexed: 0,
+        lastSynced: accessToken ? new Date() : null,
+      })
+      .returning();
+
+    if (!account) {
+      res.status(500).json({ error: "Failed to connect account" });
+      return;
+    }
+
+    res.status(201).json({
+      id: account.id,
+      platform: account.platform,
+      username: account.username,
+      displayName: account.displayName,
+      followers: account.followers,
+      verified: account.verified,
+      photosIndexed: account.photosIndexed,
+      captionsIndexed: account.captionsIndexed,
+      reelsIndexed: account.reelsIndexed,
+      lastSynced: account.lastSynced?.toISOString() ?? null,
     });
-    return;
+
+    recomputeForUser(userId).catch(() => {});
+  } catch (err) {
+    req.log.error({ err }, "POST /accounts failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  const [account] = await db
-    .insert(connectedAccountsTable)
-    .values({
-      userId,
-      platform,
-      username,
-      displayName: displayName ?? null,
-      accessToken: accessToken ?? null,
-      verified: !!accessToken,
-      followers: 0,
-      photosIndexed: 0,
-      captionsIndexed: 0,
-      reelsIndexed: 0,
-      lastSynced: accessToken ? new Date() : null,
-    })
-    .returning();
-
-  if (!account) {
-    res.status(500).json({ error: "Failed to connect account" });
-    return;
-  }
-
-  res.status(201).json({
-    id: account.id,
-    platform: account.platform,
-    username: account.username,
-    displayName: account.displayName,
-    followers: account.followers,
-    verified: account.verified,
-    photosIndexed: account.photosIndexed,
-    captionsIndexed: account.captionsIndexed,
-    reelsIndexed: account.reelsIndexed,
-    lastSynced: account.lastSynced?.toISOString() ?? null,
-  });
-
-  // Recompute identity anchor after connecting a new account — the anchor
-  // gets a platform-count bonus even before the first scan completes.
-  recomputeForUser(userId).catch(() => {});
 });
 
 router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const accountId = Array.isArray(req.params.accountId)
-    ? req.params.accountId[0]
-    : req.params.accountId;
+  try {
+    const userId = req.userId;
+    const accountId = Array.isArray(req.params.accountId)
+      ? req.params.accountId[0]
+      : req.params.accountId;
 
-  const parsedPatch = PatchAccountBody.safeParse(req.body);
-  if (!parsedPatch.success) {
-    res.status(400).json({ error: parsedPatch.error.issues[0]?.message ?? "Invalid request body" });
-    return;
-  }
-  const { accessToken, displayName, followers, platformUserId } = parsedPatch.data;
+    const parsedPatch = PatchAccountBody.safeParse(req.body);
+    if (!parsedPatch.success) {
+      res.status(400).json({ error: parsedPatch.error.issues[0]?.message ?? "Invalid request body" });
+      return;
+    }
+    const { accessToken, displayName, followers, platformUserId } = parsedPatch.data;
 
-  const [updated] = await db
-    .update(connectedAccountsTable)
-    .set({
-      ...(accessToken !== undefined && { accessToken }),
-      ...(displayName !== undefined && { displayName }),
-      ...(followers !== undefined && { followers }),
-      ...(platformUserId !== undefined && { platformUserId }),
-      verified: accessToken ? true : undefined,
-      lastSynced: new Date(),
-    })
-    .where(
-      and(
-        eq(connectedAccountsTable.id, accountId),
-        eq(connectedAccountsTable.userId, userId)
+    const [updated] = await db
+      .update(connectedAccountsTable)
+      .set({
+        ...(accessToken !== undefined && { accessToken }),
+        ...(displayName !== undefined && { displayName }),
+        ...(followers !== undefined && { followers }),
+        ...(platformUserId !== undefined && { platformUserId }),
+        verified: accessToken ? true : undefined,
+        lastSynced: new Date(),
+      })
+      .where(
+        and(
+          eq(connectedAccountsTable.id, accountId),
+          eq(connectedAccountsTable.userId, userId)
+        )
       )
-    )
-    .returning();
+      .returning();
 
-  if (!updated) {
-    res.status(404).json({ error: "Account not found" });
-    return;
+    if (!updated) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    res.json({
+      id: updated.id,
+      platform: updated.platform,
+      username: updated.username,
+      displayName: updated.displayName,
+      followers: updated.followers,
+      verified: updated.verified,
+      photosIndexed: updated.photosIndexed,
+      captionsIndexed: updated.captionsIndexed,
+      reelsIndexed: updated.reelsIndexed,
+      lastSynced: updated.lastSynced?.toISOString() ?? null,
+    });
+  } catch (err) {
+    req.log.error({ err }, "PATCH /accounts/:accountId failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  res.json({
-    id: updated.id,
-    platform: updated.platform,
-    username: updated.username,
-    displayName: updated.displayName,
-    followers: updated.followers,
-    verified: updated.verified,
-    photosIndexed: updated.photosIndexed,
-    captionsIndexed: updated.captionsIndexed,
-    reelsIndexed: updated.reelsIndexed,
-    lastSynced: updated.lastSynced?.toISOString() ?? null,
-  });
 });
 
 /**
@@ -199,39 +212,39 @@ router.patch("/accounts/:accountId", async (req, res): Promise<void> => {
  * Requires an OAuth access token — accounts without one return hasAccess: false.
  */
 router.get("/accounts/:accountId/media", async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const accountId = Array.isArray(req.params.accountId)
-    ? req.params.accountId[0]!
-    : req.params.accountId;
-
-  const [account] = await db
-    .select()
-    .from(connectedAccountsTable)
-    .where(
-      and(
-        eq(connectedAccountsTable.id, accountId),
-        eq(connectedAccountsTable.userId, userId)
-      )
-    );
-
-  if (!account) {
-    res.status(404).json({ error: "Account not found" });
-    return;
-  }
-
-  if (!account.accessToken || !account.verified) {
-    res.json({ items: [], hasAccess: false, reason: "no_oauth_token" });
-    return;
-  }
-
-  const { getAdapter } = await import("../adapters/platformAdapter");
-  const adapter = getAdapter(account.platform);
-  if (!adapter) {
-    res.json({ items: [], hasAccess: false, reason: "unsupported_platform" });
-    return;
-  }
-
   try {
+    const userId = req.userId;
+    const accountId = Array.isArray(req.params.accountId)
+      ? req.params.accountId[0]!
+      : req.params.accountId;
+
+    const [account] = await db
+      .select()
+      .from(connectedAccountsTable)
+      .where(
+        and(
+          eq(connectedAccountsTable.id, accountId),
+          eq(connectedAccountsTable.userId, userId)
+        )
+      );
+
+    if (!account) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    if (!account.accessToken || !account.verified) {
+      res.json({ items: [], hasAccess: false, reason: "no_oauth_token" });
+      return;
+    }
+
+    const { getAdapter } = await import("../adapters/platformAdapter");
+    const adapter = getAdapter(account.platform);
+    if (!adapter) {
+      res.json({ items: [], hasAccess: false, reason: "unsupported_platform" });
+      return;
+    }
+
     const limit = Math.min(parseInt(String(req.query["limit"] ?? "30"), 10), 50);
     const mediaItems = await adapter.getMediaItems(
       account.accessToken,
@@ -254,35 +267,40 @@ router.get("/accounts/:accountId/media", async (req, res): Promise<void> => {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    req.log.error({ err }, "GET /accounts/:accountId/media failed");
     res.status(500).json({ error: "Failed to fetch media from platform", detail: message });
   }
 });
 
 router.delete("/accounts/:accountId", async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const accountId = Array.isArray(req.params.accountId)
-    ? req.params.accountId[0]
-    : req.params.accountId;
+  try {
+    const userId = req.userId;
+    const accountId = Array.isArray(req.params.accountId)
+      ? req.params.accountId[0]
+      : req.params.accountId;
 
-  const [deleted] = await db
-    .delete(connectedAccountsTable)
-    .where(
-      and(
-        eq(connectedAccountsTable.id, accountId),
-        eq(connectedAccountsTable.userId, userId)
+    const [deleted] = await db
+      .delete(connectedAccountsTable)
+      .where(
+        and(
+          eq(connectedAccountsTable.id, accountId),
+          eq(connectedAccountsTable.userId, userId)
+        )
       )
-    )
-    .returning({ id: connectedAccountsTable.id });
+      .returning({ id: connectedAccountsTable.id });
 
-  if (!deleted) {
-    res.status(404).json({ error: "Account not found" });
-    return;
+    if (!deleted) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    res.sendStatus(204);
+
+    recomputeForUser(userId).catch(() => {});
+  } catch (err) {
+    req.log.error({ err }, "DELETE /accounts/:accountId failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  res.sendStatus(204);
-
-  // Recompute identity anchor now that a platform has been removed.
-  recomputeForUser(userId).catch(() => {});
 });
 
 export default router;

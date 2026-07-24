@@ -34,7 +34,6 @@ function parseSignals(raw: string | null): StructuredSignals {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      // Legacy format — plain string array
       return { flags: parsed as string[] };
     }
     if (typeof parsed === "object" && parsed !== null && Array.isArray(parsed.flags)) {
@@ -111,112 +110,121 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 }
 
 router.get("/threats", async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const { severity, resolved, limit = "50", offset = "0" } = req.query as {
-    severity?: string;
-    resolved?: string;
-    limit?: string;
-    offset?: string;
-  };
+    const { severity, resolved, limit = "50", offset = "0" } = req.query as {
+      severity?: string;
+      resolved?: string;
+      limit?: string;
+      offset?: string;
+    };
 
-  const conditions = [
-    eq(threatsTable.userId, userId),
-    // Never surface threats that are pending confirmation from a second scan
-    eq(threatsTable.hiddenUntilScan, false),
-  ];
+    const conditions = [
+      eq(threatsTable.userId, userId),
+      eq(threatsTable.hiddenUntilScan, false),
+    ];
 
-  if (severity && ["high", "medium", "low"].includes(severity)) {
-    conditions.push(eq(threatsTable.severity, severity));
+    if (severity && ["high", "medium", "low"].includes(severity)) {
+      conditions.push(eq(threatsTable.severity, severity));
+    }
+
+    if (resolved !== undefined) {
+      conditions.push(eq(threatsTable.resolved, resolved === "true"));
+    }
+
+    const rows = await db
+      .select()
+      .from(threatsTable)
+      .where(and(...conditions))
+      .orderBy(desc(threatsTable.createdAt))
+      .limit(Math.min(parseInt(limit, 10), 200))
+      .offset(Math.max(parseInt(offset, 10), 0));
+
+    res.json(rows.map(parseThreatSummary));
+  } catch (err) {
+    req.log.error({ err }, "GET /threats failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  if (resolved !== undefined) {
-    conditions.push(eq(threatsTable.resolved, resolved === "true"));
-  }
-
-  const rows = await db
-    .select()
-    .from(threatsTable)
-    .where(and(...conditions))
-    .orderBy(desc(threatsTable.createdAt))
-    .limit(Math.min(parseInt(limit, 10), 200))
-    .offset(Math.max(parseInt(offset, 10), 0));
-
-  res.json(rows.map(parseThreatSummary));
 });
 
 router.get("/threats/:threatId", async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const threatId = Array.isArray(req.params.threatId)
-    ? req.params.threatId[0]
-    : req.params.threatId;
+  try {
+    const userId = req.userId;
+    const threatId = Array.isArray(req.params.threatId)
+      ? req.params.threatId[0]
+      : req.params.threatId;
 
-  const [threat] = await db
-    .select()
-    .from(threatsTable)
-    .where(
-      and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId))
-    );
-
-  if (!threat) {
-    res.status(404).json({ error: "Threat not found" });
-    return;
-  }
-
-  // Gate full evidence behind Premium — free users see only metadata
-  const sub = await getSubscription(userId);
-  const tier = normalizeTier(sub.tier ?? "free");
-  const isFree = tier === "free";
-
-  if (isFree) {
-    const signals = parseSignals(threat.detectedSignalsJson);
-    res.json({
-      id: threat.id,
-      type: threat.type,
-      severity: threat.severity,
-      platform: threat.platform,
-      title: threat.title,
-      description: null,
-      details: null,
-      aiExplanation: null,
-      threatScore: threat.threatScore,
-      suspiciousUsername: threat.suspiciousUsername,
-      matchedMediaCount: threat.matchedMediaCount,
-      evidence: [],
-      scoreBreakdown: {},
-      detectedSignals: signals.flags,
-      confirmedVictims: signals.confirmedVictims ?? null,
-      crossUserEscalation: signals.crossUserEscalation ?? false,
-      postDatingDays: signals.postDatingDays ?? null,
-      resolved: threat.resolved,
-      resolvedAt: threat.resolvedAt?.toISOString() ?? null,
-      createdAt: threat.createdAt.toISOString(),
-      isLocked: true,
-    });
-    return;
-  }
-
-  // Enrich with shared threat actor intelligence (if linked)
-  let threatActor = undefined;
-  if (threat.threatActorId) {
-    const [actor] = await db
+    const [threat] = await db
       .select()
-      .from(threatActorsTable)
-      .where(eq(threatActorsTable.id, threat.threatActorId));
+      .from(threatsTable)
+      .where(
+        and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId))
+      );
 
-    if (actor) {
-      threatActor = {
-        id: actor.id,
-        victimCount: actor.victimCount,
-        platformSpread: safeParseJson<string[]>(actor.platformSetJson, []),
-        firstSeen: actor.firstSeen.toISOString(),
-        lastSeen: actor.lastSeen.toISOString(),
-        confidenceScore: actor.confidenceScore,
-      };
+    if (!threat) {
+      res.status(404).json({ error: "Threat not found" });
+      return;
     }
-  }
 
-  res.json({ ...parseThreat(threat), isLocked: false, ...(threatActor !== undefined ? { threatActor } : {}) });
+    // Gate full evidence behind Premium — free users see only metadata
+    const sub = await getSubscription(userId);
+    const tier = normalizeTier(sub.tier ?? "free");
+    const isFree = tier === "free";
+
+    if (isFree) {
+      const signals = parseSignals(threat.detectedSignalsJson);
+      res.json({
+        id: threat.id,
+        type: threat.type,
+        severity: threat.severity,
+        platform: threat.platform,
+        title: threat.title,
+        description: null,
+        details: null,
+        aiExplanation: null,
+        threatScore: threat.threatScore,
+        suspiciousUsername: threat.suspiciousUsername,
+        matchedMediaCount: threat.matchedMediaCount,
+        evidence: [],
+        scoreBreakdown: {},
+        detectedSignals: signals.flags,
+        confirmedVictims: signals.confirmedVictims ?? null,
+        crossUserEscalation: signals.crossUserEscalation ?? false,
+        postDatingDays: signals.postDatingDays ?? null,
+        resolved: threat.resolved,
+        resolvedAt: threat.resolvedAt?.toISOString() ?? null,
+        createdAt: threat.createdAt.toISOString(),
+        isLocked: true,
+      });
+      return;
+    }
+
+    // Enrich with shared threat actor intelligence (if linked)
+    let threatActor = undefined;
+    if (threat.threatActorId) {
+      const [actor] = await db
+        .select()
+        .from(threatActorsTable)
+        .where(eq(threatActorsTable.id, threat.threatActorId));
+
+      if (actor) {
+        threatActor = {
+          id: actor.id,
+          victimCount: actor.victimCount,
+          platformSpread: safeParseJson<string[]>(actor.platformSetJson, []),
+          firstSeen: actor.firstSeen.toISOString(),
+          lastSeen: actor.lastSeen.toISOString(),
+          confidenceScore: actor.confidenceScore,
+        };
+      }
+    }
+
+    res.json({ ...parseThreat(threat), isLocked: false, ...(threatActor !== undefined ? { threatActor } : {}) });
+  } catch (err) {
+    req.log.error({ err }, "GET /threats/:threatId failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 const BulkResolveBody = z.object({ ids: z.array(z.string()).min(1) });
@@ -225,143 +233,144 @@ const ResolveBody = z.object({
 });
 
 router.patch("/threats/bulk-resolve", async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const parsed = BulkResolveBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "ids must be a non-empty array of strings" });
-    return;
-  }
-  const { ids } = parsed.data;
+    const parsed = BulkResolveBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "ids must be a non-empty array of strings" });
+      return;
+    }
+    const { ids } = parsed.data;
 
-  // Fetch platform+username before updating so we can write to suppression table
-  const threatsToResolve = await db
-    .select({
-      platform: threatsTable.platform,
-      suspiciousUsername: threatsTable.suspiciousUsername,
-    })
-    .from(threatsTable)
-    .where(and(eq(threatsTable.userId, userId), inArray(threatsTable.id, ids)));
+    const threatsToResolve = await db
+      .select({
+        platform: threatsTable.platform,
+        suspiciousUsername: threatsTable.suspiciousUsername,
+      })
+      .from(threatsTable)
+      .where(and(eq(threatsTable.userId, userId), inArray(threatsTable.id, ids)));
 
-  await db
-    .update(threatsTable)
-    .set({ resolved: true, resolvedAt: new Date() })
-    .where(and(eq(threatsTable.userId, userId), inArray(threatsTable.id, ids)));
-
-  // Permanently suppress all resolved accounts so they never resurface in scans
-  const accountPairs = threatsToResolve.filter((t) => t.platform && t.suspiciousUsername);
-  const suppressions = accountPairs.map((t) => ({
-    userId,
-    platform: t.platform!,
-    username: normalizeSuppressUsername(t.suspiciousUsername),
-  }));
-  if (suppressions.length > 0) {
-    await db.insert(suppressedAccountsTable).values(suppressions).onConflictDoNothing();
-  }
-
-  // Cascade: resolve any duplicate unresolved threats for the same accounts
-  // (handles race condition where a concurrent scan inserted duplicates)
-  for (const t of accountPairs) {
     await db
       .update(threatsTable)
       .set({ resolved: true, resolvedAt: new Date() })
-      .where(
-        and(
-          eq(threatsTable.userId, userId),
-          eq(threatsTable.platform, t.platform!),
-          eq(threatsTable.suspiciousUsername, t.suspiciousUsername!),
-          eq(threatsTable.resolved, false)
-        )
-      );
+      .where(and(eq(threatsTable.userId, userId), inArray(threatsTable.id, ids)));
+
+    const accountPairs = threatsToResolve.filter((t) => t.platform && t.suspiciousUsername);
+    const suppressions = accountPairs.map((t) => ({
+      userId,
+      platform: t.platform!,
+      username: normalizeSuppressUsername(t.suspiciousUsername),
+    }));
+    if (suppressions.length > 0) {
+      await db.insert(suppressedAccountsTable).values(suppressions).onConflictDoNothing();
+    }
+
+    for (const t of accountPairs) {
+      await db
+        .update(threatsTable)
+        .set({ resolved: true, resolvedAt: new Date() })
+        .where(
+          and(
+            eq(threatsTable.userId, userId),
+            eq(threatsTable.platform, t.platform!),
+            eq(threatsTable.suspiciousUsername, t.suspiciousUsername!),
+            eq(threatsTable.resolved, false)
+          )
+        );
+    }
+
+    recalculateScore(userId).catch((err) =>
+      req.log.warn({ err }, "Score recalculation failed after bulk resolve")
+    );
+
+    res.json({ resolved: ids.length });
+  } catch (err) {
+    req.log.error({ err }, "PATCH /threats/bulk-resolve failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  recalculateScore(userId).catch((err) =>
-    req.log.warn({ err }, "Score recalculation failed after bulk resolve")
-  );
-
-  res.json({ resolved: ids.length });
 });
 
 router.patch("/threats/:threatId/resolve", async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const threatId = Array.isArray(req.params.threatId)
-    ? req.params.threatId[0]
-    : req.params.threatId;
+  try {
+    const userId = req.userId;
+    const threatId = Array.isArray(req.params.threatId)
+      ? req.params.threatId[0]
+      : req.params.threatId;
 
-  const parsedResolve = ResolveBody.safeParse(req.body);
-  if (!parsedResolve.success) {
-    res.status(400).json({ error: parsedResolve.error.issues[0]?.message ?? "Invalid resolveAction" });
-    return;
-  }
-  const action = parsedResolve.data.resolveAction ?? null;
+    const parsedResolve = ResolveBody.safeParse(req.body);
+    if (!parsedResolve.success) {
+      res.status(400).json({ error: parsedResolve.error.issues[0]?.message ?? "Invalid resolveAction" });
+      return;
+    }
+    const action = parsedResolve.data.resolveAction ?? null;
 
-  const [updated] = await db
-    .update(threatsTable)
-    .set({
-      resolved: true,
-      resolvedAt: new Date(),
-      ...(action ? { resolveAction: action } : {}),
-    })
-    .where(
-      and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId))
-    )
-    .returning();
-
-  if (!updated) {
-    res.status(404).json({ error: "Threat not found" });
-    return;
-  }
-
-  // Map resolve action to a pHash feedback outcome so the learning system
-  // can adjust this user's detection threshold over time.
-  const feedbackOutcome: FeedbackOutcome =
-    action === "false_positive" ? "false_positive"
-    : action === "approved" ? "approved_contact"
-    : action === "reported_to_platform" ? "true_positive"
-    : "resolved_manually";
-
-  recordPhashFeedback(
-    userId,
-    threatId,
-    updated.impersonatorDHash ?? null,
-    updated.suspiciousUsername ?? null,
-    updated.platform ?? null,
-    feedbackOutcome
-  ).catch(() => {});
-
-  // Permanently suppress this account so it never resurfaces in future scans
-  if (updated.platform && updated.suspiciousUsername) {
-    await db
-      .insert(suppressedAccountsTable)
-      .values({
-        userId,
-        platform: updated.platform,
-        username: normalizeSuppressUsername(updated.suspiciousUsername),
-        resolveAction: action ?? undefined,
-      })
-      .onConflictDoNothing();
-
-    // Cascade: resolve any duplicate unresolved threats for the same account
-    // (handles race condition where a concurrent scan inserted duplicates)
-    await db
+    const [updated] = await db
       .update(threatsTable)
-      .set({ resolved: true, resolvedAt: new Date() })
+      .set({
+        resolved: true,
+        resolvedAt: new Date(),
+        ...(action ? { resolveAction: action } : {}),
+      })
       .where(
-        and(
-          eq(threatsTable.userId, userId),
-          eq(threatsTable.platform, updated.platform),
-          eq(threatsTable.suspiciousUsername, updated.suspiciousUsername),
-          eq(threatsTable.resolved, false),
-          ne(threatsTable.id, threatId)
-        )
-      );
+        and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId))
+      )
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Threat not found" });
+      return;
+    }
+
+    const feedbackOutcome: FeedbackOutcome =
+      action === "false_positive" ? "false_positive"
+      : action === "approved" ? "approved_contact"
+      : action === "reported_to_platform" ? "true_positive"
+      : "resolved_manually";
+
+    recordPhashFeedback(
+      userId,
+      threatId,
+      updated.impersonatorDHash ?? null,
+      updated.suspiciousUsername ?? null,
+      updated.platform ?? null,
+      feedbackOutcome
+    ).catch(() => {});
+
+    if (updated.platform && updated.suspiciousUsername) {
+      await db
+        .insert(suppressedAccountsTable)
+        .values({
+          userId,
+          platform: updated.platform,
+          username: normalizeSuppressUsername(updated.suspiciousUsername),
+          resolveAction: action ?? undefined,
+        })
+        .onConflictDoNothing();
+
+      await db
+        .update(threatsTable)
+        .set({ resolved: true, resolvedAt: new Date() })
+        .where(
+          and(
+            eq(threatsTable.userId, userId),
+            eq(threatsTable.platform, updated.platform),
+            eq(threatsTable.suspiciousUsername, updated.suspiciousUsername),
+            eq(threatsTable.resolved, false),
+            ne(threatsTable.id, threatId)
+          )
+        );
+    }
+
+    recalculateScore(userId).catch((err) =>
+      req.log.warn({ err }, "Score recalculation failed after resolve")
+    );
+
+    res.json(parseThreat(updated));
+  } catch (err) {
+    req.log.error({ err }, "PATCH /threats/:threatId/resolve failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  recalculateScore(userId).catch((err) =>
-    req.log.warn({ err }, "Score recalculation failed after resolve")
-  );
-
-  res.json(parseThreat(updated));
 });
 
 export default router;

@@ -140,15 +140,15 @@ function Checker({ size }: { size: number }) {
 }
 
 /* ── Small helpers ── */
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <p style={{ margin: "8px 0 0", fontSize: 11, color: "#64748B", fontFamily: "Inter,sans-serif", textAlign: "center", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+    <p style={{ margin: "8px 0 0", fontSize: 11, color: "#64748B", fontFamily: "Inter,sans-serif", textAlign: "center", letterSpacing: "0.05em", textTransform: "uppercase", ...style }}>
       {children}
     </p>
   );
 }
-function Row({ children, gap = 28 }: { children: React.ReactNode; gap?: number }) {
-  return <div style={{ display: "flex", alignItems: "flex-end", gap, flexWrap: "wrap" }}>{children}</div>;
+function Row({ children, gap = 28, style }: { children: React.ReactNode; gap?: number; style?: React.CSSProperties }) {
+  return <div style={{ display: "flex", alignItems: "flex-end", gap, flexWrap: "wrap", ...style }}>{children}</div>;
 }
 function Tile({ children, label }: { children: React.ReactNode; label: string }) {
   return (

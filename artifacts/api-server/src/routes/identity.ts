@@ -39,342 +39,309 @@ const router: IRouter = Router();
 
 // ─── GET /identity/profile ─────────────────────────────────────────────────────
 
-/**
- * Returns the full identity verification profile for the authenticated user.
- *
- * Response shape:
- * {
- *   userId, overallConfidence, confidenceTier, verifiedPlatformCount,
- *   anchorHashCount, lastComputedAt,
- *   platforms: [{ platform, username, visualMatchScore, metadataMatchScore,
- *                 hashCount, verificationMethod, verifiedAt }]
- * }
- */
 router.get("/identity/profile", requireApiKeyOrAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const [profile] = await db
-    .select()
-    .from(userIdentityProfilesTable)
-    .where(eq(userIdentityProfilesTable.userId, userId));
+    const [profile] = await db
+      .select()
+      .from(userIdentityProfilesTable)
+      .where(eq(userIdentityProfilesTable.userId, userId));
 
-  const platformRows = await db
-    .select()
-    .from(platformVerificationsTable)
-    .where(eq(platformVerificationsTable.userId, userId));
+    const platformRows = await db
+      .select()
+      .from(platformVerificationsTable)
+      .where(eq(platformVerificationsTable.userId, userId));
 
-  if (!profile) {
-    // No profile yet — compute on-demand
-    const result = await computeIdentityAnchor(userId);
-    // Persist fire-and-forget for future calls
-    recomputeForUser(userId).catch(() => {});
+    if (!profile) {
+      const result = await computeIdentityAnchor(userId);
+      recomputeForUser(userId).catch(() => {});
+
+      res.json({
+        userId,
+        overallConfidence: result.overallConfidence,
+        confidenceTier: result.confidenceTier,
+        verifiedPlatformCount: result.verifiedPlatformCount,
+        anchorHashCount: result.anchorHashCount,
+        lastComputedAt: null,
+        platforms: result.platformScores.map((p) => ({
+          platform: p.platform,
+          username: p.username,
+          visualMatchScore: p.visualMatchScore,
+          metadataMatchScore: p.metadataMatchScore,
+          hashCount: p.hashCount,
+          verificationMethod: p.verificationMethod,
+          verifiedAt: null,
+        })),
+      });
+      return;
+    }
 
     res.json({
       userId,
-      overallConfidence: result.overallConfidence,
-      confidenceTier: result.confidenceTier,
-      verifiedPlatformCount: result.verifiedPlatformCount,
-      anchorHashCount: result.anchorHashCount,
-      lastComputedAt: null,
-      platforms: result.platformScores.map((p) => ({
+      overallConfidence: profile.overallConfidence,
+      confidenceTier: profile.confidenceTier,
+      verifiedPlatformCount: profile.verifiedPlatformCount,
+      anchorHashCount: profile.anchorHashCount,
+      lastComputedAt: profile.lastComputedAt.toISOString(),
+      platforms: platformRows.map((p) => ({
         platform: p.platform,
         username: p.username,
         visualMatchScore: p.visualMatchScore,
         metadataMatchScore: p.metadataMatchScore,
         hashCount: p.hashCount,
         verificationMethod: p.verificationMethod,
-        verifiedAt: null,
+        verifiedAt: p.verifiedAt.toISOString(),
       })),
     });
-    return;
+  } catch (err) {
+    logger.error({ err }, "GET /identity/profile failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  res.json({
-    userId,
-    overallConfidence: profile.overallConfidence,
-    confidenceTier: profile.confidenceTier,
-    verifiedPlatformCount: profile.verifiedPlatformCount,
-    anchorHashCount: profile.anchorHashCount,
-    lastComputedAt: profile.lastComputedAt.toISOString(),
-    platforms: platformRows.map((p) => ({
-      platform: p.platform,
-      username: p.username,
-      visualMatchScore: p.visualMatchScore,
-      metadataMatchScore: p.metadataMatchScore,
-      hashCount: p.hashCount,
-      verificationMethod: p.verificationMethod,
-      verifiedAt: p.verifiedAt.toISOString(),
-    })),
-  });
 });
 
 // ─── GET /identity/badge ───────────────────────────────────────────────────────
 
-/**
- * Lightweight trust badge summary.
- *
- * Response shape:
- * {
- *   userId, confidenceTier, overallConfidence, verifiedPlatformCount,
- *   anchorHashCount, verifiedPlatforms: string[],
- *   badge: { tier, label, description, color }
- * }
- */
 router.get("/identity/badge", requireApiKeyOrAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const [profile] = await db
-    .select()
-    .from(userIdentityProfilesTable)
-    .where(eq(userIdentityProfilesTable.userId, userId));
+    const [profile] = await db
+      .select()
+      .from(userIdentityProfilesTable)
+      .where(eq(userIdentityProfilesTable.userId, userId));
 
-  const tier: ConfidenceTier = (profile?.confidenceTier as ConfidenceTier) ?? "UNVERIFIED";
+    const tier: ConfidenceTier = (profile?.confidenceTier as ConfidenceTier) ?? "UNVERIFIED";
 
-  const platformRows = await db
-    .select({ platform: platformVerificationsTable.platform })
-    .from(platformVerificationsTable)
-    .where(eq(platformVerificationsTable.userId, userId));
+    const platformRows = await db
+      .select({ platform: platformVerificationsTable.platform })
+      .from(platformVerificationsTable)
+      .where(eq(platformVerificationsTable.userId, userId));
 
-  res.json({
-    userId,
-    confidenceTier: tier,
-    overallConfidence: profile?.overallConfidence ?? 0,
-    verifiedPlatformCount: profile?.verifiedPlatformCount ?? 0,
-    anchorHashCount: profile?.anchorHashCount ?? 0,
-    verifiedPlatforms: platformRows.map((p) => p.platform),
-    badge: tierToBadge(tier),
-  });
+    res.json({
+      userId,
+      confidenceTier: tier,
+      overallConfidence: profile?.overallConfidence ?? 0,
+      verifiedPlatformCount: profile?.verifiedPlatformCount ?? 0,
+      anchorHashCount: profile?.anchorHashCount ?? 0,
+      verifiedPlatforms: platformRows.map((p) => p.platform),
+      badge: tierToBadge(tier),
+    });
+  } catch (err) {
+    logger.error({ err }, "GET /identity/badge failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── POST /identity/verify-account ────────────────────────────────────────────
 
-/**
- * B2B endpoint: verify that a claimed social account belongs to this Rook user.
- *
- * Uses ONLY stored photo hashes from the user's connected accounts — no external
- * URL fetching is performed. The account must have been previously connected and
- * scanned for hashes to be available.
- *
- * Request body:
- * {
- *   platform: string,   // e.g. "instagram"
- *   username: string    // e.g. "@johndoe" or "johndoe" — normalised internally
- * }
- *
- * Response:
- * {
- *   platform, username, connected, indexed,
- *   confidence (0–1), confidencePercent (0–100), tier,
- *   matchedHashCount, totalHashCount,
- *   verificationMethod, anchorHashCount, recommendation
- * }
- */
 router.post("/identity/verify-account", requireApiKeyOrAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const { platform, username } = req.body as {
-    platform?: string;
-    username?: string;
-  };
+  try {
+    const userId = req.userId;
+    const { platform, username } = req.body as {
+      platform?: string;
+      username?: string;
+    };
 
-  if (!platform || typeof platform !== "string") {
-    res.status(400).json({ error: "platform is required (e.g. 'instagram')" });
-    return;
-  }
-  if (!username || typeof username !== "string") {
-    res.status(400).json({ error: "username is required (e.g. '@johndoe')" });
-    return;
-  }
+    if (!platform || typeof platform !== "string") {
+      res.status(400).json({ error: "platform is required (e.g. 'instagram')" });
+      return;
+    }
+    if (!username || typeof username !== "string") {
+      res.status(400).json({ error: "username is required (e.g. '@johndoe')" });
+      return;
+    }
 
-  const normalizedPlatform = platform.toLowerCase().trim();
-  const normalizedUsername = username.replace(/^@/, "").toLowerCase().trim();
+    const normalizedPlatform = platform.toLowerCase().trim();
+    const normalizedUsername = username.replace(/^@/, "").toLowerCase().trim();
 
-  // ── Step 1: Find the connected account for this platform/username ──────────
-  const accounts = await db
-    .select({
-      id: connectedAccountsTable.id,
-      username: connectedAccountsTable.username,
-      platform: connectedAccountsTable.platform,
-    })
-    .from(connectedAccountsTable)
-    .where(
-      and(
-        eq(connectedAccountsTable.userId, userId),
-        eq(connectedAccountsTable.platform, normalizedPlatform)
-      )
+    const accounts = await db
+      .select({
+        id: connectedAccountsTable.id,
+        username: connectedAccountsTable.username,
+        platform: connectedAccountsTable.platform,
+      })
+      .from(connectedAccountsTable)
+      .where(
+        and(
+          eq(connectedAccountsTable.userId, userId),
+          eq(connectedAccountsTable.platform, normalizedPlatform)
+        )
+      );
+
+    const matchedAccount = accounts.find(
+      (a) => a.username.replace(/^@/, "").toLowerCase() === normalizedUsername
     );
 
-  // Match the specific username (case-insensitive, strip leading @)
-  const matchedAccount = accounts.find(
-    (a) => a.username.replace(/^@/, "").toLowerCase() === normalizedUsername
-  );
+    if (!matchedAccount) {
+      logger.info(
+        { userId, platform: normalizedPlatform, username: normalizedUsername },
+        "verify-account: platform/username not a connected account"
+      );
+      res.json({
+        platform: normalizedPlatform,
+        username: normalizedUsername,
+        connected: false,
+        indexed: false,
+        confidence: 0,
+        confidencePercent: 0,
+        tier: "UNVERIFIED",
+        matchedHashCount: 0,
+        totalHashCount: 0,
+        verificationMethod: "account_not_connected",
+        anchorHashCount: 0,
+        recommendation: "reject",
+        note: "This account is not connected to the Rook user. Connect the account and run a scan first.",
+      });
+      return;
+    }
 
-  if (!matchedAccount) {
+    const hashRows = await db
+      .select({ dHash: userPhotoHashesTable.dHash })
+      .from(userPhotoHashesTable)
+      .where(
+        and(
+          eq(userPhotoHashesTable.userId, userId),
+          eq(userPhotoHashesTable.accountId, matchedAccount.id)
+        )
+      );
+
+    if (hashRows.length === 0) {
+      logger.info(
+        { userId, accountId: matchedAccount.id, platform: normalizedPlatform },
+        "verify-account: account connected but not yet indexed (no hashes)"
+      );
+      res.json({
+        platform: normalizedPlatform,
+        username: normalizedUsername,
+        connected: true,
+        indexed: false,
+        confidence: 0,
+        confidencePercent: 0,
+        tier: "UNVERIFIED",
+        matchedHashCount: 0,
+        totalHashCount: 0,
+        verificationMethod: "not_indexed",
+        anchorHashCount: 0,
+        recommendation: "manual_review",
+        note: "Account is connected but not yet indexed — trigger a scan to build the hash index.",
+      });
+      return;
+    }
+
+    const dHashes = hashRows.map((r) => r.dHash);
+    const result = await verifyAccountAgainstAnchor(userId, dHashes);
+
     logger.info(
-      { userId, platform: normalizedPlatform, username: normalizedUsername },
-      "verify-account: platform/username not a connected account"
-    );
-    res.json({
-      platform: normalizedPlatform,
-      username: normalizedUsername,
-      connected: false,
-      indexed: false,
-      confidence: 0,
-      confidencePercent: 0,
-      tier: "UNVERIFIED",
-      matchedHashCount: 0,
-      totalHashCount: 0,
-      verificationMethod: "account_not_connected",
-      anchorHashCount: 0,
-      recommendation: "reject",
-      note: "This account is not connected to the Rook user. Connect the account and run a scan first.",
-    });
-    return;
-  }
-
-  // ── Step 2: Load stored hashes for this account ────────────────────────────
-  const hashRows = await db
-    .select({ dHash: userPhotoHashesTable.dHash })
-    .from(userPhotoHashesTable)
-    .where(
-      and(
-        eq(userPhotoHashesTable.userId, userId),
-        eq(userPhotoHashesTable.accountId, matchedAccount.id)
-      )
+      {
+        userId,
+        platform: normalizedPlatform,
+        username: normalizedUsername,
+        confidence: result.confidence,
+        tier: result.tier,
+        matchedHashes: result.matchedHashCount,
+        totalHashes: dHashes.length,
+      },
+      "Identity verify-account check complete"
     );
 
-  if (hashRows.length === 0) {
-    logger.info(
-      { userId, accountId: matchedAccount.id, platform: normalizedPlatform },
-      "verify-account: account connected but not yet indexed (no hashes)"
-    );
     res.json({
       platform: normalizedPlatform,
       username: normalizedUsername,
       connected: true,
-      indexed: false,
-      confidence: 0,
-      confidencePercent: 0,
-      tier: "UNVERIFIED",
-      matchedHashCount: 0,
-      totalHashCount: 0,
-      verificationMethod: "not_indexed",
-      anchorHashCount: 0,
-      recommendation: "manual_review",
-      note: "Account is connected but not yet indexed — trigger a scan to build the hash index.",
-    });
-    return;
-  }
-
-  // ── Step 3: Cross-match stored hashes against the identity anchor ──────────
-  const dHashes = hashRows.map((r) => r.dHash);
-  const result = await verifyAccountAgainstAnchor(userId, dHashes);
-
-  logger.info(
-    {
-      userId,
-      platform: normalizedPlatform,
-      username: normalizedUsername,
-      confidence: result.confidence,
+      indexed: true,
+      confidence: result.confidence / 100,
+      confidencePercent: result.confidence,
       tier: result.tier,
-      matchedHashes: result.matchedHashCount,
-      totalHashes: dHashes.length,
-    },
-    "Identity verify-account check complete"
-  );
-
-  res.json({
-    platform: normalizedPlatform,
-    username: normalizedUsername,
-    connected: true,
-    indexed: true,
-    confidence: result.confidence / 100,
-    confidencePercent: result.confidence,
-    tier: result.tier,
-    matchedHashCount: result.matchedHashCount,
-    totalHashCount: dHashes.length,
-    verificationMethod: result.verificationMethod,
-    anchorHashCount: result.anchorHashCount,
-    recommendation: confidenceToRecommendation(result.confidence),
-  });
+      matchedHashCount: result.matchedHashCount,
+      totalHashCount: dHashes.length,
+      verificationMethod: result.verificationMethod,
+      anchorHashCount: result.anchorHashCount,
+      recommendation: confidenceToRecommendation(result.confidence),
+    });
+  } catch (err) {
+    logger.error({ err }, "POST /identity/verify-account failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── POST /identity/api-keys ───────────────────────────────────────────────────
 
-/**
- * Mint a new API key for B2B integrations. Requires a Clerk session (not API key).
- * The raw key is returned exactly once — store it securely.
- *
- * Request body: { name?: string }
- * Response: { id, name, keyPrefix, key (plaintext, once only), createdAt }
- */
 router.post("/identity/api-keys", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const name = (req.body as { name?: string }).name ?? "Identity API Key";
+  try {
+    const userId = req.userId;
+    const name = (req.body as { name?: string }).name ?? "Identity API Key";
 
-  const secret = crypto.randomBytes(32).toString("hex");
-  const raw = `sid_live_${secret}`;
-  const keyHash = crypto.createHash("sha256").update(raw).digest("hex");
-  const keyPrefix = secret.slice(0, 8);
+    const secret = crypto.randomBytes(32).toString("hex");
+    const raw = `sid_live_${secret}`;
+    const keyHash = crypto.createHash("sha256").update(raw).digest("hex");
+    const keyPrefix = secret.slice(0, 8);
 
-  const [key] = await db
-    .insert(apiKeysTable)
-    .values({ userId, keyHash, keyPrefix, name })
-    .returning({
-      id: apiKeysTable.id,
-      name: apiKeysTable.name,
-      keyPrefix: apiKeysTable.keyPrefix,
-      createdAt: apiKeysTable.createdAt,
+    const [key] = await db
+      .insert(apiKeysTable)
+      .values({ userId, keyHash, keyPrefix, name })
+      .returning({
+        id: apiKeysTable.id,
+        name: apiKeysTable.name,
+        keyPrefix: apiKeysTable.keyPrefix,
+        createdAt: apiKeysTable.createdAt,
+      });
+
+    res.status(201).json({
+      id: key!.id,
+      name: key!.name,
+      keyPrefix: key!.keyPrefix,
+      key: raw,
+      createdAt: key!.createdAt,
+      message: "Store this key securely — it will not be shown again.",
+      usage: {
+        authorizationHeader: `Authorization: Bearer ${raw}`,
+        customHeader: `X-Rook-API-Key: ${raw}`,
+      },
     });
-
-  res.status(201).json({
-    id: key!.id,
-    name: key!.name,
-    keyPrefix: key!.keyPrefix,
-    key: raw,
-    createdAt: key!.createdAt,
-    message: "Store this key securely — it will not be shown again.",
-    usage: {
-      authorizationHeader: `Authorization: Bearer ${raw}`,
-      customHeader: `X-Rook-API-Key: ${raw}`,
-    },
-  });
+  } catch (err) {
+    logger.error({ err }, "POST /identity/api-keys failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── GET /identity/api-keys ────────────────────────────────────────────────────
 
-/**
- * List all API keys for the authenticated user (without the raw key value).
- */
 router.get("/identity/api-keys", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const keys = await db
-    .select({
-      id: apiKeysTable.id,
-      name: apiKeysTable.name,
-      keyPrefix: apiKeysTable.keyPrefix,
-      rateLimitRpm: apiKeysTable.rateLimitRpm,
-      createdAt: apiKeysTable.createdAt,
-      lastUsedAt: apiKeysTable.lastUsedAt,
-      revokedAt: apiKeysTable.revokedAt,
-    })
-    .from(apiKeysTable)
-    .where(eq(apiKeysTable.userId, userId))
-    .orderBy(apiKeysTable.createdAt);
+    const keys = await db
+      .select({
+        id: apiKeysTable.id,
+        name: apiKeysTable.name,
+        keyPrefix: apiKeysTable.keyPrefix,
+        rateLimitRpm: apiKeysTable.rateLimitRpm,
+        createdAt: apiKeysTable.createdAt,
+        lastUsedAt: apiKeysTable.lastUsedAt,
+        revokedAt: apiKeysTable.revokedAt,
+      })
+      .from(apiKeysTable)
+      .where(eq(apiKeysTable.userId, userId))
+      .orderBy(apiKeysTable.createdAt);
 
-  res.json(
-    keys.map((k) => ({
-      id: k.id,
-      name: k.name,
-      keyPrefix: k.keyPrefix,
-      displayKey: `sid_live_${k.keyPrefix}...`,
-      rateLimitRpm: k.rateLimitRpm,
-      active: !k.revokedAt,
-      createdAt: k.createdAt.toISOString(),
-      lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
-      revokedAt: k.revokedAt?.toISOString() ?? null,
-    }))
-  );
+    res.json(
+      keys.map((k) => ({
+        id: k.id,
+        name: k.name,
+        keyPrefix: k.keyPrefix,
+        displayKey: `sid_live_${k.keyPrefix}...`,
+        rateLimitRpm: k.rateLimitRpm,
+        active: !k.revokedAt,
+        createdAt: k.createdAt.toISOString(),
+        lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+        revokedAt: k.revokedAt?.toISOString() ?? null,
+      }))
+    );
+  } catch (err) {
+    logger.error({ err }, "GET /identity/api-keys failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

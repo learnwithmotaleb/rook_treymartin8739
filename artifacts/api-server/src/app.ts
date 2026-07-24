@@ -93,4 +93,13 @@ app.use("/api/oauth/state", publicLimiter);
 app.use("/", publicLegalRouter);
 app.use("/api", router);
 
+// Global error handler — catches unhandled async errors forwarded via next(err)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction): void => {
+  logger.error({ err }, "Unhandled server error");
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default app;

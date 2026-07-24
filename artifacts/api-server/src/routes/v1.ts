@@ -11,12 +11,11 @@
 
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import {
   db,
   apiKeysTable,
   webhooksTable,
-  webhookDeliveryLogTable,
   threatsTable,
   scanJobsTable,
   usersTable,
@@ -45,167 +44,214 @@ function generateSigningSecret(): string {
   return crypto.randomBytes(24).toString("hex");
 }
 
+function isValidHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 // ─── Management routes (Clerk session auth) ───────────────────────────────────
 
 /** Create a new API key. Returns the raw key once — store it now. */
 router.post("/v1/keys", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const name = (req.body as { name?: string }).name ?? "Default";
+  try {
+    const userId = req.userId;
+    const name = (req.body as { name?: string }).name ?? "Default";
 
-  const { raw, hash, prefix } = generateApiKey();
+    const { raw, hash, prefix } = generateApiKey();
 
-  const [key] = await db
-    .insert(apiKeysTable)
-    .values({ userId, keyHash: hash, keyPrefix: prefix, name })
-    .returning({ id: apiKeysTable.id, name: apiKeysTable.name, keyPrefix: apiKeysTable.keyPrefix, createdAt: apiKeysTable.createdAt });
+    const [key] = await db
+      .insert(apiKeysTable)
+      .values({ userId, keyHash: hash, keyPrefix: prefix, name })
+      .returning({ id: apiKeysTable.id, name: apiKeysTable.name, keyPrefix: apiKeysTable.keyPrefix, createdAt: apiKeysTable.createdAt });
 
-  res.status(201).json({
-    id: key!.id,
-    name: key!.name,
-    keyPrefix: key!.keyPrefix,
-    key: raw, // shown once — never stored in plaintext
-    createdAt: key!.createdAt,
-    message: "Store this key securely — it will not be shown again.",
-  });
+    res.status(201).json({
+      id: key!.id,
+      name: key!.name,
+      keyPrefix: key!.keyPrefix,
+      key: raw, // shown once — never stored in plaintext
+      createdAt: key!.createdAt,
+      message: "Store this key securely — it will not be shown again.",
+    });
+  } catch (err) {
+    logger.error({ err }, "POST /v1/keys failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 /** List all API keys for the authenticated user (without the raw key). */
 router.get("/v1/keys", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const keys = await db
-    .select({
-      id: apiKeysTable.id,
-      name: apiKeysTable.name,
-      keyPrefix: apiKeysTable.keyPrefix,
-      rateLimitRpm: apiKeysTable.rateLimitRpm,
-      createdAt: apiKeysTable.createdAt,
-      lastUsedAt: apiKeysTable.lastUsedAt,
-      revokedAt: apiKeysTable.revokedAt,
-    })
-    .from(apiKeysTable)
-    .where(eq(apiKeysTable.userId, userId))
-    .orderBy(apiKeysTable.createdAt);
+    const keys = await db
+      .select({
+        id: apiKeysTable.id,
+        name: apiKeysTable.name,
+        keyPrefix: apiKeysTable.keyPrefix,
+        rateLimitRpm: apiKeysTable.rateLimitRpm,
+        createdAt: apiKeysTable.createdAt,
+        lastUsedAt: apiKeysTable.lastUsedAt,
+        revokedAt: apiKeysTable.revokedAt,
+      })
+      .from(apiKeysTable)
+      .where(eq(apiKeysTable.userId, userId))
+      .orderBy(apiKeysTable.createdAt);
 
-  res.json(keys.map((k) => ({
-    ...k,
-    createdAt: k.createdAt.toISOString(),
-    lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
-    revokedAt: k.revokedAt?.toISOString() ?? null,
-    active: !k.revokedAt,
-  })));
+    res.json(keys.map((k) => ({
+      ...k,
+      createdAt: k.createdAt.toISOString(),
+      lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+      revokedAt: k.revokedAt?.toISOString() ?? null,
+      active: !k.revokedAt,
+    })));
+  } catch (err) {
+    logger.error({ err }, "GET /v1/keys failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 /** Revoke an API key. */
 router.delete("/v1/keys/:keyId", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const keyId = Array.isArray(req.params.keyId) ? req.params.keyId[0]! : req.params.keyId!;
+  try {
+    const userId = req.userId;
+    const keyId = Array.isArray(req.params.keyId) ? req.params.keyId[0]! : req.params.keyId!;
 
-  const [updated] = await db
-    .update(apiKeysTable)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(apiKeysTable.id, keyId), eq(apiKeysTable.userId, userId)))
-    .returning({ id: apiKeysTable.id });
+    const [updated] = await db
+      .update(apiKeysTable)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(apiKeysTable.id, keyId), eq(apiKeysTable.userId, userId)))
+      .returning({ id: apiKeysTable.id });
 
-  if (!updated) {
-    res.status(404).json({ error: "not_found" });
-    return;
+    if (!updated) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+
+    res.json({ revoked: true, id: updated.id });
+  } catch (err) {
+    logger.error({ err }, "DELETE /v1/keys/:keyId failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  res.json({ revoked: true, id: updated.id });
 });
 
 /** Register a webhook endpoint. */
 router.post("/v1/webhooks", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const { apiKeyId, url, events } = req.body as { apiKeyId: string; url: string; events?: string[] };
+  try {
+    const userId = req.userId;
+    const { apiKeyId, url, events } = req.body as { apiKeyId: string; url: string; events?: string[] };
 
-  if (!apiKeyId || !url) {
-    res.status(400).json({ error: "apiKeyId and url are required" });
-    return;
+    if (!apiKeyId || !url) {
+      res.status(400).json({ error: "apiKeyId and url are required" });
+      return;
+    }
+
+    if (!isValidHttpUrl(url)) {
+      res.status(400).json({ error: "url must be a valid http or https URL" });
+      return;
+    }
+
+    // Verify the API key belongs to this user
+    const [key] = await db
+      .select({ id: apiKeysTable.id })
+      .from(apiKeysTable)
+      .where(and(eq(apiKeysTable.id, apiKeyId), eq(apiKeysTable.userId, userId)));
+
+    if (!key) {
+      res.status(403).json({ error: "API key not found or not owned by you" });
+      return;
+    }
+
+    const signingSecret = generateSigningSecret();
+    const eventsJson = JSON.stringify(events ?? ["threat.detected", "scan.completed"]);
+
+    const [hook] = await db
+      .insert(webhooksTable)
+      .values({ apiKeyId, url, eventsJson, signingSecret })
+      .returning();
+
+    res.status(201).json({
+      id: hook!.id,
+      url: hook!.url,
+      events: JSON.parse(eventsJson) as string[],
+      signingSecret, // shown once
+      active: true,
+      createdAt: hook!.createdAt,
+      message: "Store the signing secret — it will not be shown again.",
+    });
+  } catch (err) {
+    logger.error({ err }, "POST /v1/webhooks failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  // Verify the API key belongs to this user
-  const [key] = await db
-    .select({ id: apiKeysTable.id })
-    .from(apiKeysTable)
-    .where(and(eq(apiKeysTable.id, apiKeyId), eq(apiKeysTable.userId, userId)));
-
-  if (!key) {
-    res.status(403).json({ error: "API key not found or not owned by you" });
-    return;
-  }
-
-  const signingSecret = generateSigningSecret();
-  const eventsJson = JSON.stringify(events ?? ["threat.detected", "scan.completed"]);
-
-  const [hook] = await db
-    .insert(webhooksTable)
-    .values({ apiKeyId, url, eventsJson, signingSecret })
-    .returning();
-
-  res.status(201).json({
-    id: hook!.id,
-    url: hook!.url,
-    events: JSON.parse(eventsJson) as string[],
-    signingSecret, // shown once
-    active: true,
-    createdAt: hook!.createdAt,
-    message: "Store the signing secret — it will not be shown again.",
-  });
 });
 
 /** List webhooks for a specific API key. */
 router.get("/v1/webhooks", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const keys = await db
-    .select({ id: apiKeysTable.id })
-    .from(apiKeysTable)
-    .where(eq(apiKeysTable.userId, userId));
+    const keys = await db
+      .select({ id: apiKeysTable.id })
+      .from(apiKeysTable)
+      .where(eq(apiKeysTable.userId, userId));
 
-  const keyIds = keys.map((k) => k.id);
-  if (keyIds.length === 0) { res.json([]); return; }
+    const keyIds = keys.map((k) => k.id);
+    if (keyIds.length === 0) { res.json([]); return; }
 
-  const hooks = await db.select().from(webhooksTable);
-  const userHooks = hooks.filter((h) => keyIds.includes(h.apiKeyId));
+    // Filter in SQL — never fetch all webhooks from all users.
+    const hooks = await db
+      .select()
+      .from(webhooksTable)
+      .where(inArray(webhooksTable.apiKeyId, keyIds));
 
-  res.json(userHooks.map((h) => ({
-    id: h.id,
-    apiKeyId: h.apiKeyId,
-    url: h.url,
-    events: JSON.parse(h.eventsJson) as string[],
-    active: h.active,
-    createdAt: h.createdAt.toISOString(),
-  })));
+    res.json(hooks.map((h) => ({
+      id: h.id,
+      apiKeyId: h.apiKeyId,
+      url: h.url,
+      events: JSON.parse(h.eventsJson) as string[],
+      active: h.active,
+      createdAt: h.createdAt.toISOString(),
+    })));
+  } catch (err) {
+    logger.error({ err }, "GET /v1/webhooks failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 /** Delete/deactivate a webhook. */
 router.delete("/v1/webhooks/:hookId", requireAuth, async (req, res): Promise<void> => {
-  const userId = req.userId;
-  const hookId = Array.isArray(req.params.hookId) ? req.params.hookId[0]! : req.params.hookId!;
+  try {
+    const userId = req.userId;
+    const hookId = Array.isArray(req.params.hookId) ? req.params.hookId[0]! : req.params.hookId!;
 
-  // Verify ownership via API key
-  const [hook] = await db
-    .select()
-    .from(webhooksTable)
-    .where(eq(webhooksTable.id, hookId));
+    // Verify ownership via API key
+    const [hook] = await db
+      .select()
+      .from(webhooksTable)
+      .where(eq(webhooksTable.id, hookId));
 
-  if (!hook) { res.status(404).json({ error: "not_found" }); return; }
+    if (!hook) { res.status(404).json({ error: "not_found" }); return; }
 
-  const [key] = await db
-    .select({ id: apiKeysTable.id })
-    .from(apiKeysTable)
-    .where(and(eq(apiKeysTable.id, hook.apiKeyId), eq(apiKeysTable.userId, userId)));
+    const [key] = await db
+      .select({ id: apiKeysTable.id })
+      .from(apiKeysTable)
+      .where(and(eq(apiKeysTable.id, hook.apiKeyId), eq(apiKeysTable.userId, userId)));
 
-  if (!key) { res.status(403).json({ error: "forbidden" }); return; }
+    if (!key) { res.status(403).json({ error: "forbidden" }); return; }
 
-  await db
-    .update(webhooksTable)
-    .set({ active: false })
-    .where(eq(webhooksTable.id, hookId));
+    await db
+      .update(webhooksTable)
+      .set({ active: false })
+      .where(eq(webhooksTable.id, hookId));
 
-  res.json({ deleted: true, id: hookId });
+    res.json({ deleted: true, id: hookId });
+  } catch (err) {
+    logger.error({ err }, "DELETE /v1/webhooks/:hookId failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── Data-plane routes (API key auth) ────────────────────────────────────────
@@ -220,7 +266,6 @@ router.post("/v1/scans", ...apiKeyMiddleware, async (req, res): Promise<void> =>
   const userId = req.apiKeyUserId!;
 
   try {
-    // Look up the user and their subscription tier
     const [user] = await db
       .select({ id: usersTable.id })
       .from(usersTable)
@@ -253,115 +298,130 @@ router.post("/v1/scans", ...apiKeyMiddleware, async (req, res): Promise<void> =>
 
 /** Poll scan status. */
 router.get("/v1/scans/:scanId", ...apiKeyMiddleware, async (req, res): Promise<void> => {
-  const userId = req.apiKeyUserId!;
-  const scanId = Array.isArray(req.params.scanId) ? req.params.scanId[0]! : req.params.scanId!;
+  try {
+    const userId = req.apiKeyUserId!;
+    const scanId = Array.isArray(req.params.scanId) ? req.params.scanId[0]! : req.params.scanId!;
 
-  const [job] = await db
-    .select()
-    .from(scanJobsTable)
-    .where(and(eq(scanJobsTable.id, scanId), eq(scanJobsTable.userId, userId)));
+    const [job] = await db
+      .select()
+      .from(scanJobsTable)
+      .where(and(eq(scanJobsTable.id, scanId), eq(scanJobsTable.userId, userId)));
 
-  if (!job) { res.status(404).json({ error: "not_found" }); return; }
+    if (!job) { res.status(404).json({ error: "not_found" }); return; }
 
-  res.json({
-    scanId: job.id,
-    status: job.status,
-    progress: job.progress,
-    currentStep: job.currentStep,
-    threatsFound: job.threatsFound,
-    startedAt: job.startedAt?.toISOString() ?? null,
-    completedAt: job.completedAt?.toISOString() ?? null,
-  });
+    res.json({
+      scanId: job.id,
+      status: job.status,
+      progress: job.progress,
+      currentStep: job.currentStep,
+      threatsFound: job.threatsFound,
+      startedAt: job.startedAt?.toISOString() ?? null,
+      completedAt: job.completedAt?.toISOString() ?? null,
+    });
+  } catch (err) {
+    logger.error({ err }, "GET /v1/scans/:scanId failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 /** List all threats for the API key owner. */
 router.get("/v1/threats", ...apiKeyMiddleware, async (req, res): Promise<void> => {
-  const userId = req.apiKeyUserId!;
-  const { severity, resolved, limit = "50", offset = "0" } = req.query as Record<string, string>;
+  try {
+    const userId = req.apiKeyUserId!;
+    const { severity, resolved, limit = "50", offset = "0" } = req.query as Record<string, string>;
 
-  const conditions = [eq(threatsTable.userId, userId)];
-  if (severity && ["high", "medium", "low"].includes(severity)) {
-    conditions.push(eq(threatsTable.severity, severity));
+    const conditions = [eq(threatsTable.userId, userId)];
+    if (severity && ["high", "medium", "low"].includes(severity)) {
+      conditions.push(eq(threatsTable.severity, severity));
+    }
+    if (resolved !== undefined) {
+      conditions.push(eq(threatsTable.resolved, resolved === "true"));
+    }
+
+    const rows = await db
+      .select({
+        id: threatsTable.id,
+        type: threatsTable.type,
+        severity: threatsTable.severity,
+        platform: threatsTable.platform,
+        title: threatsTable.title,
+        description: threatsTable.description,
+        threatScore: threatsTable.threatScore,
+        suspiciousUsername: threatsTable.suspiciousUsername,
+        resolved: threatsTable.resolved,
+        threatActorId: threatsTable.threatActorId,
+        createdAt: threatsTable.createdAt,
+      })
+      .from(threatsTable)
+      .where(and(...conditions))
+      .orderBy(threatsTable.createdAt)
+      .limit(Math.min(parseInt(limit, 10), 100))
+      .offset(Math.max(parseInt(offset, 10), 0));
+
+    res.json(rows.map((t) => ({
+      ...t,
+      createdAt: t.createdAt.toISOString(),
+    })));
+  } catch (err) {
+    logger.error({ err }, "GET /v1/threats failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-  if (resolved !== undefined) {
-    conditions.push(eq(threatsTable.resolved, resolved === "true"));
-  }
-
-  const rows = await db
-    .select({
-      id: threatsTable.id,
-      type: threatsTable.type,
-      severity: threatsTable.severity,
-      platform: threatsTable.platform,
-      title: threatsTable.title,
-      description: threatsTable.description,
-      threatScore: threatsTable.threatScore,
-      suspiciousUsername: threatsTable.suspiciousUsername,
-      resolved: threatsTable.resolved,
-      threatActorId: threatsTable.threatActorId,
-      createdAt: threatsTable.createdAt,
-    })
-    .from(threatsTable)
-    .where(and(...conditions))
-    .orderBy(threatsTable.createdAt)
-    .limit(Math.min(parseInt(limit, 10), 100))
-    .offset(Math.max(parseInt(offset, 10), 0));
-
-  res.json(rows.map((t) => ({
-    ...t,
-    createdAt: t.createdAt.toISOString(),
-  })));
 });
 
 /** Get a single threat with actor intelligence. */
 router.get("/v1/threats/:threatId", ...apiKeyMiddleware, async (req, res): Promise<void> => {
-  const userId = req.apiKeyUserId!;
-  const threatId = Array.isArray(req.params.threatId) ? req.params.threatId[0]! : req.params.threatId!;
+  try {
+    const userId = req.apiKeyUserId!;
+    const threatId = Array.isArray(req.params.threatId) ? req.params.threatId[0]! : req.params.threatId!;
 
-  const [threat] = await db
-    .select()
-    .from(threatsTable)
-    .where(and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId)));
-
-  if (!threat) { res.status(404).json({ error: "not_found" }); return; }
-
-  let threatActor = null;
-  if (threat.threatActorId) {
-    const [actor] = await db
+    const [threat] = await db
       .select()
-      .from(threatActorsTable)
-      .where(eq(threatActorsTable.id, threat.threatActorId));
+      .from(threatsTable)
+      .where(and(eq(threatsTable.id, threatId), eq(threatsTable.userId, userId)));
 
-    if (actor) {
-      threatActor = {
-        id: actor.id,
-        canonicalUsername: actor.canonicalUsername,
-        victimCount: actor.victimCount,
-        platformSpread: JSON.parse(actor.platformSetJson ?? "[]") as string[],
-        firstSeen: actor.firstSeen.toISOString(),
-        lastSeen: actor.lastSeen.toISOString(),
-        confidenceScore: actor.confidenceScore,
-      };
+    if (!threat) { res.status(404).json({ error: "not_found" }); return; }
+
+    let threatActor = null;
+    if (threat.threatActorId) {
+      const [actor] = await db
+        .select()
+        .from(threatActorsTable)
+        .where(eq(threatActorsTable.id, threat.threatActorId));
+
+      if (actor) {
+        threatActor = {
+          id: actor.id,
+          canonicalUsername: actor.canonicalUsername,
+          victimCount: actor.victimCount,
+          platformSpread: JSON.parse(actor.platformSetJson ?? "[]") as string[],
+          firstSeen: actor.firstSeen.toISOString(),
+          lastSeen: actor.lastSeen.toISOString(),
+          confidenceScore: actor.confidenceScore,
+        };
+      }
     }
-  }
 
-  res.json({
-    id: threat.id,
-    type: threat.type,
-    severity: threat.severity,
-    platform: threat.platform,
-    title: threat.title,
-    description: threat.description,
-    details: threat.details,
-    aiExplanation: threat.aiExplanation,
-    threatScore: threat.threatScore,
-    suspiciousUsername: threat.suspiciousUsername,
-    matchedMediaCount: threat.matchedMediaCount,
-    resolved: threat.resolved,
-    resolvedAt: threat.resolvedAt?.toISOString() ?? null,
-    createdAt: threat.createdAt.toISOString(),
-    threatActor,
-  });
+    res.json({
+      id: threat.id,
+      type: threat.type,
+      severity: threat.severity,
+      platform: threat.platform,
+      title: threat.title,
+      description: threat.description,
+      details: threat.details,
+      aiExplanation: threat.aiExplanation,
+      threatScore: threat.threatScore,
+      suspiciousUsername: threat.suspiciousUsername,
+      matchedMediaCount: threat.matchedMediaCount,
+      resolved: threat.resolved,
+      resolvedAt: threat.resolvedAt?.toISOString() ?? null,
+      createdAt: threat.createdAt.toISOString(),
+      threatActor,
+    });
+  } catch (err) {
+    logger.error({ err }, "GET /v1/threats/:threatId failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── Developer documentation ──────────────────────────────────────────────────

@@ -59,161 +59,181 @@ router.use("/admin", requireAdminKey);
 // ─── GET /api/admin/stats ─────────────────────────────────────────────────────
 
 router.get("/admin/stats", async (_req, res): Promise<void> => {
-  const [providerStats, todaySpend, cacheHitRate, scanJobCounts, cacheStats, flaggedUsers] =
-    await Promise.all([
-      getSystemMonthlyStats(),
-      getTodaySpend(),
-      getCacheHitRate(),
+  try {
+    const [providerStats, todaySpend, cacheHitRate, scanJobCounts, cacheStats, flaggedUsers] =
+      await Promise.all([
+        getSystemMonthlyStats(),
+        getTodaySpend(),
+        getCacheHitRate(),
 
-      // Scan job counts by status (all time)
-      db
-        .select({
-          status: scanJobsTable.status,
-          count: sql<number>`COUNT(*)::int`,
-        })
-        .from(scanJobsTable)
-        .groupBy(scanJobsTable.status),
+        // Scan job counts by status (all time)
+        db
+          .select({
+            status: scanJobsTable.status,
+            count: sql<number>`COUNT(*)::int`,
+          })
+          .from(scanJobsTable)
+          .groupBy(scanJobsTable.status),
 
-      // Cache table stats
-      db
-        .select({
-          totalEntries: sql<number>`COUNT(*)::int`,
-          totalHits: sql<number>`COALESCE(SUM(hit_count), 0)::int`,
-          activeEntries: sql<number>`SUM(CASE WHEN expires_at > NOW() THEN 1 ELSE 0 END)::int`,
-        })
-        .from(scanCacheTable),
+        // Cache table stats
+        db
+          .select({
+            totalEntries: sql<number>`COUNT(*)::int`,
+            totalHits: sql<number>`COALESCE(SUM(hit_count), 0)::int`,
+            activeEntries: sql<number>`SUM(CASE WHEN expires_at > NOW() THEN 1 ELSE 0 END)::int`,
+          })
+          .from(scanCacheTable),
 
-      // Flagged users
-      db
-        .select({ count: sql<number>`COUNT(*)::int` })
-        .from(usageQuotasTable)
-        .where(eq(usageQuotasTable.flaggedForAbuse, true)),
-    ]);
+        // Flagged users
+        db
+          .select({ count: sql<number>`COUNT(*)::int` })
+          .from(usageQuotasTable)
+          .where(eq(usageQuotasTable.flaggedForAbuse, true)),
+      ]);
 
-  const totalMonthlySpend = providerStats.reduce((sum, r) => sum + r.totalCostUsd, 0);
-  const totalMonthlyCalls = providerStats.reduce((sum, r) => sum + r.totalCalls, 0);
+    const totalMonthlySpend = providerStats.reduce((sum, r) => sum + r.totalCostUsd, 0);
+    const totalMonthlyCalls = providerStats.reduce((sum, r) => sum + r.totalCalls, 0);
 
-  res.json({
-    generatedAt: new Date().toISOString(),
-    month: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
-    cost: {
-      totalMonthUsd: Math.round(totalMonthlySpend * 100000) / 100000,
-      todayUsd: Math.round(todaySpend * 100000) / 100000,
-      spikeAlert: todaySpend > 10,
-    },
-    apiCalls: {
-      totalMonth: totalMonthlyCalls,
-      cacheHitRate,
-      byProvider: providerStats,
-    },
-    scans: {
-      jobsByStatus: Object.fromEntries(scanJobCounts.map((r) => [r.status, r.count])),
-    },
-    cache: {
-      totalEntries: cacheStats[0]?.totalEntries ?? 0,
-      activeEntries: cacheStats[0]?.activeEntries ?? 0,
-      totalHits: cacheStats[0]?.totalHits ?? 0,
-    },
-    abuse: {
-      flaggedUsers: flaggedUsers[0]?.count ?? 0,
-    },
-  });
+    res.json({
+      generatedAt: new Date().toISOString(),
+      month: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
+      cost: {
+        totalMonthUsd: Math.round(totalMonthlySpend * 100000) / 100000,
+        todayUsd: Math.round(todaySpend * 100000) / 100000,
+        spikeAlert: todaySpend > 10,
+      },
+      apiCalls: {
+        totalMonth: totalMonthlyCalls,
+        cacheHitRate,
+        byProvider: providerStats,
+      },
+      scans: {
+        jobsByStatus: Object.fromEntries(scanJobCounts.map((r) => [r.status, r.count])),
+      },
+      cache: {
+        totalEntries: cacheStats[0]?.totalEntries ?? 0,
+        activeEntries: cacheStats[0]?.activeEntries ?? 0,
+        totalHits: cacheStats[0]?.totalHits ?? 0,
+      },
+      abuse: {
+        flaggedUsers: flaggedUsers[0]?.count ?? 0,
+      },
+    });
+  } catch (err) {
+    logger.error({ err }, "GET /admin/stats failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── GET /api/admin/consumers ─────────────────────────────────────────────────
 
 router.get("/admin/consumers", async (req, res): Promise<void> => {
-  const limit = Math.min(parseInt((req.query.limit as string) ?? "20", 10), 100);
-  const [consumers, startOfMonth] = [
-    await getTopConsumers(limit),
-    (() => {
-      const d = new Date();
-      d.setDate(1);
-      d.setHours(0, 0, 0, 0);
-      return d;
-    })(),
-  ];
+  try {
+    const limit = Math.min(parseInt((req.query.limit as string) ?? "20", 10), 100);
+    const [consumers, startOfMonth] = [
+      await getTopConsumers(limit),
+      (() => {
+        const d = new Date();
+        d.setDate(1);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      })(),
+    ];
 
-  // Enrich with scan counts
-  const scanCounts = await db
-    .select({
-      userId: scanJobsTable.userId,
-      scans: sql<number>`COUNT(*)::int`,
-    })
-    .from(scanJobsTable)
-    .where(gte(scanJobsTable.startedAt, startOfMonth))
-    .groupBy(scanJobsTable.userId);
+    // Enrich with scan counts
+    const scanCounts = await db
+      .select({
+        userId: scanJobsTable.userId,
+        scans: sql<number>`COUNT(*)::int`,
+      })
+      .from(scanJobsTable)
+      .where(gte(scanJobsTable.startedAt, startOfMonth))
+      .groupBy(scanJobsTable.userId);
 
-  const scanMap = Object.fromEntries(scanCounts.map((r) => [r.userId, r.scans]));
+    const scanMap = Object.fromEntries(scanCounts.map((r) => [r.userId, r.scans]));
 
-  res.json({
-    generatedAt: new Date().toISOString(),
-    consumers: consumers.map((c) => ({
-      ...c,
-      scansThisMonth: scanMap[c.userId] ?? 0,
-      costPerScan:
-        (scanMap[c.userId] ?? 0) > 0
-          ? Math.round((c.totalCostUsd / (scanMap[c.userId] ?? 1)) * 100000) / 100000
-          : 0,
-    })),
-  });
+    res.json({
+      generatedAt: new Date().toISOString(),
+      consumers: consumers.map((c) => ({
+        ...c,
+        scansThisMonth: scanMap[c.userId] ?? 0,
+        costPerScan:
+          (scanMap[c.userId] ?? 0) > 0
+            ? Math.round((c.totalCostUsd / (scanMap[c.userId] ?? 1)) * 100000) / 100000
+            : 0,
+      })),
+    });
+  } catch (err) {
+    logger.error({ err }, "GET /admin/consumers failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── POST /api/admin/unflag/:userId ───────────────────────────────────────────
 
 router.post("/admin/unflag/:userId", async (req, res): Promise<void> => {
-  const { userId } = req.params;
-  if (!userId) {
-    res.status(400).json({ error: "Missing userId" });
-    return;
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      res.status(400).json({ error: "Missing userId" });
+      return;
+    }
+    await clearAbuseFlag(userId);
+    logger.info({ userId }, "Admin: abuse flag cleared");
+    res.json({ ok: true, userId });
+  } catch (err) {
+    logger.error({ err }, "POST /admin/unflag failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-  await clearAbuseFlag(userId);
-  logger.info({ userId }, "Admin: abuse flag cleared");
-  res.json({ ok: true, userId });
 });
 
 // ─── GET /api/admin/user/:userId/costs ────────────────────────────────────────
 
 router.get("/admin/user/:userId/costs", async (req, res): Promise<void> => {
-  const { userId } = req.params;
-  if (!userId) {
-    res.status(400).json({ error: "Missing userId" });
-    return;
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      res.status(400).json({ error: "Missing userId" });
+      return;
+    }
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [byProvider, quota] = await Promise.all([
+      db
+        .select({
+          provider: apiCostLogTable.provider,
+          operation: apiCostLogTable.operation,
+          calls: sql<number>`COUNT(*)::int`,
+          costUsd: sql<number>`COALESCE(SUM(cost_usd::numeric), 0)::float`,
+          cacheHits: sql<number>`SUM(CASE WHEN cache_hit THEN 1 ELSE 0 END)::int`,
+        })
+        .from(apiCostLogTable)
+        .where(
+          eq(apiCostLogTable.userId, userId)
+        )
+        .groupBy(apiCostLogTable.provider, apiCostLogTable.operation)
+        .orderBy(sql`SUM(cost_usd::numeric) DESC`),
+
+      db
+        .select()
+        .from(usageQuotasTable)
+        .where(eq(usageQuotasTable.userId, userId))
+        .then((r) => r[0] ?? null),
+    ]);
+
+    res.json({
+      userId,
+      generatedAt: new Date().toISOString(),
+      apiUsage: byProvider,
+      quota,
+    });
+  } catch (err) {
+    logger.error({ err }, "GET /admin/user/:userId/costs failed");
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const [byProvider, quota] = await Promise.all([
-    db
-      .select({
-        provider: apiCostLogTable.provider,
-        operation: apiCostLogTable.operation,
-        calls: sql<number>`COUNT(*)::int`,
-        costUsd: sql<number>`COALESCE(SUM(cost_usd::numeric), 0)::float`,
-        cacheHits: sql<number>`SUM(CASE WHEN cache_hit THEN 1 ELSE 0 END)::int`,
-      })
-      .from(apiCostLogTable)
-      .where(
-        eq(apiCostLogTable.userId, userId)
-      )
-      .groupBy(apiCostLogTable.provider, apiCostLogTable.operation)
-      .orderBy(sql`SUM(cost_usd::numeric) DESC`),
-
-    db
-      .select()
-      .from(usageQuotasTable)
-      .where(eq(usageQuotasTable.userId, userId))
-      .then((r) => r[0] ?? null),
-  ]);
-
-  res.json({
-    userId,
-    generatedAt: new Date().toISOString(),
-    apiUsage: byProvider,
-    quota,
-  });
 });
 
 // ─── Reviewer Seeding ─────────────────────────────────────────────────────────
@@ -494,6 +514,7 @@ function buildReviewerThreats(userId: string) {
 // ─── POST /api/admin/seed-reviewer ────────────────────────────────────────────
 
 router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
+  try {
   const { clerkId, tier = "premium" } = req.body as { clerkId?: string; tier?: string };
 
   if (!clerkId) {
@@ -715,11 +736,16 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
     accountsSeeded: accountsSeeded.length,
     note: "All seeded rows tagged isReviewerSeed:true — use DELETE /api/admin/seed-reviewer/:clerkId to clean up.",
   });
+  } catch (err) {
+    logger.error({ err }, "POST /admin/seed-reviewer failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // ─── DELETE /api/admin/seed-reviewer/:clerkId ─────────────────────────────────
 
 router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> => {
+  try {
   const { clerkId } = req.params;
 
   if (!clerkId) {
@@ -810,6 +836,10 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
       identityProfiles: deletedProfiles.length,
     },
   });
+  } catch (err) {
+    logger.error({ err }, "DELETE /admin/seed-reviewer failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 export default router;
