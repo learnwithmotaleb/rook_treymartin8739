@@ -437,10 +437,9 @@ router.get("/v1/threats/:threatId", ...apiKeyMiddleware, async (req, res): Promi
 });
 
 // ─── Developer documentation ──────────────────────────────────────────────────
-// Intentionally public — serves static HTML describing how to authenticate.
-// No user data is exposed; auth would prevent users from reading the docs
-// before they have a key. This is standard practice for developer API docs.
-router.get("/v1/docs", (_req, res): void => {
+// Requires Clerk session auth so /v1/* is fully credential-gated.
+// Users obtain their API key via POST /v1/keys before calling data-plane routes.
+router.get("/v1/docs", requireAuth, (_req, res): void => {
   res.setHeader("Content-Type", "text/html");
   res.send(`<!DOCTYPE html>
 <html lang="en">
