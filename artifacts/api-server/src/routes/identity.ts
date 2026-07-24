@@ -15,6 +15,7 @@
  */
 
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import crypto from "crypto";
 import {
@@ -133,27 +134,27 @@ router.get("/identity/badge", requireApiKeyOrAuth, async (req, res): Promise<voi
   }
 });
 
+const VerifyAccountBody = z.object({
+  platform: z.string().min(1).toLowerCase().trim(),
+  username: z.string().min(1),
+});
+
+const ApiKeyBody = z.object({
+  name: z.string().min(1).max(100).optional(),
+});
+
 // ─── POST /identity/verify-account ────────────────────────────────────────────
 
 router.post("/identity/verify-account", requireApiKeyOrAuth, async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
-    const { platform, username } = req.body as {
-      platform?: string;
-      username?: string;
-    };
-
-    if (!platform || typeof platform !== "string") {
-      res.status(400).json({ error: "platform is required (e.g. 'instagram')" });
+    const bodyParsed = VerifyAccountBody.safeParse(req.body);
+    if (!bodyParsed.success) {
+      res.status(400).json({ error: "platform and username are required", details: bodyParsed.error.flatten() });
       return;
     }
-    if (!username || typeof username !== "string") {
-      res.status(400).json({ error: "username is required (e.g. '@johndoe')" });
-      return;
-    }
-
-    const normalizedPlatform = platform.toLowerCase().trim();
-    const normalizedUsername = username.replace(/^@/, "").toLowerCase().trim();
+    const normalizedPlatform = bodyParsed.data.platform;
+    const normalizedUsername = bodyParsed.data.username.replace(/^@/, "").toLowerCase().trim();
 
     const accounts = await db
       .select({
@@ -270,7 +271,12 @@ router.post("/identity/verify-account", requireApiKeyOrAuth, async (req, res): P
 router.post("/identity/api-keys", requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
-    const name = (req.body as { name?: string }).name ?? "Identity API Key";
+    const bodyParsed = ApiKeyBody.safeParse(req.body ?? {});
+    if (!bodyParsed.success) {
+      res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.flatten() });
+      return;
+    }
+    const name = bodyParsed.data.name ?? "Identity API Key";
 
     const secret = crypto.randomBytes(32).toString("hex");
     const raw = `sid_live_${secret}`;

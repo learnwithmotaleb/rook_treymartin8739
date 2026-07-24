@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { db, scanJobsTable } from "@workspace/db";
 import { startScan } from "../services/scanOrchestrator";
@@ -6,6 +7,10 @@ import { checkAndIncrementQuota, getQuotaState } from "../services/rateLimitServ
 import { getSubscription } from "../services/subscriptionService";
 import type { Tier } from "../lib/planConfig";
 import { normalizeTier } from "../lib/planConfig";
+
+const ScanBody = z.object({
+  bypassCache: z.boolean().optional().default(false),
+}).strict();
 
 const router: IRouter = Router();
 
@@ -66,7 +71,12 @@ router.post("/scan", async (req, res): Promise<void> => {
       return;
     }
 
-    const bypassCache = req.body?.bypassCache === true;
+    const bodyParsed = ScanBody.safeParse(req.body ?? {});
+    if (!bodyParsed.success) {
+      res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.flatten() });
+      return;
+    }
+    const { bypassCache } = bodyParsed.data;
     const job = await startScan(userId, planTier, { bypassCache });
     res.status(201).json({
       ...serializeJob(job),

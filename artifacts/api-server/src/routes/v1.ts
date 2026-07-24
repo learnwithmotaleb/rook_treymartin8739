@@ -10,6 +10,7 @@
  */
 
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import crypto from "crypto";
 import { eq, and, inArray } from "drizzle-orm";
 import {
@@ -30,6 +31,25 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+// ─── Zod schemas ─────────────────────────────────────────────────────────────
+
+const CreateKeyBody = z.object({
+  name: z.string().min(1).max(100).optional(),
+});
+
+const CreateWebhookBody = z.object({
+  apiKeyId: z.string().min(1),
+  url: z.string().url(),
+  events: z.array(z.string().min(1)).optional(),
+});
+
+const ThreatsQueryV1 = z.object({
+  severity: z.enum(["high", "medium", "low"]).optional(),
+  resolved: z.enum(["true", "false"]).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function generateApiKey(): { raw: string; hash: string; prefix: string } {
@@ -44,22 +64,18 @@ function generateSigningSecret(): string {
   return crypto.randomBytes(24).toString("hex");
 }
 
-function isValidHttpUrl(raw: string): boolean {
-  try {
-    const u = new URL(raw);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 // ─── Management routes (Clerk session auth) ───────────────────────────────────
 
 /** Create a new API key. Returns the raw key once — store it now. */
 router.post("/v1/keys", requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
-    const name = (req.body as { name?: string }).name ?? "Default";
+    const bodyParsed = CreateKeyBody.safeParse(req.body ?? {});
+    if (!bodyParsed.success) {
+      res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.flatten() });
+      return;
+    }
+    const name = bodyParsed.data.name ?? "Default";
 
     const { raw, hash, prefix } = generateApiKey();
 
@@ -142,17 +158,12 @@ router.delete("/v1/keys/:keyId", requireAuth, async (req, res): Promise<void> =>
 router.post("/v1/webhooks", requireAuth, async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
-    const { apiKeyId, url, events } = req.body as { apiKeyId: string; url: string; events?: string[] };
-
-    if (!apiKeyId || !url) {
-      res.status(400).json({ error: "apiKeyId and url are required" });
+    const bodyParsed = CreateWebhookBody.safeParse(req.body);
+    if (!bodyParsed.success) {
+      res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.flatten() });
       return;
     }
-
-    if (!isValidHttpUrl(url)) {
-      res.status(400).json({ error: "url must be a valid http or https URL" });
-      return;
-    }
+    const { apiKeyId, url, events } = bodyParsed.data;
 
     // Verify the API key belongs to this user
     const [key] = await db
@@ -328,15 +339,16 @@ router.get("/v1/scans/:scanId", ...apiKeyMiddleware, async (req, res): Promise<v
 router.get("/v1/threats", ...apiKeyMiddleware, async (req, res): Promise<void> => {
   try {
     const userId = req.apiKeyUserId!;
-    const { severity, resolved, limit = "50", offset = "0" } = req.query as Record<string, string>;
+    const parsed = ThreatsQueryV1.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid query parameters", details: parsed.error.flatten() });
+      return;
+    }
+    const { severity, resolved, limit, offset } = parsed.data;
 
     const conditions = [eq(threatsTable.userId, userId)];
-    if (severity && ["high", "medium", "low"].includes(severity)) {
-      conditions.push(eq(threatsTable.severity, severity));
-    }
-    if (resolved !== undefined) {
-      conditions.push(eq(threatsTable.resolved, resolved === "true"));
-    }
+    if (severity) conditions.push(eq(threatsTable.severity, severity));
+    if (resolved !== undefined) conditions.push(eq(threatsTable.resolved, resolved === "true"));
 
     const rows = await db
       .select({
@@ -355,8 +367,8 @@ router.get("/v1/threats", ...apiKeyMiddleware, async (req, res): Promise<void> =
       .from(threatsTable)
       .where(and(...conditions))
       .orderBy(threatsTable.createdAt)
-      .limit(Math.min(parseInt(limit, 10), 100))
-      .offset(Math.max(parseInt(offset, 10), 0));
+      .limit(limit)
+      .offset(offset);
 
     res.json(rows.map((t) => ({
       ...t,

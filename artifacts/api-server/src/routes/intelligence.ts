@@ -13,6 +13,7 @@
  */
 
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { db, threatActorsTable, threatsTable } from "@workspace/db";
 import {
@@ -21,6 +22,14 @@ import {
   parseStringArray,
 } from "../services/phashIntelligenceService";
 import { logger } from "../lib/logger";
+
+const ActorsQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  min_victims: z.coerce.number().int().min(1).default(1),
+  platform: z.string().toLowerCase().optional(),
+  min_cluster_size: z.coerce.number().int().min(0).default(0),
+});
 
 const router: IRouter = Router();
 
@@ -40,11 +49,13 @@ router.get("/intelligence/stats", async (_req, res): Promise<void> => {
 
 router.get("/intelligence/actors", async (req, res): Promise<void> => {
   try {
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10)));
-    const offset = Math.max(0, parseInt(String(req.query.offset ?? "0"), 10));
-    const minVictims = Math.max(1, parseInt(String(req.query.min_victims ?? "1"), 10));
-    const platform = typeof req.query.platform === "string" ? req.query.platform.toLowerCase() : null;
-    const minClusterSize = Math.max(0, parseInt(String(req.query.min_cluster_size ?? "0"), 10));
+    const parsed = ActorsQuery.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid query parameters", details: parsed.error.flatten() });
+      return;
+    }
+    const { limit, offset, min_victims: minVictims, platform: rawPlatform, min_cluster_size: minClusterSize } = parsed.data;
+    const platform = rawPlatform ?? null;
 
     // Push minVictims filter to SQL; platform and minClusterSize require JSON
     // parsing so they are applied in-memory after fetching.

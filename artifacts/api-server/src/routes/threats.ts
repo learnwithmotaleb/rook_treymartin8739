@@ -109,37 +109,39 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
   }
 }
 
+const ThreatsQuery = z.object({
+  severity: z.enum(["high", "medium", "low"]).optional(),
+  resolved: z.enum(["true", "false"]).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 router.get("/threats", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
 
-    const { severity, resolved, limit = "50", offset = "0" } = req.query as {
-      severity?: string;
-      resolved?: string;
-      limit?: string;
-      offset?: string;
-    };
+    const parsed = ThreatsQuery.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid query parameters", details: parsed.error.flatten() });
+      return;
+    }
+    const { severity, resolved, limit, offset } = parsed.data;
 
     const conditions = [
       eq(threatsTable.userId, userId),
       eq(threatsTable.hiddenUntilScan, false),
     ];
 
-    if (severity && ["high", "medium", "low"].includes(severity)) {
-      conditions.push(eq(threatsTable.severity, severity));
-    }
-
-    if (resolved !== undefined) {
-      conditions.push(eq(threatsTable.resolved, resolved === "true"));
-    }
+    if (severity) conditions.push(eq(threatsTable.severity, severity));
+    if (resolved !== undefined) conditions.push(eq(threatsTable.resolved, resolved === "true"));
 
     const rows = await db
       .select()
       .from(threatsTable)
       .where(and(...conditions))
       .orderBy(desc(threatsTable.createdAt))
-      .limit(Math.min(parseInt(limit, 10), 200))
-      .offset(Math.max(parseInt(offset, 10), 0));
+      .limit(limit)
+      .offset(offset);
 
     res.json(rows.map(parseThreatSummary));
   } catch (err) {

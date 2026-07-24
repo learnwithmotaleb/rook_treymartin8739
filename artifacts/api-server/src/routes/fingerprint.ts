@@ -1,10 +1,13 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq } from "drizzle-orm";
 
 import { getFingerprintForUser } from "../services/fingerprintService";
 import { countSimilarIdentities } from "../services/vectorSearchService";
 import { db, identityEmbeddingsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+
+const SimilarBody = z.object({ mediaItemId: z.string().min(1) });
 
 const router: IRouter = Router();
 
@@ -36,12 +39,12 @@ router.get("/fingerprint", async (req, res): Promise<void> => {
 router.post("/fingerprint/similar", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
-    const { mediaItemId } = req.body as { mediaItemId?: string };
-
-    if (!mediaItemId) {
-      res.status(400).json({ error: "mediaItemId required" });
+    const bodyParsed = SimilarBody.safeParse(req.body);
+    if (!bodyParsed.success) {
+      res.status(400).json({ error: "mediaItemId is required and must be a non-empty string", details: bodyParsed.error.flatten() });
       return;
     }
+    const { mediaItemId } = bodyParsed.data;
 
     const [row] = await db
       .select({ embeddingJson: identityEmbeddingsTable.embeddingJson, userId: identityEmbeddingsTable.userId })
