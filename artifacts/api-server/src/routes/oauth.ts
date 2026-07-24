@@ -82,9 +82,9 @@ function consumeStateToken(token: string): boolean {
   return true;
 }
 
-function createOAuthState(userId: string): string {
+function createOAuthState(clerkId: string): string {
   const payload = Buffer.from(
-    JSON.stringify({ userId, iat: Math.floor(Date.now() / 1000) })
+    JSON.stringify({ clerkId, iat: Math.floor(Date.now() / 1000) })
   ).toString("base64url");
   const sig = crypto
     .createHmac("sha256", STATE_SECRET)
@@ -93,6 +93,7 @@ function createOAuthState(userId: string): string {
   return `${payload}.${sig}`;
 }
 
+// Returns the Clerk user ID embedded in a valid state token, or null.
 function parseOAuthState(state: string): string | null {
   try {
     const dot = state.lastIndexOf(".");
@@ -104,14 +105,16 @@ function parseOAuthState(state: string): string | null {
       .update(payload)
       .digest("base64url");
     if (sig !== expected) return null;
-    const { userId, iat } = JSON.parse(
+    const parsed = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8")
-    ) as { userId?: string; iat?: number };
-    if (!userId || typeof iat !== "number") return null;
-    if (Date.now() / 1000 - iat > 900) return null; // 15-min window
+    ) as { clerkId?: string; userId?: string; iat?: number };
+    // Support both new (clerkId) and legacy (userId = DB UUID) tokens
+    const id = parsed.clerkId ?? parsed.userId;
+    if (!id || typeof parsed.iat !== "number") return null;
+    if (Date.now() / 1000 - parsed.iat > 900) return null; // 15-min window
     // One-time use: prevent replay within the validity window
     if (!consumeStateToken(state)) return null;
-    return userId;
+    return id;
   } catch {
     return null;
   }
@@ -122,17 +125,17 @@ function parseOAuthState(state: string): string | null {
 // code_verifier + code_challenge and embeds the verifier in the signed state
 // token so the callback can use it without any extra round-trips.
 
-function createXPkceState(userId: string): { state: string; codeChallenge: string } {
+function createXPkceState(clerkId: string): { state: string; codeChallenge: string } {
   const codeVerifier = crypto.randomBytes(32).toString("base64url");
   const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
   const payload = Buffer.from(
-    JSON.stringify({ userId, iat: Math.floor(Date.now() / 1000), cv: codeVerifier })
+    JSON.stringify({ clerkId, iat: Math.floor(Date.now() / 1000), cv: codeVerifier })
   ).toString("base64url");
   const sig = crypto.createHmac("sha256", STATE_SECRET).update(payload).digest("base64url");
   return { state: `${payload}.${sig}`, codeChallenge };
 }
 
-function parseXPkceState(state: string): { userId: string; codeVerifier: string } | null {
+function parseXPkceState(state: string): { clerkId: string; codeVerifier: string } | null {
   try {
     const dot = state.lastIndexOf(".");
     if (dot === -1) return null;
@@ -142,20 +145,38 @@ function parseXPkceState(state: string): { userId: string; codeVerifier: string 
     if (sig !== expected) return null;
     const parsed = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8")
-    ) as { userId?: string; iat?: number; cv?: string };
-    if (!parsed.userId || typeof parsed.iat !== "number" || !parsed.cv) return null;
+    ) as { clerkId?: string; userId?: string; iat?: number; cv?: string };
+    // Support both new (clerkId) and legacy (userId = DB UUID) tokens
+    const id = parsed.clerkId ?? parsed.userId;
+    if (!id || typeof parsed.iat !== "number" || !parsed.cv) return null;
     if (Date.now() / 1000 - parsed.iat > 900) return null;
-    return { userId: parsed.userId, codeVerifier: parsed.cv };
+    return { clerkId: id, codeVerifier: parsed.cv };
   } catch {
     return null;
   }
 }
 
 async function resolveUserFromState(state: string | undefined): Promise<string> {
+  const { getOrCreateUserByClerkId } = await import("../middleware/requireAuth");
+
   if (state) {
-    // Primary: HMAC-signed opaque state token (doesn't expire in 60s like JWTs)
-    const userId = parseOAuthState(state);
-    if (userId) return userId;
+    // Primary: HMAC-signed opaque state token (embeds Clerk user ID).
+    // This is cross-environment safe — Clerk IDs are the same in dev and prod.
+    const clerkOrDbId = parseOAuthState(state);
+    if (clerkOrDbId) {
+      // If it looks like a Clerk ID (starts with "user_"), upsert via Clerk.
+      // Legacy tokens embedded a raw DB UUID — try direct lookup as fallback.
+      if (clerkOrDbId.startsWith("user_")) {
+        const dbUser = await getOrCreateUserByClerkId(clerkOrDbId, null);
+        return dbUser.id;
+      }
+      // Legacy path: it's a DB UUID — look it up directly.
+      const [existing] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.id, clerkOrDbId));
+      if (existing) return existing.id;
+    }
 
     // Fallback: Clerk JWT (backward compat — try to look up by clerkId)
     try {
@@ -163,11 +184,8 @@ async function resolveUserFromState(state: string | undefined): Promise<string> 
       const payload = await verifyToken(state, {
         secretKey: process.env["CLERK_SECRET_KEY"] ?? "",
       });
-      const [dbUser] = await db
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(eq(usersTable.clerkId, payload.sub));
-      if (dbUser) return dbUser.id;
+      const dbUser = await getOrCreateUserByClerkId(payload.sub, null);
+      return dbUser.id;
     } catch {
       // expired / invalid — fall through
     }
@@ -185,7 +203,7 @@ async function resolveUserFromState(state: string | undefined): Promise<string> 
 // Returns a short-lived HMAC-signed state token that the callback can verify
 // without depending on the Clerk JWT expiry window.
 router.post("/oauth/state", requireAuth, (req, res): void => {
-  const state = createOAuthState(req.userId);
+  const state = createOAuthState(req.clerkId);
   res.json({ state });
 });
 
@@ -194,7 +212,7 @@ router.post("/oauth/state", requireAuth, (req, res): void => {
 // Generates a PKCE code_verifier (embedded in signed state) + code_challenge
 // (sent to Twitter). The callback extracts code_verifier from the state token.
 router.post("/oauth/x/init", requireAuth, (req, res): void => {
-  const { state, codeChallenge } = createXPkceState(req.userId);
+  const { state, codeChallenge } = createXPkceState(req.clerkId);
   res.json({ state, codeChallenge });
 });
 
@@ -556,7 +574,22 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
     return;
   }
 
-  const { userId, codeVerifier } = pkce;
+  const { clerkId: pkceClerkId, codeVerifier } = pkce;
+
+  // Resolve (or JIT-provision) the DB user from the embedded Clerk ID.
+  let userId: string;
+  try {
+    const { getOrCreateUserByClerkId } = await import("../middleware/requireAuth");
+    const dbUser = pkceClerkId.startsWith("user_")
+      ? await getOrCreateUserByClerkId(pkceClerkId, null)
+      : (await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, pkceClerkId)))[0];
+    if (!dbUser) throw new StateResolutionError();
+    userId = dbUser.id;
+  } catch {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(401).send(errorPage("Session Expired", "Your sign-in session expired. Please try connecting your X account again."));
+    return;
+  }
 
   try {
     const redirectUri = `https://${DOMAIN}/api/oauth/x/callback`;

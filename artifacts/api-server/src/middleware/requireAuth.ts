@@ -8,6 +8,7 @@ declare global {
   namespace Express {
     interface Request {
       userId: string;
+      clerkId: string;
     }
   }
 }
@@ -25,6 +26,7 @@ export async function requireAuth(
     if (clerkUserId) {
       const dbUser = await getOrCreateUserByClerkId(clerkUserId, auth);
       req.userId = dbUser.id;
+      req.clerkId = clerkUserId;
       req.log.info({ clerkUserId, userId: dbUser.id }, "requireAuth: clerk user");
       return next();
     }
@@ -42,9 +44,9 @@ export async function requireAuth(
   }
 }
 
-async function getOrCreateUserByClerkId(
+export async function getOrCreateUserByClerkId(
   clerkUserId: string,
-  auth: ReturnType<typeof getAuth>
+  auth: ReturnType<typeof getAuth> | null
 ): Promise<{ id: string }> {
   const [existing] = await db
     .select({ id: usersTable.id })
