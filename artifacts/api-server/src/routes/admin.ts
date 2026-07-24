@@ -12,6 +12,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction, type IRouter } from "express";
+import { z } from "zod";
 import { eq, gte, and, sql } from "drizzle-orm";
 import {
   db,
@@ -129,9 +130,13 @@ router.get("/admin/stats", async (_req, res): Promise<void> => {
 
 router.get("/admin/consumers", async (req, res): Promise<void> => {
   try {
-    const limit = Math.min(parseInt((req.query.limit as string) ?? "20", 10), 100);
+    const limitParsed = z.coerce.number().int().min(1).max(100).default(20).safeParse(req.query["limit"]);
+    if (!limitParsed.success) {
+      res.status(400).json({ error: "limit must be a number between 1 and 100" });
+      return;
+    }
     const [consumers, startOfMonth] = [
-      await getTopConsumers(limit),
+      await getTopConsumers(limitParsed.data),
       (() => {
         const d = new Date();
         d.setDate(1);
@@ -515,17 +520,16 @@ function buildReviewerThreats(userId: string) {
 
 router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
   try {
-  const { clerkId, tier = "premium" } = req.body as { clerkId?: string; tier?: string };
-
-  if (!clerkId) {
-    res.status(400).json({ error: "clerkId is required" });
+  const SeedBody = z.object({
+    clerkId: z.string().min(1),
+    tier: z.enum(["free", "pro", "premium"]).default("premium"),
+  });
+  const bodyParsed = SeedBody.safeParse(req.body);
+  if (!bodyParsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.flatten() });
     return;
   }
-
-  if (tier !== "free" && tier !== "pro" && tier !== "premium") {
-    res.status(400).json({ error: "tier must be one of: free, pro, premium" });
-    return;
-  }
+  const { clerkId, tier } = bodyParsed.data;
 
   const now = new Date();
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);

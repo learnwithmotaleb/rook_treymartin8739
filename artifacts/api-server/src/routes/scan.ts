@@ -30,6 +30,14 @@ router.post("/scan", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
 
+    // ── Validate input first — before any quota mutations ──────────────────────
+    const bodyParsed = ScanBody.safeParse(req.body ?? {});
+    if (!bodyParsed.success) {
+      res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.flatten() });
+      return;
+    }
+    const { bypassCache } = bodyParsed.data;
+
     // ── Dedup: return existing running job WITHOUT consuming quota ──────────────
     const activeJobs = await db
       .select()
@@ -71,12 +79,6 @@ router.post("/scan", async (req, res): Promise<void> => {
       return;
     }
 
-    const bodyParsed = ScanBody.safeParse(req.body ?? {});
-    if (!bodyParsed.success) {
-      res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.flatten() });
-      return;
-    }
-    const { bypassCache } = bodyParsed.data;
     const job = await startScan(userId, planTier, { bypassCache });
     res.status(201).json({
       ...serializeJob(job),
