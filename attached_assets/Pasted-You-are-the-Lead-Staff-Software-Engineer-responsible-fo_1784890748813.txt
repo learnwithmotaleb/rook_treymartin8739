@@ -1,0 +1,423 @@
+You are the Lead Staff Software Engineer responsible for redesigning the authentication and social account connection architecture for ROOK.
+
+Your goal is to rebuild the OAuth system from the ground up using Meta's latest recommended architecture and best practices while preserving the existing application where possible.
+
+DO NOT simply patch the existing implementation.
+
+First perform a complete audit of the current authentication flow, identify every weakness, and then rebuild it if necessary.
+
+==================================================
+PROJECT GOAL
+==================================================
+
+ROOK is an AI-powered identity protection platform.
+
+Users should be able to:
+
+• Create a ROOK account
+• Securely connect supported social media accounts
+• Grant only the minimum permissions necessary
+• Browse photos from their connected accounts
+• Select which photos ROOK should monitor
+• Add or remove monitored photos at any time
+• Disconnect accounts at any time
+• Refresh expired tokens automatically
+• Reconnect seamlessly if authorization expires
+
+The experience should feel like a premium security product built by a large technology company.
+
+==================================================
+SUPPORTED PLATFORMS
+==================================================
+
+Design the architecture so additional providers can easily be added.
+
+Phase 1
+
+• Instagram
+• Facebook
+
+Future-ready architecture
+
+• X
+• TikTok
+• LinkedIn
+• YouTube
+• Snapchat
+
+The OAuth layer must be provider-agnostic.
+
+==================================================
+DESIGN REQUIREMENTS
+==================================================
+
+Redesign the authentication system using a provider abstraction.
+
+Example
+
+Authentication
+    ↓
+OAuth Provider
+    ↓
+Account Connection
+    ↓
+Token Manager
+    ↓
+Media Import
+    ↓
+Photo Selection
+    ↓
+Monitoring Pipeline
+
+Each provider should implement the same interface.
+
+Example
+
+Connect Account
+
+Disconnect Account
+
+Refresh Token
+
+Get Profile
+
+Get Photos
+
+Get Albums
+
+Get Avatar
+
+Get Account Metadata
+
+Validate Permissions
+
+==================================================
+META IMPLEMENTATION
+==================================================
+
+Audit the current implementation.
+
+Determine whether we are using the correct Meta products.
+
+Examples
+
+Facebook Login
+
+Facebook Login for Business
+
+Instagram Login
+
+Instagram Graph API
+
+Pages API
+
+Business Management API
+
+Recommend the correct architecture based on Meta's current documentation.
+
+Remove deprecated APIs.
+
+Remove unnecessary permissions.
+
+Only request permissions that are required.
+
+==================================================
+PHOTO IMPORT EXPERIENCE
+==================================================
+
+After connecting Instagram or Facebook
+
+Users should see
+
+Loading...
+
+↓
+
+Thumbnail Grid
+
+Large images
+
+Lazy loaded
+
+Fast scrolling
+
+Pagination
+
+Album support where available
+
+Search if supported
+
+Newest first
+
+The user can
+
+Tap one image
+
+Tap multiple
+
+Select up to configurable limit
+
+Example
+
+10
+
+25
+
+50
+
+100
+
+Show
+
+Selected count
+
+Estimated scan time
+
+Storage estimate
+
+When complete
+
+Save monitored photos
+
+==================================================
+ACCOUNT MANAGEMENT
+==================================================
+
+Settings
+
+Connected Accounts
+
+Instagram
+
+Connected
+
+Last synced
+
+Permissions granted
+
+Reconnect
+
+Disconnect
+
+Refresh
+
+Facebook
+
+Connected
+
+Future platforms should automatically plug into this page.
+
+==================================================
+TOKEN MANAGEMENT
+==================================================
+
+Implement production-grade token management.
+
+Secure storage
+
+Refresh tokens
+
+Expiration tracking
+
+Automatic refresh
+
+Retry logic
+
+Graceful failures
+
+Recovery flow
+
+Detect revoked permissions
+
+Detect expired authorizations
+
+Prompt user only when necessary.
+
+==================================================
+DATABASE
+==================================================
+
+Design proper tables/models.
+
+Connected Accounts
+
+Provider
+
+Provider User ID
+
+Username
+
+Profile URL
+
+Avatar
+
+Scopes
+
+Access Token
+
+Refresh Token
+
+Expires At
+
+Last Sync
+
+Connection Status
+
+Photo Assets
+
+Photo ID
+
+Provider
+
+Thumbnail URL
+
+Original URL
+
+Selected
+
+Monitoring Enabled
+
+Created At
+
+Updated At
+
+==================================================
+BACKEND
+==================================================
+
+Create modular services.
+
+OAuthService
+
+ProviderRegistry
+
+InstagramProvider
+
+FacebookProvider
+
+MediaImportService
+
+TokenRefreshService
+
+PermissionValidator
+
+PhotoSelectionService
+
+MonitoringSetupService
+
+Everything should be testable independently.
+
+==================================================
+UX
+==================================================
+
+The experience should be polished.
+
+Step 1
+
+Connect Instagram
+
+↓
+
+Secure Meta login
+
+↓
+
+Permission explanation
+
+↓
+
+Success animation
+
+↓
+
+Importing photos
+
+↓
+
+Choose photos
+
+↓
+
+Saving
+
+↓
+
+Monitoring enabled
+
+Include
+
+Loading skeletons
+
+Progress indicators
+
+Helpful error states
+
+Retry options
+
+Success confirmations
+
+==================================================
+SECURITY
+==================================================
+
+Follow OAuth 2.0 best practices.
+
+PKCE where applicable
+
+CSRF protection
+
+Encrypted token storage
+
+Server-side token exchange
+
+No secrets in client
+
+Audit logging
+
+Rate limiting
+
+Secure session validation
+
+==================================================
+APP REVIEW
+==================================================
+
+Design the implementation so it has the highest likelihood of passing Meta App Review.
+
+Every requested permission should have a clear feature tied to it.
+
+Every OAuth step should be easy to demonstrate in a screen recording.
+
+Document:
+
+• Which Meta products are used
+• Which permissions are required
+• Why each permission exists
+• Which API endpoints consume each permission
+
+==================================================
+DELIVERABLES
+==================================================
+
+Before writing code:
+
+1. Audit the existing implementation.
+2. Identify flaws.
+3. Explain the recommended architecture.
+4. Produce a migration plan.
+
+Then:
+
+• Refactor the authentication system.
+• Refactor OAuth.
+• Refactor media import.
+• Refactor account connections.
+• Refactor photo selection.
+• Remove deprecated code.
+• Preserve compatibility where practical.
+• Add comprehensive error handling and logging.
+• Create unit tests and integration tests.
+• Verify the implementation against Meta's latest documentation and App Review requirements.
+
+The final implementation should be scalable, maintainable, secure, and feel like an enterprise-grade authentication system capable of supporting millions of users.
