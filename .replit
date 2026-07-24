@@ -58,10 +58,9 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_cGlja2VkLWdyaWZmb24tNDYuY2xlcmsuYWN
 WEBHOOK_VERIFY_TOKEN = "rook_webhook_verify_2025"
 
 [userenv.development]
-OAUTH_REDIRECT_BASE_URL = "6c2161a6-7017-4ec4-988f-83e568e76224-00-1qirill5i8g8e.janeway.replit.dev"
+DEV_NOTIFY_URL = "https://6c2161a6-7017-4ec4-988f-83e568e76224-00-1qirill5i8g8e.janeway.replit.dev"
 
 [userenv.production]
-OAUTH_REDIRECT_BASE_URL = "tryrook.app"
 
 [nix]
 channel = "stable-25_05"

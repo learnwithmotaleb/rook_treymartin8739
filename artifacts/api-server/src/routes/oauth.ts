@@ -82,10 +82,13 @@ function consumeStateToken(token: string): boolean {
   return true;
 }
 
-function createOAuthState(clerkId: string): string {
-  const payload = Buffer.from(
-    JSON.stringify({ clerkId, iat: Math.floor(Date.now() / 1000) })
-  ).toString("base64url");
+function createOAuthState(clerkId: string, notifyUrl?: string): string {
+  const data: { clerkId: string; iat: number; nu?: string } = {
+    clerkId,
+    iat: Math.floor(Date.now() / 1000),
+  };
+  if (notifyUrl) data.nu = notifyUrl;
+  const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
   const sig = crypto
     .createHmac("sha256", STATE_SECRET)
     .update(payload)
@@ -93,8 +96,8 @@ function createOAuthState(clerkId: string): string {
   return `${payload}.${sig}`;
 }
 
-// Returns the Clerk user ID embedded in a valid state token, or null.
-function parseOAuthState(state: string): string | null {
+// Returns the parsed state token or null.
+function parseOAuthState(state: string): { id: string; notifyUrl?: string } | null {
   try {
     const dot = state.lastIndexOf(".");
     if (dot === -1) return null;
@@ -107,14 +110,14 @@ function parseOAuthState(state: string): string | null {
     if (sig !== expected) return null;
     const parsed = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8")
-    ) as { clerkId?: string; userId?: string; iat?: number };
+    ) as { clerkId?: string; userId?: string; iat?: number; nu?: string };
     // Support both new (clerkId) and legacy (userId = DB UUID) tokens
     const id = parsed.clerkId ?? parsed.userId;
     if (!id || typeof parsed.iat !== "number") return null;
     if (Date.now() / 1000 - parsed.iat > 900) return null; // 15-min window
     // One-time use: prevent replay within the validity window
     if (!consumeStateToken(state)) return null;
-    return id;
+    return { id, notifyUrl: parsed.nu };
   } catch {
     return null;
   }
@@ -125,17 +128,21 @@ function parseOAuthState(state: string): string | null {
 // code_verifier + code_challenge and embeds the verifier in the signed state
 // token so the callback can use it without any extra round-trips.
 
-function createXPkceState(clerkId: string): { state: string; codeChallenge: string } {
+function createXPkceState(clerkId: string, notifyUrl?: string): { state: string; codeChallenge: string } {
   const codeVerifier = crypto.randomBytes(32).toString("base64url");
   const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
-  const payload = Buffer.from(
-    JSON.stringify({ clerkId, iat: Math.floor(Date.now() / 1000), cv: codeVerifier })
-  ).toString("base64url");
+  const data: { clerkId: string; iat: number; cv: string; nu?: string } = {
+    clerkId,
+    iat: Math.floor(Date.now() / 1000),
+    cv: codeVerifier,
+  };
+  if (notifyUrl) data.nu = notifyUrl;
+  const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
   const sig = crypto.createHmac("sha256", STATE_SECRET).update(payload).digest("base64url");
   return { state: `${payload}.${sig}`, codeChallenge };
 }
 
-function parseXPkceState(state: string): { clerkId: string; codeVerifier: string } | null {
+function parseXPkceState(state: string): { clerkId: string; codeVerifier: string; notifyUrl?: string } | null {
   try {
     const dot = state.lastIndexOf(".");
     if (dot === -1) return null;
@@ -145,37 +152,38 @@ function parseXPkceState(state: string): { clerkId: string; codeVerifier: string
     if (sig !== expected) return null;
     const parsed = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8")
-    ) as { clerkId?: string; userId?: string; iat?: number; cv?: string };
+    ) as { clerkId?: string; userId?: string; iat?: number; cv?: string; nu?: string };
     // Support both new (clerkId) and legacy (userId = DB UUID) tokens
     const id = parsed.clerkId ?? parsed.userId;
     if (!id || typeof parsed.iat !== "number" || !parsed.cv) return null;
     if (Date.now() / 1000 - parsed.iat > 900) return null;
-    return { clerkId: id, codeVerifier: parsed.cv };
+    return { clerkId: id, codeVerifier: parsed.cv, notifyUrl: parsed.nu };
   } catch {
     return null;
   }
 }
 
-async function resolveUserFromState(state: string | undefined): Promise<string> {
+async function resolveUserFromState(
+  state: string | undefined
+): Promise<{ userId: string; clerkId?: string; notifyUrl?: string }> {
   const { getOrCreateUserByClerkId } = await import("../middleware/requireAuth");
 
   if (state) {
     // Primary: HMAC-signed opaque state token (embeds Clerk user ID).
-    // This is cross-environment safe — Clerk IDs are the same in dev and prod.
-    const clerkOrDbId = parseOAuthState(state);
-    if (clerkOrDbId) {
-      // If it looks like a Clerk ID (starts with "user_"), upsert via Clerk.
-      // Legacy tokens embedded a raw DB UUID — try direct lookup as fallback.
+    // Cross-environment safe — Clerk IDs are stable across dev and prod.
+    const parsed = parseOAuthState(state);
+    if (parsed) {
+      const { id: clerkOrDbId, notifyUrl } = parsed;
       if (clerkOrDbId.startsWith("user_")) {
         const dbUser = await getOrCreateUserByClerkId(clerkOrDbId, null);
-        return dbUser.id;
+        return { userId: dbUser.id, clerkId: clerkOrDbId, notifyUrl };
       }
       // Legacy path: it's a DB UUID — look it up directly.
       const [existing] = await db
         .select({ id: usersTable.id })
         .from(usersTable)
         .where(eq(usersTable.id, clerkOrDbId));
-      if (existing) return existing.id;
+      if (existing) return { userId: existing.id, notifyUrl };
     }
 
     // Fallback: Clerk JWT (backward compat — try to look up by clerkId)
@@ -185,7 +193,7 @@ async function resolveUserFromState(state: string | undefined): Promise<string> 
         secretKey: process.env["CLERK_SECRET_KEY"] ?? "",
       });
       const dbUser = await getOrCreateUserByClerkId(payload.sub, null);
-      return dbUser.id;
+      return { userId: dbUser.id, clerkId: payload.sub };
     } catch {
       // expired / invalid — fall through
     }
@@ -195,15 +203,51 @@ async function resolveUserFromState(state: string | undefined): Promise<string> 
   }
   const { getOrCreateDemoUser } = await import("../lib/demoUser");
   const demo = await getOrCreateDemoUser();
-  return demo.id;
+  return { userId: demo.id };
+}
+
+// ── Dev-server account notification ──────────────────────────────────────────
+// When the dev Expo app initiates OAuth, the state token embeds a notifyUrl
+// pointing back to the dev server. After the production server saves the
+// account, it fires this so the dev server mirrors it into the dev DB and
+// the app's poll succeeds — without the user needing to register a second
+// redirect URI in the Meta developer portal.
+const _devNotifyBase = process.env["DEV_NOTIFY_URL"]?.replace(/\/$/, "");
+
+async function sendAccountNotify(
+  notifyUrl: string,
+  payload: {
+    clerkId: string;
+    platform: string;
+    username: string;
+    platformUserId?: string;
+    displayName?: string;
+    accessToken?: string;
+  }
+): Promise<void> {
+  try {
+    const sig = crypto
+      .createHmac("sha256", STATE_SECRET)
+      .update(JSON.stringify(payload))
+      .digest("base64url");
+    await fetch(`${notifyUrl}/api/oauth/account-notify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, sig }),
+    });
+  } catch {
+    // Fire-and-forget — never fail the main OAuth flow
+  }
 }
 
 // ── POST /api/oauth/state ─────────────────────────────────────────────────────
 // Called by the mobile app (authenticated) before opening the OAuth browser.
 // Returns a short-lived HMAC-signed state token that the callback can verify
 // without depending on the Clerk JWT expiry window.
+// In development, embeds DEV_NOTIFY_URL so the production callback can mirror
+// the saved account back to the dev server.
 router.post("/oauth/state", requireAuth, (req, res): void => {
-  const state = createOAuthState(req.clerkId);
+  const state = createOAuthState(req.clerkId, _devNotifyBase);
   res.json({ state });
 });
 
@@ -212,7 +256,7 @@ router.post("/oauth/state", requireAuth, (req, res): void => {
 // Generates a PKCE code_verifier (embedded in signed state) + code_challenge
 // (sent to Twitter). The callback extracts code_verifier from the state token.
 router.post("/oauth/x/init", requireAuth, (req, res): void => {
-  const { state, codeChallenge } = createXPkceState(req.clerkId);
+  const { state, codeChallenge } = createXPkceState(req.clerkId, _devNotifyBase);
   res.json({ state, codeChallenge });
 });
 
@@ -338,7 +382,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
       req.log?.warn({ body: longLivedBody }, "Could not parse long-lived token response — using short-lived token");
     }
 
-    const userId = await resolveUserFromState(state);
+    const { userId, clerkId: resolvedClerkId, notifyUrl } = await resolveUserFromState(state);
 
     const existing = await db
       .select({ id: connectedAccountsTable.id })
@@ -380,6 +424,17 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
           reelsIndexed: 0,
           lastSynced: new Date(),
         });
+    }
+
+    // Mirror to dev server if state token carried a notifyUrl (fire-and-forget).
+    if (notifyUrl && resolvedClerkId) {
+      void sendAccountNotify(notifyUrl, {
+        clerkId: resolvedClerkId,
+        platform: "instagram",
+        username: profile.username,
+        platformUserId: String(profile.id),
+        accessToken: longToken,
+      });
     }
 
     // Redirect to the app custom scheme so ASWebAuthenticationSession closes automatically.
@@ -476,7 +531,8 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
       throw new Error(profile.error?.message ?? "Failed to fetch Facebook profile");
     }
 
-    const userId = await resolveUserFromState(state);
+    const { userId, clerkId: resolvedClerkId, notifyUrl } = await resolveUserFromState(state);
+    const fbUsername = profile.name.toLowerCase().replace(/\s+/g, ".");
 
     const existing = await db
       .select({ id: connectedAccountsTable.id })
@@ -499,7 +555,7 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
         .values({
           userId,
           platform: "facebook",
-          username: profile.name.toLowerCase().replace(/\s+/g, "."),
+          username: fbUsername,
           displayName: profile.name,
           platformUserId: profile.id,
           accessToken: access_token,
@@ -511,6 +567,18 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
           reelsIndexed: 0,
           lastSynced: new Date(),
         });
+    }
+
+    // Mirror to dev server if state token carried a notifyUrl (fire-and-forget).
+    if (notifyUrl && resolvedClerkId) {
+      void sendAccountNotify(notifyUrl, {
+        clerkId: resolvedClerkId,
+        platform: "facebook",
+        username: fbUsername,
+        displayName: profile.name,
+        platformUserId: profile.id,
+        accessToken: access_token,
+      });
     }
 
     const ua = (req.headers["user-agent"] ?? "").toLowerCase();
@@ -574,7 +642,7 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
     return;
   }
 
-  const { clerkId: pkceClerkId, codeVerifier } = pkce;
+  const { clerkId: pkceClerkId, codeVerifier, notifyUrl: xNotifyUrl } = pkce;
 
   // Resolve (or JIT-provision) the DB user from the embedded Clerk ID.
   let userId: string;
@@ -696,6 +764,18 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
       });
     }
 
+    // Mirror to dev server if state token carried a notifyUrl (fire-and-forget).
+    if (xNotifyUrl && pkceClerkId.startsWith("user_")) {
+      void sendAccountNotify(xNotifyUrl, {
+        clerkId: pkceClerkId,
+        platform: "x",
+        username: profile.username,
+        displayName: profile.name,
+        platformUserId: profile.id,
+        accessToken: access_token,
+      });
+    }
+
     const ua = (req.headers["user-agent"] ?? "").toLowerCase();
     const isMobile = ua.includes("iphone") || ua.includes("ipad") || ua.includes("android");
     if (isMobile) {
@@ -716,6 +796,90 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
     }
     req.log?.error({ err }, "X OAuth callback error");
     res.status(500).send(errorPage("Connection Failed", "Something went wrong while connecting your X account. Please try again."));
+  }
+});
+
+// ── POST /api/oauth/account-notify ───────────────────────────────────────────
+// Receives cross-environment account-sync notifications from the production
+// server (tryrook.app) after it completes an OAuth flow initiated by the dev
+// Expo app. Validates an HMAC signature (using the shared SESSION_SECRET) and
+// upserts the connected account into this server's database.
+// Only useful in development — in production, notifyUrl is never embedded.
+router.post("/oauth/account-notify", async (req, res): Promise<void> => {
+  const { clerkId, platform, username, platformUserId, displayName, accessToken, sig } =
+    req.body as {
+      clerkId?: string;
+      platform?: string;
+      username?: string;
+      platformUserId?: string;
+      displayName?: string;
+      accessToken?: string;
+      sig?: string;
+    };
+
+  if (!clerkId || !platform || !username || !sig) {
+    res.status(400).json({ error: "missing required fields" });
+    return;
+  }
+
+  // Validate HMAC signature — only the server with SESSION_SECRET can produce this.
+  const payload = { clerkId, platform, username, platformUserId, displayName, accessToken };
+  const expected = crypto
+    .createHmac("sha256", STATE_SECRET)
+    .update(JSON.stringify(payload))
+    .digest("base64url");
+  if (sig !== expected) {
+    res.status(401).json({ error: "invalid signature" });
+    return;
+  }
+
+  try {
+    const { getOrCreateUserByClerkId } = await import("../middleware/requireAuth");
+    const dbUser = await getOrCreateUserByClerkId(clerkId, null);
+
+    const existing = await db
+      .select({ id: connectedAccountsTable.id })
+      .from(connectedAccountsTable)
+      .where(
+        and(
+          eq(connectedAccountsTable.userId, dbUser.id),
+          eq(connectedAccountsTable.platform, platform)
+        )
+      );
+
+    if (existing.length > 0) {
+      await db
+        .update(connectedAccountsTable)
+        .set({
+          username,
+          platformUserId,
+          displayName,
+          accessToken,
+          verified: true,
+          lastSynced: new Date(),
+        })
+        .where(eq(connectedAccountsTable.id, existing[0]!.id));
+    } else {
+      await db.insert(connectedAccountsTable).values({
+        userId: dbUser.id,
+        platform,
+        username,
+        platformUserId,
+        displayName,
+        accessToken,
+        verified: true,
+        followers: 0,
+        photosIndexed: 0,
+        captionsIndexed: 0,
+        reelsIndexed: 0,
+        lastSynced: new Date(),
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    req.log?.error({ err }, "account-notify upsert error");
+    res.status(500).json({ error: "internal error" });
   }
 });
 
