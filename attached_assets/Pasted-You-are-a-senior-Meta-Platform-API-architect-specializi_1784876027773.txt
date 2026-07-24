@@ -1,0 +1,212 @@
+You are a senior Meta Platform API architect specializing in Facebook Login, Instagram Graph API, Instagram Login, Meta Business Manager, and App Review approvals.
+
+I need you to perform a complete audit of my application's Meta integration because I believe I may be using the wrong Meta API products or permissions, which could be the reason I cannot test my own app as the admin and cannot obtain Advanced Access.
+
+Do NOT assume the current implementation is correct. Audit everything from the ground up.
+
+APP CONTEXT:
+
+My app is ROOK, an AI-powered identity protection app.
+
+The intended user flow:
+
+1. User creates an account in ROOK.
+2. User connects their social media accounts.
+3. User authorizes Instagram/Facebook access.
+4. ROOK analyzes the user's photos/profile information.
+5. ROOK monitors for impersonation, fake accounts, stolen images, and identity threats.
+
+Current issue:
+
+- I am the owner/admin of the Meta Business Portfolio.
+- My Facebook account is an admin.
+- My Instagram account is connected.
+- My Facebook Page is connected.
+- I have attempted to add myself as a test user.
+- Instagram test user has been added.
+- However, when testing the app, Meta tells me Advanced Access is required.
+- I cannot complete the Meta App Review screen recording because I cannot demonstrate the functionality.
+
+I need you to determine whether the root cause is:
+
+- Wrong Meta API product
+- Wrong permissions
+- Wrong login flow
+- Wrong app configuration
+- Incorrect Instagram account type
+- Missing Business Portfolio connection
+- Incorrect OAuth implementation
+- Missing App Role assignment
+- Development mode restrictions
+- Something else
+
+---
+
+AUDIT THESE AREAS:
+
+## 1. Identify the exact Meta APIs currently being used
+
+Search the entire codebase and identify:
+
+- Facebook SDK usage
+- Instagram SDK usage
+- OAuth endpoints
+- Graph API calls
+- API versions
+- Requested scopes/permissions
+- Login configuration
+- Redirect URLs
+- Access token handling
+
+Create a report:
+
+Current API:
+Example:
+- Instagram Graph API
+- Facebook Login
+- Instagram Login
+- Marketing API
+- Basic Display API
+
+Is this the correct API for my use case?
+
+If not:
+Explain what should replace it.
+
+---
+
+## 2. Audit Meta product selection
+
+Determine whether my app should be using:
+
+- Facebook Login
+- Facebook Login for Business
+- Instagram Graph API
+- Instagram Login
+- Instagram Basic Display API
+- Pages API
+- Business Management API
+
+For my specific use case:
+
+"A consumer app where users connect their own Instagram account to monitor identity threats"
+
+Tell me:
+
+A) Which Meta products are required.
+
+B) Which products should NOT be used.
+
+C) Which permissions are required.
+
+D) Which permissions I may currently be requesting incorrectly.
+
+---
+
+## 3. Audit requested permissions
+
+Find every permission/scope requested.
+
+For each permission provide:
+
+Permission:
+Purpose:
+Required for ROOK?:
+Requires Advanced Access?:
+Correct Meta product?:
+
+Flag anything unnecessary.
+
+Example:
+
+instagram_basic
+pages_show_list
+business_management
+instagram_manage_insights
+instagram_content_publish
+
+Tell me if any are wrong.
+
+---
+
+## 4. Audit OAuth/login flow
+
+Verify:
+
+- Is the user logging in through Facebook first?
+- Is Instagram authorization happening correctly?
+- Are tokens generated correctly?
+- Are tokens being exchanged correctly?
+- Is the correct Graph API endpoint being used?
+- Are redirect URLs correct?
+- Is the app ID correct?
+- Is the business ID correct?
+
+Identify anything that would prevent an admin from testing.
+
+---
+
+## 5. Determine why admin/test users cannot bypass Advanced Access
+
+Explain specifically:
+
+Why would the app owner/admin still receive an Advanced Access required message?
+
+Check:
+
+- Is the app in Development Mode?
+- Is my Facebook account assigned as an App Admin?
+- Is my Instagram account eligible?
+- Is the Instagram account a Professional account?
+- Is the Facebook Page properly linked?
+- Is the Business Portfolio attached correctly?
+
+---
+
+## 6. Compare my implementation against Meta App Review requirements
+
+Pretend you are a Meta reviewer.
+
+Tell me:
+
+Would this pass review?
+
+What would cause rejection?
+
+What changes are required before submission?
+
+---
+
+## 7. Give me an exact fix plan
+
+Provide:
+
+Priority 1:
+The first thing I should fix.
+
+Priority 2:
+The second thing.
+
+Priority 3:
+Final App Review preparation.
+
+Include exact steps.
+
+Do not provide generic advice.
+
+I need you to inspect the actual implementation and tell me:
+
+"The reason you cannot get Advanced Access is most likely ______ because ______."
+
+---
+
+Files/code to inspect:
+
+[ATTACH META CONFIG FILES, AUTH FILES, API ROUTES, ENVIRONMENT VARIABLES WITH SECRETS REMOVED]
+
+Screenshots:
+
+[ATTACH META DASHBOARD SCREENSHOTS]
+
+Important:
+Do not rewrite my app architecture unless necessary. The goal is to get ROOK approved by Meta as quickly as possible with the correct API implementation.
