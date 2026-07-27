@@ -60,6 +60,21 @@ const REPORT_GUIDE_URLS: Record<string, string> = {
   snapchat: "https://support.snapchat.com/en-US/i-need-help",
 };
 
+/** Format follower counts as "12K", "1.2M", etc. */
+function formatFollowers(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+/** Format account age in human-readable terms. */
+function formatAccountAge(days: number): string {
+  if (days >= 365 * 2) return `${Math.floor(days / 365)} yrs old`;
+  if (days >= 365) return `1 yr old`;
+  if (days >= 30) return `${Math.floor(days / 30)} mo old`;
+  return `${days}d old`;
+}
+
 function generateAiExplanation(
   type: string,
   platform: string | null,
@@ -546,6 +561,8 @@ export default function ThreatDetail() {
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
+  const [showSignals, setShowSignals] = useState(false);
   const { cardRef, isSharing, share } = useShareCard();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -666,6 +683,7 @@ export default function ThreatDetail() {
   const cleanHandle = suspiciousUsername.replace(/^@/, "");
   const profileUrl = platform && cleanHandle ? PROFILE_URL_TEMPLATES[platform]?.(cleanHandle) : null;
   const guideUrl = platform ? REPORT_GUIDE_URLS[platform] : null;
+  const accountMeta = detail?.accountMeta ?? null;
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -909,24 +927,72 @@ export default function ThreatDetail() {
             <ScoreGauge score={threat.threatScore} color={sc} />
           </View>
 
-          {/* Quick actions row */}
+          {/* Account stat chips / fallback quick actions */}
           <View style={[styles.quickActionsRow, { borderTopColor: sc + "22" }]}>
-            <TouchableOpacity style={styles.quickAction} onPress={handleCopyUsername} activeOpacity={0.7}>
-              <Ionicons name="copy-outline" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Copy</Text>
-            </TouchableOpacity>
-            {profileUrl ? (
-              <TouchableOpacity style={styles.quickAction} onPress={handleOpenProfile} activeOpacity={0.7}>
-                <Ionicons name="open-outline" size={16} color={colors.mutedForeground} />
-                <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Open Profile</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity style={styles.quickAction} onPress={handleShareCard} activeOpacity={0.7} disabled={isSharing}>
-              <Ionicons name="megaphone-outline" size={16} color={colors.mutedForeground} />
-              <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Alert Others</Text>
-            </TouchableOpacity>
+            {accountMeta ? (
+              <>
+                <View style={[styles.statChip, { backgroundColor: colors.border + "88" }]}>
+                  <Ionicons name="people-outline" size={12} color={colors.mutedForeground} />
+                  <Text style={[styles.statChipLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {formatFollowers(accountMeta.followers)} followers
+                  </Text>
+                </View>
+                {accountMeta.totalPosts != null && (
+                  <View style={[styles.statChip, { backgroundColor: colors.border + "88" }]}>
+                    <MaterialCommunityIcons name="image-multiple-outline" size={12} color={colors.mutedForeground} />
+                    <Text style={[styles.statChipLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {accountMeta.totalPosts} posts
+                    </Text>
+                  </View>
+                )}
+                {accountMeta.accountAgeDays != null && (
+                  <View style={[styles.statChip, { backgroundColor: colors.border + "88" }]}>
+                    <Ionicons name="calendar-outline" size={12} color={colors.mutedForeground} />
+                    <Text style={[styles.statChipLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {formatAccountAge(accountMeta.accountAgeDays)}
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                <TouchableOpacity style={styles.quickAction} onPress={handleCopyUsername} activeOpacity={0.7}>
+                  <Ionicons name="copy-outline" size={16} color={colors.mutedForeground} />
+                  <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Copy</Text>
+                </TouchableOpacity>
+                {profileUrl ? (
+                  <TouchableOpacity style={styles.quickAction} onPress={handleOpenProfile} activeOpacity={0.7}>
+                    <Ionicons name="open-outline" size={16} color={colors.mutedForeground} />
+                    <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Open Profile</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            )}
           </View>
         </View>
+
+        {/* ── Visual Evidence ──────────────────────────────────────────────── */}
+        {evidence.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="image-search" size={18} color={colors.danger} />
+              <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Visual Evidence
+              </Text>
+              <View style={[styles.evidenceCountBadge, { backgroundColor: colors.danger + "22" }]}>
+                <Text style={[styles.evidenceCountText, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
+                  {threat.matchedMediaCount} matched
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.evidenceSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Tap "Stolen Copy" to view the impersonator's post
+            </Text>
+            {evidence.map((item) => (
+              <EvidenceCard key={item.id} item={item} />
+            ))}
+          </View>
+        )}
 
         {/* ── What to do now ───────────────────────────────────────────────── */}
         <GlassCard style={[styles.actNowCard, { borderColor: colors.danger + "33" }]}>
@@ -967,82 +1033,88 @@ export default function ThreatDetail() {
           ))}
         </GlassCard>
 
-        {/* ── Visual Evidence ──────────────────────────────────────────────── */}
-        {evidence.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons name="image-search" size={18} color={colors.danger} />
-              <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Visual Evidence
-              </Text>
-              <View style={[styles.evidenceCountBadge, { backgroundColor: colors.danger + "22" }]}>
-                <Text style={[styles.evidenceCountText, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
-                  {threat.matchedMediaCount} matched
-                </Text>
-              </View>
-            </View>
-            <Text style={[styles.evidenceSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Tap "Stolen Copy" to view the impersonator's post
-            </Text>
-            {evidence.map((item) => (
-              <EvidenceCard key={item.id} item={item} />
-            ))}
-          </View>
-        )}
-
-        {/* ── Why Rook flagged this ────────────────────────────────────────── */}
+        {/* ── Why Rook flagged this (collapsible) ──────────────────────────── */}
         {aiExplanation ? (
-          <GlassCard style={[styles.aiCard, { borderColor: colors.primary + "33" }]}>
-            <View style={styles.aiHeader}>
-              <View style={[styles.aiIcon, { backgroundColor: colors.primary + "22" }]}>
-                <MaterialCommunityIcons name="brain" size={20} color={colors.primary} />
-              </View>
-              <View>
-                <Text style={[styles.aiLabel, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => { setShowAiAnalysis((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+          >
+            <GlassCard style={[styles.aiCard, { borderColor: colors.primary + "33" }]}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.aiIcon, { backgroundColor: colors.primary + "22" }]}>
+                  <MaterialCommunityIcons name="brain" size={18} color={colors.primary} />
+                </View>
+                <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
                   Why Rook flagged this
                 </Text>
-                <Text style={[styles.aiPowered, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Rook Identity Investigator · AI analysis
-                </Text>
+                <Ionicons
+                  name={showAiAnalysis ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={colors.mutedForeground}
+                />
               </View>
-            </View>
-            <Text style={[styles.aiText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-              {aiExplanation}
-            </Text>
-            <View style={[styles.aiDisclaimerInline, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-              <MaterialCommunityIcons name="information-outline" size={12} color={colors.mutedForeground} />
-              <Text style={[styles.aiDisclaimerInlineText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Probabilistic estimate · Verify before legal action
-              </Text>
-            </View>
-          </GlassCard>
+              {!showAiAnalysis ? (
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
+                  Tap to see AI analysis
+                </Text>
+              ) : (
+                <>
+                  <Text style={[styles.aiText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                    {aiExplanation}
+                  </Text>
+                  <View style={[styles.aiDisclaimerInline, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                    <MaterialCommunityIcons name="information-outline" size={12} color={colors.mutedForeground} />
+                    <Text style={[styles.aiDisclaimerInlineText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      Probabilistic estimate · Verify before legal action
+                    </Text>
+                  </View>
+                </>
+              )}
+            </GlassCard>
+          </TouchableOpacity>
         ) : null}
 
-        {/* ── Evidence Details (Detected Signals) ─────────────────────────── */}
+        {/* ── Evidence Details — Detected Signals (collapsible) ────────────── */}
         {detectedSignals.length > 0 && (
-          <GlassCard style={styles.signalsCard}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="git-merge-outline" size={18} color={colors.warning} />
-              <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Evidence Details
-              </Text>
-              <View style={[styles.evidenceCountBadge, { backgroundColor: colors.warning + "22" }]}>
-                <Text style={[styles.evidenceCountText, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
-                  {detectedSignals.length} signal{detectedSignals.length !== 1 ? "s" : ""}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => { setShowSignals((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+          >
+            <GlassCard style={styles.signalsCard}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="git-merge-outline" size={18} color={colors.warning} />
+                <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                  Evidence Details
                 </Text>
-              </View>
-            </View>
-            {detectedSignals.map((signal, i) => (
-              <View key={i} style={styles.signalItem}>
-                <View style={[styles.signalIconBg, { backgroundColor: colors.warning + "18" }]}>
-                  <Ionicons name="checkmark" size={12} color={colors.warning} />
+                <View style={[styles.evidenceCountBadge, { backgroundColor: colors.warning + "22" }]}>
+                  <Text style={[styles.evidenceCountText, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
+                    {detectedSignals.length} signal{detectedSignals.length !== 1 ? "s" : ""}
+                  </Text>
                 </View>
-                <Text style={[styles.signalText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
-                  {signal}
-                </Text>
+                <Ionicons
+                  name={showSignals ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={colors.mutedForeground}
+                />
               </View>
-            ))}
-          </GlassCard>
+              {showSignals ? (
+                detectedSignals.map((signal, i) => (
+                  <View key={i} style={styles.signalItem}>
+                    <View style={[styles.signalIconBg, { backgroundColor: colors.warning + "18" }]}>
+                      <Ionicons name="checkmark" size={12} color={colors.warning} />
+                    </View>
+                    <Text style={[styles.signalText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                      {signal}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
+                  Tap to see {detectedSignals.length} detection signal{detectedSignals.length !== 1 ? "s" : ""}
+                </Text>
+              )}
+            </GlassCard>
+          </TouchableOpacity>
         )}
 
         {/* ── Score Breakdown (collapsible) ────────────────────────────────── */}
@@ -1203,10 +1275,17 @@ const styles = StyleSheet.create({
 
   quickActionsRow: {
     flexDirection: "row", alignItems: "center",
-    borderTopWidth: 1, paddingTop: 12, gap: 4,
+    borderTopWidth: 1, paddingTop: 12, gap: 6, flexWrap: "wrap",
   },
   quickAction: { flex: 1, alignItems: "center", gap: 4, paddingVertical: 4 },
   quickActionLabel: { fontSize: 11 },
+
+  // Account stat chips (replace quick actions when accountMeta is present)
+  statChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
+  statChipLabel: { fontSize: 12 },
 
   // Act now
   actNowCard: { gap: 0, padding: 0, overflow: "hidden" },

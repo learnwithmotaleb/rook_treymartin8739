@@ -1,3 +1,4 @@
+- [Phase 11 detection hardening](phase11-detection-hardening.md) — relationship context classifier (credit/collab/mention/fan caps), tightened High gates (90% profile), accountMeta storage + mobile stat chips.
 - [Scan suppression table](scan-suppression-table.md) — suppressedAccountsTable (unique on userId+platform+username) is the authoritative source; loaded as step 0 in pipeline, written on every resolve; replaces old threatsTable-based suppression.
 - [Scan simulation guard](scan-simulation-guard.md) — simulation only fires for demo user (no clerkId); real users always get honest results even if empty.
 - [Clerk session types](clerk-session-types.md) — useSessionList() returns SessionResource[] not SessionWithActivities[]; latestActivity and revoke are not on the TS type; cast to any for access.

@@ -45,12 +45,24 @@ function parseSignals(raw: string | null): StructuredSignals {
   }
 }
 
+interface AccountMeta {
+  followers: number;
+  following?: number;
+  totalPosts?: number;
+  accountAgeDays?: number;
+  engagementRate?: number;
+}
+
 function parseThreat(t: typeof threatsTable.$inferSelect) {
   const evidence = safeParseJson<unknown[]>(t.evidenceJson, []);
-  const scoreBreakdown = safeParseJson<Record<string, number>>(
-    t.scoreBreakdownJson,
-    {}
-  );
+
+  // Parse scoreBreakdownJson as an open object to extract optional accountMeta
+  // (stored alongside the numeric breakdown fields since Phase 11).
+  const breakdownRaw = safeParseJson<Record<string, unknown>>(t.scoreBreakdownJson, {});
+  const { accountMeta: accountMetaRaw, ...scoreBreakdownFields } = breakdownRaw;
+  const scoreBreakdown = scoreBreakdownFields as Record<string, number>;
+  const accountMeta = (accountMetaRaw as AccountMeta | undefined) ?? null;
+
   const signals = parseSignals(t.detectedSignalsJson);
 
   return {
@@ -67,6 +79,8 @@ function parseThreat(t: typeof threatsTable.$inferSelect) {
     matchedMediaCount: t.matchedMediaCount,
     evidence,
     scoreBreakdown,
+    /** Impersonator account quality data (followers, posts, age) stored at scan time. */
+    accountMeta,
     detectedSignals: signals.flags,
     confirmedVictims: signals.confirmedVictims ?? null,
     crossUserEscalation: signals.crossUserEscalation ?? false,

@@ -492,6 +492,27 @@ function webCandidateToImpersonator(
     temporalReuseRatio: 0,          // Phase 4: populated later when Vision returns dated images
   };
 
+  // ── Relationship context signal penalties ─────────────────────────────────
+  // Mentions, credits, and collaborations are NOT impersonators.
+  // Cap signals so these candidates reach at most Low severity regardless
+  // of username similarity. "credit" context is filtered upstream in
+  // webSearchService.ts, but applied here as a defense-in-depth measure.
+  const relCtx = wc.relationshipContext;
+  if (relCtx === "mention" || relCtx === "fan") {
+    signals.profileImageSimilarity = Math.min(signals.profileImageSimilarity, 0.28);
+    signals.mediaOverlapRatio = Math.min(signals.mediaOverlapRatio, 0.20);
+    signals.captionOverlapRatio = Math.min(signals.captionOverlapRatio, 0.20);
+  } else if (relCtx === "collaboration") {
+    signals.profileImageSimilarity = Math.min(signals.profileImageSimilarity, 0.32);
+    signals.mediaOverlapRatio = Math.min(signals.mediaOverlapRatio, 0.25);
+    signals.captionOverlapRatio = Math.min(signals.captionOverlapRatio, 0.25);
+  } else if (relCtx === "credit") {
+    // Should be filtered before reaching here, but zero all signals as a safety net
+    signals.profileImageSimilarity = 0;
+    signals.mediaOverlapRatio = 0;
+    signals.captionOverlapRatio = 0;
+  }
+
   const evidence: DetectedEvidence[] = [];
 
   // "Your Photo" — prefer ingested profile photo, fall back to user avatar URL from DB
@@ -597,6 +618,8 @@ function webCandidateToImpersonator(
     // so pHash comparison fires in Step 6 for ALL web candidates — not just the subset
     // where Google Vision returned a direct image URL.
     suspiciousProfileImageUrl: stolenProfilePhotoUrl,
+    // Carry relationship context through for severity capping in the scoring loop
+    relationshipContext: wc.relationshipContext,
   };
 }
 
@@ -1278,14 +1301,34 @@ async function runScanPipeline(
         : 0;
     }
     const scoredSeverity = scored.severity;
+
+    // ── Relationship context severity cap ─────────────────────────────────────
+    // Mentions, collaborations, and fan accounts are NOT impersonators.
+    // Cap severity at Low for these contexts regardless of combined score.
+    // Cross-user escalation does NOT override this cap — if a bunch of users
+    // mark a fan-account page as "approved" it still can't be High.
+    const candidateRelCtx = candidate.relationshipContext;
+    const isNonImpersonatorContext =
+      candidateRelCtx === "mention" ||
+      candidateRelCtx === "collaboration" ||
+      candidateRelCtx === "credit" ||
+      candidateRelCtx === "fan";
+    const contextCappedSeverity: "high" | "medium" | "low" =
+      isNonImpersonatorContext ? "low" : scoredSeverity;
+    if (isNonImpersonatorContext && scoredSeverity !== "low") {
+      candidate.detectedSignals.push(
+        `relationshipContextCap: capped at Low — relationship context "${candidateRelCtx}" is not impersonation`
+      );
+    }
+
     const escalatedSeverity: "high" | "medium" | "low" =
-      confirmedVictims >= 3 && scoredSeverity === "low" ? "medium"
-      : confirmedVictims >= 3 && scoredSeverity === "medium" ? "high"
-      : scoredSeverity;
-    if (confirmedVictims >= 3 && escalatedSeverity !== scoredSeverity) {
+      !isNonImpersonatorContext && confirmedVictims >= 3 && contextCappedSeverity === "low" ? "medium"
+      : !isNonImpersonatorContext && confirmedVictims >= 3 && contextCappedSeverity === "medium" ? "high"
+      : contextCappedSeverity;
+    if (confirmedVictims >= 3 && escalatedSeverity !== contextCappedSeverity) {
       candidate.detectedSignals.push(
         "crossUserEscalation",
-        `confirmedVictimsEscalation: severity escalated ${scoredSeverity}→${escalatedSeverity} (${confirmedVictims} Rook users confirmed this actor)`
+        `confirmedVictimsEscalation: severity escalated ${contextCappedSeverity}→${escalatedSeverity} (${confirmedVictims} Rook users confirmed this actor)`
       );
     }
 
@@ -1379,7 +1422,12 @@ async function runScanPipeline(
       suspiciousUsername: candidate.suspiciousUsername,
       matchedMediaCount: candidate.matchedMediaCount,
       evidenceJson: JSON.stringify(candidate.evidence),
-      scoreBreakdownJson: JSON.stringify(effectiveBreakdown),
+      scoreBreakdownJson: JSON.stringify({
+        ...effectiveBreakdown,
+        // Store account quality data so the mobile app can display follower counts,
+        // post count, and account age without a separate API call.
+        ...(candidate.accountQuality ? { accountMeta: candidate.accountQuality } : {}),
+      }),
       detectedSignalsJson: JSON.stringify({
         flags: candidate.detectedSignals.filter(
           (s) =>

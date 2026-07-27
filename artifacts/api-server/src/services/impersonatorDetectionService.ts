@@ -117,6 +117,19 @@ export interface ImpersonatorCandidate {
     accountAgeDays?: number;
     engagementRate?: number;
   };
+  /**
+   * Relationship context from web search — indicates whether this page is a
+   * genuine impersonation attempt or a benign mention/credit/collab.
+   * Set by webSearchService.ts; used by the orchestrator to apply severity caps.
+   *
+   *   "impersonator"  — trying to BE the victim (default)
+   *   "mention"       — victim tagged/mentioned in someone else's post
+   *   "collaboration" — collab/duet/feat post with the victim
+   *   "credit"        — photo/video credit; victim is the creator (filtered before scoring)
+   *   "fan"           — self-declared fan/parody account
+   *   "unknown"       — context could not be determined
+   */
+  relationshipContext?: "impersonator" | "mention" | "collaboration" | "credit" | "fan" | "unknown";
 }
 
 export interface ScoredThreat {
@@ -239,20 +252,24 @@ export function scoreThreatSeverity(
 /**
  * Full threat severity classification with strict false-positive filters.
  *
- * Phase 9 consolidates severity gates into a clean OR-condition:
+ * Phase 11 tightens all gates to require near-certain visual evidence for High:
  *
- *   Option A: profile photo ≥ 80% AND ≥ 2 matched media
- *   Option B: ≥ 3 matched media AND combined score ≥ 70
+ *   Option A: profile photo ≥ 90% (near-exact pHash match) AND ≥ 2 matched media
+ *   Option B: ≥ 3 matched media AND combined score ≥ 75
  *
  * If neither option is met, the maximum severity is Medium — no matter
  * how high the combined score is. This prevents username-similarity-only
  * accounts from reaching High.
  *
- * Profile photo floor cap (Gate 0) is still applied to prevent very weak
- * photo matches from reaching Medium inappropriately.
+ * Medium now requires profile photo ≥ 30% so that pure username/bio matches
+ * with no visual identity anchor can only reach Low.
  *
  * Actor corpus matches and cross-user escalation can still override this
  * result in the scan pipeline (trusted collective intelligence bypasses caps).
+ *
+ * Relationship context (mention/collab/credit) is applied BEFORE this function
+ * in the orchestrator — candidates that are clearly non-impersonators are either
+ * disqualified or capped at Low before scoring runs.
  */
 export function classifyThreatSeverity(
   breakdown: ThreatScoreBreakdown,
@@ -269,14 +286,22 @@ export function classifyThreatSeverity(
   // Start from the combined score tier
   let severity = scoreThreatSeverity(breakdown.total);
 
-  // Gate 1: profile photo medium cap — below threshold, max is Medium
+  // Gate 1: profile photo medium cap — below threshold, max is Medium.
+  // Phase 11: raised from 0.25 to 0.30 — pure username/bio matches cap at Low
+  // when there is essentially no visual evidence of stolen identity.
   if (profileImageSimilarity < profilePhoto.mediumCapThreshold) {
     if (severity === "high") severity = "medium";
+    // If the score is only Medium but profile photo is very weak, cap at Low
+    // so username-only signals can never reach Medium on their own.
+    if (severity === "medium" && profileImageSimilarity < profilePhoto.lowCapThreshold + 0.05) {
+      return "low";
+    }
     return severity;
   }
 
-  // Phase 9: High severity requires meeting at least ONE of two evidence gates.
+  // Phase 11: High severity requires meeting at least ONE of two evidence gates.
   // A candidate should NEVER be High based only on username/bio similarity.
+  // These gates ensure actual visual theft evidence is present.
   if (severity === "high") {
     const optionA =
       profileImageSimilarity >= highSeverityGate.optionA.minProfileSimilarity &&

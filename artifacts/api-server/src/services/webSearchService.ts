@@ -29,6 +29,27 @@ import { logger } from "../lib/logger";
 import { trackApiCall } from "./costTracker";
 import { generateUsernameMutations } from "./usernameMutationService";
 
+/**
+ * Relationship context: how this page/account relates to the victim.
+ *
+ *   impersonator  — account is trying to BE the victim (default assumption)
+ *   mention       — victim is tagged/mentioned in someone else's post (not impersonation)
+ *   collaboration — collab/duet/feat post; victim credited as a participant
+ *   credit        — photo/video credit; victim is the CREATOR, not the impersonator
+ *   fan           — self-declared fan/parody/tribute account
+ *   unknown       — could not determine context (treat conservatively)
+ *
+ * "mention", "collaboration", and "credit" cap severity at Low.
+ * "credit" and "fan" are typically disqualified before scoring.
+ */
+export type PageRelationshipContext =
+  | "impersonator"
+  | "mention"
+  | "collaboration"
+  | "credit"
+  | "fan"
+  | "unknown";
+
 export interface WebSearchCandidate {
   username: string;
   platform: string;
@@ -40,6 +61,11 @@ export interface WebSearchCandidate {
   discoveryMethod: "username_variant" | "image_search" | "caption_search";
   postContext?: "original_post" | "retweet" | "share" | "unknown";
   originalPoster?: string;
+  /**
+   * Relationship context: how this page relates to the victim.
+   * Used by the orchestrator to apply severity caps or disqualify the candidate.
+   */
+  relationshipContext?: PageRelationshipContext;
   /**
    * ISO-8601 date string for when the suspicious account posted this content.
    * Extracted from Google result pagemap metatags (article:published_time, date, etc.).
@@ -259,6 +285,79 @@ function isFanAccountSignal(username: string, ...textFields: string[]): boolean 
 
   const combined = textFields.join(" ").toLowerCase();
   return FAN_ACCOUNT_SNIPPET_PHRASES.some((phrase) => combined.includes(phrase));
+}
+
+// ─── Relationship context classifier ─────────────────────────────────────────
+//
+// Determines whether a search result page represents a genuine impersonation
+// attempt or a benign mention/credit/collab/fan signal. Used to apply severity
+// caps before scoring — preventing false High/Medium ratings.
+//
+// Returns "fan" only when the USERNAME itself has a fan-account token, since
+// isFanAccountSignal() already filters those before candidates are created.
+// For snippet/title-derived context we return mention/collaboration/credit/unknown.
+//
+// Called from search strategies AFTER the fan-account filter has already excluded
+// obvious fan usernames — so "fan" is returned here only as a belt-and-suspenders
+// check on snippet phrases.
+
+function classifyPageRelationshipContext(
+  victimUsername: string,
+  foundUsername: string,
+  title: string,
+  snippet: string
+): PageRelationshipContext {
+  const victim = victimUsername.toLowerCase().replace(/^@/, "");
+  const combined = `${title} ${snippet}`.toLowerCase();
+
+  // Fan accounts already filtered by isFanAccountSignal at the search level;
+  // this is a secondary check on snippet content.
+  if (isFanAccountSignal(foundUsername, title, snippet)) return "fan";
+
+  // ── Photo / video credit patterns ─────────────────────────────────────────
+  // "📸 @victim", "photo by @victim", "shot by @victim", etc.
+  // These indicate the found account is CREDITING the victim as creator, not impersonating.
+  const creditPatterns = [
+    `📸 @${victim}`, `photo by @${victim}`, `shot by @${victim}`,
+    `pic by @${victim}`, `photos: @${victim}`, `pic: @${victim}`,
+    `photo: @${victim}`, `photos @${victim}`,
+    `🎥 @${victim}`, `video by @${victim}`, `filmed by @${victim}`,
+    `by @${victim}:`, `via @${victim}`, `from @${victim}`,
+    `credits: @${victim}`, `credit: @${victim}`, `credit @${victim}`,
+    `credit to @${victim}`,
+  ];
+  if (creditPatterns.some((p) => combined.includes(p))) return "credit";
+
+  // ── Collaboration / feature patterns ─────────────────────────────────────
+  // "feat. @victim", "collab with @victim", TikTok duet/stitch, etc.
+  // These indicate a collab post — the victim consented and is a participant.
+  const collabPatterns = [
+    `ft. @${victim}`, `ft @${victim}`, `feat. @${victim}`,
+    `feat @${victim}`, `featuring @${victim}`,
+    `w/ @${victim}`, `with @${victim} `,
+    `collab with @${victim}`, `collab: @${victim}`,
+    `duet with @${victim}`, `stitch with @${victim}`,
+    `🤝 @${victim}`,
+    `in partnership with @${victim}`, `sponsored with @${victim}`,
+    `collaborative post`, // Instagram collaborative post label
+  ];
+  if (collabPatterns.some((p) => combined.includes(p))) return "collaboration";
+
+  // ── General mention / tag patterns ───────────────────────────────────────
+  // Someone mentions/tags the victim in their own post — not an impersonator.
+  const mentionPatterns = [
+    `my friend @${victim}`, `my sister @${victim}`, `my brother @${victim}`,
+    `my mom @${victim}`, `my dad @${victim}`,
+    `my partner @${victim}`, `my boyfriend @${victim}`, `my girlfriend @${victim}`,
+    `my husband @${victim}`, `my wife @${victim}`,
+    `#tbt @${victim}`, `#throwbackthursday @${victim}`, `#flashback @${victim}`,
+    `reposted from @${victim}`, `shared from @${victim}`,
+    `🔁 @${victim}`, `regram @${victim}`, `repost @${victim}`,
+    `tag @${victim}`, `tagged @${victim}`,
+  ];
+  if (mentionPatterns.some((p) => combined.includes(p))) return "mention";
+
+  return "unknown";
 }
 
 // ─── Search provider helpers ──────────────────────────────────────────────────
@@ -538,6 +637,13 @@ async function searchByUsernameVariants(
       // Skip self-declared fan/parody accounts
       if (isFanAccountSignal(found, item.title ?? "", item.snippet ?? "")) continue;
 
+      // Classify relationship context: mentions/credits/collabs are not impersonators.
+      // "credit" context is disqualified here; others are tagged for severity capping.
+      const relCtx = classifyPageRelationshipContext(
+        clean, found, item.title ?? "", item.snippet ?? ""
+      );
+      if (relCtx === "credit") continue; // credited pages are never impersonation
+
       candidates.push({
         username: found,
         platform,
@@ -547,6 +653,7 @@ async function searchByUsernameVariants(
         similarity,
         discoveryMethod: "username_variant",
         datePublished: extractDatePublished(item),
+        relationshipContext: relCtx,
       });
     }
   }
@@ -1127,6 +1234,12 @@ async function searchByDisplayNameAndHandle(
       // Skip self-declared fan/parody accounts — they're supporters, not impostors.
       if (isFanAccountSignal(found, item.title ?? "", item.snippet ?? "")) continue;
 
+      // Classify relationship context; credit lines are disqualified entirely.
+      const relCtxDn = classifyPageRelationshipContext(
+        displayName ?? "", found, item.title ?? "", item.snippet ?? ""
+      );
+      if (relCtxDn === "credit") continue;
+
       candidates.push({
         username: found,
         platform,
@@ -1136,6 +1249,7 @@ async function searchByDisplayNameAndHandle(
         similarity,
         discoveryMethod: "username_variant",
         datePublished: extractDatePublished(item),
+        relationshipContext: relCtxDn,
       });
     }
   }

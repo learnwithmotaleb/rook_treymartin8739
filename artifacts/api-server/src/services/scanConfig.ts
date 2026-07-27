@@ -9,25 +9,28 @@
  *   weights.contentReuse + weights.bioSimilarity +
  *   weights.usernameSimilarity + weights.accountTrust + weights.temporalReuse === 100
  *
+ * Phase 11 precision hardening:
+ *   Impersonator detection now requires NEAR-CERTAIN visual evidence for High severity.
+ *   - Profile photo gate raised: 80% → 90% (pHash near-exact match)
+ *   - Option B combined score raised: 70 → 75
+ *   - Dual-score gates raised: 50 → 58 each
+ *   - First-scan profile floor raised: 40% → 50%
+ *   - New: relationship context system prevents mentions/collabs/credits from
+ *     being scored as impersonators. Medium also now requires profile photo ≥ 30%.
+ *
  * Phase 10 rebalance: photo evidence is the primary signal; username alone cannot
  *   drive a High-severity finding — only actual visual matches can.
- *   usernameSimilarity: 10 → 5   (reduced; username overlap is a weak signal alone)
- *   mediaOverlap:       35 → 40  (increased; stolen photos under ANY username detected)
- *   identityMatchMaxRaw: 35 → 30 (was 20+5+10; now 20+5+5)
- *   impersonationMaxRaw: 65 → 70 (was 35+15+10+5; now 40+15+10+5)
- *
- * Phase 9 High severity gate: replaces scattered individual gates with a clean
- *   OR-condition that requires actual stolen media evidence for High.
+ * Phase 9 High severity gate: clean OR-condition requiring actual stolen media evidence.
  */
 
 export const SCAN_CONFIG = {
   // ── Score weight allocation (must sum to 100) ──────────────────────────────
   weights: {
     profilePhoto: 20,        // unchanged — strong single-photo identity anchor
-    mediaOverlap: 40,        // ↑ was 35 — stolen photos under ANY username, primary signal
+    mediaOverlap: 40,        // primary signal — stolen photos under ANY username
     contentReuse: 15,        // unchanged — verbatim caption reuse
     bioSimilarity: 5,        // unchanged — bio is easily spoofed; low weight
-    usernameSimilarity: 5,   // ↓ was 10 — username alone cannot gate High findings
+    usernameSimilarity: 5,   // username alone cannot gate High findings
     accountTrust: 10,        // unchanged — low-trust account = more suspicious
     temporalReuse: 5,        // unchanged — fraction of matched images where suspect posted after victim
   },
@@ -48,27 +51,28 @@ export const SCAN_CONFIG = {
   // A weak profile photo match overrides the combined score ceiling.
   // Rationale: username/bio cloning without stolen photos is not High Risk.
   profilePhoto: {
-    minForHighRisk: 0.50,          // ≥50% → eligible for High (Phase 9 gates override this)
-    mediumCapThreshold: 0.35,      // [35%, 50%) → max Medium regardless of other signals
+    minForHighRisk: 0.50,          // ≥50% → eligible for High (gates override this)
+    mediumCapThreshold: 0.30,      // [30%, 50%) → max Medium regardless of other signals
     lowCapThreshold: 0.20,         // <20% → cap at Low
   },
 
-  // ── Phase 9: Strict false positive protection ──────────────────────────────
+  // ── Phase 11: Strict false positive protection ─────────────────────────────
   // High severity requires meeting at LEAST ONE of two evidence gates.
   // Neither gate can be satisfied by username similarity alone.
   //
-  //   Option A: strong visual ID (profile photo ≥ 80%) + at least 1 stolen post
-  //   Option B: multiple stolen posts (≥ 3) + combined score confirms intent
+  //   Option A: near-certain visual ID (profile photo ≥ 90% pHash) + ≥1 stolen post
+  //   Option B: multiple stolen posts (≥ 3) + combined score confirms clear intent
   //
   // If neither gate is met, maximum severity is Medium regardless of combined score.
+  // This prevents username-variant-only or weak-photo candidates from reaching High.
   highSeverityGate: {
     optionA: {
-      minProfileSimilarity: 0.80, // profile photo must be ≥ 80% similar
-      minMatchedMedia: 2,         // plus at least 2 matched media items (profile + ≥1 post)
+      minProfileSimilarity: 0.90, // ↑ was 0.80 — near-exact pHash match required
+      minMatchedMedia: 2,         // profile + ≥1 additional stolen post photo
     },
     optionB: {
-      minMatchedMedia: 3,         // at least 3 matched media items (strong media evidence)
-      minCombinedScore: 70,       // AND combined score ≥ 70
+      minMatchedMedia: 3,         // at least 3 confirmed stolen media items
+      minCombinedScore: 75,       // ↑ was 70 — stronger combined evidence required
     },
   },
 
@@ -83,8 +87,8 @@ export const SCAN_CONFIG = {
   // Both Identity Match AND Impersonation Confidence must clear thresholds.
   // Phase 9 gates are checked first; this is an additional safeguard.
   dualScoreGate: {
-    minIdentityMatchForHigh: 50,          // out of 100
-    minImpersonationConfForHigh: 50,      // out of 100
+    minIdentityMatchForHigh: 58,          // ↑ was 50 — tighter
+    minImpersonationConfForHigh: 58,      // ↑ was 50 — tighter
   },
 
   // ── Combined score severity thresholds ────────────────────────────────────
@@ -93,9 +97,23 @@ export const SCAN_CONFIG = {
     mediumMin: 45,
   },
 
+  // ── Relationship context severity caps ─────────────────────────────────────
+  // Accounts that appear in a MENTION, COLLABORATION, or CREDIT context are NOT
+  // impersonators. These caps prevent false-positive High/Medium ratings when
+  // someone is simply tagging, crediting, or collaborating with the victim.
+  //
+  //   credit        → disqualify entirely (photo credit = not stolen)
+  //   mention       → cap at Low severity (tagged in a post ≠ impersonation)
+  //   collaboration → cap at Low severity (collab/duet/feat ≠ identity theft)
+  //   fan           → filtered pre-candidate; cap at Low if it reaches scoring
+  relationshipContext: {
+    credit: "disqualify" as const,        // remove from candidate pool entirely
+    mention: "low" as const,              // cap severity at Low
+    collaboration: "low" as const,        // cap severity at Low
+    fan: "low" as const,                  // cap severity at Low
+  },
+
   // ── Platform scan priority (lower = scan first) ───────────────────────────
-  // High-risk platforms scanned first so urgent threats surface faster.
-  // Phase 7: Instagram first, then X, Facebook, TikTok, then others.
   platformPriority: {
     instagram: 1,
     x: 2,
@@ -107,8 +125,7 @@ export const SCAN_CONFIG = {
   } as Record<string, number>,
 
   // ── Platform score weight multipliers ─────────────────────────────────────
-  // Instagram and Facebook impersonators cause disproportionate real-world
-  // harm (larger user bases, financial scams). Small boost to threat score.
+  // Instagram and Facebook impersonators cause disproportionate real-world harm.
   platformWeightMultiplier: {
     instagram: 1.05,
     facebook: 1.04,
@@ -120,11 +137,11 @@ export const SCAN_CONFIG = {
   } as Record<string, number>,
 
   // ── First-scan precision gate ──────────────────────────────────────────────
-  // On the first scan, apply a stricter gate to avoid false positives from
-  // incomplete profile data. Score is zeroed when both conditions apply.
+  // On the first scan, apply a stricter gate to avoid false positives.
+  // Score is zeroed when both conditions apply.
   firstScan: {
-    minProfileImageSimilarity: 0.40,   // profile photo similarity floor
-    minMediaSimilarityPoints: 22,      // raw media pts floor (out of 35 max)
+    minProfileImageSimilarity: 0.50,   // ↑ was 0.40 — higher floor on first scan
+    minMediaSimilarityPoints: 22,      // raw media pts floor (out of 40 max)
   },
 } as const;
 

@@ -171,6 +171,17 @@ export interface ThreatDetail extends ThreatSummary {
     usernameSimilarity: number;
     behavioral: number;
   };
+  /**
+   * Impersonator account quality data captured at scan time.
+   * Null for threats detected before Phase 11 (no retroactive backfill).
+   */
+  accountMeta?: {
+    followers: number;
+    following?: number;
+    totalPosts?: number;
+    accountAgeDays?: number;
+    engagementRate?: number;
+  } | null;
   detectedSignals: string[];
   confirmedVictims: number | null;
   crossUserEscalation: boolean;
