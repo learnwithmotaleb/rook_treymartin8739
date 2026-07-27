@@ -172,6 +172,9 @@ export interface ThreatDetail extends ThreatSummary {
     behavioral: number;
   };
   detectedSignals: string[];
+  confirmedVictims: number | null;
+  crossUserEscalation: boolean;
+  postDatingDays: number | null;
   resolvedAt: string | null;
   /** Collective intelligence data from the shared threat actor corpus. */
   threatActor?: {
