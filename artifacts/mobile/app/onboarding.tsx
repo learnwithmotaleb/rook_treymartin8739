@@ -115,30 +115,41 @@ const pb = StyleSheet.create({
   fill: { height: "100%", borderRadius: 2 },
 });
 
+// Hero image for the welcome screen — person surrounded by social media profile
+// cards with a blue neon glow, visually communicating "your identity is everywhere online"
+const WELCOME_HERO = require("../assets/images/onboarding/welcome-hero.png");
+
 // ─── S0: Brand Hook ───────────────────────────────────────────────────────────
 function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
+  // Floating scan-line particles overlaid on the hero image
   const particles = useRef(
-    Array.from({ length: 22 }, (_, i) => ({
+    Array.from({ length: 16 }, (_, i) => ({
       anim: new Animated.Value(0),
-      x: Math.cos((i / 22) * Math.PI * 2) * (50 + (i % 3) * 24),
-      y: Math.sin((i / 22) * Math.PI * 2) * (50 + (i % 3) * 24),
-      delay: i * 70,
-      size: i % 4 === 0 ? 5 : i % 4 === 1 ? 3 : 2,
+      x: (Math.cos((i / 16) * Math.PI * 2) * (60 + (i % 3) * 20)) - 10,
+      y: (Math.sin((i / 16) * Math.PI * 2) * (55 + (i % 3) * 18)) - 10,
+      delay: i * 90,
+      size: i % 3 === 0 ? 4 : i % 3 === 1 ? 2.5 : 1.5,
     }))
   ).current;
-  const glow = useRef(new Animated.Value(0)).current;
-  const shield = useRef(new Animated.Value(0)).current;
+
+  const heroAnim     = useRef(new Animated.Value(0)).current;
+  const glowAnim     = useRef(new Animated.Value(0)).current;
   const headlineAnim = useRef(new Animated.Value(0)).current;
   const subAnim      = useRef(new Animated.Value(0)).current;
   const bodyAnim     = useRef(new Animated.Value(0)).current;
   const rm = useReduceMotion();
 
   useEffect(() => {
+    // Hero image fades in on mount
+    Animated.timing(heroAnim, { toValue: 1, duration: rm ? 0 : 600, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+
+    // Pulsing blue glow ring over the hero
     Animated.loop(Animated.sequence([
-      Animated.timing(glow, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(glow, { toValue: 0, duration: 2600, useNativeDriver: true }),
+      Animated.timing(glowAnim, { toValue: 1, duration: 2800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(glowAnim, { toValue: 0.2, duration: 2800, useNativeDriver: true }),
     ])).start();
-    Animated.spring(shield, { toValue: 1, tension: 55, friction: 8, useNativeDriver: true }).start();
+
+    // Staggered text entrance
     if (!rm) {
       Animated.stagger(140, [
         Animated.timing(headlineAnim, { toValue: 1, duration: 500, easing: Easing.out(Easing.ease), useNativeDriver: true }),
@@ -148,65 +159,103 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
     } else {
       headlineAnim.setValue(1); subAnim.setValue(1); bodyAnim.setValue(1);
     }
+
+    // Orbiting particle dots over the hero image
     particles.forEach((p) => {
       const run = () => {
         p.anim.setValue(0);
         Animated.sequence([
           Animated.delay(p.delay),
-          Animated.timing(p.anim, { toValue: 1, duration: 2400 + p.delay * 3, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(p.anim, { toValue: 0.25, duration: 1800, useNativeDriver: true }),
+          Animated.timing(p.anim, { toValue: 1, duration: 2600 + p.delay * 2, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(p.anim, { toValue: 0.2, duration: 2000, useNativeDriver: true }),
         ]).start(run);
       };
       run();
     });
   }, []);
 
-  const glowOp = glow.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.32] });
-  const shieldScale = shield.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
-  const headY  = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
-  const subY   = subAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
-  const bodyY  = bodyAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+  const glowOp  = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.55] });
+  const headY   = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const subY    = subAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
+  const bodyY   = bodyAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
 
   return (
-    <View style={[s.screenPad, { flex: 1, justifyContent: "center" }]}>
-      <LinearGradient colors={["#1E3A5F44", "#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={{ alignItems: "center", gap: 44 }}>
-        <View style={hook.orb}>
-          {particles.map((p, i) => (
-            <Animated.View key={i} style={{ position: "absolute", width: p.size, height: p.size, borderRadius: p.size / 2, backgroundColor: colors.primary, opacity: p.anim, transform: [{ translateX: p.x }, { translateY: p.y }] }} />
-          ))}
-          <Animated.View style={[hook.glowRing, { borderColor: colors.primary, opacity: glowOp }]} />
-          <Animated.View style={[hook.glowRingInner, { borderColor: colors.primary + "55", opacity: glowOp }]} />
-          <Animated.View style={{ transform: [{ scale: shieldScale }] }}>
-            <View style={[hook.shieldBg, { backgroundColor: colors.primary + "1A" }]}>
-              <Ionicons name="shield-checkmark" size={56} color={colors.primary} />
-            </View>
-          </Animated.View>
-        </View>
-        <View style={{ gap: 14, alignItems: "center" }}>
-          <Animated.Text style={[hook.headline, { color: colors.foreground, fontFamily: "Inter_700Bold", opacity: headlineAnim, transform: [{ translateY: headY }] }]}>
-            Your name and face{"\n"}already exist online.
-          </Animated.Text>
-          <Animated.Text style={[hook.sub, { color: colors.foreground + "CC", fontFamily: "Inter_400Regular", opacity: subAnim, transform: [{ translateY: subY }] }]}>
-            The question is{" "}
-            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>who's using them.</Text>
-          </Animated.Text>
-          <Animated.Text style={[hook.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", opacity: bodyAnim, transform: [{ translateY: bodyY }] }]}>
-            Rook is an AI identity monitor that finds impersonators, stolen photos, and fake accounts using your identity — usually before you'd ever notice on your own.
-          </Animated.Text>
-        </View>
+    <View style={{ flex: 1 }}>
+      {/* ── Hero image (top ~55% of screen) ── */}
+      <Animated.View style={[hook.heroWrap, { opacity: heroAnim }]}>
+        <RNImage
+          source={WELCOME_HERO}
+          style={hook.heroImage}
+          resizeMode="cover"
+        />
+        {/* Dark vignette — top edge bleeds into background, bottom blends into text */}
+        <LinearGradient
+          colors={["rgba(0,0,0,0.18)", "transparent", "rgba(3,7,20,0.92)"]}
+          locations={[0, 0.42, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        {/* Blue neon glow ring centered on the subject */}
+        <Animated.View
+          style={[hook.glowRing, { borderColor: colors.primary, opacity: glowOp }]}
+          pointerEvents="none"
+        />
+        <Animated.View
+          style={[hook.glowRingInner, { borderColor: colors.primary + "66", opacity: glowAnim }]}
+          pointerEvents="none"
+        />
+        {/* Floating particle dots — match the scanning aesthetic */}
+        {particles.map((p, i) => (
+          <Animated.View
+            key={i}
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              width: p.size,
+              height: p.size,
+              borderRadius: p.size / 2,
+              backgroundColor: colors.primary,
+              opacity: p.anim,
+              top: "50%",
+              left: "50%",
+              transform: [{ translateX: p.x }, { translateY: p.y }],
+            }}
+          />
+        ))}
+      </Animated.View>
+
+      {/* ── Text content below the hero ── */}
+      <View style={hook.textBlock}>
+        <Animated.Text
+          style={[hook.headline, { color: colors.foreground, fontFamily: "Inter_700Bold", opacity: headlineAnim, transform: [{ translateY: headY }] }]}
+        >
+          Your name and face{"\n"}already exist online.
+        </Animated.Text>
+        <Animated.Text
+          style={[hook.sub, { color: colors.foreground + "CC", fontFamily: "Inter_400Regular", opacity: subAnim, transform: [{ translateY: subY }] }]}
+        >
+          The question is{" "}
+          <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>who's using them.</Text>
+        </Animated.Text>
+        <Animated.Text
+          style={[hook.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", opacity: bodyAnim, transform: [{ translateY: bodyY }] }]}
+        >
+          Rook is an AI identity monitor that finds impersonators, stolen photos, and fake accounts using your identity — usually before you'd ever notice.
+        </Animated.Text>
       </View>
     </View>
   );
 }
 const hook = StyleSheet.create({
-  orb: { width: 220, height: 220, alignItems: "center", justifyContent: "center" },
-  glowRing: { position: "absolute", width: 170, height: 170, borderRadius: 85, borderWidth: 1 },
-  glowRingInner: { position: "absolute", width: 125, height: 125, borderRadius: 63, borderWidth: 1 },
-  shieldBg: { width: 96, height: 96, borderRadius: 30, alignItems: "center", justifyContent: "center" },
-  headline: { fontSize: 32, textAlign: "center", lineHeight: 40 },
-  sub: { fontSize: 17, textAlign: "center" },
-  body: { fontSize: 14, textAlign: "center", lineHeight: 22, maxWidth: 320 },
+  heroWrap:      { width: "100%", height: "56%", overflow: "hidden", position: "relative" },
+  heroImage:     { width: "100%", height: "100%" },
+  // Glow rings centered in the hero image (subject's chest/center area)
+  glowRing:      { position: "absolute", alignSelf: "center", top: "22%", width: 200, height: 200, borderRadius: 100, borderWidth: 1.5 },
+  glowRingInner: { position: "absolute", alignSelf: "center", top: "32%", width: 130, height: 130, borderRadius: 65, borderWidth: 1 },
+  textBlock:     { flex: 1, paddingHorizontal: 26, paddingTop: 20, gap: 12, justifyContent: "center" },
+  headline:      { fontSize: 30, lineHeight: 38, textAlign: "center" },
+  sub:           { fontSize: 16, textAlign: "center" },
+  body:          { fontSize: 13, textAlign: "center", lineHeight: 21, maxWidth: 320, alignSelf: "center" },
 });
 
 // ─── S1: Credible Stat ────────────────────────────────────────────────────────

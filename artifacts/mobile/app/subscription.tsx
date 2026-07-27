@@ -1,17 +1,16 @@
 /**
- * Subscription / Paywall — CalAI-style flow
+ * Subscription / Paywall
  *
- * Screen 0: Intro — "We want to protect your identity, free."
- * Screen 1: Reminder — "We'll alert you before your trial ends"
- *           (SKIPPED on threat path: fromOnboarding=1 + threatCount > 0)
- * Screen 2: Plan select — Annual (default) vs Monthly + checkout
+ * Flow:
+ *   Step 0: Intro     — native screen ("We found threats" / "We want to protect your identity, free")
+ *   Step 1: Reminder  — native trial-reminder screen with notification opt-in
+ *                       (skipped on threat path: fromOnboarding=1 + threatCount > 0)
+ *   Step 2: Paywall   — fully remote RevenueCat Paywall component
+ *                       Copy, layout, pricing, products, and experiments are all managed
+ *                       from the RevenueCat dashboard — zero hardcoded values here.
  *
- * Pricing strategy:
- *   Premium Annual  — $69.99/year ($5.83/mo) | 7-day free trial | SAVE 42%
- *   Premium Monthly — $9.99/month             | 7-day free trial
- *
- * RevenueCat package prices override fallbacks when available.
- * RC product IDs: premium_monthly_v2, premium_annual_v2
+ * To update the paywall: change the offering/paywall in the RevenueCat dashboard.
+ * No app update required.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -21,7 +20,6 @@ import {
   Animated,
   Easing,
   Linking,
-  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -34,80 +32,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
-import type { PurchasesPackage } from "react-native-purchases";
+import type { CustomerInfo, PurchasesOffering, PurchasesError } from "react-native-purchases";
+import RevenueCatUI from "react-native-purchases-ui";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { useSubscription, isRevenueCatConfigured } from "@/lib/revenuecat";
+import { useSubscription, isRevenueCatConfigured, getTierFromCustomerInfo } from "@/lib/revenuecat";
 import { syncSubscriptionTier } from "@/lib/api";
-
-type BillingCycle = "annual" | "monthly";
+import { analytics } from "@/lib/analytics";
 
 /** Normalize legacy "pro" tier to "Premium" in all user-facing labels. */
 function displayTier(tier: string): string {
   const normalized = tier === "pro" ? "premium" : tier;
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
-
-const FALLBACK = {
-  annual: { perMonth: "$5.83", total: "$69.99", savings: "42%" },
-  monthly: { perMonth: "$9.99" },
-  trialDays: 7,
-};
-
-// ─── Confirm Modal ────────────────────────────────────────────────────────────
-function ConfirmModal({ visible, pkg, onConfirm, onCancel }: {
-  visible: boolean;
-  pkg: PurchasesPackage | null;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const colors = useColors();
-  if (!pkg) return null;
-  const isAnnual = pkg.packageType === "ANNUAL";
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <View style={cm.overlay}>
-        <View style={[cm.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={cm.center}>
-            <View style={[cm.icon, { backgroundColor: colors.primary + "18" }]}>
-              <Ionicons name="shield-checkmark" size={30} color={colors.primary} />
-            </View>
-          </View>
-          <Text style={[cm.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Start Your Free Trial</Text>
-          <Text style={[cm.product, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            {pkg.product.title || "Rook Premium"}
-          </Text>
-          <Text style={[cm.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {FALLBACK.trialDays} days free, then {pkg.product.priceString}{isAnnual ? "/year" : "/month"}
-          </Text>
-          <Text style={[cm.note, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            No charge until your trial ends. Cancel anytime in your device's subscription settings — at least 24 hours before renewal.
-          </Text>
-          <TouchableOpacity style={[cm.confirmBtn, { backgroundColor: colors.foreground }]} onPress={onConfirm} activeOpacity={0.85}>
-            <Text style={[cm.confirmText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>Start Free Trial</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onCancel} style={cm.cancelBtn}>
-            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Not now</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-const cm = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, padding: 28, gap: 12 },
-  center: { alignItems: "center" },
-  icon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  title: { fontSize: 22, textAlign: "center" },
-  product: { fontSize: 15, textAlign: "center" },
-  sub: { fontSize: 14, textAlign: "center" },
-  note: { fontSize: 12, textAlign: "center", lineHeight: 18 },
-  confirmBtn: { height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", marginTop: 4 },
-  confirmText: { fontSize: 17 },
-  cancelBtn: { alignItems: "center", paddingVertical: 6 },
-});
 
 // ─── Mock threat cards (blurred preview on intro) ─────────────────────────────
 function ThreatPreviewCards({ colors, threatCount }: { colors: ReturnType<typeof useColors>; threatCount: number }) {
@@ -325,165 +263,151 @@ const s1 = StyleSheet.create({
   ctaText:   { fontSize: 18 },
 });
 
-// ─── Screen 2: Plan Select ────────────────────────────────────────────────────
-function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBillingCycle, isPurchasing, isRestoring, onRestore, getAnnualTotal, getMonthlyPrice, topPad, bottomPad, restoreMsg }: {
+// ─── Screen 2: RC Remote Paywall ──────────────────────────────────────────────
+// All copy, layout, pricing, products, and A/B experiments are controlled
+// from the RevenueCat dashboard. No hardcoded values here.
+function RCPaywallScreen({
+  colors,
+  onBack,
+  onSuccess,
+  onDismiss,
+  offering,
+  topPad,
+  isLoading,
+}: {
   colors: ReturnType<typeof useColors>;
   onBack: () => void;
-  onContinue: () => void;
-  billingCycle: BillingCycle;
-  setBillingCycle: (c: BillingCycle) => void;
-  isPurchasing: boolean;
-  isRestoring: boolean;
-  onRestore: () => void;
-  getAnnualTotal: () => string;
-  getMonthlyPrice: () => string;
+  onSuccess: (info: CustomerInfo) => Promise<void>;
+  onDismiss: () => void;
+  offering: PurchasesOffering | null | undefined;
   topPad: number;
-  bottomPad: number;
-  restoreMsg: string | null;
+  isLoading: boolean;
 }) {
-  const annualTotal = getAnnualTotal();
-  const monthlyPrice = getMonthlyPrice();
+  const [error, setError] = useState<string | null>(null);
 
-  const annualPerMonth = (() => {
-    const match = annualTotal.replace(/[^0-9.]/g, "");
-    const num = parseFloat(match);
-    return isNaN(num) ? FALLBACK.annual.perMonth : `$${(num / 12).toFixed(2)}`;
-  })();
+  // Loading state while offerings are being fetched from RC
+  if (isLoading) {
+    return (
+      <View style={[pwl.container, { backgroundColor: colors.background }]}>
+        <LinearGradient colors={[colors.primary + "18", "transparent"]} style={StyleSheet.absoluteFill} />
+        <TouchableOpacity style={[pwl.backBtn, { top: topPad + 16 }]} onPress={onBack} activeOpacity={0.7}>
+          <View style={[pwl.backCircle, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <Ionicons name="chevron-back" size={20} color={colors.foreground} />
+          </View>
+        </TouchableOpacity>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[pwl.loadingText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          Loading plans…
+        </Text>
+      </View>
+    );
+  }
+
+  // Offline / no offering fallback
+  if (!offering && !isLoading) {
+    return (
+      <View style={[pwl.container, { backgroundColor: colors.background }]}>
+        <LinearGradient colors={[colors.primary + "18", "transparent"]} style={StyleSheet.absoluteFill} />
+        <TouchableOpacity style={[pwl.backBtn, { top: topPad + 16 }]} onPress={onBack} activeOpacity={0.7}>
+          <View style={[pwl.backCircle, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <Ionicons name="chevron-back" size={20} color={colors.foreground} />
+          </View>
+        </TouchableOpacity>
+        <View style={pwl.fallbackContent}>
+          <View style={[pwl.fallbackIcon, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "40" }]}>
+            <Ionicons name="wifi-outline" size={36} color={colors.primary} />
+          </View>
+          <Text style={[pwl.fallbackTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Plans unavailable
+          </Text>
+          <Text style={[pwl.fallbackSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Check your connection and try again. Your data and scan results are safe.
+          </Text>
+          <TouchableOpacity
+            style={[pwl.retryBtn, { backgroundColor: colors.foreground }]}
+            onPress={onBack}
+            activeOpacity={0.88}
+          >
+            <Text style={[pwl.retryText, { color: colors.background, fontFamily: "Inter_600SemiBold" }]}>
+              Go Back
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={pwl.restoreLink}
+            onPress={() => Linking.openURL(
+              Platform.OS === "ios"
+                ? "https://apps.apple.com/account/subscriptions"
+                : "https://play.google.com/store/account/subscriptions"
+            )}
+          >
+            <Text style={[pwl.restoreLinkText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Already subscribed? Restore purchase
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }]}>
-      {/* Hero gradient */}
-      <LinearGradient
-        colors={[colors.primary + "28", colors.primary + "10", "transparent"]}
-        style={[s2.hero]}
-        locations={[0, 0.5, 1]}
-      />
-      <View style={[s2.heroContent, { paddingTop: topPad + 20 }]}>
-        <View style={[s2.heroIcon, { backgroundColor: colors.primary + "20", borderColor: colors.primary + "44" }]}>
-          <Ionicons name="shield-checkmark" size={44} color={colors.primary} />
-        </View>
-      </View>
-
-      {/* Back */}
-      <TouchableOpacity style={[s2.back, { top: topPad + 16 }]} onPress={onBack} activeOpacity={0.7}>
-        <View style={[s2.backCircle, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-          <Ionicons name="chevron-back" size={20} color={colors.foreground} />
+      {/* Back navigation sits above the RC paywall */}
+      <TouchableOpacity style={[pwl.backBtn, { top: topPad + 16 }]} onPress={onBack} activeOpacity={0.7}>
+        <View style={[pwl.backCircle, { backgroundColor: "rgba(0,0,0,0.35)", borderColor: "rgba(255,255,255,0.15)" }]}>
+          <Ionicons name="chevron-back" size={20} color="#fff" />
         </View>
       </TouchableOpacity>
 
-      {/* Main content */}
-      <View style={[s2.body, { paddingBottom: bottomPad + 24 }]}>
-        <Text style={[s2.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          {billingCycle === "annual"
-            ? `Start your ${FALLBACK.trialDays}-day free\ntrial to continue`
-            : "Start your Rook\nProtection plan"}
-        </Text>
-
-        {/* Plan cards */}
-        <View style={{ gap: 10 }}>
-          {/* Annual — default */}
-          <TouchableOpacity
-            style={[s2.planCard, { backgroundColor: colors.card, borderColor: billingCycle === "annual" ? colors.foreground : colors.border, borderWidth: billingCycle === "annual" ? 2 : 1 }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBillingCycle("annual"); }}
-            activeOpacity={0.85}
-          >
-            {/* "7 DAYS FREE" badge */}
-            <View style={[s2.planTag, { backgroundColor: colors.foreground }]}>
-              <Text style={[{ color: colors.background, fontFamily: "Inter_700Bold", fontSize: 11 }]}>{FALLBACK.trialDays} DAYS FREE</Text>
-            </View>
-            <View style={s2.planRow}>
-              <View style={[s2.check, { backgroundColor: billingCycle === "annual" ? colors.foreground : "transparent", borderColor: billingCycle === "annual" ? colors.foreground : colors.mutedForeground + "60" }]}>
-                {billingCycle === "annual" && <Ionicons name="checkmark" size={15} color={colors.background} />}
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 15 }]}>
-                  Start for free & save {FALLBACK.annual.savings}
-                </Text>
-                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
-                  {annualTotal} billed annually
-                </Text>
-              </View>
-              <Text style={[{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }]}>{annualPerMonth}/mo</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Monthly */}
-          <TouchableOpacity
-            style={[s2.planCard, { backgroundColor: colors.card, borderColor: billingCycle === "monthly" ? colors.foreground : colors.border, borderWidth: billingCycle === "monthly" ? 2 : 1 }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBillingCycle("monthly"); }}
-            activeOpacity={0.85}
-          >
-            <View style={s2.planRow}>
-              <View style={[s2.check, { backgroundColor: billingCycle === "monthly" ? colors.foreground : "transparent", borderColor: billingCycle === "monthly" ? colors.foreground : colors.mutedForeground + "60" }]}>
-                {billingCycle === "monthly" && <Ionicons name="checkmark" size={15} color={colors.background} />}
-              </View>
-              <Text style={[{ flex: 1, color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 15 }]}>Monthly</Text>
-              <Text style={[{ color: billingCycle === "monthly" ? colors.foreground : colors.mutedForeground, fontFamily: billingCycle === "monthly" ? "Inter_700Bold" : "Inter_400Regular", fontSize: 16 }]}>
-                {monthlyPrice}/mo
-              </Text>
-            </View>
-          </TouchableOpacity>
+      {error && (
+        <View style={[pwl.errorBanner, { backgroundColor: "#EF444422", borderColor: "#EF444440" }]}>
+          <Text style={[{ color: "#EF4444", fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center" }]}>
+            {error}
+          </Text>
         </View>
+      )}
 
-        {/* CTA */}
-        <TouchableOpacity
-          style={[s2.cta, { backgroundColor: colors.foreground, opacity: isPurchasing ? 0.7 : 1 }]}
-          onPress={onContinue}
-          disabled={isPurchasing}
-          activeOpacity={0.88}
-        >
-          {isPurchasing
-            ? <ActivityIndicator color={colors.background} size="small" />
-            : <Text style={[s2.ctaText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>Continue</Text>}
-        </TouchableOpacity>
-
-        {/* Fine print */}
-        <Text style={[s2.finePrint, { color: colors.mutedForeground + "99", fontFamily: "Inter_400Regular" }]}>
-          {billingCycle === "annual"
-            ? `${FALLBACK.trialDays} days free, then ${annualTotal} per year.\nBilled annually and renews automatically unless cancelled in the App Store.`
-            : `${monthlyPrice} per month.\nRenews automatically unless cancelled in the App Store.`}
-        </Text>
-
-        {/* Links */}
-        <View style={s2.links}>
-          <TouchableOpacity onPress={onRestore} disabled={isRestoring}>
-            {isRestoring
-              ? <ActivityIndicator size="small" color={colors.primary} />
-              : <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Restore</Text>}
-          </TouchableOpacity>
-          <Text style={[{ color: colors.mutedForeground + "60" }]}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL("https://rook.app/terms")}>
-            <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Terms</Text>
-          </TouchableOpacity>
-          <Text style={[{ color: colors.mutedForeground + "60" }]}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL("https://rook.app/privacy")}>
-            <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Privacy</Text>
-          </TouchableOpacity>
-        </View>
-        {restoreMsg && (
-          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center" }]}>{restoreMsg}</Text>
-        )}
-      </View>
+      {/* RevenueCat remote paywall — all content managed from RC dashboard */}
+      <RevenueCatUI.Paywall
+        options={{ offering: offering ?? undefined }}
+        onPurchaseCompleted={async ({ customerInfo }: { customerInfo: CustomerInfo }) => {
+          analytics.track("subscription_started");
+          await onSuccess(customerInfo);
+        }}
+        onPurchaseCancelled={() => {
+          analytics.track("upsell_dismissed");
+        }}
+        onPurchaseError={({ error: purchaseError }: { error: PurchasesError }) => {
+          const msg = (purchaseError as any)?.message ?? "Purchase failed. Please try again.";
+          setError(msg);
+          setTimeout(() => setError(null), 4000);
+        }}
+        onRestoreCompleted={async ({ customerInfo }: { customerInfo: CustomerInfo }) => {
+          analytics.track("subscription_restored");
+          await onSuccess(customerInfo);
+        }}
+        onRestoreError={() => {
+          setError("Nothing to restore. No prior purchases found.");
+          setTimeout(() => setError(null), 3500);
+        }}
+        onDismiss={onDismiss}
+      />
     </View>
   );
 }
-const s2 = StyleSheet.create({
-  hero:        { position: "absolute", top: 0, left: 0, right: 0, height: 180 },
-  heroContent: { alignItems: "center", paddingBottom: 16 },
-  heroIcon:    { width: 100, height: 100, borderRadius: 30, alignItems: "center", justifyContent: "center", borderWidth: 1, marginTop: 40 },
-  back:        { position: "absolute", left: 20, zIndex: 10 },
-  backCircle:  { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  body:        { flex: 1, paddingHorizontal: 22, gap: 16, justifyContent: "flex-end" },
-  title:       { fontSize: 28, lineHeight: 36, textAlign: "center" },
-  planCard:    { borderRadius: 18, padding: 16, gap: 10 },
-  planTag:     { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  planRow:     { flexDirection: "row", alignItems: "center", gap: 14 },
-  check:       { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  cta:         { height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center" },
-  ctaText:     { fontSize: 18 },
-  finePrint:   { fontSize: 11, textAlign: "center", lineHeight: 17 },
-  links:       { flexDirection: "row", gap: 12, justifyContent: "center", alignItems: "center" },
-  link:        { fontSize: 13 },
+const pwl = StyleSheet.create({
+  container:       { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
+  backBtn:         { position: "absolute", left: 20, zIndex: 10 },
+  backCircle:      { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  loadingText:     { fontSize: 14, marginTop: 8 },
+  fallbackContent: { alignItems: "center", gap: 14, paddingHorizontal: 36 },
+  fallbackIcon:    { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  fallbackTitle:   { fontSize: 22, textAlign: "center" },
+  fallbackSub:     { fontSize: 14, textAlign: "center", lineHeight: 21 },
+  retryBtn:        { height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, marginTop: 8 },
+  retryText:       { fontSize: 16 },
+  restoreLink:     { paddingVertical: 8 },
+  restoreLinkText: { fontSize: 13, textDecorationLine: "underline" },
+  errorBanner:     { position: "absolute", top: 0, left: 0, right: 0, zIndex: 20, padding: 12, borderBottomWidth: 1 },
 });
 
 // ─── Already Subscribed ───────────────────────────────────────────────────────
@@ -553,33 +477,23 @@ export default function Subscription() {
   const topPad           = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad        = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const { offerings, tier: rcTier, isPurchasing, isLoading: rcIsLoading, purchase, restore, isRestoring } = useSubscription();
-  const [paywallStep, setPaywallStep]   = useState(0);
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("annual");
-  const [confirmPkg, setConfirmPkg]     = useState<PurchasesPackage | null>(null);
-  const [restoreMsg, setRestoreMsg]     = useState<string | null>(null);
-  const [devUpgrading, setDevUpgrading] = useState(false);
+  // Use the current offering from the RC context.
+  // Pricing, copy, layout, products, and experiments all come from the RC dashboard.
+  // To target a specific placement, configure "paywall" in the RC dashboard and call
+  // Purchases.getCurrentOfferingForPlacement("paywall") — the current offering is the
+  // safe default that works out of the box without any extra dashboard setup.
+  const { offerings, tier: rcTier, isLoading: rcIsLoading, refetch } = useSubscription();
+  const activeOffering = offerings?.current ?? null;
 
-  const currentTier = (user.tier ?? "free") as string;
+  const [paywallStep, setPaywallStep] = useState(0);
+
+  const currentTier      = (user.tier ?? "free") as string;
   const alreadySubscribed = currentTier !== "free";
 
-  // ── Package resolution ────────────────────────────────────────────────────
-  const getPremiumPackage = useCallback((cycle: BillingCycle): PurchasesPackage | null => {
-    const offering = offerings?.all["premium"] ?? offerings?.current ?? null;
-    if (!offering) return null;
-    if (cycle === "annual") return offering.annual ?? offering.availablePackages.find((p) => p.packageType === "ANNUAL") ?? null;
-    return offering.monthly ?? offering.availablePackages.find((p) => p.packageType === "MONTHLY") ?? null;
-  }, [offerings]);
-
-  const getAnnualTotal = useCallback((): string => {
-    const pkg = getPremiumPackage("annual");
-    return pkg?.product?.priceString ?? FALLBACK.annual.total;
-  }, [getPremiumPackage]);
-
-  const getMonthlyPrice = useCallback((): string => {
-    const pkg = getPremiumPackage("monthly");
-    return pkg?.product?.priceString ?? FALLBACK.monthly.perMonth;
-  }, [getPremiumPackage]);
+  // ── Analytics: paywall view ───────────────────────────────────────────────
+  useEffect(() => {
+    analytics.track("paywall_viewed", { from_onboarding: isFromOnboarding ? "1" : "0", threat_count: threatCount });
+  }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleClose = useCallback(() => {
@@ -589,8 +503,7 @@ export default function Subscription() {
 
   const handleStep0Continue = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // On the high-urgency threat path skip the trial-reminder screen (step 1)
-    // and jump straight to plan select (step 2) to minimise clicks at peak intent.
+    // High-urgency threat path: skip the trial-reminder and go straight to paywall
     if (isFromOnboarding && threatCount > 0) {
       setPaywallStep(2);
     } else {
@@ -600,58 +513,27 @@ export default function Subscription() {
 
   const handleStep1Continue = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Request notification permission (fires native prompt, no-op if already granted/denied)
     try { await Notifications.requestPermissionsAsync(); } catch { /* graceful */ }
     setPaywallStep(2);
   }, []);
 
-  const handleDevUpgrade = useCallback(async () => {
-    setDevUpgrading(true);
-    try {
-      await syncSubscriptionTier("premium");
-      await refreshData();
-      Alert.alert("✓ Dev Mode", "Plan set to Premium");
-    } catch (err: any) {
-      Alert.alert("Error", err?.message ?? "Failed");
-    } finally {
-      setDevUpgrading(false);
-    }
-  }, [refreshData]);
+  const handlePurchaseSuccess = useCallback(async (info: CustomerInfo) => {
+    const newTier = getTierFromCustomerInfo(info);
+    try { await syncSubscriptionTier(newTier); } catch { /* graceful */ }
+    await refreshData();
+    if (isFromOnboarding) { completeOnboarding(); router.replace("/(tabs)" as any); }
+    else { router.back(); }
+  }, [refreshData, isFromOnboarding, completeOnboarding]);
 
-  const handleStep2Continue = useCallback(() => {
-    const pkg = getPremiumPackage(billingCycle);
-    if (!pkg) {
-      if (__DEV__) { handleDevUpgrade(); return; }
-      Alert.alert("Store not available", "In-app purchases require the App Store or Google Play.");
-      return;
+  const handlePaywallDismiss = useCallback(() => {
+    analytics.track("upsell_dismissed");
+    // Dismissed from within the RC paywall — go back to step 1 or close
+    if (paywallStep === 2) {
+      setPaywallStep(isFromOnboarding && threatCount > 0 ? 0 : 1);
+    } else {
+      handleClose();
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setConfirmPkg(pkg);
-  }, [billingCycle, getPremiumPackage, handleDevUpgrade]);
-
-  const handleConfirmPurchase = useCallback(async () => {
-    if (!confirmPkg) return;
-    setConfirmPkg(null);
-    try {
-      await purchase(confirmPkg);
-      await refreshData();
-      if (isFromOnboarding) { completeOnboarding(); router.replace("/(tabs)" as any); }
-      else { router.back(); }
-    } catch (err: any) {
-      if (err?.userCancelled) return;
-    }
-  }, [confirmPkg, purchase, refreshData, isFromOnboarding, completeOnboarding]);
-
-  const handleRestore = useCallback(async () => {
-    try {
-      await restore();
-      await refreshData();
-      setRestoreMsg("Purchases restored.");
-    } catch {
-      setRestoreMsg("Nothing to restore.");
-    }
-    setTimeout(() => setRestoreMsg(null), 3000);
-  }, [restore, refreshData]);
+  }, [paywallStep, isFromOnboarding, threatCount, handleClose]);
 
   // ── Already subscribed ────────────────────────────────────────────────────
   if (alreadySubscribed) {
@@ -669,13 +551,17 @@ export default function Subscription() {
         <View style={[{ width: 80, height: 80, borderRadius: 24, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center", marginBottom: 20 }]}>
           <Ionicons name="shield-checkmark" size={40} color={colors.primary} />
         </View>
-        <Text style={[{ fontSize: 24, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center", marginBottom: 12 }]}>Subscriptions Coming Soon</Text>
-        <Text style={[{ fontSize: 15, color: colors.mutedForeground, textAlign: "center", lineHeight: 23 }]}>In-app purchases are being configured.{"\n"}Check back soon.</Text>
+        <Text style={[{ fontSize: 24, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center", marginBottom: 12 }]}>
+          Subscriptions Coming Soon
+        </Text>
+        <Text style={[{ fontSize: 15, color: colors.mutedForeground, textAlign: "center", lineHeight: 23 }]}>
+          In-app purchases are being configured.{"\n"}Check back soon.
+        </Text>
       </View>
     );
   }
 
-  // ── 3-screen paywall ──────────────────────────────────────────────────────
+  // ── Step 0: Intro ─────────────────────────────────────────────────────────
   if (paywallStep === 0) {
     return (
       <>
@@ -687,7 +573,6 @@ export default function Subscription() {
           topPad={topPad}
           bottomPad={bottomPad}
         />
-        {/* Always show close on intro for users reaching paywall from settings */}
         {!isFromOnboarding && (
           <TouchableOpacity style={{ position: "absolute", top: topPad + 16, right: 20, zIndex: 20 }} onPress={handleClose}>
             <View style={[{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center" }]}>
@@ -699,6 +584,7 @@ export default function Subscription() {
     );
   }
 
+  // ── Step 1: Trial Reminder ────────────────────────────────────────────────
   if (paywallStep === 1) {
     return (
       <ReminderScreen
@@ -711,29 +597,16 @@ export default function Subscription() {
     );
   }
 
+  // ── Step 2: RevenueCat Remote Paywall ─────────────────────────────────────
   return (
-    <>
-      <PlanSelectScreen
-        colors={colors}
-        onBack={() => setPaywallStep(isFromOnboarding && threatCount > 0 ? 0 : 1)}
-        onContinue={handleStep2Continue}
-        billingCycle={billingCycle}
-        setBillingCycle={setBillingCycle}
-        isPurchasing={isPurchasing || devUpgrading}
-        isRestoring={isRestoring}
-        onRestore={handleRestore}
-        getAnnualTotal={getAnnualTotal}
-        getMonthlyPrice={getMonthlyPrice}
-        topPad={topPad}
-        bottomPad={bottomPad}
-        restoreMsg={restoreMsg}
-      />
-      <ConfirmModal
-        visible={!!confirmPkg}
-        pkg={confirmPkg}
-        onConfirm={handleConfirmPurchase}
-        onCancel={() => setConfirmPkg(null)}
-      />
-    </>
+    <RCPaywallScreen
+      colors={colors}
+      onBack={() => setPaywallStep(isFromOnboarding && threatCount > 0 ? 0 : 1)}
+      onSuccess={handlePurchaseSuccess}
+      onDismiss={handlePaywallDismiss}
+      offering={activeOffering}
+      topPad={topPad}
+      isLoading={rcIsLoading}
+    />
   );
 }

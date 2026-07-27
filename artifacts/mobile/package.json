@@ -66,6 +66,7 @@
     "expo-notifications": "^0.32.17",
     "expo-sharing": "^56.0.18",
     "react-native-purchases": "^8.12.0",
+    "react-native-purchases-ui": "8.12.0",
     "react-native-view-shot": "^5.1.1"
   }
 }
