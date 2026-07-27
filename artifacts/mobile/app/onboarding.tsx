@@ -23,7 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris, getAccounts, getAccountMedia, type AccountMediaItem } from "@/lib/api";
+import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris, getAccounts, getAccountMedia, uploadAvatar, type AccountMediaItem } from "@/lib/api";
 import { INSTAGRAM_APP_ID, FACEBOOK_APP_ID, OAUTH_APP_SCHEME } from "@/constants/oauthConfig";
 import * as WebBrowser from "expo-web-browser";
 import { useColors } from "@/hooks/useColors";
@@ -57,7 +57,7 @@ function ScaleButton({ onPress, style, disabled, activeOpacity = 0.85, children 
 }
 
 const { width } = Dimensions.get("window");
-const TOTAL_STEPS = 14;
+const TOTAL_STEPS = 13;
 
 // ─── Shared motion constants ───────────────────────────────────────────────────
 const MOTION = {
@@ -72,7 +72,9 @@ const MOTION = {
 
 export interface OnboardingAnswers {
   primaryConcern: string | null;
+  goalFollowUp: string | null;
   userType: string | null;
+  typeFollowUp: string | null;
   followerRange: string | null;
   activePlatforms: string[];
   attribution: string | null;
@@ -121,14 +123,13 @@ const WELCOME_HERO = require("../assets/images/onboarding/welcome-hero.png");
 
 // ─── S0: Brand Hook ───────────────────────────────────────────────────────────
 function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
-  // Floating scan-line particles overlaid on the hero image
   const particles = useRef(
-    Array.from({ length: 16 }, (_, i) => ({
+    Array.from({ length: 12 }, (_, i) => ({
       anim: new Animated.Value(0),
-      x: (Math.cos((i / 16) * Math.PI * 2) * (60 + (i % 3) * 20)) - 10,
-      y: (Math.sin((i / 16) * Math.PI * 2) * (55 + (i % 3) * 18)) - 10,
-      delay: i * 90,
-      size: i % 3 === 0 ? 4 : i % 3 === 1 ? 2.5 : 1.5,
+      x: (Math.cos((i / 12) * Math.PI * 2) * (54 + (i % 3) * 22)) - 6,
+      y: (Math.sin((i / 12) * Math.PI * 2) * (50 + (i % 3) * 18)) - 6,
+      delay: i * 120,
+      size: i % 3 === 0 ? 5 : i % 3 === 1 ? 3 : 2,
     }))
   ).current;
 
@@ -140,18 +141,15 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   const rm = useReduceMotion();
 
   useEffect(() => {
-    // Hero image fades in on mount
-    Animated.timing(heroAnim, { toValue: 1, duration: rm ? 0 : 600, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+    Animated.timing(heroAnim, { toValue: 1, duration: rm ? 0 : 700, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
 
-    // Pulsing blue glow ring over the hero
     Animated.loop(Animated.sequence([
-      Animated.timing(glowAnim, { toValue: 1, duration: 2800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(glowAnim, { toValue: 0.2, duration: 2800, useNativeDriver: true }),
+      Animated.timing(glowAnim, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(glowAnim, { toValue: 0.15, duration: 3000, useNativeDriver: true }),
     ])).start();
 
-    // Staggered text entrance
     if (!rm) {
-      Animated.stagger(140, [
+      Animated.stagger(160, [
         Animated.timing(headlineAnim, { toValue: 1, duration: 500, easing: Easing.out(Easing.ease), useNativeDriver: true }),
         Animated.timing(subAnim,      { toValue: 1, duration: 450, easing: Easing.out(Easing.ease), useNativeDriver: true }),
         Animated.timing(bodyAnim,     { toValue: 1, duration: 400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
@@ -160,102 +158,89 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
       headlineAnim.setValue(1); subAnim.setValue(1); bodyAnim.setValue(1);
     }
 
-    // Orbiting particle dots over the hero image
     particles.forEach((p) => {
       const run = () => {
         p.anim.setValue(0);
         Animated.sequence([
           Animated.delay(p.delay),
-          Animated.timing(p.anim, { toValue: 1, duration: 2600 + p.delay * 2, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(p.anim, { toValue: 0.2, duration: 2000, useNativeDriver: true }),
+          Animated.timing(p.anim, { toValue: 1, duration: 2800 + p.delay * 1.5, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(p.anim, { toValue: 0.1, duration: 2200, useNativeDriver: true }),
         ]).start(run);
       };
       run();
     });
   }, []);
 
-  const glowOp  = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.55] });
-  const headY   = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
-  const subY    = subAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] });
-  const bodyY   = bodyAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
+  const glowOp = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.5] });
+  const headY  = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
+  const subY   = subAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
+  const bodyY  = bodyAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 
   return (
     <View style={{ flex: 1 }}>
-      {/* ── Hero image (top ~55% of screen) ── */}
+      {/* ── Hero image (top 60%) ── */}
       <Animated.View style={[hook.heroWrap, { opacity: heroAnim }]}>
-        <RNImage
-          source={WELCOME_HERO}
-          style={hook.heroImage}
-          resizeMode="cover"
-        />
-        {/* Dark vignette — top edge bleeds into background, bottom blends into text */}
+        <RNImage source={WELCOME_HERO} style={hook.heroImage} resizeMode="cover" />
+
+        {/* Bottom blend — smooth fade into the background colour starting at 38% */}
         <LinearGradient
-          colors={["rgba(0,0,0,0.18)", "transparent", "rgba(3,7,20,0.92)"]}
-          locations={[0, 0.42, 1]}
+          colors={["transparent", colors.background + "00", colors.background + "C8", colors.background]}
+          locations={[0, 0.38, 0.70, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        {/* Blue neon glow ring centered on the subject */}
-        <Animated.View
+        {/* Subtle top darkening so status-bar text is legible */}
+        <LinearGradient
+          colors={[colors.background + "60", "transparent"]}
+          locations={[0, 0.28]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+
+        {/* Blue neon scanning rings */}
+        <Animated.View pointerEvents="none"
           style={[hook.glowRing, { borderColor: colors.primary, opacity: glowOp }]}
-          pointerEvents="none"
         />
-        <Animated.View
-          style={[hook.glowRingInner, { borderColor: colors.primary + "66", opacity: glowAnim }]}
-          pointerEvents="none"
+        <Animated.View pointerEvents="none"
+          style={[hook.glowRingInner, { borderColor: colors.primary + "55", opacity: glowAnim }]}
         />
-        {/* Floating particle dots — match the scanning aesthetic */}
+
+        {/* Orbiting particle dots */}
         {particles.map((p, i) => (
-          <Animated.View
-            key={i}
-            pointerEvents="none"
-            style={{
-              position: "absolute",
-              width: p.size,
-              height: p.size,
-              borderRadius: p.size / 2,
-              backgroundColor: colors.primary,
-              opacity: p.anim,
-              top: "50%",
-              left: "50%",
-              transform: [{ translateX: p.x }, { translateY: p.y }],
-            }}
-          />
+          <Animated.View key={i} pointerEvents="none" style={{
+            position: "absolute", width: p.size, height: p.size,
+            borderRadius: p.size / 2, backgroundColor: colors.primary,
+            opacity: p.anim, top: "50%", left: "50%",
+            transform: [{ translateX: p.x }, { translateY: p.y }],
+          }} />
         ))}
       </Animated.View>
 
-      {/* ── Text content below the hero ── */}
+      {/* ── Text block ── */}
       <View style={hook.textBlock}>
-        <Animated.Text
-          style={[hook.headline, { color: colors.foreground, fontFamily: "Inter_700Bold", opacity: headlineAnim, transform: [{ translateY: headY }] }]}
-        >
+        <Animated.Text style={[hook.headline, { color: colors.foreground, fontFamily: "Inter_700Bold", opacity: headlineAnim, transform: [{ translateY: headY }] }]}>
           Your name and face{"\n"}already exist online.
         </Animated.Text>
-        <Animated.Text
-          style={[hook.sub, { color: colors.foreground + "CC", fontFamily: "Inter_400Regular", opacity: subAnim, transform: [{ translateY: subY }] }]}
-        >
-          The question is{" "}
-          <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold" }}>who's using them.</Text>
+        <Animated.Text style={[hook.sub, { fontFamily: "Inter_400Regular", opacity: subAnim, transform: [{ translateY: subY }] }]}>
+          <Text style={{ color: colors.mutedForeground }}>The question is </Text>
+          <Text style={{ color: colors.primary, fontFamily: "Inter_600SemiBold" }}>who's using them.</Text>
         </Animated.Text>
-        <Animated.Text
-          style={[hook.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", opacity: bodyAnim, transform: [{ translateY: bodyY }] }]}
-        >
-          Rook is an AI identity monitor that finds impersonators, stolen photos, and fake accounts using your identity — usually before you'd ever notice.
+        <Animated.Text style={[hook.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular", opacity: bodyAnim, transform: [{ translateY: bodyY }] }]}>
+          Rook uses AI to find impersonators, stolen photos, and fake accounts built on your identity — before you'd ever notice on your own.
         </Animated.Text>
       </View>
     </View>
   );
 }
 const hook = StyleSheet.create({
-  heroWrap:      { width: "100%", height: "56%", overflow: "hidden", position: "relative" },
+  heroWrap:      { width: "100%", height: "60%", overflow: "hidden" },
   heroImage:     { width: "100%", height: "100%" },
-  // Glow rings centered in the hero image (subject's chest/center area)
-  glowRing:      { position: "absolute", alignSelf: "center", top: "22%", width: 200, height: 200, borderRadius: 100, borderWidth: 1.5 },
-  glowRingInner: { position: "absolute", alignSelf: "center", top: "32%", width: 130, height: 130, borderRadius: 65, borderWidth: 1 },
-  textBlock:     { flex: 1, paddingHorizontal: 26, paddingTop: 20, gap: 12, justifyContent: "center" },
+  glowRing:      { position: "absolute", alignSelf: "center", top: "18%", width: 220, height: 220, borderRadius: 110, borderWidth: 1.5 },
+  glowRingInner: { position: "absolute", alignSelf: "center", top: "29%", width: 145, height: 145, borderRadius: 73, borderWidth: 1 },
+  textBlock:     { flex: 1, paddingHorizontal: 28, paddingTop: 14, gap: 10, justifyContent: "center" },
   headline:      { fontSize: 30, lineHeight: 38, textAlign: "center" },
   sub:           { fontSize: 16, textAlign: "center" },
-  body:          { fontSize: 13, textAlign: "center", lineHeight: 21, maxWidth: 320, alignSelf: "center" },
+  body:          { fontSize: 13, textAlign: "center", lineHeight: 21, maxWidth: 310, alignSelf: "center" },
 });
 
 // ─── S1: Credible Stat ────────────────────────────────────────────────────────
@@ -527,60 +512,201 @@ const cnt = StyleSheet.create({
 });
 
 // ─── S3 (combined): Concern + Identity Type + Account Count ──────────────────
-// Three questions previously on separate auto-advance screens are now one
-// progressive-reveal screen. Each section slides in after the previous is answered.
-// Reduces total flow from 16 → 14 steps with no loss of collected data.
+// ─── Follow-up question data ──────────────────────────────────────────────────
+type FollowUpOption = { id: string; label: string };
+const GOAL_FOLLOWUPS: Record<string, { question: string; options: FollowUpOption[] }> = {
+  impersonated: { question: "How did you find out about it?", options: [
+    { id: "found_myself",    label: "I found it myself" },
+    { id: "friend_told",     label: "A friend or colleague told me" },
+    { id: "suspicious_msg",  label: "Got a suspicious message about it" },
+    { id: "platform_flag",   label: "A platform flagged it for me" },
+    { id: "gut_feeling",     label: "Just have a gut feeling" },
+  ]},
+  creator: { question: "What's been used without your permission?", options: [
+    { id: "photos",          label: "My photos or likeness" },
+    { id: "content",         label: "My posts, videos, or clips" },
+    { id: "full_persona",    label: "My whole name and persona" },
+    { id: "proactive",       label: "Nothing yet — being proactive" },
+    { id: "unsure",          label: "Not sure, but suspicious" },
+  ]},
+  proactive: { question: "How do you currently check for threats?", options: [
+    { id: "dont",            label: "I don't — that's why I'm here" },
+    { id: "google",          label: "Google myself occasionally" },
+    { id: "manual_check",    label: "Search each platform manually" },
+    { id: "other_tool",      label: "Used another tool before" },
+    { id: "just_started",    label: "Just started caring about this" },
+  ]},
+  business: { question: "What's your biggest brand risk right now?", options: [
+    { id: "fake_accounts",   label: "Fake accounts mimicking us" },
+    { id: "phishing",        label: "Phishing using our brand name" },
+    { id: "counterfeit",     label: "Counterfeit products or resellers" },
+    { id: "employee",        label: "Employees being impersonated" },
+    { id: "all",             label: "All of the above" },
+  ]},
+  curious: { question: "What made you curious about your exposure?", options: [
+    { id: "heard",           label: "Heard about identity theft recently" },
+    { id: "friend",          label: "It happened to someone I know" },
+    { id: "news",            label: "Saw something in the news" },
+    { id: "exploring",       label: "Just exploring my digital footprint" },
+    { id: "close_call",      label: "Had a close call myself" },
+  ]},
+};
+const TYPE_FOLLOWUPS: Record<string, { question: string; options: FollowUpOption[] }> = {
+  public_figure: { question: "What best describes your public role?", options: [
+    { id: "politics",        label: "Politician or activist" },
+    { id: "entertainment",   label: "Athlete or entertainer" },
+    { id: "thought_leader",  label: "Author, speaker, or expert" },
+    { id: "media",           label: "Journalist or media personality" },
+    { id: "community",       label: "Community or religious leader" },
+  ]},
+  creator: { question: "Where's your main creative home?", options: [
+    { id: "ig_tiktok",       label: "Instagram / TikTok" },
+    { id: "youtube",         label: "YouTube" },
+    { id: "x_twitter",       label: "X / Twitter" },
+    { id: "twitch",          label: "Twitch / Gaming" },
+    { id: "multi",           label: "Across multiple platforms" },
+  ]},
+  business: { question: "What best describes your business?", options: [
+    { id: "ecommerce",       label: "E-commerce or retail brand" },
+    { id: "agency",          label: "Agency or services firm" },
+    { id: "saas",            label: "SaaS or tech company" },
+    { id: "hc_finance",      label: "Healthcare or finance" },
+    { id: "local",           label: "Local or brick-and-mortar" },
+  ]},
+  professional: { question: "What's your professional field?", options: [
+    { id: "finance_legal",   label: "Finance or legal" },
+    { id: "healthcare",      label: "Healthcare or science" },
+    { id: "tech",            label: "Tech or engineering" },
+    { id: "sales_mktg",      label: "Sales or marketing" },
+    { id: "education",       label: "Education or research" },
+  ]},
+  student: { question: "What worries you most about your online presence?", options: [
+    { id: "academic",        label: "Damage to academic reputation" },
+    { id: "social",          label: "Social media safety" },
+    { id: "career",          label: "Future career impact" },
+    { id: "id_theft",        label: "Identity theft generally" },
+    { id: "exploring",       label: "Just seeing what's out there" },
+  ]},
+  personal: { question: "How active are you on social media?", options: [
+    { id: "very_active",     label: "Very active — post most days" },
+    { id: "moderate",        label: "Moderately active" },
+    { id: "occasional",      label: "Occasional poster" },
+    { id: "lurker",          label: "Mostly a lurker" },
+    { id: "new",             label: "Just joined or rarely post" },
+  ]},
+};
+
+// Animated list used for follow-up answer options
+function FollowUpOptionList({ colors, options, selected, onSelect }: {
+  colors: ReturnType<typeof useColors>;
+  options: FollowUpOption[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const anims = useRef(options.map(() => new Animated.Value(0))).current;
+  useEffect(() => {
+    Animated.stagger(45, anims.map((a) => Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true }))).start();
+  }, []);
+  return (
+    <View style={{ gap: 8 }}>
+      {options.map((o, idx) => {
+        const isSel = selected === o.id;
+        return (
+          <Animated.View key={o.id} style={{ opacity: anims[idx], transform: [{ translateY: anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }}>
+            <TouchableOpacity activeOpacity={0.82}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect(o.id); }}
+              style={[fol.row, { backgroundColor: isSel ? colors.primary + "18" : colors.card, borderColor: isSel ? colors.primary + "80" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
+              <Text style={[fol.label, { color: colors.foreground, fontFamily: isSel ? "Inter_600SemiBold" : "Inter_400Regular" }]}>{o.label}</Text>
+              {isSel && <View style={[opt.check, { backgroundColor: colors.primary }]}><Ionicons name="checkmark" size={12} color="#fff" /></View>}
+            </TouchableOpacity>
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+}
+const fol = StyleSheet.create({
+  row:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 14, borderWidth: 1 },
+  label: { fontSize: 14, flex: 1 },
+});
+
+// ─── S3: 5-question personalised assessment ───────────────────────────────────
+// Q1 (concern) → Q1b follow-up → Q2 (identity type) → Q2b follow-up →
+// Q3 (account count, auto-advance on select)
 function CombinedQuizScreen({
-  colors, selectedConcern, selectedUserType, selectedFollowerRange, onSelect,
+  colors, selectedConcern, selectedGoalFollowUp, selectedUserType,
+  selectedTypeFollowUp, selectedFollowerRange, onSelect,
 }: {
   colors: ReturnType<typeof useColors>;
   selectedConcern: string | null;
+  selectedGoalFollowUp: string | null;
   selectedUserType: string | null;
+  selectedTypeFollowUp: string | null;
   selectedFollowerRange: string | null;
-  onSelect: (field: "primaryConcern" | "userType" | "followerRange", id: string) => void;
+  onSelect: (field: "primaryConcern" | "goalFollowUp" | "userType" | "typeFollowUp" | "followerRange", id: string) => void;
 }) {
-  const scrollRef  = useRef<import("react-native").ScrollView>(null);
-  const rm         = useReduceMotion();
-  const q1Anims    = useRef(CONCERNS.map(() => new Animated.Value(0))).current;
-  const q2Anim     = useRef(new Animated.Value(selectedConcern ? 1 : 0)).current;
-  const q2Anims    = useRef(USER_TYPES.map(() => new Animated.Value(selectedConcern ? 1 : 0))).current;
-  const q3Anim     = useRef(new Animated.Value(selectedUserType ? 1 : 0)).current;
-  const q3Anims    = useRef(ACCOUNT_RANGES.map(() => new Animated.Value(selectedUserType ? 1 : 0))).current;
+  const scrollRef = useRef<import("react-native").ScrollView>(null);
+  const rm        = useReduceMotion();
+  const q1Anims   = useRef(CONCERNS.map(() => new Animated.Value(0))).current;
+
+  const q1bAnim  = useRef(new Animated.Value(selectedGoalFollowUp ? 1 : 0)).current;
+  const q2Anim   = useRef(new Animated.Value(selectedGoalFollowUp ? 1 : 0)).current;
+  const q2bAnim  = useRef(new Animated.Value(selectedTypeFollowUp ? 1 : 0)).current;
+  const q3Anim   = useRef(new Animated.Value(selectedTypeFollowUp ? 1 : 0)).current;
+
+  const prevConcern      = useRef(selectedConcern);
+  const prevGoalFollowUp = useRef(selectedGoalFollowUp);
+  const prevUserType     = useRef(selectedUserType);
+  const prevTypeFollowUp = useRef(selectedTypeFollowUp);
 
   useEffect(() => {
     Animated.stagger(55, q1Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true }))).start();
   }, []);
 
-  const prevConcern  = useRef(selectedConcern);
-  const prevUserType = useRef(selectedUserType);
-
   useEffect(() => {
     if (selectedConcern && !prevConcern.current) {
       prevConcern.current = selectedConcern;
-      if (rm) { q2Anim.setValue(1); q2Anims.forEach(a => a.setValue(1)); return; }
-      Animated.spring(q2Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
-      Animated.stagger(50, q2Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 120, friction: 9, useNativeDriver: true }))).start();
-      // Scroll gently to reveal Q2 — wait for spring to fully settle first
-      setTimeout(() => scrollRef.current?.scrollTo({ y: 340, animated: true }), 620);
+      if (rm) { q1bAnim.setValue(1); return; }
+      Animated.spring(q1bAnim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
+      setTimeout(() => scrollRef.current?.scrollTo({ y: 400, animated: true }), 580);
     } else if (selectedConcern) { prevConcern.current = selectedConcern; }
   }, [selectedConcern]);
 
   useEffect(() => {
+    if (selectedGoalFollowUp && !prevGoalFollowUp.current) {
+      prevGoalFollowUp.current = selectedGoalFollowUp;
+      if (rm) { q2Anim.setValue(1); return; }
+      Animated.spring(q2Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
+      setTimeout(() => scrollRef.current?.scrollTo({ y: 760, animated: true }), 600);
+    } else if (selectedGoalFollowUp) { prevGoalFollowUp.current = selectedGoalFollowUp; }
+  }, [selectedGoalFollowUp]);
+
+  useEffect(() => {
     if (selectedUserType && !prevUserType.current) {
       prevUserType.current = selectedUserType;
-      if (rm) { q3Anim.setValue(1); q3Anims.forEach(a => a.setValue(1)); return; }
-      Animated.spring(q3Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
-      Animated.stagger(80, q3Anims.map((a) => Animated.spring(a, { toValue: 1, tension: 100, friction: 9, useNativeDriver: true }))).start();
-      // Scroll to bring Q3 into view after spring settles
-      setTimeout(() => scrollRef.current?.scrollTo({ y: 720, animated: true }), 680);
+      if (rm) { q2bAnim.setValue(1); return; }
+      Animated.spring(q2bAnim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
+      setTimeout(() => scrollRef.current?.scrollTo({ y: 1120, animated: true }), 600);
     } else if (selectedUserType) { prevUserType.current = selectedUserType; }
   }, [selectedUserType]);
 
+  useEffect(() => {
+    if (selectedTypeFollowUp && !prevTypeFollowUp.current) {
+      prevTypeFollowUp.current = selectedTypeFollowUp;
+      if (rm) { q3Anim.setValue(1); return; }
+      Animated.spring(q3Anim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
+      setTimeout(() => scrollRef.current?.scrollTo({ y: 1480, animated: true }), 600);
+    } else if (selectedTypeFollowUp) { prevTypeFollowUp.current = selectedTypeFollowUp; }
+  }, [selectedTypeFollowUp]);
+
+  const concernFollowUp = selectedConcern ? GOAL_FOLLOWUPS[selectedConcern] : null;
+  const typeFollowUp    = selectedUserType ? TYPE_FOLLOWUPS[selectedUserType] : null;
+
   return (
-    <ScrollView ref={scrollRef} style={s.screen} contentContainerStyle={[s.screenPad, { gap: 28, paddingBottom: 40 }]} showsVerticalScrollIndicator={false}>
+    <ScrollView ref={scrollRef} style={s.screen} contentContainerStyle={[s.screenPad, { gap: 28, paddingBottom: 48 }]} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
-      {/* Q1 — What brings you here */}
+      {/* Q1 — What brings you to Rook? */}
       <View style={{ gap: 14 }}>
         <View style={{ gap: 6 }}>
           <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>What brings you to Rook?</Text>
@@ -607,15 +733,29 @@ function CombinedQuizScreen({
         </View>
       </View>
 
-      {/* Q2 — Which sounds like you (slides in after Q1) */}
-      <Animated.View style={{ gap: 14, opacity: q2Anim, transform: [{ translateY: q2Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}
-        pointerEvents={selectedConcern ? "auto" : "none"}>
-        <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Which sounds like you?</Text>
+      {/* Q1b — Personalised follow-up based on Q1 answer */}
+      <Animated.View pointerEvents={selectedConcern ? "auto" : "none"}
+        style={{ gap: 14, opacity: q1bAnim, transform: [{ translateY: q1bAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+        {concernFollowUp && (
+          <>
+            <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{concernFollowUp.question}</Text>
+            <FollowUpOptionList colors={colors} options={concernFollowUp.options} selected={selectedGoalFollowUp} onSelect={(id) => onSelect("goalFollowUp", id)} />
+          </>
+        )}
+      </Animated.View>
+
+      {/* Q2 — How do you describe yourself online? */}
+      <Animated.View pointerEvents={selectedGoalFollowUp ? "auto" : "none"}
+        style={{ gap: 14, opacity: q2Anim, transform: [{ translateY: q2Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+        <View style={{ gap: 6 }}>
+          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>How do you describe yourself online?</Text>
+          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Helps us understand the threats most relevant to you.</Text>
+        </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-          {USER_TYPES.map((t, idx) => {
+          {USER_TYPES.map((t) => {
             const isSel = selectedUserType === t.id;
             return (
-              <Animated.View key={t.id} style={{ opacity: q2Anims[idx], transform: [{ translateY: q2Anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }], width: (width - 60) / 2 }}>
+              <View key={t.id} style={{ width: (width - 60) / 2 }}>
                 <TouchableOpacity activeOpacity={0.8}
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect("userType", t.id); }}
                   style={[type.card, { backgroundColor: isSel ? colors.primary + "18" : colors.card, borderColor: isSel ? colors.primary + "80" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
@@ -623,34 +763,43 @@ function CombinedQuizScreen({
                   <Text style={[{ color: isSel ? colors.primary : colors.foreground, fontFamily: isSel ? "Inter_700Bold" : "Inter_600SemiBold", fontSize: 13, textAlign: "center" }]}>{t.label}</Text>
                   <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11, lineHeight: 15, textAlign: "center" }]}>{t.risk}</Text>
                 </TouchableOpacity>
-              </Animated.View>
+              </View>
             );
           })}
         </View>
       </Animated.View>
 
-      {/* Q3 — How many accounts (slides in after Q2) */}
-      <Animated.View style={{ gap: 14, opacity: q3Anim, transform: [{ translateY: q3Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}
-        pointerEvents={selectedUserType ? "auto" : "none"}>
+      {/* Q2b — Personalised follow-up based on Q2 answer */}
+      <Animated.View pointerEvents={selectedUserType ? "auto" : "none"}
+        style={{ gap: 14, opacity: q2bAnim, transform: [{ translateY: q2bAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+        {typeFollowUp && (
+          <>
+            <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{typeFollowUp.question}</Text>
+            <FollowUpOptionList colors={colors} options={typeFollowUp.options} selected={selectedTypeFollowUp} onSelect={(id) => onSelect("typeFollowUp", id)} />
+          </>
+        )}
+      </Animated.View>
+
+      {/* Q3 — Account count (auto-advances on select) */}
+      <Animated.View pointerEvents={selectedTypeFollowUp ? "auto" : "none"}
+        style={{ gap: 14, opacity: q3Anim, transform: [{ translateY: q3Anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
         <View style={{ gap: 4 }}>
           <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>How many social accounts do you have?</Text>
           <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Helps us calibrate your coverage.</Text>
         </View>
         <View style={{ gap: 12 }}>
-          {ACCOUNT_RANGES.map((r, idx) => {
+          {ACCOUNT_RANGES.map((r) => {
             const isSel = selectedFollowerRange === r.id;
             return (
-              <Animated.View key={r.id} style={{ opacity: q3Anims[idx], transform: [{ translateY: q3Anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-                <TouchableOpacity activeOpacity={0.85}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onSelect("followerRange", r.id); }}
-                  style={[cnt.card, { backgroundColor: isSel ? colors.primary + "18" : colors.card, borderColor: isSel ? colors.primary + "80" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
-                  <View>
-                    <Text style={[cnt.label, { color: isSel ? colors.primary : colors.foreground, fontFamily: "Inter_700Bold" }]}>{r.label}</Text>
-                    <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>{r.sub}</Text>
-                  </View>
-                  {isSel && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
-                </TouchableOpacity>
-              </Animated.View>
+              <TouchableOpacity key={r.id} activeOpacity={0.85}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onSelect("followerRange", r.id); }}
+                style={[cnt.card, { backgroundColor: isSel ? colors.primary + "18" : colors.card, borderColor: isSel ? colors.primary + "80" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
+                <View>
+                  <Text style={[cnt.label, { color: isSel ? colors.primary : colors.foreground, fontFamily: "Inter_700Bold" }]}>{r.label}</Text>
+                  <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>{r.sub}</Text>
+                </View>
+                {isSel && <Ionicons name="checkmark-circle" size={22} color={colors.primary} />}
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -670,33 +819,34 @@ const ALL_PLATFORMS: Array<{ id: NonNullable<SocialPlatform>; label: string }> =
   { id: "linkedin", label: "LinkedIn" },
 ];
 
-function IdentityInputScreen({
+// ─── S8: Full Profile + Account Setup (merged) ───────────────────────────────
+// Replaces old IdentityInputScreen (step 8) + PlatformHandlesScreen (step 10).
+// OAuth account connection is the primary action; camera roll is a fallback.
+function FullProfileSetupScreen({
   colors,
   nameValue,
   onNameChange,
-  selectedPlatforms,
-  onTogglePlatform,
+  handles,
+  onHandleChange,
+  isAddingAccounts,
+  connectedPlatforms,
+  onOAuthConnected,
+  onPhotosPicked,
   photoUri,
   onPhotoSelect,
 }: {
   colors: ReturnType<typeof useColors>;
   nameValue: string;
   onNameChange: (v: string) => void;
-  selectedPlatforms: string[];
-  onTogglePlatform: (id: string) => void;
+  handles: Record<string, string>;
+  onHandleChange: (platformId: string, value: string) => void;
+  isAddingAccounts: boolean;
+  connectedPlatforms: Set<string>;
+  onOAuthConnected: (platform: string, accountId: string) => void;
+  onPhotosPicked?: (platform: string, urls: string[]) => void;
   photoUri: string | null;
   onPhotoSelect: (uri: string, base64?: string) => void;
 }) {
-  const shimmer = useRef(new Animated.Value(0)).current;
-  const rmS6 = useReduceMotion();
-  useEffect(() => {
-    if (rmS6) return;
-    Animated.loop(Animated.sequence([
-      Animated.timing(shimmer, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(shimmer, { toValue: 0, duration: 1800, useNativeDriver: true }),
-    ])).start();
-  }, [rmS6]);
-
   const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -704,11 +854,7 @@ function IdentityInputScreen({
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: "images",
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-      base64: true,
+      mediaTypes: "images", allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
@@ -716,20 +862,23 @@ function IdentityInputScreen({
     }
   };
 
-  const shimOp = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0, 0.06] });
-
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={100}>
-      <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 24 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 22, paddingBottom: 32 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <LinearGradient colors={["#3B82F622", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
+        {/* Header */}
         <View style={{ gap: 8 }}>
-          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Now let's find out{"\n"}what's out there about you.</Text>
-          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Enter your name or @handle, select your platforms, and optionally add a photo for stolen image detection.</Text>
+          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+            Now let's find out{"\n"}what's out there about you.
+          </Text>
+          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            Connect your accounts for the richest scan — 10× more signals than a name search alone.
+          </Text>
         </View>
 
         {/* Name / handle */}
         <View style={inp.wrap}>
-          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: shimOp, borderRadius: 14 }]} pointerEvents="none" />
           <View style={[inp.row, { backgroundColor: colors.card, borderColor: nameValue.length > 0 ? colors.primary + "66" : colors.border, borderWidth: nameValue.length > 0 ? 1.5 : 1 }]}>
             <Ionicons name="person-circle-outline" size={22} color={nameValue.length > 0 ? colors.primary : colors.mutedForeground} />
             <TextInput style={[inp.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} placeholder="Your name or @handle" placeholderTextColor={colors.mutedForeground} value={nameValue} onChangeText={onNameChange} autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
@@ -737,9 +886,55 @@ function IdentityInputScreen({
           </View>
         </View>
 
-        {/* Photo upload */}
-        <View style={{ gap: 10 }}>
-          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Profile photo{" "}<Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }}>(optional — detects stolen images)</Text></Text>
+        {/* Platform connection — primary action */}
+        <View style={{ gap: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name="shield-checkmark" size={16} color={colors.primary} />
+            <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Connect your platforms</Text>
+            <View style={{ backgroundColor: colors.primary + "18", borderWidth: 1, borderColor: colors.primary + "44", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
+              <Text style={[{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 11 }]}>Most accurate</Text>
+            </View>
+          </View>
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18 }]}>
+            OAuth connects read-only — Rook never posts, follows, or messages anyone on your behalf.
+          </Text>
+          {ALL_PLATFORMS.map((p) => (
+            <PlatformConnectRow
+              key={p.id}
+              colors={colors}
+              platform={p.id}
+              label={p.label}
+              isConnected={connectedPlatforms.has(p.id)}
+              handle={handles[p.id] ?? ""}
+              onHandleChange={(v) => onHandleChange(p.id, v)}
+              onConnected={onOAuthConnected}
+              onPhotosPicked={onPhotosPicked}
+            />
+          ))}
+          {isAddingAccounts && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, justifyContent: "center", paddingVertical: 4 }}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Connecting accounts…</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Divider */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 2 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>or</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+        </View>
+
+        {/* Camera roll — secondary / fallback */}
+        <View style={{ gap: 8 }}>
+          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>
+            Add a reference photo{" "}
+            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }}>(optional)</Text>
+          </Text>
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18 }]}>
+            Used for stolen-image detection. Connected accounts pull photos automatically.
+          </Text>
           <TouchableOpacity onPress={pickPhoto} activeOpacity={0.8}>
             {photoUri ? (
               <View style={[inp.photoFilled, { backgroundColor: colors.primary + "14", borderColor: colors.primary + "55" }]}>
@@ -752,36 +947,11 @@ function IdentityInputScreen({
             ) : (
               <View style={[inp.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Ionicons name="image-outline" size={22} color={colors.mutedForeground} />
-                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Add a photo from your library</Text>
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Upload from camera roll</Text>
               </View>
             )}
           </TouchableOpacity>
         </View>
-
-        {/* Platform selection */}
-        <View style={{ gap: 10 }}>
-          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Which platforms should we monitor?</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            {ALL_PLATFORMS.map((p) => {
-              const isSel = selectedPlatforms.includes(p.id);
-              return (
-                <ScaleButton key={p.id} activeOpacity={0.8} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onTogglePlatform(p.id); }}
-                  style={[inp.platChip, { backgroundColor: isSel ? colors.primary + "18" : colors.card, borderColor: isSel ? colors.primary + "70" : colors.border, borderWidth: isSel ? 1.5 : 1 }]}>
-                  <PlatformIcon platform={p.id} size={18} />
-                  <Text style={[{ color: isSel ? colors.primary : colors.mutedForeground, fontFamily: isSel ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 12 }]}>{p.label}</Text>
-                  {isSel && <Ionicons name="checkmark" size={12} color={colors.primary} />}
-                </ScaleButton>
-              );
-            })}
-          </View>
-        </View>
-
-        <GlassCard style={[inp.privNote, { borderColor: colors.success + "33" }]}>
-          <Ionicons name="lock-closed" size={13} color={colors.success} />
-          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, flex: 1, lineHeight: 18 }]}>
-            We only use this to search for impersonators. Read-only, never posted, never shared.
-          </Text>
-        </GlassCard>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -792,7 +962,6 @@ const inp = StyleSheet.create({
   input: { flex: 1, fontSize: 16, lineHeight: 22 },
   photoFilled: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 14, borderWidth: 1.5 },
   photoPicker: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 14, borderWidth: 1 },
-  platChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 24, borderWidth: 1 },
   privNote: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
 });
 
@@ -1108,10 +1277,10 @@ function ProfileSavedScreen({ colors, identityInput, selectedPlatforms, hasPhoto
   const stepsY  = stepsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 
   const steps = [
-    { label: "Identity profile created", done: true },
-    { label: "Connect your accounts", done: false, current: true },
-    { label: "AI scans across platforms", done: false },
-    { label: "View your results", done: false },
+    { label: "Profile & accounts set up", done: true },
+    { label: "AI scans across platforms", done: false, current: true },
+    { label: "View your match count", done: false },
+    { label: "Unlock your full report", done: false },
   ];
   return (
     <View style={[s.screenPad, { flex: 1, justifyContent: "center", gap: 32 }]}>
@@ -1461,69 +1630,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   );
 }
 
-function PlatformHandlesScreen({ colors, selectedPlatforms, handles, onHandleChange, isAddingAccounts, connectedPlatforms, onOAuthConnected, onPhotosPicked }: {
-  colors: ReturnType<typeof useColors>;
-  selectedPlatforms: string[];
-  handles: Record<string, string>;
-  onHandleChange: (platformId: string, value: string) => void;
-  isAddingAccounts: boolean;
-  connectedPlatforms: Set<string>;
-  onOAuthConnected: (platform: string, accountId: string) => void;
-  onPhotosPicked?: (platform: string, urls: string[]) => void;
-}) {
-  const displayPlatforms = ALL_PLATFORMS.filter((p) => selectedPlatforms.includes(p.id));
-
-  if (displayPlatforms.length === 0) {
-    return (
-      <View style={[s.screenPad, { flex: 1, justifyContent: "center", gap: 20 }]}>
-        <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-        <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Connect your accounts</Text>
-        <GlassCard>
-          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }]}>No platforms were selected — tap Continue to run your scan based on the name you entered.</Text>
-        </GlassCard>
-      </View>
-    );
-  }
-
-  return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={100}>
-      <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 24 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-        <View style={{ gap: 8 }}>
-          <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Which platforms should we monitor?</Text>
-          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Connect via OAuth for the richest scan — or enter your @handle manually. Read-only access only.</Text>
-        </View>
-        <View style={{ gap: 12 }}>
-          {displayPlatforms.map((p) => (
-            <PlatformConnectRow
-              key={p.id}
-              colors={colors}
-              platform={p.id}
-              label={p.label}
-              isConnected={connectedPlatforms.has(p.id)}
-              handle={handles[p.id] ?? ""}
-              onHandleChange={(v) => onHandleChange(p.id, v)}
-              onConnected={onOAuthConnected}
-              onPhotosPicked={onPhotosPicked}
-            />
-          ))}
-        </View>
-        {isAddingAccounts && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, justifyContent: "center" }}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Connecting accounts…</Text>
-          </View>
-        )}
-        <GlassCard style={{ borderColor: colors.success + "22", flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-          <Ionicons name="lock-closed" size={14} color={colors.success} />
-          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, flex: 1, lineHeight: 18 }]}>
-            Read-only access only — Rook never posts, messages, or follows anyone on your behalf.
-          </Text>
-        </GlassCard>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
-}
+// PlatformHandlesScreen merged into FullProfileSetupScreen (step 8)
 const ph = StyleSheet.create({
   outerCard:       { borderRadius: 16, borderWidth: 1, padding: 14, gap: 12 },
   connectedRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
@@ -1864,7 +1971,9 @@ export default function Onboarding() {
 
   const [answers, setAnswers] = useState<OnboardingAnswers>({
     primaryConcern: null,
+    goalFollowUp: null,
     userType: null,
+    typeFollowUp: null,
     followerRange: null,
     activePlatforms: [],
     attribution: null,
@@ -1926,11 +2035,15 @@ export default function Onboarding() {
     setTimeout(() => animateToStep(next), 280);
   }, [animateToStep]);
 
-  const handlePhotoSelect = useCallback((uri: string, b64?: string) => {
+  const handlePhotoSelect = useCallback(async (uri: string, b64?: string) => {
     if (!uri) { setPhotoUri(null); setPhotoBase64(undefined); return; }
     setPhotoUri(uri);
     setPhotoBase64(b64);
-    if (b64) addIndexedPhotos([{ uri, base64: b64 }]);
+    if (b64) {
+      addIndexedPhotos([{ uri, base64: b64 }]);
+      // Also save as avatar so threat comparison can show the user's reference photo
+      try { await uploadAvatar(b64); } catch { /* graceful — avatarUrl stays null */ }
+    }
   }, [addIndexedPhotos]);
 
   const handleTogglePlatform = useCallback((id: string) => {
@@ -1972,9 +2085,9 @@ export default function Onboarding() {
   }), [answers, identityInput, selectedPlatforms, platformHandles]);
 
   const handleNext = useCallback(async () => {
-    if (step === 10) {
+    if (step === 8) {
       await addAccountsForHandles();
-      animateToStep(11);
+      animateToStep(9);
       return;
     }
     if (step < TOTAL_STEPS - 1) {
@@ -2001,24 +2114,28 @@ export default function Onboarding() {
 
   // Steps that auto-advance on selection — no footer CTA shown
   const AUTO_STEPS = new Set([3]);
-  const NO_FOOTER_STEPS = new Set([11]); // only scan auto-advances; all other steps show footer
+  const NO_FOOTER_STEPS = new Set([10]); // ScanSetupScreen auto-advances; all other steps show footer
   const isAutoStep = AUTO_STEPS.has(step);
   const isNoFooter = NO_FOOTER_STEPS.has(step);
   const isLastStep = step === TOTAL_STEPS - 1;
 
   const canContinue = (): boolean => {
-    // Step 8 = IdentityInputScreen — must have a name or at least one platform
-    if (step === 8) return identityInput.trim().length > 0 || selectedPlatforms.length > 0;
+    // Step 8 = FullProfileSetupScreen — must have a name, connected platform, handle, or photo
+    if (step === 8) return (
+      identityInput.trim().length > 0 ||
+      oauthConnectedPlatforms.size > 0 ||
+      Object.values(platformHandles).some((v) => v.trim().length > 0) ||
+      !!photoUri
+    );
     return true;
   };
 
   const getCtaLabel = (): string => {
     if (step === 0) return "Find Out If I'm Exposed";
     if (step === 2) return "Start My Assessment";
-    if (step === 8) return "Save My Profile";
-    if (step === 9) return "Connect My Accounts";
-    if (step === 10) return isAddingAccounts ? "Connecting…" : "Start My Scan";
-    if (step === 13) return "Unlock Full Protection";
+    if (step === 8) return isAddingAccounts ? "Connecting…" : "Save & Continue";
+    if (step === 9) return "Start My Scan";
+    if (step === 12) return "Unlock Full Protection";
     return "Continue";
   };
 
@@ -2033,7 +2150,9 @@ export default function Onboarding() {
         <CombinedQuizScreen
           colors={colors}
           selectedConcern={answers.primaryConcern}
+          selectedGoalFollowUp={answers.goalFollowUp}
           selectedUserType={answers.userType}
+          selectedTypeFollowUp={answers.typeFollowUp}
           selectedFollowerRange={answers.followerRange}
           onSelect={(field, id) => {
             setAnswers((a) => ({ ...a, [field]: id }));
@@ -2046,14 +2165,13 @@ export default function Onboarding() {
       case 5:  return <HowRookProtectsScreen colors={colors} />;
       case 6:  return <PrivacyScreen colors={colors} />;
       case 7:  return <SocialProofScreen colors={colors} />;
-      // ── Data collection + account connection + scan ──
-      case 8:  return <IdentityInputScreen colors={colors} nameValue={identityInput} onNameChange={setIdentityInput} selectedPlatforms={selectedPlatforms} onTogglePlatform={handleTogglePlatform} photoUri={photoUri} onPhotoSelect={handlePhotoSelect} />;
-      case 9:  return <ProfileSavedScreen colors={colors} identityInput={identityInput} selectedPlatforms={selectedPlatforms} hasPhoto={!!photoUri} />;
-      case 10: return <PlatformHandlesScreen colors={colors} selectedPlatforms={selectedPlatforms} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} onPhotosPicked={handlePhotosPicked} />;
+      // ── Data collection + account setup + scan ──
+      case 8:  return <FullProfileSetupScreen colors={colors} nameValue={identityInput} onNameChange={setIdentityInput} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} onPhotosPicked={handlePhotosPicked} photoUri={photoUri} onPhotoSelect={handlePhotoSelect} />;
+      case 9:  return <ProfileSavedScreen colors={colors} identityInput={identityInput} selectedPlatforms={[...new Set([...selectedPlatforms, ...Object.keys(platformHandles).filter((k) => (platformHandles[k] ?? "").trim().length > 0)])]} hasPhoto={!!photoUri} />;
       // ── Scan + results + paywall bridge ──
-      case 11: return <ScanSetupScreen colors={colors} onDone={(count) => { setScanThreatCount(count); animateToStep(12); }} />;
-      case 12: return <UrgencyRevealScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} followerRange={answers.followerRange} />;
-      case 13: return <ReportBridgeScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} platformCount={selectedPlatforms.length} />;
+      case 10: return <ScanSetupScreen colors={colors} onDone={(count) => { setScanThreatCount(count); animateToStep(11); }} />;
+      case 11: return <UrgencyRevealScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} followerRange={answers.followerRange} />;
+      case 12: return <ReportBridgeScreen colors={colors} threatCount={scanThreatCount} userType={answers.userType} platformCount={selectedPlatforms.length} />;
       default: return null;
     }
   };
@@ -2067,13 +2185,20 @@ export default function Onboarding() {
       {/* Slow-breathing ambient glow — subtle blue warmth cycling in background */}
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: ambientOpacity }]} pointerEvents="none" />
       <View style={[s.header, { paddingTop: topPad + 16 }]}>
+        {/* Back + Skip row */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          {step > 0 ? (
+            <TouchableOpacity onPress={() => animateToStep(step - 1)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="chevron-back" size={22} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          ) : <View style={{ width: 22 }} />}
+          {step > 0 && step < 8 && !isAutoStep ? (
+            <TouchableOpacity onPress={handleSkip} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Skip</Text>
+            </TouchableOpacity>
+          ) : <View style={{ width: 22 }} />}
+        </View>
         <ProgressBar step={step} colors={colors} />
-        {/* Show Skip during the education phase only; hide during data collection */}
-        {step > 0 && step < 8 && !isAutoStep && (
-          <TouchableOpacity onPress={handleSkip} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ alignSelf: "flex-end", marginTop: -2 }}>
-            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Skip</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateX: slideAnim }] }}>
