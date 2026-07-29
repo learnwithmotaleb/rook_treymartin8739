@@ -278,6 +278,189 @@ export function getTopVariants(username: string, limit = 20): string[] {
 }
 
 /**
+ * Classification result from the reverse mutation classifier.
+ * Indicates which known impersonation pattern a discovered username matches.
+ */
+export interface MutationClassification {
+  patternType: UsernameMutation["patternType"];
+  /** Probability that this pattern indicates real impersonation (0–1). */
+  probability: number;
+  /** Human-readable rule key for evidence detail display (e.g. "suffix:_official"). */
+  matchedRule: string;
+}
+
+/**
+ * Reverse-classify a discovered username against known mutation patterns.
+ *
+ * Given an original handle (e.g. "sophierain") and a handle discovered in
+ * the wild (e.g. "sophierain_official"), returns the best-matching mutation
+ * pattern or null if no known pattern matches.
+ *
+ * This turns the mutation engine into a CLASSIFIER rather than a query factory:
+ * instead of generating handles to search for, we confirm that a handle the
+ * web actually returned matches a known impersonation pattern, and report that
+ * pattern in the evidence detail.
+ *
+ * @param original   - The real user's handle (with or without @)
+ * @param discovered - A handle found on the web (with or without @)
+ * @returns Best matching pattern, or null if no pattern matches.
+ */
+export function classifyDiscoveredUsername(
+  original: string,
+  discovered: string
+): MutationClassification | null {
+  const clean = original.toLowerCase().replace(/^@/, "").trim();
+  const found = discovered.toLowerCase().replace(/^@/, "").trim();
+
+  if (!clean || !found || found === clean) return null;
+
+  let best: MutationClassification | null = null;
+
+  function keep(candidate: MutationClassification): void {
+    if (!best || candidate.probability > best.probability) {
+      best = candidate;
+    }
+  }
+
+  // ── Suffix mutations ────────────────────────────────────────────────────────
+  for (const { suffix, probability } of SUFFIX_MUTATIONS) {
+    if (found === `${clean}${suffix}`) {
+      keep({ patternType: "suffix", probability, matchedRule: `suffix:${suffix}` });
+    }
+  }
+
+  // ── Prefix mutations ────────────────────────────────────────────────────────
+  for (const { prefix, probability } of PREFIX_MUTATIONS) {
+    if (found === `${prefix}${clean}`) {
+      keep({ patternType: "prefix", probability, matchedRule: `prefix:${prefix}` });
+    }
+    if (found === `${prefix}_${clean}`) {
+      keep({ patternType: "prefix", probability: probability * 0.92, matchedRule: `prefix:${prefix}_` });
+    }
+    if (found === `${prefix}.${clean}`) {
+      keep({ patternType: "prefix", probability: probability * 0.88, matchedRule: `prefix:${prefix}.` });
+    }
+  }
+
+  // ── Character substitutions ─────────────────────────────────────────────────
+  for (const [from, to, prob] of CHAR_SUBSTITUTIONS) {
+    const subbed = applySubstitution(clean, from, to);
+    if (!subbed) continue;
+    if (found === subbed) {
+      keep({ patternType: "substitution", probability: prob, matchedRule: `sub:${from}→${to}` });
+    }
+    // Substitution + top suffixes
+    for (const { suffix, probability: sp } of SUFFIX_MUTATIONS.slice(0, 6)) {
+      if (found === `${subbed}${suffix}`) {
+        keep({ patternType: "substitution", probability: sp * prob, matchedRule: `sub:${from}→${to}+suffix:${suffix}` });
+      }
+    }
+    // Prefix + substitution
+    for (const { prefix, probability: pp } of PREFIX_MUTATIONS.slice(0, 3)) {
+      if (found === `${prefix}${subbed}`) {
+        keep({ patternType: "substitution", probability: pp * prob * 0.90, matchedRule: `prefix:${prefix}+sub:${from}→${to}` });
+      }
+    }
+  }
+
+  // ── Normalization variants ──────────────────────────────────────────────────
+  const deduped = clean.replace(/(.)\1+/g, "$1");
+  if (deduped !== clean) {
+    if (found === deduped) {
+      keep({ patternType: "normalization", probability: 0.82, matchedRule: "normalization:dedup" });
+    }
+    // Deduped + suffix
+    for (const { suffix, probability } of SUFFIX_MUTATIONS.slice(0, 12)) {
+      if (found === `${deduped}${suffix}`) {
+        keep({ patternType: "suffix", probability: probability * 0.88, matchedRule: `normalization:dedup+suffix:${suffix}` });
+      }
+    }
+    // Prefix + deduped
+    for (const { prefix, probability } of PREFIX_MUTATIONS.slice(0, 4)) {
+      if (found === `${prefix}${deduped}`) {
+        keep({ patternType: "prefix", probability: probability * 0.82, matchedRule: `normalization:dedup+prefix:${prefix}` });
+      }
+      if (found === `${prefix}_${deduped}`) {
+        keep({ patternType: "prefix", probability: probability * 0.76, matchedRule: `normalization:dedup+prefix:${prefix}_` });
+      }
+    }
+  }
+
+  const stripped = clean.replace(/[._\-]/g, "");
+  if (stripped !== clean) {
+    if (found === stripped) {
+      keep({ patternType: "normalization", probability: 0.76, matchedRule: "normalization:strip" });
+    }
+    for (const { suffix, probability } of SUFFIX_MUTATIONS.slice(0, 8)) {
+      if (found === `${stripped}${suffix}`) {
+        keep({ patternType: "suffix", probability: probability * 0.82, matchedRule: `normalization:strip+suffix:${suffix}` });
+      }
+    }
+  }
+
+  const dedupedStripped = deduped.replace(/[._\-]/g, "");
+  if (dedupedStripped !== clean && found === dedupedStripped) {
+    keep({ patternType: "normalization", probability: 0.72, matchedRule: "normalization:dedup+strip" });
+  }
+
+  // ── Number appends ──────────────────────────────────────────────────────────
+  const numberAppends: Array<[string, number]> = [
+    ["1", 0.38], ["2", 0.36], ["0", 0.33], ["01", 0.30],
+    ["11", 0.28], ["21", 0.26], ["123", 0.24], ["_1", 0.32], ["_2", 0.30],
+  ];
+  for (const [num, prob] of numberAppends) {
+    if (found === `${clean}${num}`) {
+      keep({ patternType: "number", probability: prob, matchedRule: `number:${num}` });
+    }
+  }
+
+  // ── Last-char repetition ────────────────────────────────────────────────────
+  if (clean.length >= 4) {
+    const lastChar = clean[clean.length - 1]!;
+    if (found === `${clean}${lastChar}`) {
+      keep({ patternType: "substitution", probability: 0.62, matchedRule: "substitution:last_char_repeat" });
+    }
+    // Doubled-char inflation (e.g. sophieraiin → sophieraiiin)
+    for (let i = 1; i < clean.length; i++) {
+      if (clean[i] === clean[i - 1]) {
+        const inflated = clean.slice(0, i) + clean[i] + clean.slice(i);
+        if (found === inflated) {
+          keep({ patternType: "substitution", probability: 0.58, matchedRule: "substitution:doubled_char_inflate" });
+        }
+      }
+    }
+  }
+
+  // ── Separator variants ──────────────────────────────────────────────────────
+  if (!clean.includes("_") && !clean.includes(".") && clean.length >= 6) {
+    const mid = Math.floor(clean.length / 2);
+    if (found === `${clean.slice(0, mid)}_${clean.slice(mid)}`) {
+      keep({ patternType: "separator", probability: 0.42, matchedRule: "separator:mid_underscore" });
+    }
+    if (found === `${clean.slice(0, mid)}.${clean.slice(mid)}`) {
+      keep({ patternType: "separator", probability: 0.40, matchedRule: "separator:mid_dot" });
+    }
+    const tq = Math.floor(clean.length * 0.7);
+    if (found === `${clean.slice(0, tq)}_${clean.slice(tq)}`) {
+      keep({ patternType: "separator", probability: 0.38, matchedRule: "separator:70pct_underscore" });
+    }
+  }
+
+  // ── No-separator bare suffixes ──────────────────────────────────────────────
+  const bareSuffixes: Array<[string, number]> = [
+    ["tv", 0.38], ["fan", 0.36], ["real", 0.34], ["live", 0.32],
+    ["hq", 0.30], ["vip", 0.29], ["media", 0.28],
+  ];
+  for (const [bare, prob] of bareSuffixes) {
+    if (found === `${clean}${bare}`) {
+      keep({ patternType: "suffix", probability: prob, matchedRule: `suffix_bare:${bare}` });
+    }
+  }
+
+  return best;
+}
+
+/**
  * Get mutations grouped by pattern type.
  * Useful for budgeted discovery (e.g. run all suffix mutations before substitutions).
  */

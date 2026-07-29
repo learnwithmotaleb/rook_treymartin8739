@@ -23,6 +23,7 @@ import {
   updateAccount as apiUpdateAccount,
   updateMe,
   reverseImageSearch,
+  refreshAccountTokens,
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
@@ -299,6 +300,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRefreshingRef = useRef(false);
   const lastRefreshedAtRef = useRef(0);
+  // Proactive token refresh: only once per app session (not on every render).
+  const hasRefreshedTokensRef = useRef(false);
   const [indexedPhotos, setIndexedPhotos] = useState<IndexedPhoto[]>([]);
   const indexedPhotosRef = useRef<IndexedPhoto[]>([]);
   const [localPhotoThreats, setLocalPhotoThreats] = useState<Threat[]>([]);
@@ -433,6 +436,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHasSeenOnboarding(false);
       setIsOnboardingReady(true);
     }
+    // Proactively refresh account tokens once per app session so scans never
+    // start with stale X / Facebook / Instagram tokens.
+    if (!hasRefreshedTokensRef.current) {
+      hasRefreshedTokensRef.current = true;
+      refreshAccountTokens().catch(() => {
+        // Non-fatal — best-effort proactive refresh; scheduler handles missed refreshes.
+      });
+    }
+
     // If the caller passes a real name/email (from Clerk's useUser()), patch the
     // DB record so the user sees their actual name instead of "Shield User".
     const load = (name || email)
@@ -454,6 +466,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setHasSeenOnboarding(false);
     setIsOnboardingReady(false);
     clerkUserIdRef.current = null;
+    // Reset so the next user who logs in also gets a proactive token refresh.
+    hasRefreshedTokensRef.current = false;
     AsyncStorage.setItem("isLoggedIn", "false");
     AsyncStorage.removeItem("indexedPhotos");
     AsyncStorage.removeItem("localPhotoThreats");

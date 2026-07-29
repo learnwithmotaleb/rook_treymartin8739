@@ -86,7 +86,6 @@ function AccountCard({
   deleting: boolean;
 }) {
   const colors = useColors();
-  const needsReconnect = account.needsReconnect;
   const [status, setStatus] = useState<AccountStatus | null>(null);
 
   useEffect(() => {
@@ -95,6 +94,15 @@ function AccountCard({
       .then(setStatus)
       .catch(() => {});
   }, [account.id, account.verified]);
+
+  // The reconnect strip should only display when the token is ACTUALLY expired.
+  // If the token is still valid (tokenExpiresAt in the future), the needsReconnect
+  // flag may be stale from a previous failure that was later auto-recovered by the
+  // proactive refresh loop. Suppress the strip until we confirm expiry.
+  const tokenIsActuallyExpired =
+    !status?.tokenExpiresAt ||
+    new Date(status.tokenExpiresAt) < new Date();
+  const needsReconnect = account.needsReconnect && tokenIsActuallyExpired;
 
   const handleDelete = () => {
     Alert.alert(

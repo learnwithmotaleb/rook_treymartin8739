@@ -27,7 +27,7 @@
 
 import { logger } from "../lib/logger";
 import { trackApiCall } from "./costTracker";
-import { generateUsernameMutations } from "./usernameMutationService";
+import { generateUsernameMutations, classifyDiscoveredUsername } from "./usernameMutationService";
 
 /**
  * Relationship context: how this page/account relates to the victim.
@@ -83,6 +83,17 @@ export interface WebSearchCandidate {
     following?: number;
     totalPosts?: number;
     accountAgeDays?: number;
+  };
+  /**
+   * Mutation pattern matched by the reverse classifier.
+   * Present when the discovered username matches a known impersonation pattern
+   * (e.g. "suffix:_official" for @user_official when victim is @user).
+   * Used in threat-card evidence detail to explain WHY this username is suspicious.
+   */
+  matchedPattern?: {
+    patternType: string;
+    probability: number;
+    matchedRule: string;
   };
 }
 
@@ -641,10 +652,17 @@ async function searchByUsernameVariants(
       if (seen.has(key)) continue;
       seen.add(key);
 
+      // Apply reverse classifier: does this discovered username match a known mutation pattern?
+      const mutClassification = classifyDiscoveredUsername(clean, found);
+
+      // Fall back to heuristic similarity only when no pattern matched.
       const isBare = value.kind === "bare";
-      const similarity = found.startsWith(clean) || found.includes(clean)
+      const heuristicSimilarity = found.startsWith(clean) || found.includes(clean)
         ? (isBare ? 0.75 : 0.85)
         : (isBare ? 0.4 : 0.55);
+      const similarity = mutClassification
+        ? Math.max(mutClassification.probability, heuristicSimilarity)
+        : heuristicSimilarity;
 
       // Skip self-declared fan/parody accounts
       if (isFanAccountSignal(found, item.title ?? "", item.snippet ?? "")) continue;
@@ -666,6 +684,13 @@ async function searchByUsernameVariants(
         discoveryMethod: "username_variant",
         datePublished: extractDatePublished(item),
         relationshipContext: relCtx,
+        ...(mutClassification && {
+          matchedPattern: {
+            patternType: mutClassification.patternType,
+            probability: mutClassification.probability,
+            matchedRule: mutClassification.matchedRule,
+          },
+        }),
       });
     }
   }
@@ -773,14 +798,24 @@ async function directVariantProbe(
 
           const key = `${platform}:${variant}`;
           seen.add(key);
+          // Reverse-classify to determine if this variant matches a known pattern
+          const mutClass = classifyDiscoveredUsername(clean, variant);
+          const heuristicSim = variant.startsWith(clean) || variant.includes(clean) ? 0.82 : 0.58;
           candidates.push({
             username: variant,
             platform,
             profileUrl,
             title: `${variant} on ${platform}`,
             snippet: `Discovered via direct profile URL probe`,
-            similarity: variant.startsWith(clean) || variant.includes(clean) ? 0.82 : 0.58,
+            similarity: mutClass ? Math.max(mutClass.probability, heuristicSim) : heuristicSim,
             discoveryMethod: "username_variant",
+            ...(mutClass && {
+              matchedPattern: {
+                patternType: mutClass.patternType,
+                probability: mutClass.probability,
+                matchedRule: mutClass.matchedRule,
+              },
+            }),
           });
           logger.info({ variant, platform }, "Direct probe: active profile found");
         } catch {
@@ -929,13 +964,15 @@ async function searchXApiVariants(
         seen.add(key);
 
         const followers = user.public_metrics?.followers_count ?? 0;
-        const similarity =
-          uname.includes(clean) || clean.includes(uname) ? 0.85 : 0.60;
 
         // Calculate account age from creation date
         const accountAgeDays = user.created_at
           ? Math.floor((Date.now() - new Date(user.created_at).getTime()) / 86_400_000)
           : undefined;
+
+        // Reverse-classify for known pattern match
+        const mutClassX = classifyDiscoveredUsername(clean, uname);
+        const heuristicSimX = (uname.includes(clean) || clean.includes(uname)) ? 0.85 : 0.65;
 
         candidates.push({
           username: uname,
@@ -943,9 +980,7 @@ async function searchXApiVariants(
           profileUrl: `https://x.com/${user.username}`,
           title: `${user.name} (@${user.username}) / X`,
           snippet: user.description?.slice(0, 200) ?? `X account with ${followers} followers`,
-          // Substring variants get a higher similarity score; non-substring still
-          // require meaningful overlap but not as strict as 0.72 was.
-          similarity: (uname.includes(clean) || clean.includes(uname)) ? 0.85 : 0.65,
+          similarity: mutClassX ? Math.max(mutClassX.probability, heuristicSimX) : heuristicSimX,
           discoveryMethod: "username_variant",
           datePublished: user.created_at,
           accountQuality: {
@@ -954,6 +989,13 @@ async function searchXApiVariants(
             totalPosts: user.public_metrics?.tweet_count,
             accountAgeDays,
           },
+          ...(mutClassX && {
+            matchedPattern: {
+              patternType: mutClassX.patternType,
+              probability: mutClassX.probability,
+              matchedRule: mutClassX.matchedRule,
+            },
+          }),
         });
 
         logger.info(
@@ -1043,8 +1085,8 @@ async function instagramVariantProbe(
           if (!user?.username) return;
 
           seen.add(key);
-          const similarity =
-            variant.includes(clean) || clean.includes(variant) ? 0.85 : 0.6;
+          const mutClassIG = classifyDiscoveredUsername(clean, variant);
+          const heuristicSimIG = variant.includes(clean) || clean.includes(variant) ? 0.85 : 0.6;
           candidates.push({
             username: variant,
             platform: "instagram",
@@ -1055,11 +1097,18 @@ async function instagramVariantProbe(
             snippet:
               user.biography?.slice(0, 200) ??
               `Instagram account with ${user.edge_followed_by?.count ?? 0} followers`,
-            similarity,
+            similarity: mutClassIG ? Math.max(mutClassIG.probability, heuristicSimIG) : heuristicSimIG,
             discoveryMethod: "username_variant",
             accountQuality: user.edge_followed_by?.count != null
               ? { followers: user.edge_followed_by.count }
               : undefined,
+            ...(mutClassIG && {
+              matchedPattern: {
+                patternType: mutClassIG.patternType,
+                probability: mutClassIG.probability,
+                matchedRule: mutClassIG.matchedRule,
+              },
+            }),
           });
           logger.info(
             { variant, name: user.full_name, followers: user.edge_followed_by?.count },
@@ -1160,9 +1209,10 @@ async function tiktokVariantProbe(
             return;
           }
 
-          // Non-substring TikTok variants are lower-confidence (oEmbed gives no bio/followers)
-          // but still worth surfacing at a reduced similarity score.
+          // Apply reverse classifier then fall back to substring heuristic
+          const mutClassTT = classifyDiscoveredUsername(clean, variant);
           const isSubstring = variant.includes(clean) || clean.includes(variant);
+          const heuristicSimTT = isSubstring ? 0.82 : 0.65;
 
           candidates.push({
             username: variant,
@@ -1170,9 +1220,16 @@ async function tiktokVariantProbe(
             profileUrl,
             title: `${data.author_name} (@${variant}) on TikTok`,
             snippet: tikTokTitle || `TikTok account @${variant} by ${data.author_name}`,
-            similarity: isSubstring ? 0.82 : 0.65, // substring = stronger signal
+            similarity: mutClassTT ? Math.max(mutClassTT.probability, heuristicSimTT) : heuristicSimTT,
             discoveryMethod: "username_variant",
             relationshipContext: relCtx !== "unknown" ? relCtx : undefined,
+            ...(mutClassTT && {
+              matchedPattern: {
+                patternType: mutClassTT.patternType,
+                probability: mutClassTT.probability,
+                matchedRule: mutClassTT.matchedRule,
+              },
+            }),
           });
           logger.info(
             { variant, name: data.author_name },
@@ -1844,15 +1901,25 @@ export async function searchForImpersonators(
     "Starting web impersonator search"
   );
 
-  // ── Run all four strategies concurrently ─────────────────────────────────
-  // Strategy 1a (username variants), 1b (display name), 2 (vision), and 3
-  // (captions) are fully independent — none of their inputs depend on another's
-  // output. Running them in parallel cuts wall-clock time to max(each strategy)
-  // instead of sum(all strategies). The shared `seen` Set is safe because JS
-  // callbacks are serialised through the microtask queue (no true concurrency).
+  // ── Two-phase search ──────────────────────────────────────────────────────
+  //
+  // Phase 1 (parallel): Vision reverse image search + all direct platform probes.
+  //   These are the highest-signal, lowest-cost strategies. Vision confirms photo
+  //   theft; direct probes confirm real account existence without CSE quota.
+  //   Running them first surfaces the most reliable impersonators quickly.
+  //
+  // Phase 2 (starts after Phase 1 resolves):
+  //   1. Targeted CSE confirmation for any platform:username pairs found in Phase 1
+  //      by Vision (high-confidence image evidence) — fires specific handle searches
+  //      to gather additional corroborating evidence before the broad sweep.
+  //   2. Broad username-variant CSE sweep (Strategy 1a).
+  //   3. Display-name / handle search (Strategy 1b).
+  //   Parts 1-3 of Phase 2 run concurrently with each other.
+  //
+  // The shared `seen` Set is safe for parallel use: JS callbacks are serialised
+  // through the microtask queue (no true concurrency).
 
-  // Separate seen sets per strategy to avoid cross-contamination during parallel
-  // execution; merge all into the shared `seen` at the end.
+  // Separate seen sets per strategy to avoid cross-contamination.
   const seen1a = new Set<string>(seen);
   const seen1b = new Set<string>(seen);
   const seen1c = new Set<string>(seen);
@@ -1863,65 +1930,37 @@ export async function searchForImpersonators(
 
   type StrategyResult = { tag: string; candidates: WebSearchCandidate[] };
 
-  const strategyTasks: Promise<StrategyResult>[] = [];
+  // ── Phase 1: Vision + direct platform probes ──────────────────────────────
+  const phase1Tasks: Promise<StrategyResult>[] = [];
 
-  // Strategy 1a: username variant CSE (or direct probe fallback)
-  if (cseEnabled && targetPlatforms.length > 0) {
-    strategyTasks.push(
-      searchByUsernameVariants(clean, targetPlatforms, seen1a, suffixLimit)
-        .then((c) => ({ tag: "1a", candidates: c }))
-    );
-  } else if (!cseEnabled) {
-    logger.info({}, "GOOGLE_SEARCH_CX not set — using direct platform URL probe");
-    const probeTargets = targetPlatforms.filter((p) => p !== "facebook");
-    strategyTasks.push(
-      directVariantProbe(clean, probeTargets, seen1a)
-        .then((c) => ({ tag: "1a_probe", candidates: c }))
-    );
-  }
-
-  // Strategy 1c: X API direct variant lookup (always runs when Twitter credentials are set)
-  // Batch-checks up to 100 username variants via the official X API v2 — faster and
-  // more accurate than HTTP probing, and independent of CSE/Google.
+  // Strategy 1c: X API direct variant lookup
   if (targetPlatforms.includes("x") && (process.env["TWITTER_CLIENT_ID"] || process.env["TWITTER_CLIENT_SECRET"])) {
-    strategyTasks.push(
+    phase1Tasks.push(
       searchXApiVariants(clean, seen1c)
         .then((c) => ({ tag: "1c_xapi", candidates: c }))
     );
   }
 
-  // Strategy 1d: Instagram web profile JSON probe (always runs for instagram targets)
-  // Uses Instagram's internal web profile API endpoint — no auth required, works from
-  // server IPs (unlike the HTML page which 429s from data-center addresses).
+  // Strategy 1d: Instagram web profile JSON probe
   if (targetPlatforms.includes("instagram")) {
-    strategyTasks.push(
+    phase1Tasks.push(
       instagramVariantProbe(clean, seen1d)
         .then((c) => ({ tag: "1d_instagram", candidates: c }))
     );
   }
 
-  // Strategy 1e: TikTok oEmbed direct probe (always runs for tiktok targets)
-  // Uses TikTok's public oEmbed API — no auth required, returns JSON indicating
-  // whether a profile exists (200) or not (400). Covers all username variants.
+  // Strategy 1e: TikTok oEmbed direct probe
   if (targetPlatforms.includes("tiktok")) {
-    strategyTasks.push(
+    phase1Tasks.push(
       tiktokVariantProbe(clean, seen1e)
         .then((c) => ({ tag: "1e_tiktok", candidates: c }))
-    );
-  }
-
-  // Strategy 1b: display name + normalized handle
-  if (hasNameTargets) {
-    strategyTasks.push(
-      searchByDisplayNameAndHandle(displayName ?? null, clean, seen1b)
-        .then((c) => ({ tag: "1b", candidates: c }))
     );
   }
 
   // Strategy 2: Cloud Vision reverse image search
   if (cappedPhotoUrls.length > 0 && visionEnabled) {
     logger.info({ imageCount: cappedPhotoUrls.length, planTier }, "Running reverse image search (tier-limited)");
-    strategyTasks.push(
+    phase1Tasks.push(
       searchByImageUrls(cappedPhotoUrls, clean, allPlatforms, seen2)
         .then((c) => ({ tag: "2", candidates: c }))
     );
@@ -1931,20 +1970,158 @@ export async function searchForImpersonators(
     logger.info({ username: clean }, "Cloud Vision not configured — reverse image search skipped");
   }
 
-  // Strategy 3: caption text search
+  // Strategy 3: caption text search (runs in Phase 1 — fully independent)
   if (cappedCaptions.length > 0 && cseEnabled) {
-    strategyTasks.push(
+    phase1Tasks.push(
       searchByCaptions(cappedCaptions, clean, targetPlatforms, seen3)
         .then((c) => ({ tag: "3", candidates: c }))
     );
   }
 
-  const strategyResults = await Promise.allSettled(strategyTasks);
+  logger.info(
+    { username: clean, phase1Tasks: phase1Tasks.length },
+    "Phase 1 search starting (Vision + direct probes)"
+  );
 
-  // Merge results, deduplicating across strategies using the shared `seen` set
-  for (const r of strategyResults) {
+  const phase1Results = await Promise.allSettled(phase1Tasks);
+
+  // Merge Phase 1 results into allCandidates
+  for (const r of phase1Results) {
     if (r.status === "rejected") {
-      logger.warn({ err: r.reason }, "Search strategy failed (non-fatal)");
+      logger.warn({ err: r.reason }, "Phase 1 strategy failed (non-fatal)");
+      continue;
+    }
+    const { tag, candidates } = r.value;
+    for (const c of candidates) {
+      const key = `${c.platform}:${c.username}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      allCandidates.push(c);
+    }
+    // Track API costs for Phase 1
+    if (userId) {
+      if (tag === "2") {
+        for (let i = 0; i < cappedPhotoUrls.length; i++) trackApiCall({ userId, provider: "google_vision", operation: "image_reverse_search" });
+      } else if (tag === "3") {
+        for (let i = 0; i < cappedCaptions.length; i++) trackApiCall({ userId, provider: "google_cse", operation: "caption_search" });
+      }
+    }
+  }
+
+  // ── Phase 2: Targeted confirmation + broad CSE + display name ─────────────
+  // Collect Vision-discovered platform:username pairs to target in Phase 2.
+  // Only image_search candidates are used as seeds — they are the highest-signal
+  // Phase 1 output (visual proof, not just username pattern matching).
+  const visionDiscoveries = allCandidates
+    .filter((c) => c.discoveryMethod === "image_search")
+    .map((c) => ({ platform: c.platform, username: c.username }));
+
+  const seen2x = new Set<string>(seen);
+
+  const phase2Tasks: Promise<StrategyResult>[] = [];
+
+  // Targeted CSE confirmation for Vision-discovered handles
+  if (cseEnabled && visionDiscoveries.length > 0) {
+    phase2Tasks.push(
+      (async (): Promise<StrategyResult> => {
+        const confirmed: WebSearchCandidate[] = [];
+        // Deduplicate discovered usernames to avoid redundant queries
+        const uniqueDiscovered = [...new Map(
+          visionDiscoveries.map((d) => [`${d.platform}:${d.username}`, d])
+        ).values()];
+
+        // Use a task-local seen set so we don't pre-mark keys in the global `seen`.
+        // The global `seen` is only read here (to skip already-found candidates);
+        // new keys are added during the Phase 2 merge loop, not inside this task.
+        const taskSeen = new Set<string>(seen);
+
+        await Promise.allSettled(
+          uniqueDiscovered.map(async ({ username: dUsername }) => {
+            if (seen2x.has(`confirmed:${dUsername}`)) return;
+            seen2x.add(`confirmed:${dUsername}`);
+
+            const siteFilter = targetPlatforms
+              .map((p) => `site:${PLATFORM_PATTERNS[p]!.host}`)
+              .join(" OR ");
+            const query = `"${dUsername}" (${siteFilter})`;
+            const items = await runGoogleSearch(query);
+
+            for (const item of items) {
+              const extracted = extractUsernameFromUrl(item.link);
+              if (!extracted) continue;
+              const { username: found, platform } = extracted;
+              if (found === clean) continue;
+              const key = `${platform}:${found}`;
+              // Skip candidates already in the global set OR already seen in this task
+              if (taskSeen.has(key)) continue;
+              taskSeen.add(key); // track within task to avoid duplicates across queries
+
+              const mutClass = classifyDiscoveredUsername(clean, found);
+              const hSim = found.includes(clean) || clean.includes(found) ? 0.85 : 0.60;
+              const relCtx = classifyPageRelationshipContext(clean, found, item.title ?? "", item.snippet ?? "");
+              if (relCtx === "credit") continue;
+              if (isFanAccountSignal(found, item.title ?? "", item.snippet ?? "")) continue;
+
+              confirmed.push({
+                username: found,
+                platform,
+                profileUrl: item.link,
+                title: item.title,
+                snippet: item.snippet,
+                similarity: mutClass ? Math.max(mutClass.probability, hSim) : hSim,
+                discoveryMethod: "username_variant",
+                datePublished: extractDatePublished(item),
+                relationshipContext: relCtx,
+                ...(mutClass && {
+                  matchedPattern: {
+                    patternType: mutClass.patternType,
+                    probability: mutClass.probability,
+                    matchedRule: mutClass.matchedRule,
+                  },
+                }),
+              });
+            }
+          })
+        );
+        return { tag: "2x_confirmation", candidates: confirmed };
+      })()
+    );
+  }
+
+  // Strategy 1a: username variant CSE (or direct probe fallback)
+  if (cseEnabled && targetPlatforms.length > 0) {
+    phase2Tasks.push(
+      searchByUsernameVariants(clean, targetPlatforms, seen1a, suffixLimit)
+        .then((c) => ({ tag: "1a", candidates: c }))
+    );
+  } else if (!cseEnabled) {
+    logger.info({}, "GOOGLE_SEARCH_CX not set — using direct platform URL probe");
+    const probeTargets = targetPlatforms.filter((p) => p !== "facebook");
+    phase2Tasks.push(
+      directVariantProbe(clean, probeTargets, seen1a)
+        .then((c) => ({ tag: "1a_probe", candidates: c }))
+    );
+  }
+
+  // Strategy 1b: display name + normalized handle
+  if (hasNameTargets) {
+    phase2Tasks.push(
+      searchByDisplayNameAndHandle(displayName ?? null, clean, seen1b)
+        .then((c) => ({ tag: "1b", candidates: c }))
+    );
+  }
+
+  logger.info(
+    { username: clean, phase2Tasks: phase2Tasks.length, visionSeeds: visionDiscoveries.length },
+    "Phase 2 search starting (targeted confirmation + broad CSE)"
+  );
+
+  const phase2Results = await Promise.allSettled(phase2Tasks);
+
+  // Merge Phase 2 results
+  for (const r of phase2Results) {
+    if (r.status === "rejected") {
+      logger.warn({ err: r.reason }, "Phase 2 strategy failed (non-fatal)");
       continue;
     }
     const { tag, candidates } = r.value;
@@ -1965,17 +2142,15 @@ export async function searchForImpersonators(
       allCandidates.push(c);
     }
 
-    // Track API costs
+    // Track API costs for Phase 2
     if (userId) {
       if (tag === "1a") {
         const n = 1 + suffixLimit;
         for (let i = 0; i < n; i++) trackApiCall({ userId, provider: "google_cse", operation: "username_variant_search" });
       } else if (tag === "1b") {
         for (let i = 0; i < candidates.length; i++) trackApiCall({ userId, provider: "google_cse", operation: "name_handle_search" });
-      } else if (tag === "2") {
-        for (let i = 0; i < cappedPhotoUrls.length; i++) trackApiCall({ userId, provider: "google_vision", operation: "image_reverse_search" });
-      } else if (tag === "3") {
-        for (let i = 0; i < cappedCaptions.length; i++) trackApiCall({ userId, provider: "google_cse", operation: "caption_search" });
+      } else if (tag === "2x_confirmation" && visionDiscoveries.length > 0) {
+        for (let i = 0; i < visionDiscoveries.length; i++) trackApiCall({ userId, provider: "google_cse", operation: "vision_confirmation_search" });
       }
     }
   }

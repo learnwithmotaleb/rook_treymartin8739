@@ -336,6 +336,16 @@ export async function getAccountStatus(accountId: string): Promise<AccountStatus
   return apiFetch<AccountStatus>(`/accounts/${accountId}/status`);
 }
 
+/**
+ * Proactively refresh tokens for all connected accounts within their platform's
+ * refresh window (X: 24h, Facebook: 7d, Instagram: 50d).
+ * Called on app foreground / tab mount so a scan never starts with stale tokens.
+ * Returns the updated list of accounts.
+ */
+export async function refreshAccountTokens(): Promise<AccountProfile[]> {
+  return apiFetch<AccountProfile[]>("/accounts/refresh", { method: "POST" });
+}
+
 export type Tier = "free" | "pro" | "premium";
 
 export interface PlanLimits {

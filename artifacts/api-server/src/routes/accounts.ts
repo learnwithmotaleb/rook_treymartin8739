@@ -6,6 +6,7 @@ import { db, connectedAccountsTable } from "@workspace/db";
 import { getSubscription } from "../services/subscriptionService";
 import { PLAN_CONFIG, normalizeTier } from "../lib/planConfig";
 import { recomputeForUser } from "../services/identityAnchorService";
+import { refreshAccountTokensForUser } from "../services/schedulerService";
 
 const router: IRouter = Router();
 
@@ -329,6 +330,50 @@ router.get("/accounts/:accountId/media", async (req, res): Promise<void> => {
     const message = err instanceof Error ? err.message : String(err);
     req.log.error({ err }, "GET /accounts/:accountId/media failed");
     res.status(500).json({ error: "Failed to fetch media from platform", detail: message });
+  }
+});
+
+/**
+ * POST /api/accounts/refresh
+ *
+ * Proactively refreshes tokens for all connected accounts that are within their
+ * platform's refresh window (X: 24h, Facebook: 7d, Instagram: 50d). Called by
+ * the mobile app on foreground / tab mount so a scan never starts with stale tokens.
+ *
+ * Returns the updated list of accounts after refresh attempts complete.
+ */
+router.post("/accounts/refresh", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    // Fire refresh attempts for all platforms concurrently (best-effort, non-fatal).
+    await refreshAccountTokensForUser(userId);
+
+    // Return the freshest account list after refresh.
+    const accounts = await db
+      .select()
+      .from(connectedAccountsTable)
+      .where(eq(connectedAccountsTable.userId, userId));
+
+    res.json(
+      accounts.map((a) => ({
+        id: a.id,
+        platform: a.platform,
+        username: a.username,
+        displayName: a.displayName,
+        followers: a.followers,
+        verified: a.verified,
+        needsReconnect: a.needsReconnect,
+        tokenExpiresAt: a.tokenExpiresAt?.toISOString() ?? null,
+        photosIndexed: a.photosIndexed,
+        captionsIndexed: a.captionsIndexed,
+        reelsIndexed: a.reelsIndexed,
+        lastSynced: a.lastSynced?.toISOString() ?? null,
+      }))
+    );
+  } catch (err) {
+    req.log.error({ err }, "POST /accounts/refresh failed");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
