@@ -40,7 +40,7 @@ import {
   type DetectedEvidence,
 } from "./impersonatorDetectionService";
 import { getTopVariants } from "./usernameMutationService";
-import { getPlatformPriority, getPlatformWeightMultiplier } from "./scanConfig";
+import { getPlatformPriority, getPlatformWeightMultiplier, SCAN_CONFIG } from "./scanConfig";
 import {
   updateFingerprint,
   buildUserPhotoEmbeddings,
@@ -99,10 +99,7 @@ const SCAN_STEPS = [
   { step: "Finalizing results", progress: 98 },
 ] as const;
 
-// Platform API discovery uses top-ranked mutations from the username mutation engine.
-// Variants are fired in parallel so this limit has minimal latency impact.
-// The web search engine (webSearchService) runs many more variants via CSE.
-const PLATFORM_API_VARIANT_LIMIT = 10;
+// Platform API discovery limit is configured in scanConfig.ts → SCAN_CONFIG.platformApiVariantLimit
 
 export async function startScan(
   userId: string,
@@ -254,7 +251,7 @@ async function discoverRealImpersonators(
 
   // Phase 1: use the full mutation engine instead of the old 8-suffix list.
   // Top 20 ranked variants are searched (conservative limit — each = one API call).
-  const variantsToSearch = getTopVariants(cleanUsername, PLATFORM_API_VARIANT_LIMIT);
+  const variantsToSearch = getTopVariants(cleanUsername, SCAN_CONFIG.platformApiVariantLimit);
 
   logger.info(
     { platform: ingestedData.platform, username: cleanUsername, variantCount: variantsToSearch.length },
@@ -867,7 +864,32 @@ async function runScanPipeline(
 
   // ── Step 5: Web search for impostor profiles on unconnected platforms ─────
   const connectedPlatforms = connectedAccounts.map((a) => a.platform);
-  const primaryUsername = connectedAccounts[0]?.username ?? user.username;
+
+  // Collect ALL unique usernames and display names across connected accounts.
+  // Users often use different handles on different platforms (e.g. @johndoe on IG,
+  // @john_official on X). Each unique username gets its own web/CSE search so
+  // impersonators of any handle are discovered — not just the primary account's.
+  // Image search (Vision) and caption search run only on the first pass to avoid
+  // duplicating expensive API calls.
+  const allConnectedUsernames = [
+    ...new Set(
+      connectedAccounts
+        .map((a) => a.username?.replace(/^@/, "").toLowerCase().trim())
+        .filter((u): u is string => Boolean(u))
+    ),
+  ];
+  // Fall back to user.username if no connected accounts have usernames stored.
+  const primaryUsername = allConnectedUsernames[0] ?? (user.username ?? "");
+
+  // Unique display names — used by Strategy 1b (real-name CSE search).
+  const allDisplayNames = [
+    ...new Set(
+      connectedAccounts
+        .map((a) => a.displayName)
+        .filter((d): d is string => Boolean(d))
+    ),
+  ];
+
   // Web search runs if either CSE (text search) OR Vision (image search) is available
   const webSearchEnabled = isWebSearchConfigured() || isVisionSearchConfigured();
 
@@ -888,11 +910,13 @@ async function runScanPipeline(
       .map((a) => a.profileImageUrl)
       .filter((u): u is string => Boolean(u));
 
+    const { webSearch: webSearchLimits } = SCAN_CONFIG;
+
     const postPhotoUrls = ingestedAccounts.flatMap((a) =>
       a.mediaItems
         .filter((m) => m.type === "image" && m.url)
         .map((m) => m.url)
-        .slice(0, 8)
+        .slice(0, webSearchLimits.maxPostPhotoUrls)
     );
 
     // For unverified / manually-connected accounts that produced no ingested
@@ -909,20 +933,19 @@ async function runScanPipeline(
       ...profilePhotoUrls,
       ...postPhotoUrls,
       ...indexedPhotoUrls,
-    ].slice(0, 10);
+    ].slice(0, webSearchLimits.maxTotalPhotoUrls);
 
     const allCaptions = ingestedAccounts.flatMap((a) =>
       a.mediaItems
         .map((m) => m.caption)
         .filter((c): c is string => typeof c === "string" && c.length >= 30)
-        .slice(0, 5)
+        .slice(0, webSearchLimits.maxCaptions)
     );
 
-    // Display name — used by Strategy 1b (name search) to find accounts
-    // claiming the person's real name regardless of their handle.
-    // Falls back to null when no display name is stored (e.g. unverified accounts).
-    const primaryDisplayName =
-      connectedAccounts[0]?.displayName ?? null;
+    // All display names across accounts — Strategy 1b (real-name CSE) uses these.
+    // Most impersonators copy the real name, not just the handle, so searching
+    // every display name the user goes by maximises coverage.
+    const primaryDisplayName = allDisplayNames[0] ?? null;
 
     logger.info(
       {
@@ -957,15 +980,50 @@ async function runScanPipeline(
         "Web search cache HIT — skipping external API calls"
       );
     } else {
-      webCandidates = await searchForImpersonators({
-        username: primaryUsername,
-        connectedPlatforms,
-        photoUrls: allPhotoUrls,
-        captions: allCaptions,
-        planTier,
-        userId,
-        displayName: primaryDisplayName ?? undefined,
-      });
+      // Run web search for EVERY unique username across all connected accounts.
+      // Image search (Vision) and caption search run only on the first pass to
+      // avoid duplicating expensive API calls — they're photo/text-based, not
+      // username-based, so one call covers all accounts.
+      // Text search (CSE + direct probes) runs per unique username so impersonators
+      // of any handle the user goes by are discovered.
+      const seenWebKeys = new Set<string>();
+      const mergedWebCandidates: typeof webCandidates = [];
+
+      const searchTargets = allConnectedUsernames.length > 0
+        ? allConnectedUsernames
+        : [primaryUsername];
+
+      for (let i = 0; i < searchTargets.length; i++) {
+        const searchUsername = searchTargets[i]!;
+        const searchDisplayName = allDisplayNames[i] ?? allDisplayNames[0] ?? undefined;
+
+        const results = await searchForImpersonators({
+          username: searchUsername,
+          connectedPlatforms,
+          // Only pass photos and captions on the first pass to avoid duplicate
+          // Vision API calls — image/caption search is not username-dependent.
+          photoUrls: i === 0 ? allPhotoUrls : [],
+          captions: i === 0 ? allCaptions : [],
+          planTier,
+          userId,
+          displayName: searchDisplayName,
+        });
+
+        for (const c of results) {
+          const key = `${c.platform}:${c.username.toLowerCase().replace(/^@/, "")}`;
+          if (!seenWebKeys.has(key)) {
+            seenWebKeys.add(key);
+            mergedWebCandidates.push(c);
+          }
+        }
+
+        logger.info(
+          { searchUsername, pass: i + 1, total: searchTargets.length, found: results.length, merged: mergedWebCandidates.length },
+          "Web search pass complete"
+        );
+      }
+
+      webCandidates = mergedWebCandidates;
 
       // Cache results only when candidates were found — never cache empty results
       // so the next scan can retry the APIs instead of serving a stale zero.
@@ -989,7 +1047,7 @@ async function runScanPipeline(
     logger.info(
       {
         count: webCandidates.length,
-        username: primaryUsername,
+        usernamesSearched: allConnectedUsernames.length || 1,
         byMethod: {
           username_variant: webCandidates.filter((c) => c.discoveryMethod === "username_variant").length,
           image_search: webCandidates.filter((c) => c.discoveryMethod === "image_search").length,

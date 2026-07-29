@@ -367,9 +367,10 @@ export function computeTemporalScore(
   const suspiciousMs = suspicious.getTime();
   const deltaDays = Math.floor((suspiciousMs - victimMs) / (1000 * 60 * 60 * 24));
 
-  if (deltaDays >= 2) return { modifier: 15, deltaDays };
-  if (deltaDays === 1) return { modifier: 0, deltaDays };
-  return { modifier: -10, deltaDays };
+  const { temporalScore } = SCAN_CONFIG;
+  if (deltaDays >= temporalScore.jitterDays + 1) return { modifier: temporalScore.postDatingModifier, deltaDays };
+  if (deltaDays === temporalScore.jitterDays)    return { modifier: temporalScore.jitterModifier, deltaDays };
+  return { modifier: temporalScore.preDatingModifier, deltaDays };
 }
 
 /**

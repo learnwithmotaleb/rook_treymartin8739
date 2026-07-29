@@ -143,6 +143,33 @@ export const SCAN_CONFIG = {
     minProfileImageSimilarity: 0.42,   // higher floor on first scan (was 0.50 — too tight)
     minMediaSimilarityPoints: 22,      // raw media pts floor (out of 40 max)
   },
+
+  // ── Temporal score modifiers ───────────────────────────────────────────────
+  // Added to the threat score based on whether the suspicious account posted
+  // AFTER the victim's original upload date.
+  //   postDating  (≥2 days after victim) → strong confirmation signal
+  //   jitter      (exactly 1 day after)  → within clock/timezone tolerance; neutral
+  //   preDating   (same day or before)   → contra-indicator
+  temporalScore: {
+    postDatingModifier: 15,    // suspicious posted ≥2 days after victim
+    jitterModifier: 0,         // within 1-day clock jitter — neutral
+    preDatingModifier: -10,    // suspicious predates victim — reduces score
+    jitterDays: 1,             // days within which we treat as "same day" jitter
+  },
+
+  // ── Platform API variant discovery limit ───────────────────────────────────
+  // Number of top-ranked username mutations to search via platform API per account.
+  // Each variant = one API call; all fire in parallel so this has low latency impact.
+  platformApiVariantLimit: 10,
+
+  // ── Web search input limits ────────────────────────────────────────────────
+  // Controls how many photos/captions are prepared for web/Vision search.
+  // These are pre-tier caps; tier-based limits in webSearchService further reduce them.
+  webSearch: {
+    maxPostPhotoUrls: 8,        // post photos fed into Vision reverse image search
+    maxTotalPhotoUrls: 10,      // total photo URLs (profile + post + indexed) per search call
+    maxCaptions: 5,             // verbatim captions fed into CSE caption search
+  },
 } as const;
 
 /** Return the platform scan priority (lower = higher priority). Unknowns get 99. */
