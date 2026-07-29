@@ -620,6 +620,8 @@ function webCandidateToImpersonator(
     suspiciousProfileImageUrl: stolenProfilePhotoUrl,
     // Carry relationship context through for severity capping in the scoring loop
     relationshipContext: wc.relationshipContext,
+    // Account quality data from platform APIs — stored in scoreBreakdownJson for the mobile UI
+    accountQuality: wc.accountQuality,
   };
 }
 

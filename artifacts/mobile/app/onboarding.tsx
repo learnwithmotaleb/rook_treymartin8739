@@ -134,7 +134,6 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   ).current;
 
   const heroAnim     = useRef(new Animated.Value(0)).current;
-  const glowAnim     = useRef(new Animated.Value(0)).current;
   const headlineAnim = useRef(new Animated.Value(0)).current;
   const subAnim      = useRef(new Animated.Value(0)).current;
   const bodyAnim     = useRef(new Animated.Value(0)).current;
@@ -142,11 +141,6 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
 
   useEffect(() => {
     Animated.timing(heroAnim, { toValue: 1, duration: rm ? 0 : 700, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
-
-    Animated.loop(Animated.sequence([
-      Animated.timing(glowAnim, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(glowAnim, { toValue: 0.15, duration: 3000, useNativeDriver: true }),
-    ])).start();
 
     if (!rm) {
       Animated.stagger(160, [
@@ -171,7 +165,6 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
     });
   }, []);
 
-  const glowOp = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.5] });
   const headY  = headlineAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
   const subY   = subAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
   const bodyY  = bodyAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
@@ -182,10 +175,10 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
       <Animated.View style={[hook.heroWrap, { opacity: heroAnim }]}>
         <RNImage source={WELCOME_HERO} style={hook.heroImage} resizeMode="cover" />
 
-        {/* Bottom blend — smooth fade into the background colour starting at 38% */}
+        {/* Bottom blend — fade starts at 30%, photo is fully dissolved by 82% so text floats over it */}
         <LinearGradient
-          colors={["transparent", colors.background + "00", colors.background + "C8", colors.background]}
-          locations={[0, 0.38, 0.70, 1]}
+          colors={["transparent", colors.background + "00", colors.background + "BB", colors.background]}
+          locations={[0, 0.30, 0.65, 1]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
@@ -195,14 +188,6 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
           locations={[0, 0.28]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
-        />
-
-        {/* Blue neon scanning rings */}
-        <Animated.View pointerEvents="none"
-          style={[hook.glowRing, { borderColor: colors.primary, opacity: glowOp }]}
-        />
-        <Animated.View pointerEvents="none"
-          style={[hook.glowRingInner, { borderColor: colors.primary + "55", opacity: glowAnim }]}
         />
 
         {/* Orbiting particle dots */}
@@ -233,14 +218,12 @@ function BrandHookScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
   );
 }
 const hook = StyleSheet.create({
-  heroWrap:      { width: "100%", height: "60%", overflow: "hidden" },
-  heroImage:     { width: "100%", height: "100%" },
-  glowRing:      { position: "absolute", alignSelf: "center", top: "18%", width: 220, height: 220, borderRadius: 110, borderWidth: 1.5 },
-  glowRingInner: { position: "absolute", alignSelf: "center", top: "29%", width: 145, height: 145, borderRadius: 73, borderWidth: 1 },
-  textBlock:     { flex: 1, paddingHorizontal: 28, paddingTop: 14, gap: 10, justifyContent: "center" },
-  headline:      { fontSize: 30, lineHeight: 38, textAlign: "center" },
-  sub:           { fontSize: 16, textAlign: "center" },
-  body:          { fontSize: 13, textAlign: "center", lineHeight: 21, maxWidth: 310, alignSelf: "center" },
+  heroWrap:  { width: "100%", height: "72%", overflow: "hidden" },
+  heroImage: { width: "100%", height: "100%" },
+  textBlock: { flex: 1, paddingHorizontal: 28, gap: 10, justifyContent: "flex-start", marginTop: -72, paddingTop: 0 },
+  headline:  { fontSize: 30, lineHeight: 38, textAlign: "center" },
+  sub:       { fontSize: 16, textAlign: "center" },
+  body:      { fontSize: 13, textAlign: "center", lineHeight: 21, maxWidth: 310, alignSelf: "center" },
 });
 
 // ─── S1: Credible Stat ────────────────────────────────────────────────────────
@@ -2103,13 +2086,16 @@ export default function Onboarding() {
     const finalAnswers = buildFinalAnswers();
     saveAndFinish(finalAnswers);
     analytics.onboardingSkipped({ at_step: step });
-    router.replace("/(tabs)" as any);
+    // Route to paywall — skipping the questionnaire doesn't skip the subscription
+    // screen. The paywall has its own close/X that drops to free tier.
+    router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: "0" } } as any);
   }, [buildFinalAnswers, step, saveAndFinish]);
 
   const handleMaybeLater = useCallback(() => {
     const finalAnswers = buildFinalAnswers();
     saveAndFinish(finalAnswers);
-    router.replace("/(tabs)" as any);
+    // Same as skip — show the paywall rather than bypassing it entirely.
+    router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: "0" } } as any);
   }, [buildFinalAnswers, saveAndFinish]);
 
   // Steps that auto-advance on selection — no footer CTA shown

@@ -56,23 +56,23 @@ export const SCAN_CONFIG = {
     lowCapThreshold: 0.20,         // <20% → cap at Low
   },
 
-  // ── Phase 11: Strict false positive protection ─────────────────────────────
+  // ── High severity evidence gates ──────────────────────────────────────────
   // High severity requires meeting at LEAST ONE of two evidence gates.
   // Neither gate can be satisfied by username similarity alone.
   //
-  //   Option A: near-certain visual ID (profile photo ≥ 90% pHash) + ≥1 stolen post
+  //   Option A: strong visual ID (profile photo ≥ 82% pHash) + ≥1 stolen post
   //   Option B: multiple stolen posts (≥ 3) + combined score confirms clear intent
   //
   // If neither gate is met, maximum severity is Medium regardless of combined score.
   // This prevents username-variant-only or weak-photo candidates from reaching High.
   highSeverityGate: {
     optionA: {
-      minProfileSimilarity: 0.90, // ↑ was 0.80 — near-exact pHash match required
+      minProfileSimilarity: 0.82, // strong pHash match required (was 0.90 — too tight)
       minMatchedMedia: 2,         // profile + ≥1 additional stolen post photo
     },
     optionB: {
       minMatchedMedia: 3,         // at least 3 confirmed stolen media items
-      minCombinedScore: 75,       // ↑ was 70 — stronger combined evidence required
+      minCombinedScore: 72,       // strong combined evidence required (was 75)
     },
   },
 
@@ -85,10 +85,10 @@ export const SCAN_CONFIG = {
 
   // ── Dual score gate for High severity ─────────────────────────────────────
   // Both Identity Match AND Impersonation Confidence must clear thresholds.
-  // Phase 9 gates are checked first; this is an additional safeguard.
+  // The option gates above are checked first; this is an additional safeguard.
   dualScoreGate: {
-    minIdentityMatchForHigh: 58,          // ↑ was 50 — tighter
-    minImpersonationConfForHigh: 58,      // ↑ was 50 — tighter
+    minIdentityMatchForHigh: 52,          // balanced gate (was 58 — stacked too tightly)
+    minImpersonationConfForHigh: 52,      // balanced gate (was 58 — stacked too tightly)
   },
 
   // ── Combined score severity thresholds ────────────────────────────────────
@@ -140,7 +140,7 @@ export const SCAN_CONFIG = {
   // On the first scan, apply a stricter gate to avoid false positives.
   // Score is zeroed when both conditions apply.
   firstScan: {
-    minProfileImageSimilarity: 0.50,   // ↑ was 0.40 — higher floor on first scan
+    minProfileImageSimilarity: 0.42,   // higher floor on first scan (was 0.50 — too tight)
     minMediaSimilarityPoints: 22,      // raw media pts floor (out of 40 max)
   },
 } as const;

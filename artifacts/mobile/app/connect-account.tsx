@@ -185,12 +185,16 @@ function OAuthButton({
       let state: string;
       let authUrl: string;
       if (platform === "x") {
-        const { state: xState, codeChallenge } = await getXOAuthInit();
+        const { state: xState, codeChallenge, redirectUri: initRedirectUri } = await getXOAuthInit();
         state = xState;
         // Use the server-provided client ID from redirect-uris as a fallback
         // when EXPO_PUBLIC_TWITTER_CLIENT_ID isn't bundled in the Expo app.
         const xClientId = (redirectUriMap as Record<string, string>)["x_client_id"] || clientId;
-        authUrl = buildAuthUrl(platform, xClientId, state, redirectUrl, {
+        // IMPORTANT: use the redirectUri returned by init — it is embedded in the
+        // PKCE state token so the callback's token exchange uses the exact same URI.
+        // Falling back to redirectUriMap["x"] in case older server omits the field.
+        const xRedirectUrl = initRedirectUri ?? redirectUrl;
+        authUrl = buildAuthUrl(platform, xClientId, state, xRedirectUrl, {
           code_challenge: codeChallenge,
           code_challenge_method: "S256",
         });

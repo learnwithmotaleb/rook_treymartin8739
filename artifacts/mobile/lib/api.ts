@@ -237,8 +237,8 @@ export async function getOAuthState(): Promise<string> {
   return result.state;
 }
 
-export async function getXOAuthInit(): Promise<{ state: string; codeChallenge: string }> {
-  return apiFetch<{ state: string; codeChallenge: string }>("/oauth/x/init", { method: "POST" });
+export async function getXOAuthInit(): Promise<{ state: string; codeChallenge: string; redirectUri?: string }> {
+  return apiFetch<{ state: string; codeChallenge: string; redirectUri?: string }>("/oauth/x/init", { method: "POST" });
 }
 
 export async function startScan(options: { bypassCache?: boolean } = {}): Promise<ScanJob> {

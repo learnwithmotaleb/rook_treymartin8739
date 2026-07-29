@@ -72,6 +72,18 @@ export interface WebSearchCandidate {
    * Used for temporal signal: real impersonators always post AFTER the victim.
    */
   datePublished?: string;
+  /**
+   * Account quality data returned by platform APIs (X, Instagram).
+   * Not available for candidates discovered via Google text/image search.
+   * Stored in scoreBreakdownJson at scan time so the mobile UI can display
+   * follower/post/age stats without a separate API call.
+   */
+  accountQuality?: {
+    followers: number;
+    following?: number;
+    totalPosts?: number;
+    accountAgeDays?: number;
+  };
 }
 
 interface GoogleSearchItem {
@@ -920,15 +932,28 @@ async function searchXApiVariants(
         const similarity =
           uname.includes(clean) || clean.includes(uname) ? 0.85 : 0.60;
 
+        // Calculate account age from creation date
+        const accountAgeDays = user.created_at
+          ? Math.floor((Date.now() - new Date(user.created_at).getTime()) / 86_400_000)
+          : undefined;
+
         candidates.push({
           username: uname,
           platform: "x",
           profileUrl: `https://x.com/${user.username}`,
           title: `${user.name} (@${user.username}) / X`,
           snippet: user.description?.slice(0, 200) ?? `X account with ${followers} followers`,
-          similarity,
+          // Substring variants get a higher similarity score; non-substring still
+          // require meaningful overlap but not as strict as 0.72 was.
+          similarity: (uname.includes(clean) || clean.includes(uname)) ? 0.85 : 0.65,
           discoveryMethod: "username_variant",
           datePublished: user.created_at,
+          accountQuality: {
+            followers,
+            following: user.public_metrics?.following_count,
+            totalPosts: user.public_metrics?.tweet_count,
+            accountAgeDays,
+          },
         });
 
         logger.info(
@@ -1032,6 +1057,9 @@ async function instagramVariantProbe(
               `Instagram account with ${user.edge_followed_by?.count ?? 0} followers`,
             similarity,
             discoveryMethod: "username_variant",
+            accountQuality: user.edge_followed_by?.count != null
+              ? { followers: user.edge_followed_by.count }
+              : undefined,
           });
           logger.info(
             { variant, name: user.full_name, followers: user.edge_followed_by?.count },
@@ -1123,16 +1151,28 @@ async function tiktokVariantProbe(
             return;
           }
 
-          const similarity =
-            variant.includes(clean) || clean.includes(variant) ? 0.85 : 0.6;
+          // Apply relationship context classification — catch credit/mention/collab patterns
+          // in the TikTok title (e.g. "duet with @victim", "📸 @victim", "feat. @victim").
+          const tikTokTitle = data.title ?? "";
+          const relCtx = classifyPageRelationshipContext("", variant, tikTokTitle, "");
+          if (relCtx === "credit") {
+            logger.info({ variant, title: tikTokTitle }, "TikTok oEmbed: skipping credit/attribution page");
+            return;
+          }
+
+          // Non-substring TikTok variants are lower-confidence (oEmbed gives no bio/followers)
+          // but still worth surfacing at a reduced similarity score.
+          const isSubstring = variant.includes(clean) || clean.includes(variant);
+
           candidates.push({
             username: variant,
             platform: "tiktok",
             profileUrl,
             title: `${data.author_name} (@${variant}) on TikTok`,
-            snippet: data.title ?? `TikTok account @${variant} by ${data.author_name}`,
-            similarity,
+            snippet: tikTokTitle || `TikTok account @${variant} by ${data.author_name}`,
+            similarity: isSubstring ? 0.82 : 0.65, // substring = stronger signal
             discoveryMethod: "username_variant",
+            relationshipContext: relCtx !== "unknown" ? relCtx : undefined,
           });
           logger.info(
             { variant, name: data.author_name },
@@ -1694,7 +1734,7 @@ export interface SearchImpersonatorsOptions {
   /** User ID — used for per-call cost logging. */
   userId?: string;
   /**
-   * Display name (real name) of the user, e.g. "Sophie Rain".
+   * Display name (real name) of the user, e.g. "John Doe".
    * Used by Strategy 1b (name search) to find accounts claiming to be this
    * person regardless of their handle. Most impersonators use the real name,
    * not the handle, so this is the highest-signal CSE strategy.
@@ -1940,22 +1980,42 @@ export async function searchForImpersonators(
     }
   }
 
+  // ── Platform relevance gate ────────────────────────────────────────────────
+  // Candidates on platforms the user hasn't connected (unmonitored platforms)
+  // must clear a higher similarity bar before being returned. On a connected
+  // platform we have ground-truth data (real profile, photos, captions) so a
+  // 0.60 similarity overlap is meaningful. On an unmonitored platform we only
+  // have the username/snippet from a search result, so we require 0.70 to
+  // avoid surfacing coincidental username overlaps as threats.
+  //
+  // Image-search candidates bypass this gate: a reverse-image hit is visual
+  // proof independent of platform monitoring status.
+  const platformFloor = 0.70;
+  const qualifiedCandidates = allCandidates.filter((c) => {
+    if (c.discoveryMethod !== "username_variant") return true; // image/caption always pass
+    if (connectedPlatforms.includes(c.platform)) return true; // connected platform — keep all
+    return c.similarity >= platformFloor; // unmonitored platform — require stronger overlap
+  });
+
+  const dropped = allCandidates.length - qualifiedCandidates.length;
+
   logger.info(
     {
       username: clean,
       planTier,
       imageLimit,
-      total: allCandidates.length,
+      total: qualifiedCandidates.length,
+      dropped,
       byMethod: {
-        username_variant: allCandidates.filter((c) => c.discoveryMethod === "username_variant").length,
-        image_search: allCandidates.filter((c) => c.discoveryMethod === "image_search").length,
-        caption_search: allCandidates.filter((c) => c.discoveryMethod === "caption_search").length,
+        username_variant: qualifiedCandidates.filter((c) => c.discoveryMethod === "username_variant").length,
+        image_search: qualifiedCandidates.filter((c) => c.discoveryMethod === "image_search").length,
+        caption_search: qualifiedCandidates.filter((c) => c.discoveryMethod === "caption_search").length,
       },
     },
     "Web impersonator search complete"
   );
 
-  return allCandidates;
+  return qualifiedCandidates;
 }
 
 // ─── On-demand photo reverse search (used by POST /photos/search) ─────────────

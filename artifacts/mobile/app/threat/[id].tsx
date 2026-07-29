@@ -439,21 +439,33 @@ function ScoreBar({ label, value, max, color }: { label: string; value: number; 
 }
 
 function EvidencePhotoBox({
-  side, photoUrl, caption, simColor, onTap,
+  side, photoUrl, fallbackUrl, caption, simColor, onTap,
 }: {
   side: "yours" | "stolen";
   photoUrl?: string;
+  /** Tried when photoUrl fails to load — use user.avatarUrl for "yours" side */
+  fallbackUrl?: string;
   caption?: string;
   simColor: string;
   onTap?: () => void;
 }) {
   const colors = useColors();
-  const [imgFailed, setImgFailed] = useState(false);
-  const boxColor = side === "yours" ? colors.success : simColor;
-  const showImage = !!photoUrl && !imgFailed;
+  // "primary" → try photoUrl; "fallback" → primary failed, try fallbackUrl; "failed" → show placeholder
+  const [imgState, setImgState] = useState<"primary" | "fallback" | "failed">("primary");
+  const activeUrl = imgState === "primary" ? photoUrl : imgState === "fallback" ? fallbackUrl : undefined;
+  const showImage = !!activeUrl;
   const canTap = side === "stolen" && !!onTap;
   const BoxWrapper = canTap ? TouchableOpacity : View;
   const boxWrapperProps = canTap ? { activeOpacity: 0.75, onPress: onTap } : {};
+  const boxColor = side === "yours" ? colors.success : simColor;
+
+  const handleError = () => {
+    if (imgState === "primary" && fallbackUrl) {
+      setImgState("fallback"); // switch to fallback
+    } else {
+      setImgState("failed"); // both failed or no fallback — show placeholder
+    }
+  };
 
   return (
     <View style={styles.evidencePhotoCol}>
@@ -463,10 +475,10 @@ function EvidencePhotoBox({
       >
         {showImage ? (
           <Image
-            source={{ uri: photoUrl }}
+            source={{ uri: activeUrl }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
-            onError={() => setImgFailed(true)}
+            onError={handleError}
           />
         ) : (
           <LinearGradient colors={[boxColor + "28", boxColor + "08"]} style={StyleSheet.absoluteFill} />
@@ -506,6 +518,7 @@ function EvidencePhotoBox({
 
 function EvidenceCard({ item }: { item: MatchedEvidence }) {
   const colors = useColors();
+  const { user } = useApp();
   const isHighSimilarity = item.similarity >= 85;
   const simColor = isHighSimilarity ? colors.danger : colors.warning;
 
@@ -524,7 +537,15 @@ function EvidenceCard({ item }: { item: MatchedEvidence }) {
         </View>
       </View>
       <View style={styles.evidenceCompare}>
-        <EvidencePhotoBox side="yours" photoUrl={item.yourPhotoUrl} caption={item.yourCaption} simColor={simColor} />
+        {/* fallbackUrl = user's avatar (base64, never expires) — used when the CDN
+            URL stored at scan time has expired or changed */}
+        <EvidencePhotoBox
+          side="yours"
+          photoUrl={item.yourPhotoUrl}
+          fallbackUrl={user?.avatarUrl ?? undefined}
+          caption={item.yourCaption}
+          simColor={simColor}
+        />
         <View style={styles.evidenceArrow}>
           <View style={[styles.similarityBubble, { backgroundColor: simColor }]}>
             <Text style={[styles.similarityPct, { fontFamily: "Inter_700Bold" }]}>{item.similarity}%</Text>
@@ -645,10 +666,14 @@ export default function ThreatDetail() {
     label: e.label,
     yourCaption: "yourCaption" in e ? (e as any).yourCaption : undefined,
     stolenCaption: "stolenCaption" in e ? (e as any).stolenCaption : undefined,
+    // Use the ingested profile photo URL stored at scan time — this is the
+    // actual matched/monitored photo (e.g., your Instagram profile photo the
+    // impersonator copied). user.avatarUrl is passed as fallbackUrl to
+    // EvidencePhotoBox so it renders if the CDN URL has since expired.
     yourPhotoUrl:
       ("yourPhotoUrl" in e && (e as any).yourPhotoUrl)
         ? (e as any).yourPhotoUrl
-        : (user?.avatarUrl ?? undefined),
+        : undefined,
     stolenPhotoUrl: "stolenPhotoUrl" in e ? (e as any).stolenPhotoUrl : undefined,
     stolenPageUrl: "stolenPageUrl" in e ? (e as any).stolenPageUrl : undefined,
     postContext: "postContext" in e ? (e as any).postContext : undefined,
@@ -661,7 +686,18 @@ export default function ThreatDetail() {
 
   const handle = suspiciousUsername.startsWith("@") ? suspiciousUsername : suspiciousUsername ? `@${suspiciousUsername}` : "Unknown account";
 
-  const MACHINE_SIGNAL_PREFIXES = ["confirmedVictims:", "crossUserEscalation", "sharedThreatActor", "postDatingDays:"];
+  // Strip internal orchestrator signals that are machine metadata, not human-readable findings.
+  // These are used for scoring/escalation logic but should not be shown to users.
+  const MACHINE_SIGNAL_PREFIXES = [
+    "confirmedVictims:",
+    "confirmedVictimsEscalation:",
+    "crossUserEscalation",
+    "sharedThreatActor",
+    "firstScanHighConfidence",
+    "postDatingDays:",
+    "relationshipContextCap:",
+    "Profile URL:",
+  ];
   const detectedSignals = (
     detail?.detectedSignals && detail.detectedSignals.length > 0
       ? detail.detectedSignals
@@ -927,7 +963,9 @@ export default function ThreatDetail() {
             <ScoreGauge score={threat.threatScore} color={sc} />
           </View>
 
-          {/* Account stat chips / fallback quick actions */}
+          {/* Account stat chips + Open Profile.
+              When accountMeta is available: show follower/post/age chips + Open Profile.
+              When no accountMeta: show Copy + Open Profile (existing fallback). */}
           <View style={[styles.quickActionsRow, { borderTopColor: sc + "22" }]}>
             {accountMeta ? (
               <>
@@ -953,6 +991,13 @@ export default function ThreatDetail() {
                     </Text>
                   </View>
                 )}
+                {/* Always keep Open Profile accessible — needed to tap Report inside the platform */}
+                {profileUrl ? (
+                  <TouchableOpacity style={styles.quickAction} onPress={handleOpenProfile} activeOpacity={0.7}>
+                    <Ionicons name="open-outline" size={16} color={colors.mutedForeground} />
+                    <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Open Profile</Text>
+                  </TouchableOpacity>
+                ) : null}
               </>
             ) : (
               <>

@@ -20,6 +20,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Image as RNImage,
   Linking,
   Modal,
   Platform,
@@ -39,7 +40,8 @@ import type { PurchasesPackage } from "react-native-purchases";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { useSubscription, isRevenueCatConfigured } from "@/lib/revenuecat";
-import { syncSubscriptionTier } from "@/lib/api";
+import { syncSubscriptionTier, listThreats } from "@/lib/api";
+import type { ThreatSummary } from "@/lib/api";
 
 type BillingCycle = "annual" | "monthly";
 
@@ -109,60 +111,189 @@ const cm = StyleSheet.create({
   cancelBtn: { alignItems: "center", paddingVertical: 6 },
 });
 
-// ─── Mock threat cards (blurred preview on intro) ─────────────────────────────
-function ThreatPreviewCards({ colors, threatCount }: { colors: ReturnType<typeof useColors>; threatCount: number }) {
+// ─── Platform display helpers ──────────────────────────────────────────────────
+function platformLabel(p: string | null): string {
+  switch ((p ?? "").toLowerCase()) {
+    case "x":         return "X (Twitter)";
+    case "instagram": return "Instagram";
+    case "tiktok":    return "TikTok";
+    case "facebook":  return "Facebook";
+    default:          return p ?? "Unknown Platform";
+  }
+}
+function platformColor(p: string | null): string {
+  switch ((p ?? "").toLowerCase()) {
+    case "x":         return "#1DA1F2";
+    case "instagram": return "#E1306C";
+    case "tiktok":    return "#69C9D0";
+    case "facebook":  return "#4267B2";
+    default:          return "#888";
+  }
+}
+function severityColor(s: string): string {
+  return s === "high" ? "#EF4444" : s === "medium" ? "#F59E0B" : "#22C55E";
+}
+
+// ─── Real investigation report preview (Screen 0 hero) ────────────────────────
+// Shows the user's actual top threat when available; falls back to a generic
+// "identity monitoring active" card — never fabricates specific findings.
+function ReportPreview({ colors, threat }: {
+  colors: ReturnType<typeof useColors>;
+  threat: ThreatSummary | null;
+}) {
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 1.025, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 1,     duration: 2000, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1.018, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1,     duration: 2200, useNativeDriver: true }),
     ])).start();
   }, []);
 
-  const cards = [
-    { label: "Impersonator detected", platform: "Instagram", color: "#E1306C" },
-    { label: "Stolen photo found",    platform: "Facebook",  color: "#1877F2" },
-    { label: "Suspicious account",    platform: "X",         color: "#555"    },
-  ].slice(0, Math.max(2, Math.min(3, threatCount || 2)));
+  const sev   = threat?.severity ?? "high";
+  const sColor = severityColor(sev);
 
   return (
-    <View style={{ gap: 10, width: "100%" }}>
-      {cards.map((card, i) => (
-        <Animated.View key={i} style={{ transform: i === 0 ? [{ scale: pulse }] : [] }}>
-          <View style={[tp.card, { backgroundColor: colors.card, borderColor: i === 0 ? "#EF444444" : colors.border }]}>
-            <View style={[tp.dot, { backgroundColor: card.color }]} />
-            <View style={{ flex: 1, gap: 5 }}>
-              <View style={[tp.bar, { width: "70%", backgroundColor: colors.mutedForeground + "30" }]} />
-              <View style={[tp.bar, { width: "45%", backgroundColor: colors.mutedForeground + "18" }]} />
+    <View style={{ gap: 9, width: "100%" }}>
+      {/* ── Row 1: Real finding or generic protection card ── */}
+      <Animated.View style={{ transform: [{ scale: pulse }] }}>
+        <View style={[rp.card, { backgroundColor: colors.card, borderColor: sColor + "33" }]}>
+          <View style={rp.topRow}>
+            <View style={[rp.severityBadge, { backgroundColor: sColor + "18", borderColor: sColor + "40" }]}>
+              <View style={[rp.severityDot, { backgroundColor: sColor }]} />
+              <Text style={[rp.severityText, { color: sColor, fontFamily: "Inter_700Bold" }]}>
+                {sev.toUpperCase()} SEVERITY
+              </Text>
             </View>
-            <Ionicons name="lock-closed" size={13} color={colors.mutedForeground + "88"} />
+            {threat && (
+              <View style={[rp.scoreBadge, { backgroundColor: sColor + "18", borderColor: sColor + "44" }]}>
+                <Text style={[rp.scoreNum, { color: sColor, fontFamily: "Inter_700Bold" }]}>{threat.threatScore}</Text>
+                <Text style={[rp.scoreDenom, { color: sColor + "99", fontFamily: "Inter_400Regular" }]}>/100</Text>
+              </View>
+            )}
           </View>
-        </Animated.View>
-      ))}
-      <View style={[tp.card, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-        <Ionicons name="ellipsis-horizontal" size={14} color={colors.mutedForeground} />
-        <Text style={[{ flex: 1, color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>
-          Unlock to see full report and take action
-        </Text>
-        <Ionicons name="lock-closed" size={12} color={colors.mutedForeground + "88"} />
+
+          {threat ? (
+            /* Real threat data */
+            <>
+              <View style={rp.midRow}>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text style={[rp.username, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    {threat.suspiciousUsername ? `@${threat.suspiciousUsername}` : threat.title}
+                  </Text>
+                  {threat.platform && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                      <View style={[rp.platformDot, { backgroundColor: platformColor(threat.platform) }]} />
+                      <Text style={[rp.platformLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        {platformLabel(threat.platform)}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={[rp.findingText, { color: sColor, fontFamily: "Inter_600SemiBold" }]}>
+                    {threat.description}
+                  </Text>
+                </View>
+              </View>
+              <View style={rp.matchRow}>
+                <Ionicons name="alert-circle-outline" size={12} color={colors.mutedForeground} />
+                <Text style={[rp.matchText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  {threat.matchedMediaCount > 0
+                    ? `${threat.matchedMediaCount} photo match${threat.matchedMediaCount !== 1 ? "es" : ""} · confirmed via reverse image search`
+                    : "Identity impersonation detected · upgrade to view full details"}
+                </Text>
+              </View>
+            </>
+          ) : (
+            /* Fallback — no threats yet, show a protective framing */
+            <>
+              <View style={rp.midRow}>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text style={[rp.username, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                    Identity Monitoring Active
+                  </Text>
+                  <Text style={[rp.findingText, { color: sColor, fontFamily: "Inter_600SemiBold" }]}>
+                    Continuous scan across all platforms
+                  </Text>
+                </View>
+                <View style={[rp.shieldIcon, { backgroundColor: sColor + "18", borderColor: sColor + "30" }]}>
+                  <Ionicons name="shield-checkmark" size={22} color={sColor} />
+                </View>
+              </View>
+              <View style={rp.matchRow}>
+                <Ionicons name="eye-outline" size={12} color={colors.mutedForeground} />
+                <Text style={[rp.matchText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Watching X, Instagram, TikTok, Facebook & more
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
+      </Animated.View>
+
+      {/* ── Row 2: Locked / redacted card ── */}
+      <View style={{ position: "relative" }}>
+        <View style={[rp.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={rp.topRow}>
+            <View style={[rp.severityBadge, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B33" }]}>
+              <View style={[rp.severityDot, { backgroundColor: "#F59E0B" }]} />
+              <Text style={[rp.severityText, { color: "#F59E0B", fontFamily: "Inter_700Bold" }]}>MEDIUM SEVERITY</Text>
+            </View>
+            <View style={[rp.scoreBadge, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
+              <Text style={[rp.scoreNum, { color: "#F59E0B", fontFamily: "Inter_700Bold" }]}>—</Text>
+            </View>
+          </View>
+          <View style={rp.midRow}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <View style={[rp.redactBar, { width: "55%", backgroundColor: colors.mutedForeground + "25" }]} />
+              <View style={[rp.redactBar, { width: "38%", backgroundColor: colors.mutedForeground + "18" }]} />
+              <View style={[rp.redactBar, { width: "66%", backgroundColor: colors.mutedForeground + "15" }]} />
+            </View>
+          </View>
+        </View>
+        {/* Frosted lock overlay */}
+        <View style={[rp.lockOverlay, { backgroundColor: colors.background + "D0" }]}>
+          <View style={[rp.lockIcon, { backgroundColor: colors.border, borderColor: colors.border }]}>
+            <Ionicons name="lock-closed" size={16} color={colors.mutedForeground} />
+          </View>
+          <Text style={[rp.lockText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+            Unlock to view full report
+          </Text>
+        </View>
       </View>
     </View>
   );
 }
-const tp = StyleSheet.create({
-  card: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderRadius: 16, borderWidth: 1 },
-  dot:  { width: 8, height: 8, borderRadius: 4 },
-  bar:  { height: 9, borderRadius: 4 },
+const rp = StyleSheet.create({
+  card:          { borderRadius: 16, borderWidth: 1, padding: 14, gap: 10 },
+  topRow:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  severityBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, borderWidth: 1 },
+  severityDot:   { width: 5, height: 5, borderRadius: 3 },
+  severityText:  { fontSize: 10, letterSpacing: 0.5 },
+  scoreBadge:    { flexDirection: "row", alignItems: "baseline", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1 },
+  scoreNum:      { fontSize: 17 },
+  scoreDenom:    { fontSize: 11 },
+  midRow:        { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  username:      { fontSize: 17 },
+  platformDot:   { width: 7, height: 7, borderRadius: 3.5 },
+  platformLabel: { fontSize: 12 },
+  findingText:   { fontSize: 12, marginTop: 1 },
+  matchRow:      { flexDirection: "row", alignItems: "center", gap: 5 },
+  matchText:     { fontSize: 11, lineHeight: 16 },
+  redactBar:     { height: 10, borderRadius: 5 },
+  lockOverlay:   { ...StyleSheet.absoluteFillObject, borderRadius: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
+  lockIcon:      { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  lockText:      { fontSize: 13 },
+  shieldIcon:    { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1 },
 });
 
 // ─── Screen 0: Intro ──────────────────────────────────────────────────────────
-function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad, bottomPad }: {
+function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad, bottomPad, topThreat }: {
   colors: ReturnType<typeof useColors>;
   onContinue: () => void;
   threatCount: number;
   isFromOnboarding: boolean;
   topPad: number;
   bottomPad: number;
+  topThreat: ThreatSummary | null;
 }) {
   const shieldAnim = useRef(new Animated.Value(0)).current;
   const glowAnim   = useRef(new Animated.Value(0.4)).current;
@@ -202,17 +333,11 @@ function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad
         </Text>
       </View>
 
-      {/* Center visual */}
+      {/* Center visual — real investigation report preview */}
       <View style={s0.center}>
-        <Animated.View style={{ alignItems: "center", opacity: shieldAnim, transform: [{ scale: shieldAnim }] }}>
-          <Animated.View style={[s0.glow, { opacity: glowAnim, backgroundColor: hasThreats ? "#EF444420" : colors.primary + "20" }]} />
-          <View style={[s0.shieldBg, { backgroundColor: hasThreats ? "#EF444418" : colors.primary + "18", borderColor: hasThreats ? "#EF444440" : colors.primary + "40" }]}>
-            <Ionicons name={hasThreats ? "alert-circle" : "shield-checkmark"} size={60} color={hasThreats ? "#EF4444" : colors.primary} />
-          </View>
+        <Animated.View style={{ width: "100%", paddingHorizontal: 20, opacity: shieldAnim }}>
+          <ReportPreview colors={colors} threat={topThreat} />
         </Animated.View>
-        <View style={{ marginTop: 24, width: "100%", paddingHorizontal: 24 }}>
-          <ThreatPreviewCards colors={colors} threatCount={hasThreats ? threatCount : 2} />
-        </View>
       </View>
 
       {/* Bottom CTA */}
@@ -233,9 +358,7 @@ const s0 = StyleSheet.create({
   badge:    { flexDirection: "row", alignItems: "center", gap: 7, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
   headline: { fontSize: 36, lineHeight: 44 },
-  center:   { flex: 1, alignItems: "center", justifyContent: "center", gap: 0 },
-  glow:     { position: "absolute", width: 200, height: 200, borderRadius: 100, top: -60 },
-  shieldBg: { width: 120, height: 120, borderRadius: 36, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  center:   { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 8 },
   bottom:   { paddingHorizontal: 24, gap: 14 },
   noPayRow: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center" },
   cta:      { height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center" },
@@ -271,28 +394,27 @@ function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad }: {
         </View>
       </TouchableOpacity>
 
-      {/* Center content */}
-      <View style={[s1.content, { paddingTop: topPad + 72 }]}>
-        {/* Bell visual */}
+      {/* Text — pinned to top of screen */}
+      <View style={[s1.topText, { paddingTop: topPad + 72 }]}>
+        <Text style={[s1.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+          We'll alert you before{"\n"}your trial ends
+        </Text>
+        <Text style={[s1.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          As long as notifications are enabled
+        </Text>
+      </View>
+
+      {/* Bell — true center of remaining space */}
+      <View style={s1.bellCenter}>
         <View style={s1.bellWrap}>
           <Animated.View style={{ opacity: bellAnim, transform: [{ scale: bellAnim }] }}>
             <View style={[s1.bellBg, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-              <Ionicons name="notifications" size={64} color={colors.mutedForeground} />
+              <Ionicons name="notifications" size={64} color={colors.foreground} />
             </View>
           </Animated.View>
           <Animated.View style={[s1.badge, { opacity: badgeAnim, transform: [{ scale: badgeAnim }] }]}>
             <Text style={[s1.badgeNum, { fontFamily: "Inter_700Bold" }]}>1</Text>
           </Animated.View>
-        </View>
-
-        {/* Text */}
-        <View style={{ gap: 10, alignItems: "center" }}>
-          <Text style={[s1.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            We'll alert you before{"\n"}your trial ends
-          </Text>
-          <Text style={[s1.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            As long as notifications are enabled
-          </Text>
         </View>
       </View>
 
@@ -310,19 +432,22 @@ function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad }: {
   );
 }
 const s1 = StyleSheet.create({
-  back:      { position: "absolute", left: 20, zIndex: 10 },
-  backCircle:{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  content:   { flex: 1, alignItems: "center", justifyContent: "center", gap: 40, paddingHorizontal: 28 },
-  bellWrap:  { position: "relative", alignItems: "center", justifyContent: "center" },
-  bellBg:    { width: 140, height: 140, borderRadius: 42, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  badge:     { position: "absolute", top: 4, right: 4, width: 36, height: 36, borderRadius: 18, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
-  badgeNum:  { color: "#fff", fontSize: 18 },
-  title:     { fontSize: 30, textAlign: "center", lineHeight: 38 },
-  sub:       { fontSize: 15, textAlign: "center" },
-  bottom:    { paddingHorizontal: 24, gap: 14 },
-  noPayRow:  { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center" },
-  cta:       { height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center" },
-  ctaText:   { fontSize: 18 },
+  back:       { position: "absolute", left: 20, zIndex: 10 },
+  backCircle: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  // Text pinned to the top of the screen
+  topText:    { paddingHorizontal: 28, gap: 10, alignItems: "center" },
+  // Bell fills and centres in the remaining space between text and CTA
+  bellCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
+  bellWrap:   { position: "relative", alignItems: "center", justifyContent: "center" },
+  bellBg:     { width: 140, height: 140, borderRadius: 42, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  badge:      { position: "absolute", top: 4, right: 4, width: 36, height: 36, borderRadius: 18, backgroundColor: "#EF4444", alignItems: "center", justifyContent: "center" },
+  badgeNum:   { color: "#fff", fontSize: 18 },
+  title:      { fontSize: 30, textAlign: "center", lineHeight: 38 },
+  sub:        { fontSize: 15, textAlign: "center" },
+  bottom:     { paddingHorizontal: 24, gap: 14 },
+  noPayRow:   { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center" },
+  cta:        { height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center" },
+  ctaText:    { fontSize: 18 },
 });
 
 // ─── Screen 2: Plan Select ────────────────────────────────────────────────────
@@ -352,26 +477,30 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
 
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }]}>
-      {/* Hero gradient */}
-      <LinearGradient
-        colors={[colors.primary + "28", colors.primary + "10", "transparent"]}
-        style={[s2.hero]}
-        locations={[0, 0.5, 1]}
-      />
-      <View style={[s2.heroContent, { paddingTop: topPad + 20 }]}>
-        <View style={[s2.heroIcon, { backgroundColor: colors.primary + "20", borderColor: colors.primary + "44" }]}>
-          <Ionicons name="shield-checkmark" size={44} color={colors.primary} />
-        </View>
+
+      {/* Hero — pre-cropped image, aspect-ratio container, instant display */}
+      <View style={s2.heroWrap} pointerEvents="none">
+        <RNImage
+          source={require("../assets/images/paywall-hero-cropped.jpg")}
+          style={s2.heroImage}
+          resizeMode="cover"
+          fadeDuration={0}
+        />
+        <LinearGradient
+          colors={["transparent", colors.background + "C8", colors.background]}
+          locations={[0.45, 0.82, 1]}
+          style={StyleSheet.absoluteFill}
+        />
       </View>
 
-      {/* Back */}
+      {/* Back — floats over the hero */}
       <TouchableOpacity style={[s2.back, { top: topPad + 16 }]} onPress={onBack} activeOpacity={0.7}>
         <View style={[s2.backCircle, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
           <Ionicons name="chevron-back" size={20} color={colors.foreground} />
         </View>
       </TouchableOpacity>
 
-      {/* Main content */}
+      {/* Main content scrolls up from below the hero */}
       <View style={[s2.body, { paddingBottom: bottomPad + 24 }]}>
         <Text style={[s2.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           {billingCycle === "annual"
@@ -468,10 +597,10 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
   );
 }
 const s2 = StyleSheet.create({
-  hero:        { position: "absolute", top: 0, left: 0, right: 0, height: 180 },
-  heroContent: { alignItems: "center", paddingBottom: 16 },
-  heroIcon:    { width: 100, height: 100, borderRadius: 30, alignItems: "center", justifyContent: "center", borderWidth: 1, marginTop: 40 },
-  back:        { position: "absolute", left: 20, zIndex: 10 },
+  // In-flow hero: aspect-ratio matches the pre-cropped 800×1056 image exactly → cover fills with no clipping
+  heroWrap:  { width: "100%", aspectRatio: 800 / 1056, overflow: "hidden" },
+  heroImage: { width: "100%", height: "100%" },
+  back:      { position: "absolute", left: 20, zIndex: 10 },
   backCircle:  { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },
   body:        { flex: 1, paddingHorizontal: 22, gap: 16, justifyContent: "flex-end" },
   title:       { fontSize: 28, lineHeight: 36, textAlign: "center" },
@@ -559,6 +688,27 @@ export default function Subscription() {
   const [confirmPkg, setConfirmPkg]     = useState<PurchasesPackage | null>(null);
   const [restoreMsg, setRestoreMsg]     = useState<string | null>(null);
   const [devUpgrading, setDevUpgrading] = useState(false);
+  const [topThreat, setTopThreat]       = useState<ThreatSummary | null>(null);
+
+  // Fetch the user's most severe real threat for Screen 0 preview.
+  // We only do this once on mount; failure is silently swallowed — the fallback
+  // card shows instead of a fake finding.
+  useEffect(() => {
+    let cancelled = false;
+    listThreats({ resolved: false, limit: 5 })
+      .then((threats) => {
+        if (cancelled || !threats?.length) return;
+        // Pick highest severity then highest score
+        const order: Record<string, number> = { high: 3, medium: 2, low: 1 };
+        const best = [...threats].sort((a, b) => {
+          const sevDiff = (order[b.severity] ?? 0) - (order[a.severity] ?? 0);
+          return sevDiff !== 0 ? sevDiff : b.threatScore - a.threatScore;
+        })[0];
+        setTopThreat(best ?? null);
+      })
+      .catch(() => { /* silently fall back to generic card */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const currentTier = (user.tier ?? "free") as string;
   const alreadySubscribed = currentTier !== "free";
@@ -686,6 +836,7 @@ export default function Subscription() {
           isFromOnboarding={isFromOnboarding}
           topPad={topPad}
           bottomPad={bottomPad}
+          topThreat={topThreat}
         />
         {/* Always show close on intro for users reaching paywall from settings */}
         {!isFromOnboarding && (

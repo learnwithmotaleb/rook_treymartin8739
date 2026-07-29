@@ -540,8 +540,8 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerLogo: {
-    width: 44,
-    height: 44,
+    width: 28,
+    height: 28,
   },
   notifBtn: { position: "relative", padding: 4 },
   notifBadge: {

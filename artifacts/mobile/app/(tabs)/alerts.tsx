@@ -345,7 +345,8 @@ export default function AlertsScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: Threat; index: number }) => (
-      <Animated.View entering={FadeInDown.delay(index * 80).springify()}>
+      // Cap delay at 300ms so items deep in the list don't take >1s to appear
+      <Animated.View entering={FadeInDown.delay(Math.min(index * 80, 300)).springify()}>
         <ThreatCard threat={item} isLocked={isFree} />
       </Animated.View>
     ),
@@ -354,7 +355,7 @@ export default function AlertsScreen() {
 
   const renderResolved = useCallback(
     ({ item, index }: { item: Threat; index: number }) => (
-      <Animated.View entering={FadeInDown.delay(index * 60).springify()}>
+      <Animated.View entering={FadeInDown.delay(Math.min(index * 60, 300)).springify()}>
         <ResolvedThreatRow threat={item} colors={colors} />
       </Animated.View>
     ),

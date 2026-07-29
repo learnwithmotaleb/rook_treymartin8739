@@ -128,13 +128,16 @@ function parseOAuthState(state: string): { id: string; notifyUrl?: string } | nu
 // code_verifier + code_challenge and embeds the verifier in the signed state
 // token so the callback can use it without any extra round-trips.
 
-function createXPkceState(clerkId: string, notifyUrl?: string): { state: string; codeChallenge: string } {
+function createXPkceState(clerkId: string, redirectUri: string, notifyUrl?: string): { state: string; codeChallenge: string } {
   const codeVerifier = crypto.randomBytes(32).toString("base64url");
   const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
-  const data: { clerkId: string; iat: number; cv: string; nu?: string } = {
+  // ru = redirect_uri embedded at init time so the callback always uses the
+  // exact same URI for token exchange regardless of which server handles it.
+  const data: { clerkId: string; iat: number; cv: string; ru: string; nu?: string } = {
     clerkId,
     iat: Math.floor(Date.now() / 1000),
     cv: codeVerifier,
+    ru: redirectUri,
   };
   if (notifyUrl) data.nu = notifyUrl;
   const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
@@ -142,7 +145,7 @@ function createXPkceState(clerkId: string, notifyUrl?: string): { state: string;
   return { state: `${payload}.${sig}`, codeChallenge };
 }
 
-function parseXPkceState(state: string): { clerkId: string; codeVerifier: string; notifyUrl?: string } | null {
+function parseXPkceState(state: string): { clerkId: string; codeVerifier: string; redirectUri?: string; notifyUrl?: string } | null {
   try {
     const dot = state.lastIndexOf(".");
     if (dot === -1) return null;
@@ -152,12 +155,12 @@ function parseXPkceState(state: string): { clerkId: string; codeVerifier: string
     if (sig !== expected) return null;
     const parsed = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8")
-    ) as { clerkId?: string; userId?: string; iat?: number; cv?: string; nu?: string };
+    ) as { clerkId?: string; userId?: string; iat?: number; cv?: string; ru?: string; nu?: string };
     // Support both new (clerkId) and legacy (userId = DB UUID) tokens
     const id = parsed.clerkId ?? parsed.userId;
     if (!id || typeof parsed.iat !== "number" || !parsed.cv) return null;
     if (Date.now() / 1000 - parsed.iat > 900) return null;
-    return { clerkId: id, codeVerifier: parsed.cv, notifyUrl: parsed.nu };
+    return { clerkId: id, codeVerifier: parsed.cv, redirectUri: parsed.ru, notifyUrl: parsed.nu };
   } catch {
     return null;
   }
@@ -254,10 +257,14 @@ router.post("/oauth/state", requireAuth, (req, res): void => {
 // ── POST /api/oauth/x/init ────────────────────────────────────────────────────
 // Called by the mobile app before opening X's OAuth browser.
 // Generates a PKCE code_verifier (embedded in signed state) + code_challenge
-// (sent to Twitter). The callback extracts code_verifier from the state token.
+// (sent to Twitter). The redirect_uri for this server is also embedded in the
+// state so the callback uses the exact same URI regardless of which server
+// (dev vs production) ultimately handles the token exchange.
 router.post("/oauth/x/init", requireAuth, (req, res): void => {
-  const { state, codeChallenge } = createXPkceState(req.clerkId, _devNotifyBase);
-  res.json({ state, codeChallenge });
+  const redirectUri = `https://${DOMAIN}/api/oauth/x/callback`;
+  const { state, codeChallenge } = createXPkceState(req.clerkId, redirectUri, _devNotifyBase);
+  // Return redirectUri so the mobile app uses the same value in the auth URL.
+  res.json({ state, codeChallenge, redirectUri });
 });
 
 // ─── Instagram OAuth callback ────────────────────────────────────────────────
@@ -643,7 +650,7 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
     return;
   }
 
-  const { clerkId: pkceClerkId, codeVerifier, notifyUrl: xNotifyUrl } = pkce;
+  const { clerkId: pkceClerkId, codeVerifier, redirectUri: pkceRedirectUri, notifyUrl: xNotifyUrl } = pkce;
 
   // Resolve (or JIT-provision) the DB user from the embedded Clerk ID.
   let userId: string;
@@ -661,7 +668,10 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
   }
 
   try {
-    const redirectUri = `https://${DOMAIN}/api/oauth/x/callback`;
+    // Use the redirect_uri that was embedded at init time so the token exchange
+    // always matches the exact URI used in the authorization request, even when
+    // the init was handled by a different server (dev) than the callback (prod).
+    const redirectUri = pkceRedirectUri ?? `https://${DOMAIN}/api/oauth/x/callback`;
 
     // Exchange authorization code for access token (PKCE confidential client)
     const tokenRes = await fetch("https://api.twitter.com/2/oauth2/token", {

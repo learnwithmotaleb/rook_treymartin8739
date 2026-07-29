@@ -8,7 +8,7 @@ import { Threat, ThreatType } from "@/context/AppContext";
 import { GlassCard } from "./GlassCard";
 import { severityColor } from "@/lib/severity";
 
-function threatIcon(type: ThreatType): { name: string; lib: "ionicons" | "mci" } {
+function threatIcon(type: ThreatType | string): { name: string; lib: "ionicons" | "mci" } {
   switch (type) {
     case "impersonator": return { name: "person-remove", lib: "ionicons" };
     case "fake_account": return { name: "account-multiple-remove", lib: "mci" };
@@ -16,6 +16,7 @@ function threatIcon(type: ThreatType): { name: string; lib: "ionicons" | "mci" }
     case "suspicious_login": return { name: "warning", lib: "ionicons" };
     case "stolen_photo": return { name: "image-remove", lib: "mci" };
     case "scam": return { name: "shield-remove", lib: "mci" };
+    default: return { name: "alert-circle-outline", lib: "ionicons" };
   }
 }
 

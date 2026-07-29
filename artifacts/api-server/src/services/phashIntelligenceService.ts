@@ -234,10 +234,10 @@ export async function computeUserThreshold(
     const adjustment = fp * 2 - tp;
     const clamped = Math.max(-8, Math.min(8, adjustment));
     const computed = DEFAULT_HAMMING_THRESHOLD + clamped;
-    // First scan uses a tighter gate — only near-identical hashes qualify
-    return isFirstScan ? Math.min(computed, 6) : computed;
+    // First scan uses a tighter gate — only strong matches qualify
+    return isFirstScan ? Math.min(computed, 8) : computed;
   } catch {
-    return isFirstScan ? 6 : DEFAULT_HAMMING_THRESHOLD;
+    return isFirstScan ? 8 : DEFAULT_HAMMING_THRESHOLD;
   }
 }
 
