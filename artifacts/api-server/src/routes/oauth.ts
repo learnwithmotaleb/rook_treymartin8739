@@ -490,8 +490,8 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     return;
   }
 
-  const clientId = process.env["FACEBOOK_APP_ID"];
-  const clientSecret = process.env["FACEBOOK_APP_SECRET"];
+  const clientId = process.env["FACEBOOK_APP_ID"]?.trim();
+  const clientSecret = process.env["FACEBOOK_APP_SECRET"]?.trim();
 
   if (!clientId || !clientSecret) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -520,6 +520,15 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     const tokenData = await tokenRes.json() as { access_token?: string; expires_in?: number; error?: { message: string } };
 
     if (!tokenRes.ok || !tokenData.access_token) {
+      logger.error({
+        msg: "Facebook token exchange failed",
+        appId: clientId,
+        secretLen: clientSecret.length,
+        secretPrefix: clientSecret.slice(0, 4),
+        redirectUri,
+        httpStatus: tokenRes.status,
+        fbError: tokenData.error,
+      });
       throw new Error(tokenData.error?.message ?? `Token exchange failed (HTTP ${tokenRes.status})`);
     }
 
