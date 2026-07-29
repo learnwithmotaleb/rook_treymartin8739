@@ -413,7 +413,7 @@ export class FacebookAdapter implements PlatformAdapter {
     platformUserId: string,
     limit = 50
   ): Promise<MediaItem[]> {
-    // Profile picture is always available with public_profile scope
+    // Profile picture — include access_token so it works in dev-mode apps too
     const profilePicture: MediaItem = {
       platformMediaId: `profile_${platformUserId}`,
       type: "image" as const,
