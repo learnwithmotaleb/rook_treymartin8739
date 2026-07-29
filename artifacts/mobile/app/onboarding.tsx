@@ -860,13 +860,39 @@ function FullProfileSetupScreen({
           </Text>
         </View>
 
-        {/* Name / handle */}
-        <View style={inp.wrap}>
-          <View style={[inp.row, { backgroundColor: colors.card, borderColor: nameValue.length > 0 ? colors.primary + "66" : colors.border, borderWidth: nameValue.length > 0 ? 1.5 : 1 }]}>
-            <Ionicons name="person-circle-outline" size={22} color={nameValue.length > 0 ? colors.primary : colors.mutedForeground} />
-            <TextInput style={[inp.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} placeholder="Your name or @handle" placeholderTextColor={colors.mutedForeground} value={nameValue} onChangeText={onNameChange} autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
-            {nameValue.length > 0 && <TouchableOpacity onPress={() => onNameChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="close-circle" size={18} color={colors.mutedForeground} /></TouchableOpacity>}
+        {/* Name / handle + reference photo — "who you are" */}
+        <View style={{ gap: 12 }}>
+          <View style={inp.wrap}>
+            <View style={[inp.row, { backgroundColor: colors.card, borderColor: nameValue.length > 0 ? colors.primary + "66" : colors.border, borderWidth: nameValue.length > 0 ? 1.5 : 1 }]}>
+              <Ionicons name="person-circle-outline" size={22} color={nameValue.length > 0 ? colors.primary : colors.mutedForeground} />
+              <TextInput style={[inp.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} placeholder="Your name or @handle" placeholderTextColor={colors.mutedForeground} value={nameValue} onChangeText={onNameChange} autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
+              {nameValue.length > 0 && <TouchableOpacity onPress={() => onNameChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="close-circle" size={18} color={colors.mutedForeground} /></TouchableOpacity>}
+            </View>
           </View>
+          {/* Reference photo — right beside name so identity info is grouped together */}
+          <TouchableOpacity onPress={pickPhoto} activeOpacity={0.8}>
+            {photoUri ? (
+              <View style={[inp.photoFilled, { backgroundColor: colors.primary + "14", borderColor: colors.primary + "55" }]}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 }]}>Reference photo added — we'll search for copies</Text>
+                <TouchableOpacity onPress={() => onPhotoSelect("", undefined)}>
+                  <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={[inp.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Ionicons name="image-outline" size={22} color={colors.mutedForeground} />
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Add a reference photo (optional)</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Divider */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 2 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>then connect your accounts</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
         </View>
 
         {/* Platform connection — primary action */}
@@ -902,39 +928,6 @@ function FullProfileSetupScreen({
           )}
         </View>
 
-        {/* Divider */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 2 }}>
-          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>or</Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-        </View>
-
-        {/* Camera roll — secondary / fallback */}
-        <View style={{ gap: 8 }}>
-          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>
-            Add a reference photo{" "}
-            <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }}>(optional)</Text>
-          </Text>
-          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18 }]}>
-            Used for stolen-image detection. Connected accounts pull photos automatically.
-          </Text>
-          <TouchableOpacity onPress={pickPhoto} activeOpacity={0.8}>
-            {photoUri ? (
-              <View style={[inp.photoFilled, { backgroundColor: colors.primary + "14", borderColor: colors.primary + "55" }]}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 }]}>Photo added — we'll search for copies</Text>
-                <TouchableOpacity onPress={() => onPhotoSelect("", undefined)}>
-                  <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={[inp.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Ionicons name="image-outline" size={22} color={colors.mutedForeground} />
-                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Upload from camera roll</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -1371,7 +1364,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [photosConfirmed, setPhotosConfirmed] = useState(false);
 
-  const handleOAuth = useCallback(async () => {
+  const handleOAuth = useCallback(async (forceEphemeral = false) => {
     const cfg = ONBOARDING_OAUTH[platform];
     if (!cfg) return;
     // App IDs from shared constants — single source of truth with connect-account.tsx.
@@ -1414,7 +1407,12 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
 
       // The server processes the OAuth code and then redirects to the app scheme.
       // ASWebAuthenticationSession intercepts the custom scheme and closes automatically.
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, OAUTH_APP_SCHEME);
+      // No preferEphemeralSession by default — iOS reuses the Safari session so the user
+      // just taps "Continue as X" without re-entering their password. On auth errors we
+      // retry with preferEphemeralSession: true to force a fresh login screen.
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, OAUTH_APP_SCHEME,
+        forceEphemeral ? { preferEphemeralSession: true } : undefined
+      );
 
       const resultUrl = "url" in result ? result.url ?? "" : "";
       const resultParams = resultUrl.includes("?") ? new URLSearchParams(resultUrl.split("?")[1]!) : null;
@@ -1438,7 +1436,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
               if (hasAccess && items.length > 0) {
                 setMediaItems(items.filter((m) => m.type === "image"));
               }
-            } catch { /* graceful — photo picker simply won't show */ }
+            } catch { /* graceful — camera roll fallback shown below */ }
             finally { setMediaLoading(false); }
             return true;
           }
@@ -1455,8 +1453,16 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
 
       // Handle errors / cancellations (only reached if poll found nothing)
       if (urlError) {
-        Alert.alert("Authentication Failed", `Could not sign in: ${urlError}`, [{ text: "OK" }]);
-        setShowManual(true);
+        // "Sign in Fresh" retries with preferEphemeralSession:true to clear any stale
+        // cached session (e.g. wrong account still logged in from a previous test).
+        Alert.alert(
+          "Authentication Failed",
+          `Could not sign in: ${urlError}`,
+          [
+            { text: "Cancel", style: "cancel", onPress: () => setShowManual(true) },
+            { text: "Sign in Fresh", onPress: () => { void handleOAuth(true); } },
+          ]
+        );
       } else if (result.type === "cancel" || result.type === "dismiss") {
         setShowManual(true);
       }
@@ -1501,12 +1507,35 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
           </View>
         </View>
 
-        {/* Photo picker (only when we have media + not yet confirmed) */}
+        {/* Photo picker — platform media or camera roll fallback */}
         {!photosConfirmed && mediaLoading && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 }}>
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Loading your photos…</Text>
           </View>
+        )}
+        {/* Camera roll fallback: shown when platform photos couldn't load (hasAccess:false,
+            permissions not granted, or API error) so the user still has a way to add a
+            reference photo immediately after connecting. */}
+        {!photosConfirmed && !mediaLoading && mediaItems.length === 0 && (
+          <TouchableOpacity
+            style={[ph.photoConfirmBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+            activeOpacity={0.8}
+            onPress={async () => {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== "granted") return;
+              const picked = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: "images", allowsEditing: true, aspect: [1, 1], quality: 0.7,
+              });
+              if (!picked.canceled && picked.assets[0] && onPhotosPicked) {
+                onPhotosPicked(platform, [picked.assets[0].uri]);
+                setPhotosConfirmed(true);
+              }
+            }}
+          >
+            <Ionicons name="image-outline" size={16} color={colors.mutedForeground} />
+            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 14 }]}>Add a reference photo from camera roll</Text>
+          </TouchableOpacity>
         )}
         {!photosConfirmed && !mediaLoading && mediaItems.length > 0 && (
           <View style={{ gap: 10 }}>

@@ -67,6 +67,9 @@ export async function getOrCreateUserByClerkId(
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
 
+  // ON CONFLICT DO NOTHING handles the race where two concurrent requests both
+  // pass the SELECT check before either INSERT completes (e.g. app launch fires
+  // multiple parallel API calls for a brand-new Clerk user).
   const [user] = await db
     .insert(usersTable)
     .values({
@@ -78,10 +81,20 @@ export async function getOrCreateUserByClerkId(
       securityScore: 72,
       scoreTrend: 0,
     })
+    .onConflictDoNothing()
     .returning({ id: usersTable.id });
 
-  if (!user) throw new Error("Failed to create user");
+  if (user) {
+    logger.info({ clerkUserId, userId: user.id }, "JIT-provisioned new user");
+    return user;
+  }
 
-  logger.info({ clerkUserId, userId: user.id }, "JIT-provisioned new user");
-  return user;
+  // Another request won the race — fetch the row that was already inserted.
+  const [raced] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.clerkId, clerkUserId));
+
+  if (!raced) throw new Error("Failed to create or find user");
+  return raced;
 }

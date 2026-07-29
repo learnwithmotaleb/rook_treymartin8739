@@ -168,7 +168,7 @@ function OAuthButton({
   const config = PLATFORM_CONFIGS[platform]!;
   const [loading, setLoading] = useState(false);
 
-  const handlePress = useCallback(async () => {
+  const handlePress = useCallback(async (forceEphemeral = false) => {
     setLoading(true);
     try {
       // Snapshot accounts before so we can detect a change after the flow
@@ -203,9 +203,13 @@ function OAuthButton({
         authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);
       }
 
-      // The server processes the OAuth code and redirects to the app scheme.
-      // ASWebAuthenticationSession intercepts the custom scheme and closes automatically.
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, OAUTH_APP_SCHEME);
+      // No preferEphemeralSession by default — iOS reuses the Safari session so the
+      // user taps "Continue as X" without re-entering their password. On auth errors
+      // we retry with preferEphemeralSession: true to force a fresh login screen that
+      // clears any stale cached session.
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, OAUTH_APP_SCHEME,
+        forceEphemeral ? { preferEphemeralSession: true } : undefined
+      );
 
       const resultUrl = "url" in result ? result.url ?? "" : "";
       const resultParams = resultUrl.includes("?")
@@ -238,13 +242,34 @@ function OAuthButton({
       if (connected) return;
 
       if (urlError) {
+        // Friendly messages for both platform-returned errors (access_denied, invalid_request)
+        // and server-side errors redirected back via the custom scheme (session expired, etc.)
+        const isSessionError = urlError.toLowerCase().includes("session expired") || urlError.toLowerCase().includes("sign-in session");
         const friendlyMsg =
           urlError === "access_denied"
-            ? "You declined the permission request. Please try again and tap Allow."
+            ? "You declined the permission request. Tap Try Again and approve all requested permissions."
             : urlError === "invalid_request" && platform === "instagram"
             ? "Instagram rejected the request. Make sure your account is a Business or Creator account connected to a Facebook Page."
-            : `Authentication failed: ${urlError}`;
-        Alert.alert("Authentication Failed", friendlyMsg, [{ text: "OK" }]);
+            : isSessionError
+            ? "Your login session expired. Tap Try Again to start fresh."
+            : urlError.toLowerCase().includes("too many")
+            ? urlError
+            : urlError.startsWith("Connection failed") || urlError.startsWith("connection failed")
+            ? "Something went wrong connecting your account. Please try again."
+            : `Could not connect your account: ${urlError}`;
+
+        Alert.alert(
+          "Connection Failed",
+          friendlyMsg,
+          [
+            { text: "Cancel", style: "cancel" },
+            // "Sign in Fresh" clears any cached Safari session so the user always
+            // sees the platform login screen — useful when a stale/wrong-account
+            // session is causing the error.
+            { text: "Sign in Fresh", onPress: () => { void handlePress(true); } },
+            { text: "Try Again", onPress: () => { void handlePress(); } },
+          ]
+        );
       } else if (result.type === "cancel" || result.type === "dismiss") {
         const isInstagram = platform === "instagram";
         const isFacebook  = platform === "facebook";
@@ -253,7 +278,14 @@ function OAuthButton({
           : isFacebook
           ? "Make sure you approved all permissions on the Facebook login screen."
           : "You can still add the account by entering your username manually below.";
-        Alert.alert("Authentication Closed", hint, [{ text: "OK" }]);
+        Alert.alert(
+          "Authentication Closed",
+          hint,
+          [
+            { text: "OK", style: "cancel" },
+            { text: "Try Again", onPress: () => { void handlePress(); } },
+          ]
+        );
       }
     } catch {
       Alert.alert("Error", "Could not open the authentication page. Please try again.");
@@ -270,7 +302,7 @@ function OAuthButton({
       ]}
       disabled={disabled || loading}
       activeOpacity={0.8}
-      onPress={handlePress}
+      onPress={() => { void handlePress(); }}
     >
       {loading ? (
         <ActivityIndicator color="#FFFFFF" size="small" />

@@ -276,8 +276,7 @@ router.post("/oauth/x/init", requireAuth, (req, res): void => {
 router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
   const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
   if (!checkOAuthRateLimit(ip)) {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(429).send(errorPage("Too Many Requests", "Too many connection attempts from this device. Please wait a minute and try again."));
+    res.redirect(appErrorRedirect("instagram", "Too many connection attempts. Please wait a minute and try again."));
     return;
   }
 
@@ -285,8 +284,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
 
   if (error || !code) {
     const msg = error_reason ?? error ?? "Unknown error";
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(400).send(errorPage("Instagram Authorization Failed", msg));
+    res.redirect(appErrorRedirect("instagram", msg));
     return;
   }
 
@@ -465,11 +463,11 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
-      res.status(401).send(errorPage("Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your Instagram account again."));
+      res.redirect(appErrorRedirect("instagram", "Session expired. Please try connecting your Instagram account again."));
       return;
     }
     req.log?.error({ err }, "Instagram OAuth callback error");
-    res.status(500).send(errorPage("Connection Failed", "Something went wrong while connecting your Instagram account. Please try again."));
+    res.redirect(appErrorRedirect("instagram", "Connection failed. Please try again."));
   }
 });
 
@@ -477,16 +475,14 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
 router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
   const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
   if (!checkOAuthRateLimit(ip)) {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(429).send(errorPage("Too Many Requests", "Too many connection attempts from this device. Please wait a minute and try again."));
+    res.redirect(appErrorRedirect("facebook", "Too many connection attempts. Please wait a minute and try again."));
     return;
   }
 
   const { code, error, state } = req.query as Record<string, string>;
 
   if (error || !code) {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(400).send(errorPage("Facebook Authorization Failed", error ?? "Unknown error"));
+    res.redirect(appErrorRedirect("facebook", error ?? "Unknown error"));
     return;
   }
 
@@ -611,11 +607,11 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
-      res.status(401).send(errorPage("Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your Facebook account again."));
+      res.redirect(appErrorRedirect("facebook", "Session expired. Please try connecting your Facebook account again."));
       return;
     }
     req.log?.error({ err }, "Facebook OAuth callback error");
-    res.status(500).send(errorPage("Connection Failed", "Something went wrong while connecting your Facebook account. Please try again."));
+    res.redirect(appErrorRedirect("facebook", "Connection failed. Please try again."));
   }
 });
 
@@ -625,16 +621,14 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
 router.get("/oauth/x/callback", async (req, res): Promise<void> => {
   const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
   if (!checkOAuthRateLimit(ip)) {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(429).send(errorPage("Too Many Requests", "Too many connection attempts from this device. Please wait a minute and try again."));
+    res.redirect(appErrorRedirect("x", "Too many connection attempts. Please wait a minute and try again."));
     return;
   }
 
   const { code, error, state } = req.query as Record<string, string>;
 
   if (error || !code) {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(400).send(errorPage("X Authorization Failed", error ?? "No authorization code received"));
+    res.redirect(appErrorRedirect("x", error ?? "No authorization code received"));
     return;
   }
 
@@ -653,11 +647,7 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
   // State must be an X PKCE state (contains embedded code_verifier)
   const pkce = state ? parseXPkceState(state) : null;
   if (!pkce) {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(401).send(errorPage(
-      "Session Expired",
-      "Your sign-in session expired or the link is invalid. Please try connecting your X account again."
-    ));
+    res.redirect(appErrorRedirect("x", "Session expired. Please try connecting your X account again."));
     return;
   }
 
@@ -673,8 +663,7 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
     if (!dbUser) throw new StateResolutionError();
     userId = dbUser.id;
   } catch {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(401).send(errorPage("Session Expired", "Your sign-in session expired. Please try connecting your X account again."));
+    res.redirect(appErrorRedirect("x", "Session expired. Please try connecting your X account again."));
     return;
   }
 
@@ -814,11 +803,11 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
   } catch (err: any) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     if (err instanceof StateResolutionError) {
-      res.status(401).send(errorPage("Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your X account again."));
+      res.redirect(appErrorRedirect("x", "Session expired. Please try connecting your X account again."));
       return;
     }
     req.log?.error({ err }, "X OAuth callback error");
-    res.status(500).send(errorPage("Connection Failed", "Something went wrong while connecting your X account. Please try again."));
+    res.redirect(appErrorRedirect("x", "Connection failed. Please try again."));
   }
 });
 
@@ -1315,6 +1304,18 @@ function errorPage(title: string, detail: string): string {
       Close this tab and try again in the Rook app.
     </p>
   `);
+}
+
+/**
+ * Build the custom-scheme redirect URL that closes the in-app browser
+ * (ASWebAuthenticationSession / Chrome Custom Tab) and returns the user
+ * to the Rook app with an error they can act on.
+ *
+ * The mobile `connect-account.tsx` already reads `?error=` from the result
+ * URL and shows a user-friendly alert with a retry prompt.
+ */
+function appErrorRedirect(platform: string, message: string): string {
+  return `com.getrook.app://oauth?platform=${encodeURIComponent(platform)}&status=error&error=${encodeURIComponent(message)}`;
 }
 
 function setupPage(): string {
