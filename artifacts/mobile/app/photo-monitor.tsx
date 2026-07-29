@@ -507,6 +507,13 @@ export default function PhotoMonitorScreen() {
                         <SkeletonCell key={i} index={i} />
                       ))}
                     </View>
+                  ) : mediaState.error ? (
+                    <View style={styles.noAccessRow}>
+                      <Ionicons name="alert-circle-outline" size={15} color={colors.mutedForeground} />
+                      <Text style={[styles.noAccessText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        Could not load photos from this account. Try again later.
+                      </Text>
+                    </View>
                   ) : !mediaState.hasAccess ? (
                     <View style={styles.noAccessRow}>
                       <Ionicons name="lock-closed-outline" size={15} color={colors.mutedForeground} />

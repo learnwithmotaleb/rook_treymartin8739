@@ -229,9 +229,12 @@ async function sendAccountNotify(
   }
 ): Promise<void> {
   try {
+    // Sign only stable identity fields with a canonical pipe-delimited string.
+    // Avoids JSON serialisation ordering/length issues (especially with long JWTs).
+    const canonical = `${payload.clerkId}:${payload.platform}:${payload.username}:${payload.platformUserId ?? ""}:${payload.displayName ?? ""}`;
     const sig = crypto
       .createHmac("sha256", STATE_SECRET)
-      .update(JSON.stringify(payload))
+      .update(canonical)
       .digest("base64url");
     await fetch(`${notifyUrl}/api/oauth/account-notify`, {
       method: "POST",
@@ -834,11 +837,11 @@ router.post("/oauth/account-notify", async (req, res): Promise<void> => {
     return;
   }
 
-  // Validate HMAC signature — only the server with SESSION_SECRET can produce this.
-  const payload = { clerkId, platform, username, platformUserId, displayName, accessToken };
+  // Validate HMAC signature — canonical string matches what sendAccountNotify produces.
+  const canonical = `${clerkId}:${platform}:${username}:${platformUserId ?? ""}:${displayName ?? ""}`;
   const expected = crypto
     .createHmac("sha256", STATE_SECRET)
-    .update(JSON.stringify(payload))
+    .update(canonical)
     .digest("base64url");
   if (sig !== expected) {
     res.status(401).json({ error: "invalid signature" });
