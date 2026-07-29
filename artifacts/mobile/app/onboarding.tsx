@@ -8,6 +8,7 @@ import {
   FlatList,
   Image as RNImage,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -1455,16 +1456,32 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
       if (urlError) {
         // "Sign in Fresh" retries with preferEphemeralSession:true to clear any stale
         // cached session (e.g. wrong account still logged in from a previous test).
+        const isInstagramPersonalAccount = urlError === "invalid_request" && platform === "instagram";
         Alert.alert(
           "Authentication Failed",
-          `Could not sign in: ${urlError}`,
+          isInstagramPersonalAccount
+            ? "Instagram rejected the request. The API requires a Professional or Creator account — free and reversible in Instagram Settings."
+            : `Could not sign in: ${urlError}`,
           [
             { text: "Cancel", style: "cancel", onPress: () => setShowManual(true) },
+            ...(isInstagramPersonalAccount ? [{ text: "Open Instagram to Switch", onPress: () => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); } }] : []),
             { text: "Sign in Fresh", onPress: () => { void handleOAuth(true); } },
           ]
         );
       } else if (result.type === "cancel" || result.type === "dismiss") {
-        setShowManual(true);
+        if (platform === "instagram") {
+          Alert.alert(
+            "Authentication Closed",
+            "Instagram requires a Professional or Creator account — free and reversible in Instagram Settings. Tap \"Open Instagram to Switch\" to convert your account, then come back and try again.",
+            [
+              { text: "OK", style: "cancel", onPress: () => setShowManual(true) },
+              { text: "Open Instagram to Switch", onPress: () => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); } },
+              { text: "Try Again", onPress: () => { void handleOAuth(); } },
+            ]
+          );
+        } else {
+          setShowManual(true);
+        }
       }
     } catch {
       setShowManual(true);
@@ -1614,6 +1631,17 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
           </>
         )}
       </ScaleButton>
+      {platform === "instagram" && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 2 }}>
+          <Ionicons name="information-circle-outline" size={12} color="#6B7280" />
+          <Text style={{ color: "#6B7280", fontFamily: "Inter_400Regular", fontSize: 11, flex: 1 }}>
+            Requires a Professional or Creator account — free and reversible in Instagram Settings.{" "}
+          </Text>
+          <TouchableOpacity onPress={() => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); }}>
+            <Text style={{ color: "#E1306C", fontFamily: "Inter_500Medium", fontSize: 11 }}>Switch →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <TouchableOpacity onPress={() => setShowManual((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center" }}>
         <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>
           {showManual ? "Hide manual entry" : "Or enter @handle manually"}
@@ -1641,7 +1669,6 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
     </View>
   );
 }
-
 // PlatformHandlesScreen merged into FullProfileSetupScreen (step 8)
 const ph = StyleSheet.create({
   outerCard:       { borderRadius: 16, borderWidth: 1, padding: 14, gap: 12 },

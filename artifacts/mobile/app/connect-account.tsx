@@ -4,6 +4,7 @@ import {
   Alert,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -245,11 +246,12 @@ function OAuthButton({
         // Friendly messages for both platform-returned errors (access_denied, invalid_request)
         // and server-side errors redirected back via the custom scheme (session expired, etc.)
         const isSessionError = urlError.toLowerCase().includes("session expired") || urlError.toLowerCase().includes("sign-in session");
+        const isInstagramPersonalAccount = urlError === "invalid_request" && platform === "instagram";
         const friendlyMsg =
           urlError === "access_denied"
             ? "You declined the permission request. Tap Try Again and approve all requested permissions."
-            : urlError === "invalid_request" && platform === "instagram"
-            ? "Instagram rejected the request. Make sure your account is a Business or Creator account connected to a Facebook Page."
+            : isInstagramPersonalAccount
+            ? "Instagram rejected the request. The API requires a Professional or Creator account — free and reversible in Instagram Settings."
             : isSessionError
             ? "Your login session expired. Tap Try Again to start fresh."
             : urlError.toLowerCase().includes("too many")
@@ -263,6 +265,7 @@ function OAuthButton({
           friendlyMsg,
           [
             { text: "Cancel", style: "cancel" },
+            ...(isInstagramPersonalAccount ? [{ text: "Open Instagram to Switch", onPress: () => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); } }] : []),
             // "Sign in Fresh" clears any cached Safari session so the user always
             // sees the platform login screen — useful when a stale/wrong-account
             // session is causing the error.
@@ -274,7 +277,7 @@ function OAuthButton({
         const isInstagram = platform === "instagram";
         const isFacebook  = platform === "facebook";
         const hint = isInstagram
-          ? "Instagram requires a Business or Creator account connected to a Facebook Page. If your account is personal, go to Instagram Settings → Account → Switch to Professional Account (free and reversible)."
+          ? "Instagram requires a Professional or Creator account — free and reversible in Instagram Settings. If your account is personal, tap \"Open Instagram to Switch\" to convert it."
           : isFacebook
           ? "Make sure you approved all permissions on the Facebook login screen."
           : "You can still add the account by entering your username manually below.";
@@ -283,6 +286,7 @@ function OAuthButton({
           hint,
           [
             { text: "OK", style: "cancel" },
+            ...(isInstagram ? [{ text: "Open Instagram to Switch", onPress: () => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); } }] : []),
             { text: "Try Again", onPress: () => { void handlePress(); } },
           ]
         );
@@ -584,12 +588,25 @@ export default function ConnectAccount() {
                       </Text>
                     </View>
                   ) : (clientId || selectedPlatform === "x") ? (
-                    <OAuthButton
-                      platform={selectedPlatform}
-                      clientId={clientId ?? ""}
-                      onSuccess={handleOAuthDone}
-                      disabled={submitting}
-                    />
+                    <>
+                      <OAuthButton
+                        platform={selectedPlatform}
+                        clientId={clientId ?? ""}
+                        onSuccess={handleOAuthDone}
+                        disabled={submitting}
+                      />
+                      {selectedPlatform === "instagram" && (
+                        <View style={styles.igInfoChip}>
+                          <Ionicons name="information-circle-outline" size={13} color="#6B7280" />
+                          <Text style={[styles.igInfoChipText, { fontFamily: "Inter_400Regular" }]}>
+                            Requires a Professional or Creator account — free and reversible in Instagram Settings.{" "}
+                          </Text>
+                          <TouchableOpacity onPress={() => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); }}>
+                            <Text style={[styles.igInfoChipLink, { fontFamily: "Inter_500Medium" }]}>Switch →</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </>
                   ) : isExistingAccount ? (
                     <View style={{ gap: 12 }}>
                       <View style={[styles.noCredCard, { backgroundColor: colors.success + "0C", borderColor: colors.success + "33" }]}>
@@ -859,4 +876,8 @@ const styles = StyleSheet.create({
 
   privacyRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   privacyText: { flex: 1, fontSize: 11, lineHeight: 16 },
+
+  igInfoChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 2, flexWrap: "wrap" },
+  igInfoChipText: { color: "#6B7280", fontSize: 11, lineHeight: 16, flex: 1 },
+  igInfoChipLink: { color: "#E1306C", fontSize: 11 },
 });
