@@ -14,7 +14,7 @@
 export const INSTAGRAM_APP_ID = "27463822659936313";
 
 /** Meta / Facebook App ID. */
-export const FACEBOOK_APP_ID = "1042769471484001";
+export const FACEBOOK_APP_ID = "26608295255537344";
 
 /**
  * Custom URI scheme registered in app.json ("scheme": "com.getrook.app").
