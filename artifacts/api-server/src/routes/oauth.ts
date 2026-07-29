@@ -520,8 +520,7 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     const tokenData = await tokenRes.json() as { access_token?: string; expires_in?: number; error?: { message: string } };
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      logger.error({
-        msg: "Facebook token exchange failed",
+      console.error("[FB token exchange failed]", {
         appId: clientId,
         secretLen: clientSecret.length,
         secretPrefix: clientSecret.slice(0, 4),
