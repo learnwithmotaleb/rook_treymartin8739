@@ -200,22 +200,57 @@ export class TwitterAdapter implements PlatformAdapter {
     if (!this.isConfigured()) {
       throw new Error("Twitter adapter not configured.");
     }
-    const response = await fetch(
+
+    // Timeline media requires Basic API tier ($100/mo). Attempt the call and
+    // fall back gracefully to the profile picture (always free-tier accessible)
+    // if the endpoint returns 402 Payment Required.
+    const timelineRes = await fetch(
       `https://api.twitter.com/2/users/${platformUserId}/tweets?expansions=attachments.media_keys&media.fields=url,preview_image_url,type&max_results=${Math.min(limit, 100)}&tweet.fields=text,created_at`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
-    if (!response.ok) throw new Error(`Twitter API error: ${response.status}`);
-    const data = await response.json() as {
-      data?: Array<{ id: string; text?: string; created_at?: string }>;
-      includes?: { media?: Array<{ media_key: string; type: string; url?: string; preview_image_url?: string }> };
+
+    if (timelineRes.ok) {
+      const data = await timelineRes.json() as {
+        data?: Array<{ id: string; text?: string; created_at?: string }>;
+        includes?: { media?: Array<{ media_key: string; type: string; url?: string; preview_image_url?: string }> };
+      };
+      const media = data.includes?.media ?? [];
+      if (media.length > 0) {
+        return media.map((m) => ({
+          platformMediaId: m.media_key,
+          type: (m.type === "video" ? "video" : "image") as MediaItem["type"],
+          url: m.url ?? m.preview_image_url ?? "",
+          thumbnailUrl: m.preview_image_url,
+        }));
+      }
+    }
+
+    // 402 = API tier too low, or empty timeline — fall back to profile picture
+    const profileRes = await fetch(
+      `https://api.twitter.com/2/users/${platformUserId}?user.fields=profile_image_url,name,username`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!profileRes.ok) {
+      // Both calls failed — return empty rather than throwing so the route stays 200
+      return [];
+    }
+    const profileData = await profileRes.json() as {
+      data?: { profile_image_url?: string; username?: string; name?: string };
     };
-    const media = data.includes?.media ?? [];
-    return media.map((m) => ({
-      platformMediaId: m.media_key,
-      type: (m.type === "video" ? "video" : "image") as MediaItem["type"],
-      url: m.url ?? m.preview_image_url ?? "",
-      thumbnailUrl: m.preview_image_url,
-    }));
+    const profileImageUrl = profileData.data?.profile_image_url
+      ?.replace("_normal.", "_400x400.")  // upgrade to higher-res version
+      ?? "";
+    if (!profileImageUrl) return [];
+
+    return [
+      {
+        platformMediaId: `profile_${platformUserId}`,
+        type: "image" as const,
+        url: profileImageUrl,
+        thumbnailUrl: profileImageUrl,
+        caption: "Profile photo",
+      },
+    ];
   }
 
   async searchByUsername(
