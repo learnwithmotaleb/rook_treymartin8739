@@ -247,11 +247,18 @@ function OAuthButton({
         // and server-side errors redirected back via the custom scheme (session expired, etc.)
         const isSessionError = urlError.toLowerCase().includes("session expired") || urlError.toLowerCase().includes("sign-in session");
         const isInstagramPersonalAccount = urlError === "invalid_request" && platform === "instagram";
+
+        // Personal Instagram account — skip the alert and go straight to a fresh
+        // login screen (preferEphemeralSession:true) so the user can switch to
+        // their professional account without any extra taps.
+        if (isInstagramPersonalAccount) {
+          void handlePress(true);
+          return;
+        }
+
         const friendlyMsg =
           urlError === "access_denied"
             ? "You declined the permission request. Tap Try Again and approve all requested permissions."
-            : isInstagramPersonalAccount
-            ? "Instagram rejected the request. The API requires a Professional or Creator account — free and reversible in Instagram Settings."
             : isSessionError
             ? "Your login session expired. Tap Try Again to start fresh."
             : urlError.toLowerCase().includes("too many")
@@ -265,10 +272,6 @@ function OAuthButton({
           friendlyMsg,
           [
             { text: "Cancel", style: "cancel" },
-            ...(isInstagramPersonalAccount ? [{ text: "Open Instagram to Switch", onPress: () => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); } }] : []),
-            // "Sign in Fresh" clears any cached Safari session so the user always
-            // sees the platform login screen — useful when a stale/wrong-account
-            // session is causing the error.
             { text: "Sign in Fresh", onPress: () => { void handlePress(true); } },
             { text: "Try Again", onPress: () => { void handlePress(); } },
           ]

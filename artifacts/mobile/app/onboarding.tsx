@@ -1454,20 +1454,22 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
 
       // Handle errors / cancellations (only reached if poll found nothing)
       if (urlError) {
-        // "Sign in Fresh" retries with preferEphemeralSession:true to clear any stale
-        // cached session (e.g. wrong account still logged in from a previous test).
         const isInstagramPersonalAccount = urlError === "invalid_request" && platform === "instagram";
-        Alert.alert(
-          "Authentication Failed",
-          isInstagramPersonalAccount
-            ? "Instagram rejected the request. The API requires a Professional or Creator account — free and reversible in Instagram Settings."
-            : `Could not sign in: ${urlError}`,
-          [
-            { text: "Cancel", style: "cancel", onPress: () => setShowManual(true) },
-            ...(isInstagramPersonalAccount ? [{ text: "Open Instagram to Switch", onPress: () => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); } }] : []),
-            { text: "Sign in Fresh", onPress: () => { void handleOAuth(true); } },
-          ]
-        );
+        if (isInstagramPersonalAccount) {
+          // Personal account rejected — skip the alert and go straight to a fresh
+          // login screen (preferEphemeralSession:true) so the user can switch accounts
+          // or sign in with their professional account immediately.
+          void handleOAuth(true);
+        } else {
+          Alert.alert(
+            "Authentication Failed",
+            `Could not sign in: ${urlError}`,
+            [
+              { text: "Cancel", style: "cancel", onPress: () => setShowManual(true) },
+              { text: "Sign in Fresh", onPress: () => { void handleOAuth(true); } },
+            ]
+          );
+        }
       } else if (result.type === "cancel" || result.type === "dismiss") {
         if (platform === "instagram") {
           Alert.alert(
@@ -1530,29 +1532,6 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Loading your photos…</Text>
           </View>
-        )}
-        {/* Camera roll fallback: shown when platform photos couldn't load (hasAccess:false,
-            permissions not granted, or API error) so the user still has a way to add a
-            reference photo immediately after connecting. */}
-        {!photosConfirmed && !mediaLoading && mediaItems.length === 0 && (
-          <TouchableOpacity
-            style={[ph.photoConfirmBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-            activeOpacity={0.8}
-            onPress={async () => {
-              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (status !== "granted") return;
-              const picked = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: "images", allowsEditing: true, aspect: [1, 1], quality: 0.7,
-              });
-              if (!picked.canceled && picked.assets[0] && onPhotosPicked) {
-                onPhotosPicked(platform, [picked.assets[0].uri]);
-                setPhotosConfirmed(true);
-              }
-            }}
-          >
-            <Ionicons name="image-outline" size={16} color={colors.mutedForeground} />
-            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 14 }]}>Add a reference photo from camera roll</Text>
-          </TouchableOpacity>
         )}
         {!photosConfirmed && !mediaLoading && mediaItems.length > 0 && (
           <View style={{ gap: 10 }}>
