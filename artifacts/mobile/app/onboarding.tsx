@@ -1362,6 +1362,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   const [connectedAccountId, setConnectedAccountId] = useState<string | null>(null);
   const [mediaItems, setMediaItems] = useState<AccountMediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaHasAccess, setMediaHasAccess] = useState(false);
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [photosConfirmed, setPhotosConfirmed] = useState(false);
 

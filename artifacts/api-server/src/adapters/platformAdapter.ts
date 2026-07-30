@@ -120,11 +120,13 @@ export class InstagramAdapter implements PlatformAdapter {
 
   async getMediaItems(
     accessToken: string,
-    platformUserId: string,
+    _platformUserId: string,
     limit = 50
   ): Promise<MediaItem[]> {
+    // instagram_business_basic scope (Jan 2025+) requires /me/media — the
+    // /{user-id}/media variant needs the deprecated instagram_basic permission.
     const response = await metaFetch(
-      `https://graph.instagram.com/${platformUserId}/media?fields=id,media_type,media_url,thumbnail_url,caption,timestamp&limit=${limit}&access_token=${accessToken}`
+      `https://graph.instagram.com/me/media?fields=id,media_type,media_url,thumbnail_url,caption,timestamp&limit=${limit}&access_token=${accessToken}`
     );
     if (!response.ok) {
       const text = await response.text();
