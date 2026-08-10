@@ -42,12 +42,23 @@ export interface PhotoHashResult {
  */
 export async function computeDHash(imageUrl: string): Promise<string | null> {
   try {
+    const { validateFetchUrl, SsrfBlockedError } = await import("../lib/ssrf.js");
+    try {
+      validateFetchUrl(imageUrl);
+    } catch (e) {
+      if (e instanceof SsrfBlockedError) {
+        logger.warn({ imageUrl, reason: e.message }, "computeDHash: SSRF blocked");
+        return null;
+      }
+      throw e;
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
 
     let response: Response;
     try {
-      response = await fetch(imageUrl, { signal: controller.signal });
+      response = await fetch(imageUrl, { signal: controller.signal, redirect: "error" });
     } finally {
       clearTimeout(timeout);
     }

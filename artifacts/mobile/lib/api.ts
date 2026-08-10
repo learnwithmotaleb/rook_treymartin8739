@@ -213,6 +213,54 @@ export async function updateMe(updates: {
   });
 }
 
+// Current terms version — bump whenever Terms / Privacy Policy is materially updated.
+// Users with a stored version older than this see TermsUpdateModal on next launch.
+export const CURRENT_TERMS_VERSION = "2026-08-10-v2";
+
+// Age confirmation version — bump when the age requirement wording changes.
+export const CURRENT_AGE_VERSION = "1.0";
+
+export async function recordTermsAcceptance(): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/me/terms", {
+    method: "POST",
+    body: JSON.stringify({ termsVersion: CURRENT_TERMS_VERSION }),
+  });
+}
+
+export async function recordAgeConfirmation(): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/me/age-confirm", {
+    method: "POST",
+    body: JSON.stringify({ ageVersion: CURRENT_AGE_VERSION }),
+  });
+}
+
+export async function getPhotoConsent(): Promise<{
+  hasConsent: boolean;
+  consentedAt: string | null;
+  consentVersion: string | null;
+}> {
+  return apiFetch("/me/photo-consent");
+}
+
+export async function recordPhotoConsent(consentVersion = "1.0"): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/me/photo-consent", {
+    method: "POST",
+    body: JSON.stringify({ consentVersion }),
+  });
+}
+
+export async function withdrawPhotoConsent(): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/me/photo-consent", { method: "DELETE" });
+}
+
+export async function deletePhotoData(): Promise<void> {
+  await apiFetch<{ ok: boolean }>("/me/photo-data", { method: "DELETE" });
+}
+
+export async function downloadMyData(): Promise<object> {
+  return apiFetch<object>("/me/export");
+}
+
 export async function saveOnboardingAnswers(answers: Record<string, unknown>): Promise<void> {
   await apiFetch<{ ok: boolean }>("/me/onboarding", {
     method: "POST",

@@ -9,6 +9,7 @@ import {
 import { logger } from "../lib/logger";
 import { recalculateScore } from "../services/scoreService";
 import { buildSuppressKey, normalizeSuppressUsername } from "../services/scanOrchestrator";
+import { isSafeUrl } from "../lib/ssrf";
 
 const router: IRouter = Router();
 
@@ -36,6 +37,12 @@ router.post("/photos/search", async (req, res): Promise<void> => {
 
   if (!imageUrl && !imageBase64) {
     res.status(400).json({ error: "imageUrl or imageBase64 is required" });
+    return;
+  }
+
+  // SSRF guard: reject user-supplied URLs that target private/internal networks
+  if (imageUrl && !isSafeUrl(imageUrl)) {
+    res.status(400).json({ error: "The supplied image URL is not accessible." });
     return;
   }
 

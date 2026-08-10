@@ -18,11 +18,11 @@ import { GlassCard } from "@/components/GlassCard";
 const FAQ = [
   {
     q: "How does identity monitoring work?",
-    a: "Rook uses AI to scan social platforms and public photo indexes for matches to your profile. When a potential impersonator or stolen asset is detected, you're immediately alerted with evidence.",
+    a: "Rook uses AI to search social platforms and public photo indexes for potential matches to your profile. When a possible match is found, you receive a push notification with the evidence for your review.",
   },
   {
-    q: "Which platforms are monitored?",
-    a: "We actively monitor Instagram and Facebook. Support for X (Twitter), TikTok, YouTube, LinkedIn, and Snapchat is coming soon.",
+    q: "Which platforms are searched?",
+    a: "Rook searches Instagram, Facebook, X (Twitter), TikTok, and more using public web search. It does not have direct platform API access for discovery — searches are web-based.",
   },
   {
     q: "How often are scans performed?",

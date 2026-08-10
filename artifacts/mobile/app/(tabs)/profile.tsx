@@ -418,6 +418,11 @@ export default function ProfileScreen() {
             onPress={() => router.push("/support" as any)}
           />
           <SettingsRow
+            icon={<Ionicons name="shield-half-outline" size={20} color={colors.mutedForeground} />}
+            label="Privacy & Data"
+            onPress={() => router.push("/privacy-settings" as any)}
+          />
+          <SettingsRow
             icon={<Ionicons name="document-text-outline" size={20} color={colors.mutedForeground} />}
             label="Legal & Privacy"
             onPress={() => router.push("/legal" as any)}

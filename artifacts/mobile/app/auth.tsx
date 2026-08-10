@@ -83,6 +83,8 @@ export default function Auth() {
   const [ssoLoading, setSsoLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [needsSigninCode, setNeedsSigninCode] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -162,6 +164,11 @@ export default function Auth() {
       await signUp!.verifications.verifyEmailCode({ code });
       if (signUp!.status === "complete") {
         await signUp!.finalize({ navigate: () => { router.replace("/(tabs)/" as any); } });
+        // Record terms and age acceptance server-side (fire-and-forget; non-blocking)
+        import("../lib/api").then(({ recordTermsAcceptance, recordAgeConfirmation }) => {
+          recordTermsAcceptance().catch(() => { /* non-critical */ });
+          recordAgeConfirmation().catch(() => { /* non-critical */ });
+        });
       } else { setError("Verification incomplete. Please try again."); }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
@@ -175,6 +182,11 @@ export default function Auth() {
       const { createdSessionId, setActive } = await startSSOFlow({ strategy: "oauth_google", redirectUrl: AuthSession.makeRedirectUri() });
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId, navigate: () => { router.replace("/(tabs)/" as any); } } as any);
+        // SSO sign-up: record terms and age acceptance fire-and-forget
+        import("../lib/api").then(({ recordTermsAcceptance, recordAgeConfirmation }) => {
+          recordTermsAcceptance().catch(() => {});
+          recordAgeConfirmation().catch(() => {});
+        });
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
@@ -188,6 +200,11 @@ export default function Auth() {
       const { createdSessionId, setActive } = await startSSOFlow({ strategy: "oauth_apple", redirectUrl: AuthSession.makeRedirectUri() });
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId, navigate: () => { router.replace("/(tabs)/" as any); } } as any);
+        // SSO sign-up: record terms and age acceptance fire-and-forget
+        import("../lib/api").then(({ recordTermsAcceptance, recordAgeConfirmation }) => {
+          recordTermsAcceptance().catch(() => {});
+          recordAgeConfirmation().catch(() => {});
+        });
       }
     } catch (e: any) {
       if ((e as any).code === "ERR_REQUEST_CANCELED") return;
@@ -196,7 +213,12 @@ export default function Auth() {
     } finally { setSsoLoading(false); }
   }, [startSSOFlow]);
 
-  const handleSubmit = () => { if (mode === "login") handleSignIn(); else handleSignUp(); };
+  const handleSubmit = () => {
+    if (mode === "login") { handleSignIn(); return; }
+    if (!termsAccepted) { setError("Please accept the Terms of Service and Privacy Policy to continue"); return; }
+    if (!ageConfirmed) { setError("Please confirm you are 17 or older to continue"); return; }
+    handleSignUp();
+  };
 
   const inputBorder = (field: string) => focusedField === field ? "#3B82F6" : "#1A2740";
 
@@ -458,20 +480,18 @@ export default function Auth() {
 
               {error !== "" && <ErrorBanner message={error} />}
 
+              {mode === "register" && (
+                <>
+                  <TermsCheckbox accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
+                  <AgeCheckbox confirmed={ageConfirmed} onToggle={() => setAgeConfirmed((v) => !v)} />
+                </>
+              )}
+
               <GradientButton
                 label={loading ? (mode === "login" ? "Signing in…" : "Creating account…") : (mode === "login" ? "Sign In" : "Create Account")}
                 onPress={handleSubmit}
-                disabled={loading}
+                disabled={loading || (mode === "register" && (!termsAccepted || !ageConfirmed))}
               />
-
-              {mode === "register" && (
-                <Text style={styles.consentText}>
-                  By creating an account you agree to our{" "}
-                  <Text style={styles.consentLink} onPress={() => router.push("/legal" as any)}>Terms of Service</Text>
-                  {" "}and{" "}
-                  <Text style={styles.consentLink} onPress={() => router.push("/legal" as any)}>Privacy Policy</Text>.
-                </Text>
-              )}
 
               <View nativeID="clerk-captcha" />
             </>
@@ -481,11 +501,44 @@ export default function Auth() {
         {/* ── Bottom badge ── */}
         <View style={styles.bottomBadge}>
           <Ionicons name="lock-closed" size={12} color="#3B4C6B" />
-          <Text style={styles.bottomBadgeText}>256-bit encrypted · SOC 2 ready</Text>
+          <Text style={styles.bottomBadgeText}>Secured with industry-standard encryption</Text>
         </View>
 
       </KeyboardAwareScrollViewCompat>
     </View>
+  );
+}
+
+function TermsCheckbox({ accepted, onToggle }: { accepted: boolean; onToggle: () => void }) {
+  return (
+    <TouchableOpacity onPress={onToggle} activeOpacity={0.7} style={styles.termsRow}>
+      <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
+        {accepted && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+      </View>
+      <Text style={styles.consentText}>
+        I agree to the{" "}
+        <Text style={styles.consentLink} onPress={() => router.push("/legal" as any)}>Terms of Service</Text>
+        {" "}and{" "}
+        <Text style={styles.consentLink} onPress={() => router.push("/legal" as any)}>Privacy Policy</Text>,
+        {" "}including the{" "}
+        <Text style={styles.consentLink} onPress={() => router.push("/legal" as any)}>biometric data notice</Text>.
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function AgeCheckbox({ confirmed, onToggle }: { confirmed: boolean; onToggle: () => void }) {
+  return (
+    <TouchableOpacity onPress={onToggle} activeOpacity={0.7} style={styles.termsRow}>
+      <View style={[styles.checkbox, confirmed && styles.checkboxChecked]}>
+        {confirmed && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+      </View>
+      <Text style={styles.consentText}>
+        I confirm I am{" "}
+        <Text style={{ color: "#CBD5E1", fontWeight: "600" }}>17 years of age or older</Text>
+        {" "}and meet Rook's minimum age requirement.
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -611,8 +664,16 @@ const styles = StyleSheet.create({
   gradientBtn: { height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center" },
   gradientBtnText: { fontFamily: "Inter_700Bold", fontSize: 16, color: "#FFFFFF", letterSpacing: 0.3 },
 
+  // Terms checkbox
+  termsRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: "#3B4C6B",
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  checkboxChecked: { backgroundColor: "#3B82F6", borderColor: "#3B82F6" },
+
   // Consent
-  consentText: { fontFamily: "Inter_400Regular", fontSize: 12, color: "#3B4C6B", textAlign: "center", lineHeight: 18 },
+  consentText: { fontFamily: "Inter_400Regular", fontSize: 12, color: "#3B4C6B", flex: 1, lineHeight: 18 },
   consentLink: { color: "#3B82F6" },
 
   // Resend row (verify screen)

@@ -456,7 +456,7 @@ export default function AlertsScreen() {
                 <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                   {filter === "all"
                     ? "No active threats detected. Run a scan to check for new impersonators."
-                    : `No ${filter}-severity threats detected. You're fully protected.`}
+                    : `No ${filter}-severity threats detected. Run a scan anytime to check for new results.`}
                 </Text>
                 {filter === "all" && (
                   <TouchableOpacity style={[styles.runScanBtn, { backgroundColor: colors.primary }]} onPress={() => router.push("/(tabs)/scan" as any)} activeOpacity={0.85}>
@@ -517,7 +517,7 @@ export default function AlertsScreen() {
                 </View>
                 <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>No Resolutions Yet</Text>
                 <Text style={[styles.emptySub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  When you mark a threat as resolved, it will appear here with its category so you can track every confirmed impersonator.
+                  When you mark a threat as resolved, it will appear here with its category so you can track every result you've reviewed.
                 </Text>
               </Animated.View>
             }

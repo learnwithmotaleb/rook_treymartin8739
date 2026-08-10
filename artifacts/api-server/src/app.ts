@@ -23,6 +23,11 @@ const publicLimiter = rateLimit({
   message: { error: "Too many requests — please try again later." },
 });
 
+// Authenticated rate limiters for expensive endpoints.
+// These supplement the scan-quota system — they provide a hard request-rate
+// ceiling to prevent denial-of-wallet from compromised or abused tokens.
+
+
 const app: Express = express();
 
 // Replit (and most cloud hosts) sit behind a reverse proxy that sets

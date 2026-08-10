@@ -197,8 +197,8 @@ function ReportPreview({ colors, threat }: {
                 <Ionicons name="alert-circle-outline" size={12} color={colors.mutedForeground} />
                 <Text style={[rp.matchText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                   {threat.matchedMediaCount > 0
-                    ? `${threat.matchedMediaCount} photo match${threat.matchedMediaCount !== 1 ? "es" : ""} · confirmed via reverse image search`
-                    : "Identity impersonation detected · upgrade to view full details"}
+                    ? `${threat.matchedMediaCount} potential photo match${threat.matchedMediaCount !== 1 ? "es" : ""} · detected via reverse image search`
+                    : "Potential impersonation match · upgrade to view full details"}
                 </Text>
               </View>
             </>
@@ -211,7 +211,7 @@ function ReportPreview({ colors, threat }: {
                     Identity Monitoring Active
                   </Text>
                   <Text style={[rp.findingText, { color: sColor, fontFamily: "Inter_600SemiBold" }]}>
-                    Continuous scan across all platforms
+                    Periodic scan across connected platforms
                   </Text>
                 </View>
                 <View style={[rp.shieldIcon, { backgroundColor: sColor + "18", borderColor: sColor + "30" }]}>
@@ -221,7 +221,7 @@ function ReportPreview({ colors, threat }: {
               <View style={rp.matchRow}>
                 <Ionicons name="eye-outline" size={12} color={colors.mutedForeground} />
                 <Text style={[rp.matchText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Watching X, Instagram, TikTok, Facebook & more
+                  Searches X, Instagram, TikTok, Facebook & more
                 </Text>
               </View>
             </>
@@ -652,7 +652,7 @@ function ManageScreen({ colors, tier, onClose, topPad }: {
           {displayTier(tier)} — Active
         </Text>
         <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center", lineHeight: 23 }]}>
-          You're fully protected. Rook continuously monitors your identity across all connected platforms.
+          Rook periodically scans for potential misuse of your identity across connected platforms.
         </Text>
         <TouchableOpacity
           style={[{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }]}

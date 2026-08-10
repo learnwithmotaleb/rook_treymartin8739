@@ -698,7 +698,7 @@ export default function ConnectAccount() {
                       style={[styles.usernameField, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
                       value={displayName}
                       onChangeText={setDisplayName}
-                      placeholder="e.g. Sophie Rain"
+                      placeholder="e.g. Jane Smith"
                       placeholderTextColor={colors.mutedForeground}
                       autoCapitalize="words"
                       autoCorrect={false}

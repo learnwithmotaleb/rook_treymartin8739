@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middleware/requireAuth";
+import { scanLimiter, photoSearchLimiter, aiLimiter } from "../middleware/rateLimiters";
 import healthRouter from "./health";
 import usersRouter from "./users";
 import accountsRouter from "./accounts";
@@ -37,12 +38,15 @@ router.use(requireAuth);
 
 router.use(usersRouter);
 router.use(accountsRouter);
+router.use("/scan", scanLimiter);
 router.use(scanRouter);
 router.use(threatsRouter);
 router.use(fingerprintRouter);
+router.use("/ai", aiLimiter);
 router.use(aiAnalysisRouter);
 router.use(billingRouter);
 router.use(notificationsRouter);
+router.use("/photos", photoSearchLimiter);
 router.use(photosRouter);
 router.use(intelligenceRouter);
 router.use(identityRouter);

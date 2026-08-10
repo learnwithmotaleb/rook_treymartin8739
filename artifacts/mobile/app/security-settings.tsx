@@ -183,7 +183,7 @@ export default function SecuritySettings() {
             </Text>
             <Text style={[styles.scoreStatus, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
               {twoFactorEnabled && prefs.biometricLogin
-                ? "Excellent — fully protected"
+                ? "Excellent — strong account security"
                 : twoFactorEnabled || prefs.biometricLogin
                   ? "Good — consider enabling more features"
                   : "Basic — enable 2FA to improve security"}

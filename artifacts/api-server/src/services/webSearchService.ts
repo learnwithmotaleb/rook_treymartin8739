@@ -1256,7 +1256,7 @@ async function tiktokVariantProbe(
 // ─── Strategy 1b: Display name + normalized handle search ────────────────────
 //
 // Impersonators of celebrities/influencers almost always claim the person's
-// REAL NAME (e.g. "Sophie Rain") rather than copying their exact handle.
+// REAL NAME (e.g. "Jane Smith") rather than copying their exact handle.
 // This strategy searches for the display name and/or normalized handle forms
 // per platform, finding accounts that a manual human search would find first.
 

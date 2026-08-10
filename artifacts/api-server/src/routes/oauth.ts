@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { db, connectedAccountsTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth";
 import { metaFetch } from "../lib/metaFetch";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -515,14 +516,12 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     const tokenData = await tokenRes.json() as { access_token?: string; expires_in?: number; error?: { message: string } };
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      console.error("[FB token exchange failed]", {
+      logger.error({
         appId: clientId,
-        secretLen: clientSecret.length,
-        secretPrefix: clientSecret.slice(0, 4),
-        redirectUri,
         httpStatus: tokenRes.status,
         fbError: tokenData.error,
-      });
+        // Deliberately omit secret length, prefix, and redirectUri from logs
+      }, "FB token exchange failed");
       throw new Error(tokenData.error?.message ?? `Token exchange failed (HTTP ${tokenRes.status})`);
     }
 

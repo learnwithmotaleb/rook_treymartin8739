@@ -25,6 +25,12 @@ export const usersTable = pgTable("users", {
   avatarUrl: text("avatar_url"),
   scanCount: integer("scan_count").notNull().default(0),
   onboardingAnswers: jsonb("onboarding_answers"),
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
+  termsVersion: text("terms_version"),
+  /** Timestamp of user's declaration that they are ≥17 years old at signup. */
+  ageConfirmedAt: timestamp("age_confirmed_at", { withTimezone: true }),
+  /** Version string of the age-confirmation prompt accepted (e.g. "1.0"). */
+  minimumAgeVersion: text("minimum_age_version"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -38,6 +44,34 @@ export const insertUserSchema = createInsertSchema(usersTable).omit({
   createdAt: true,
   updatedAt: true,
 });
+
+// ─── Photo Processing Consents ────────────────────────────────────────────────
+// Audit trail for explicit biometric/image-processing consent (BIPA / CUBI / GDPR Art. 9).
+// One active row per user means consent is granted. withdrawn_at set = consent withdrawn.
+export const photoProcessingConsentsTable = pgTable(
+  "photo_processing_consents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    consentedAt: timestamp("consented_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Semver-style version string matching the privacy policy version shown (e.g. "1.0"). */
+    consentVersion: text("consent_version").notNull().default("1.0"),
+    /** Set when user withdraws consent; null = consent active. */
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    /** ISO 3166-1 alpha-2 country code inferred from request, if available. For audit trail. */
+    ipCountry: text("ip_country"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("photo_processing_consents_user_id_idx").on(t.userId),
+    // Partial index for fast "does user have active consent?" lookups
+    index("photo_processing_consents_active_idx").on(t.userId, t.withdrawnAt),
+  ]
+);
+
+export type PhotoProcessingConsent = typeof photoProcessingConsentsTable.$inferSelect;
 export const selectUserSchema = createSelectSchema(usersTable);
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;

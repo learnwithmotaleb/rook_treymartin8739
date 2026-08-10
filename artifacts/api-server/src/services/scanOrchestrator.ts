@@ -15,7 +15,7 @@
  * 8. Mark scan complete with threat count
  */
 
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, isNull } from "drizzle-orm";
 import { recalculateScore } from "./scoreService";
 import {
   db,
@@ -24,6 +24,7 @@ import {
   threatsTable,
   suppressedAccountsTable,
   usersTable,
+  photoProcessingConsentsTable,
   type ScanJob,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -639,6 +640,28 @@ async function runScanPipeline(
 
   if (!user) throw new Error(`User not found: ${userId}`);
 
+  // ── Photo-processing consent gate ──────────────────────────────────────────
+  // BIPA / GDPR Art. 9 require explicit consent before deriving perceptual
+  // hashes or AI embeddings from a user's photos. Demo users (no clerkId) are
+  // exempt because they have no real photos. Real users without active consent
+  // skip all photo-fingerprinting steps but continue with text-based detection.
+  const [activeConsent] = !user.clerkId
+    ? [{ id: "demo" }] // demo user — always allow
+    : await db
+        .select({ id: photoProcessingConsentsTable.id })
+        .from(photoProcessingConsentsTable)
+        .where(
+          and(
+            eq(photoProcessingConsentsTable.userId, userId),
+            isNull(photoProcessingConsentsTable.withdrawnAt)
+          )
+        )
+        .limit(1);
+  const hasPhotoConsent = Boolean(activeConsent);
+  if (!hasPhotoConsent) {
+    logger.info({ userId }, "No active photo-processing consent — skipping photo fingerprinting steps");
+  }
+
   // First scan: scanCount === 0. Used to apply high-precision mode throughout
   // the pipeline — tighter Hamming threshold, profile-photo hard filter, and
   // suppression of Low-severity results until a second scan confirms them.
@@ -723,52 +746,62 @@ async function runScanPipeline(
   await updateJobProgress(jobId, SCAN_STEPS[2].progress, SCAN_STEPS[2].step);
 
   // Compute and persist pHash fingerprints for user's own photos.
+  // Requires active photo-processing consent (BIPA / GDPR Art. 9).
   // storeUserPhotoHashes checks the DB first — photos already hashed from a
   // prior scan are returned immediately (no re-download).  The persistent
   // user_photo_hashes table means hashes survive CDN URL rotation between scans.
   // Build hash inputs from structured media items to preserve each photo's
   // postedAt timestamp — this is threaded into the DB so temporal scoring can
   // compare a suspicious account's post date against the exact matched victim photo.
-  const photoHashInputs: Array<{ platformMediaId: string; url: string; publishedAt?: Date }> = [];
-  for (const ingested of ingestedAccounts) {
-    if (ingested.profileImageUrl) {
-      photoHashInputs.push({
-        platformMediaId: `url:${encodeURIComponent(ingested.profileImageUrl).slice(0, 200)}`,
-        url: ingested.profileImageUrl,
-      });
-    }
-    for (const item of ingested.mediaItems) {
-      if (item.type === "image" && item.url) {
+  let allUserHashes: Awaited<ReturnType<typeof storeUserPhotoHashes>> = [];
+  if (hasPhotoConsent) {
+    const photoHashInputs: Array<{ platformMediaId: string; url: string; publishedAt?: Date }> = [];
+    for (const ingested of ingestedAccounts) {
+      if (ingested.profileImageUrl) {
         photoHashInputs.push({
-          platformMediaId: `url:${encodeURIComponent(item.url).slice(0, 200)}`,
-          url: item.url,
-          publishedAt: item.postedAt,
+          platformMediaId: `url:${encodeURIComponent(ingested.profileImageUrl).slice(0, 200)}`,
+          url: ingested.profileImageUrl,
         });
       }
+      for (const item of ingested.mediaItems) {
+        if (item.type === "image" && item.url) {
+          photoHashInputs.push({
+            platformMediaId: `url:${encodeURIComponent(item.url).slice(0, 200)}`,
+            url: item.url,
+            publishedAt: item.postedAt,
+          });
+        }
+      }
     }
+    allUserHashes = await storeUserPhotoHashes(userId, photoHashInputs);
+    logger.info({ userId, total: photoHashInputs.length, hashed: allUserHashes.length }, "User photo hashes ready");
   }
-  const allUserHashes = await storeUserPhotoHashes(userId, photoHashInputs);
-  logger.info({ userId, total: photoHashInputs.length, hashed: allUserHashes.length }, "User photo hashes ready");
 
   // Fire-and-forget: recompute cross-platform identity anchor.
   // Every scan that ingests new photos improves the anchor's confidence and
   // per-platform verification scores — no scan completion needed to wait on this.
   recomputeIdentityAnchor(userId).catch(() => {});
 
-  // Build AI embedding vectors for user photos (up to 20, profile photos first)
+  // Build AI embedding vectors for user photos (up to 20, profile photos first).
   // These catch cropped/filtered/re-uploaded copies that dHash misses.
-  // Runs in parallel with discovery steps — errors are non-fatal.
-  const profilePhotoUrls = ingestedAccounts
-    .map((a) => a.profileImageUrl)
-    .filter((u): u is string => Boolean(u));
-  const embeddingTargetUrls = [
-    ...profilePhotoUrls,
-    ...photoHashInputs.map((p) => p.url).filter((u) => !profilePhotoUrls.includes(u)),
-  ].slice(0, 20);
+  // Requires the same photo-processing consent as hash fingerprinting.
+  // Runs in background — errors are non-fatal.
+  if (hasPhotoConsent) {
+    const profilePhotoUrls = ingestedAccounts
+      .map((a) => a.profileImageUrl)
+      .filter((u): u is string => Boolean(u));
+    const allIngestedImageUrls = ingestedAccounts.flatMap((a) =>
+      a.mediaItems.filter((m) => m.type === "image" && m.url).map((m) => m.url as string)
+    );
+    const embeddingTargetUrls = [
+      ...profilePhotoUrls,
+      ...allIngestedImageUrls.filter((u) => !profilePhotoUrls.includes(u)),
+    ].slice(0, 20);
 
-  buildUserPhotoEmbeddings(userId, embeddingTargetUrls, 20).catch((err) =>
-    logger.warn({ err }, "Background AI embedding generation failed (non-fatal)")
-  );
+    buildUserPhotoEmbeddings(userId, embeddingTargetUrls, 20).catch((err) =>
+      logger.warn({ err }, "Background AI embedding generation failed (non-fatal)")
+    );
+  }
 
   // Compute per-user Hamming threshold early — needed for both the pre-search
   // actor corpus fast-path and the per-candidate photo comparison in Step 6.

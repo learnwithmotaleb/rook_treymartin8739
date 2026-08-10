@@ -257,7 +257,7 @@ function CredibleStatScreen({ colors }: { colors: ReturnType<typeof useColors> }
       <LinearGradient colors={["#EF444410", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={{ gap: 10 }}>
         <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Impersonation is one of the fastest-growing forms of online fraud.
+          Online identity fraud is a growing concern.
         </Text>
         <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
           Fake accounts don't just borrow a name — they steal photos, copy bios, and message your real followers pretending to be you. Most people find out from someone else, days or weeks later.
@@ -1072,8 +1072,8 @@ function HowRookProtectsScreen({ colors }: { colors: ReturnType<typeof useColors
   const STEPS = [
     { icon: "scan-circle", label: "Scan every major platform", color: colors.primary },
     { icon: "alert-circle", label: "Detect impersonators & stolen photos", color: "#EF4444" },
-    { icon: "notifications", label: "Alert you instantly", color: "#F59E0B" },
-    { icon: "shield-checkmark", label: "Help you report & remove them", color: colors.success },
+    { icon: "notifications", label: "Alert you when matches are found", color: "#F59E0B" },
+    { icon: "shield-checkmark", label: "Help you review & report results", color: colors.success },
   ];
   const anims     = useRef(STEPS.map(() => new Animated.Value(0))).current;
   const lineAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
@@ -1165,54 +1165,59 @@ const prv = StyleSheet.create({
   itemIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
 });
 
-// ─── S10: Social Proof ────────────────────────────────────────────────────────
-const REVIEWS = [
-  { name: "@sarahcreates", meta: "Content Creator", review: "Found a fake account using my photos on the first scan. Essential for any creator." },
-  { name: "@mkdesign", meta: "Graphic Designer", review: "An impersonator was messaging my followers. Rook caught it before I even noticed." },
-  { name: "@brandpro", meta: "Business Owner", review: "Five minutes to set up. Three accounts using our logo — gone." },
-];
-const REVIEW_AVATARS = [
-  require("../assets/images/onboarding/s10-sarah.png"),
-  require("../assets/images/onboarding/s10-mark.png"),
-  require("../assets/images/onboarding/s10-brandpro.png"),
+// ─── S10: What Rook Does ──────────────────────────────────────────────────────
+const HOW_IT_WORKS = [
+  {
+    icon: "search" as const,
+    title: "Scans publicly discoverable results",
+    body: "Rook searches the web for profiles and images that visually or textually resemble your identity.",
+  },
+  {
+    icon: "eye-off-outline" as const,
+    title: "AI-powered similarity matching",
+    body: "Your photos and account details are compared against potential matches using computer vision and identity signals — not platform APIs.",
+  },
+  {
+    icon: "flag-outline" as const,
+    title: "You decide what's a threat",
+    body: "Rook surfaces possible matches for your review. You confirm, dismiss, or report — Rook never acts on your behalf.",
+  },
+  {
+    icon: "notifications-outline" as const,
+    title: "Periodic automated monitoring",
+    body: "Premium accounts are re-scanned on a schedule. Results reflect the web at time of scan, not continuous real-time surveillance.",
+  },
 ];
 function SocialProofScreen({ colors }: { colors: ReturnType<typeof useColors> }) {
-  const anims = useRef(REVIEWS.map(() => new Animated.Value(0))).current;
-  useEffect(() => { Animated.stagger(120, anims.map((a) => Animated.spring(a, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }))).start(); }, []);
+  const anims = useRef(HOW_IT_WORKS.map(() => new Animated.Value(0))).current;
+  useEffect(() => { Animated.stagger(100, anims.map((a) => Animated.spring(a, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }))).start(); }, []);
   return (
     <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 24 }]} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#F59E0B11", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={{ gap: 10 }}>
-        <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Trusted by creators and professionals who can't afford to be impersonated.</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ flexDirection: "row", gap: 2 }}>
-            {[0,1,2,3,4].map((i) => <Ionicons key={i} name="star" size={16} color="#F59E0B" />)}
-          </View>
-          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>4.8</Text>
-          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>· 50,000+ identities protected</Text>
-        </View>
+      <LinearGradient colors={["#3B82F611", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <View style={{ gap: 8 }}>
+        <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Here's exactly how Rook works</Text>
+        <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          No mystery. No exaggerated claims. Just AI-assisted searching so you can find potential misuse of your identity.
+        </Text>
       </View>
       <View style={{ gap: 12 }}>
-        {REVIEWS.map((r, idx) => (
-          <Animated.View key={r.name} style={{ opacity: anims[idx], transform: [{ translateY: anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-            <GlassCard style={{ gap: 10 }}>
-              <View style={{ flexDirection: "row", gap: 2 }}>{[0,1,2,3,4].map((i) => <Ionicons key={i} name="star" size={12} color="#F59E0B" />)}</View>
-              <Text style={[{ color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 14, lineHeight: 21, fontStyle: "italic" }]}>"{r.review}"</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <RNImage
-                  source={REVIEW_AVATARS[idx]}
-                  style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, borderColor: colors.primary + "44" }}
-                  resizeMode="cover"
-                />
-                <View>
-                  <Text style={[{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>{r.name}</Text>
-                  <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>{r.meta}</Text>
-                </View>
+        {HOW_IT_WORKS.map((item, idx) => (
+          <Animated.View key={item.title} style={{ opacity: anims[idx], transform: [{ translateY: anims[idx]!.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+            <GlassCard style={{ flexDirection: "row", gap: 14, alignItems: "flex-start" }}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ionicons name={item.icon} size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, lineHeight: 20 }]}>{item.title}</Text>
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 19 }]}>{item.body}</Text>
               </View>
             </GlassCard>
           </Animated.View>
         ))}
       </View>
+      <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 11, textAlign: "center", lineHeight: 17 }]}>
+        Rook surfaces potential matches — results require your review before any action.
+      </Text>
     </ScrollView>
   );
 }
@@ -1922,14 +1927,14 @@ function ReportBridgeScreen({ colors, threatCount, userType, platformCount }: {
 
   const summaryY = summaryAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
   const userTypeLabel = USER_TYPES.find((t) => t.id === userType)?.label ?? null;
-  const LOCKED_FEATURES = ["Continuous daily monitoring", "Takedown request assistance", "30-day threat history", "Real-time push alerts"];
+  const LOCKED_FEATURES = ["Scheduled daily scans", "Takedown request assistance", "30-day threat history", "Push alerts when matches are found"];
   return (
     <ScrollView style={s.screen} contentContainerStyle={[s.screenPad, { gap: 24 }]} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={["#3B82F618", "#8B5CF610", "transparent"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <Animated.View style={{ opacity: fade, gap: 24 }}>
         <View style={{ gap: 10 }}>
           <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Your Identity Protection{"\n"}Report is ready.</Text>
-          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Free accounts get a one-time scan. Rook Premium monitors continuously — every platform, every day.</Text>
+          <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Free accounts get a one-time scan. Rook Premium schedules daily scans across connected platforms.</Text>
         </View>
         <Animated.View style={{ opacity: summaryAnim, transform: [{ translateY: summaryY }] }}>
           <GlassCard style={{ gap: 14, borderColor: colors.primary + "33" }}>

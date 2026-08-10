@@ -1,0 +1,1834 @@
+# ROOK — FINAL PRE-SUBMISSION META + APP STORE + SECURITY AUDIT
+
+You are performing the **final production-readiness audit of ROOK before Meta App Review and Apple App Store submission**.
+
+This is not a superficial code review.
+
+Treat this as a release-blocking audit of the entire application, backend, authentication system, database, OAuth integrations, APIs, scan engine, subscription system, onboarding, privacy/legal implementation, user-facing copy, security posture, and production configuration.
+
+Assume this is the **last engineering audit before real users and platform reviewers access the app**.
+
+Your responsibilities are to:
+
+1. Find every meaningful issue.
+2. Fix issues when it is safe to do so.
+3. Never silently change core product behavior.
+4. Flag anything requiring developer credentials, Meta configuration, Apple configuration, legal review, or manual action.
+5. Test your fixes.
+6. Continue auditing after fixes to identify issues created or exposed by those fixes.
+7. Do not stop after finding the first few problems.
+
+---
+
+# 1. START WITH A COMPLETE SYSTEM MAP
+
+Before modifying anything, inspect the entire repository and identify:
+
+* Mobile/frontend architecture
+* Backend architecture
+* Authentication system
+* Database
+* API routes
+* Server functions
+* Background jobs
+* Supabase/Firebase services
+* Storage buckets
+* Redis/cache usage
+* OAuth integrations
+* Meta/Facebook integrations
+* Instagram integrations
+* Google Vision integration
+* Google Custom Search integration
+* OpenAI integration
+* RevenueCat integration
+* Apple Sign In
+* Google Sign In
+* Email/password authentication
+* Push notifications
+* Deep links
+* Webhooks
+* Scan engine
+* Threat detection pipeline
+* Report flows
+* User profile/account deletion
+* Connected accounts
+* Legal pages
+* Subscription/paywall logic
+* Analytics
+* Error reporting
+* Environment variables
+* Secrets
+* Admin functionality
+
+Produce an internal architecture map before making changes so you understand how data flows through the system.
+
+---
+
+# 2. CRITICAL BUG: REAL NAME / MANUAL USERNAME SEARCH
+
+There is a known issue that MUST be investigated and fixed.
+
+When manually entering a username, the **Real Name field currently displays "Sophie Rain"**.
+
+This should NEVER exist as a real default value.
+
+Replace it with a generic placeholder such as:
+
+"Jane Smith"
+
+or another obviously fictional/generic example.
+
+More importantly:
+
+A placeholder must NEVER become an actual form value.
+
+If the user leaves the Real Name field empty:
+
+* The frontend should submit `null`, `undefined`, or an empty sanitized value according to our backend schema.
+* "Sophie Rain"
+* "Jane Smith"
+* placeholder text
+* demo content
+* previous user's data
+* seeded test data
+
+must NEVER enter the scan query.
+
+Audit every place where manual scan search parameters are generated.
+
+Search for:
+
+* Sophie
+* Sophie Rain
+* hardcoded names
+* demo usernames
+* dummy profiles
+* test identities
+* fallback names
+* example search values
+* default form state
+* seeded scan parameters
+
+Remove production dependencies on them.
+
+Test:
+
+Username entered + Real Name blank
+
+Expected behavior:
+
+ONLY the username and legitimately supplied parameters should be searched.
+
+Also test:
+
+* Username only
+* Real name only
+* Both fields
+* Neither field
+* Spaces
+* Unicode
+* @username
+* username without @
+* punctuation
+* emojis
+* very long strings
+* malicious input
+* pasted URLs
+* SQL/XSS payloads
+
+No placeholder should ever influence search results.
+
+---
+
+# 3. ONBOARDING STATE — NEW USERS ONLY
+
+Audit the entire onboarding state machine.
+
+Requirement:
+
+**Only genuine new users should see onboarding.**
+
+Returning users should never be forced through onboarding again unless onboarding has intentionally been reset.
+
+Review:
+
+* fresh install
+* authenticated returning user
+* logged-out returning user
+* app reinstall
+* account restoration
+* login from another device
+* Apple login
+* Google login
+* email login
+* OAuth callback
+* token refresh
+* expired session
+* subscription restoration
+* app upgrade
+
+Do not rely exclusively on local storage to determine onboarding completion.
+
+Store authoritative onboarding status server-side against the user's account.
+
+Example:
+
+`onboarding_completed_at`
+
+or equivalent.
+
+Local state may cache it, but should not be the source of truth.
+
+Do not mark onboarding completed prematurely.
+
+Ensure anonymous/local users cannot accidentally inherit another user's onboarding state.
+
+Test all onboarding paths.
+
+---
+
+# 4. COMPLETE ONBOARDING AUDIT
+
+Walk through every onboarding screen exactly as a user and reviewer would.
+
+Inspect:
+
+* copy
+* grammar
+* button labels
+* loading states
+* transitions
+* progress indicators
+* spacing
+* typography
+* safe areas
+* keyboard behavior
+* scrolling
+* back navigation
+* interrupted onboarding
+* state persistence
+* signup
+* sign-in
+* OAuth
+* account linking
+* permissions
+* photo selection
+* scan initiation
+* scan results
+* paywall
+* trial messaging
+* restore purchases
+* account creation
+
+There should be no:
+
+* fake statistics
+* fake notifications
+* misleading countdowns
+* fake urgency
+* fabricated social proof
+* exaggerated guarantees
+* deceptive security language
+* simulated scan results represented as genuine findings
+* claims that cannot be substantiated
+* dark patterns
+* forced permission requests without explanation
+* misleading subscription language
+
+---
+
+# 5. APPLE + META COPY AUDIT
+
+Audit every visible string in the application.
+
+Search the entire codebase for user-facing copy.
+
+Evaluate terminology that Meta, Apple, privacy regulators, or users could interpret as:
+
+* misleading
+* threatening
+* defamatory
+* manipulative
+* fear-based
+* guaranteed
+* deceptive
+* privacy-invasive
+* surveillance-related
+* impersonating platform affiliation
+* implying access we do not have
+* implying automatic removal of accounts
+* implying official Meta/Instagram/Facebook partnership
+
+Be especially careful with words like:
+
+"stalker"
+"criminal"
+"fraudster"
+"scammer"
+"identity thief"
+"dangerous"
+"hacker"
+"caught"
+"guaranteed"
+"100% protected"
+"fully protected"
+"we monitor everything"
+"we scan Instagram"
+"we scan Facebook"
+"remove account"
+"automatically report"
+"verified scammer"
+"fake account"
+
+unless technically and legally justified in context.
+
+Prefer language such as:
+
+* possible impersonation
+* potential match
+* suspicious profile
+* possible unauthorized use
+* detected similarity
+* review this result
+* reported by user
+* potential identity misuse
+
+Clearly differentiate:
+
+Detection ≠ confirmation.
+
+Similarity ≠ impersonation.
+
+Potential match ≠ proven malicious account.
+
+ROOK should not make definitive accusations about third parties unless there is a sufficiently reliable verification process.
+
+---
+
+# 6. META PLATFORM POLICY AUDIT
+
+Audit every Meta-related workflow.
+
+Confirm we request ONLY permissions that are necessary.
+
+Map:
+
+Meta permission →
+exact feature requiring it →
+where data is used →
+where data is stored →
+retention period →
+how user can delete it.
+
+Review:
+
+* Facebook Login
+* Instagram authentication
+* Instagram Graph API
+* connected accounts
+* selected media
+* profile information
+* OAuth callback
+* token storage
+* token refresh
+* disconnect flow
+* deletion
+* permission revocation
+* expired token handling
+
+Ensure the UI NEVER suggests ROOK can access functionality beyond granted permissions.
+
+Example:
+
+If we only access the user's own permitted Instagram media, do not say:
+
+"We scan all Instagram accounts."
+
+Explain accurately what happens.
+
+Example concept:
+
+"ROOK uses photos you authorize to look for publicly discoverable potential matches."
+
+Do not imply Meta provides impersonator-search functionality if our discovery is actually performed through other services.
+
+---
+
+# 7. META APP REVIEW EXPERIENCE
+
+Pretend you are a Meta reviewer with zero knowledge of ROOK.
+
+Perform the exact review flow.
+
+The reviewer should be able to understand:
+
+1. What ROOK does.
+2. Why Meta login is needed.
+3. Why each requested permission is needed.
+4. What user data is retrieved.
+5. What happens after account connection.
+6. How retrieved photos are used.
+7. What ROOK does NOT do.
+8. How users disconnect.
+9. How users delete data.
+10. How users delete their ROOK account.
+
+Remove dead ends.
+
+No review-critical button should:
+
+* fail
+* produce blank screens
+* require undocumented setup
+* display development errors
+* expose raw JSON
+* return authorization errors without explanation
+* require permissions that are not actually requested
+
+Provide graceful reviewer-safe errors.
+
+---
+
+# 8. META REVIEW DEMONSTRATION MODE / TEST DATA
+
+Inspect all test/demo functionality.
+
+Production users should never accidentally see:
+
+* seeded fake threats
+* Sophie Rain
+* demo identities
+* reviewer-only results
+* debug accounts
+* simulated detection results
+
+If demonstration data is required for review, isolate it securely and explicitly.
+
+Never mix test identities with actual production scanning.
+
+---
+
+# 9. AUTHENTICATION AUDIT
+
+Audit every authentication path:
+
+* Sign in with Apple
+* Google
+* Email/password
+* Facebook
+* Instagram connection
+* password reset
+* email verification
+* session refresh
+* logout
+* account switching
+* revoked tokens
+* expired tokens
+
+Verify:
+
+* one user cannot become another user
+* duplicate identity-provider accounts are handled safely
+* account linking cannot be exploited
+* tokens are never exposed to the client unnecessarily
+* refresh tokens are securely stored
+* logout actually invalidates sensitive local state
+* cached user data is cleared
+* another user logging into the same device cannot see previous user data
+
+---
+
+# 10. TERMS ACCEPTANCE DURING SIGNUP
+
+Users MUST affirmatively accept the Terms and Privacy Policy during account creation.
+
+Implement or verify:
+
+Unchecked checkbox by default:
+
+"I agree to the Terms of Service and Privacy Policy."
+
+"Terms of Service" and "Privacy Policy" should be tappable links.
+
+Account creation must be impossible until acceptance.
+
+Do NOT use pre-checked consent.
+
+Record acceptance server-side.
+
+Recommended database fields:
+
+* terms_accepted_at
+* privacy_policy_accepted_at
+* terms_version
+* privacy_policy_version
+
+This should provide an auditable record of:
+
+which version was accepted and when.
+
+OAuth signup must follow the same consent requirements.
+
+Signing in with Apple, Google, Meta, etc. must not accidentally bypass required application consent.
+
+---
+
+# 11. LEGAL PAGE IMPLEMENTATION AUDIT
+
+Audit:
+
+* Privacy Policy
+* Terms of Service
+* Subscription Terms
+* Account Deletion
+* Data Deletion instructions
+* Contact information
+* Support information
+* Copyright/IP language
+* third-party service disclosures
+
+Make sure the policies accurately describe what the application ACTUALLY does.
+
+Do not invent legal protections or claim that our policies protect the company "100%."
+
+Instead identify gaps requiring review by qualified counsel.
+
+Policies should accurately cover, where relevant:
+
+* facial/image processing
+* user-uploaded images
+* social media account data
+* third-party APIs
+* publicly available search results
+* detection accuracy
+* false positives
+* user responsibility before reporting
+* subscription billing
+* trials
+* renewals
+* cancellations
+* refunds
+* account deletion
+* data deletion
+* data retention
+* security limitations
+* prohibited uses
+* abuse
+* intellectual property
+* disclaimers
+* limitation of liability
+* governing law
+* age requirements
+* third-party platform independence
+
+Make clear ROOK is not affiliated with Meta, Instagram, Facebook, Google, TikTok, X, Snapchat, Apple, etc. unless an actual relationship exists.
+
+Do not claim legal compliance that cannot be proven.
+
+FLAG ITEMS FOR ATTORNEY REVIEW rather than presenting AI-generated legal language as guaranteed legal protection.
+
+---
+
+# 12. PRIVACY AUDIT
+
+Trace every category of user information.
+
+For each field determine:
+
+* Why do we need it?
+* Where is it stored?
+* Who can access it?
+* Is it encrypted?
+* How long is it retained?
+* Can the user delete it?
+* Is it sent to a third party?
+* Is it logged?
+* Is it cached?
+* Is it included in analytics?
+
+Audit especially:
+
+* names
+* usernames
+* emails
+* social media IDs
+* images
+* profile photos
+* scan targets
+* scan results
+* OAuth tokens
+* device IDs
+* IP addresses
+* subscription information
+
+Follow data minimization.
+
+If data does not need to exist, remove unnecessary collection/storage.
+
+---
+
+# 13. DATABASE SECURITY AUDIT
+
+Perform a full database authorization audit.
+
+Check every table.
+
+For each table determine:
+
+WHO CAN:
+
+* SELECT
+* INSERT
+* UPDATE
+* DELETE
+
+If using Supabase, deeply audit Row Level Security.
+
+Verify there is no way for User A to access User B's:
+
+* profile
+* photos
+* scans
+* threats
+* connected accounts
+* subscription state
+* OAuth information
+* notifications
+* reports
+
+Attempt IDOR attacks by changing:
+
+* user IDs
+* scan IDs
+* threat IDs
+* image IDs
+* report IDs
+* URLs
+* request bodies
+
+Never trust a `user_id` supplied by the frontend.
+
+Derive authenticated identity server-side whenever possible.
+
+---
+
+# 14. STORAGE SECURITY
+
+Audit all storage buckets.
+
+Determine whether images are:
+
+* public
+* private
+* signed
+* authenticated
+
+Sensitive user images should not become publicly enumerable URLs unless intentionally designed that way.
+
+Test:
+
+* predictable paths
+* directory traversal
+* unauthorized downloads
+* expired signed URLs
+* URL sharing
+* bucket enumeration
+
+Remove orphaned files after account deletion where required.
+
+---
+
+# 15. API SECURITY AUDIT
+
+Audit every API endpoint.
+
+Check:
+
+* authentication
+* authorization
+* rate limiting
+* validation
+* sanitization
+* CORS
+* CSRF where applicable
+* replay protection
+* request limits
+* abuse protection
+* error leakage
+* logging
+* secret exposure
+
+Attempt:
+
+* unauthenticated calls
+* modified user IDs
+* modified resource IDs
+* malformed JSON
+* oversized payloads
+* repeated requests
+* injection payloads
+* invalid tokens
+* expired tokens
+* spoofed headers
+
+No endpoint should trust client input for identity or privilege.
+
+---
+
+# 16. INPUT VALIDATION
+
+Create shared validation where practical.
+
+Audit:
+
+* usernames
+* real names
+* URLs
+* emails
+* profile identifiers
+* search input
+* uploaded images
+* filenames
+* OAuth state
+* report fields
+
+Defend against:
+
+* SQL injection
+* command injection
+* XSS
+* NoSQL injection
+* path traversal
+* SSRF
+* regex abuse
+* malformed Unicode
+* control characters
+* payload bombs
+
+---
+
+# 17. SSRF / URL FETCHING
+
+If ROOK fetches external URLs or images:
+
+Treat this as high risk.
+
+Ensure users cannot force the server to request:
+
+* localhost
+* 127.0.0.1
+* private IP ranges
+* cloud metadata services
+* internal services
+* file://
+* unsupported protocols
+
+Allow only expected HTTP/HTTPS behavior.
+
+Validate redirects.
+
+Prevent DNS rebinding where applicable.
+
+Set:
+
+* request timeout
+* response size limits
+* redirect limits
+
+---
+
+# 18. FILE UPLOAD SECURITY
+
+Audit image uploads.
+
+Validate based on actual file contents, not filename alone.
+
+Check:
+
+* allowed MIME types
+* extension
+* maximum size
+* image dimensions
+* malformed files
+* decompression bombs
+* metadata
+* filename sanitization
+
+Generate server-side names rather than trusting filenames.
+
+Never execute uploaded content.
+
+---
+
+# 19. SECRET MANAGEMENT
+
+Search the entire repository and git-tracked files for:
+
+* API keys
+* service role keys
+* database passwords
+* OAuth secrets
+* RevenueCat secrets
+* Meta secrets
+* Google secrets
+* OpenAI keys
+* Firebase credentials
+* JWT secrets
+
+Nothing sensitive should be shipped inside the mobile client bundle.
+
+Assume anything shipped to a mobile device can be extracted.
+
+Verify server-only keys stay server-side.
+
+Check source maps and build configuration.
+
+If a secret appears to have been committed historically, FLAG IT FOR ROTATION even if it has since been removed.
+
+---
+
+# 20. PENTEST THE APP
+
+Conduct an authorized defensive penetration test against the local/staging ROOK environment and codebase.
+
+Do NOT attack external third-party infrastructure.
+
+Test our own system for:
+
+OWASP-style vulnerabilities including:
+
+* Broken access control
+* Authentication failures
+* Injection
+* Security misconfiguration
+* Cryptographic failures
+* SSRF
+* insecure design
+* vulnerable dependencies
+* integrity failures
+* logging failures
+
+Also evaluate relevant OWASP Mobile risks.
+
+Attempt realistic attacks against our own endpoints.
+
+Document proof of each confirmed vulnerability.
+
+Fix confirmed vulnerabilities where safely possible.
+
+Retest afterward.
+
+---
+
+# 21. RATE LIMITING + ABUSE
+
+Scan/search endpoints are expensive and abuse-sensitive.
+
+Audit protection against:
+
+* bots
+* automated scans
+* brute force
+* enumeration
+* API cost attacks
+* denial-of-wallet attacks
+* repeated image submissions
+* repeated search queries
+
+Implement appropriate limits per:
+
+* user
+* IP
+* device/session
+* endpoint
+
+where appropriate.
+
+Do not expose expensive third-party APIs directly to the client.
+
+---
+
+# 22. SCAN ENGINE AUDIT
+
+Trace the complete scan engine.
+
+Input →
+
+normalization →
+
+image processing →
+
+Vision →
+
+search →
+
+candidate collection →
+
+deduplication →
+
+identity matching →
+
+confidence calculation →
+
+threat scoring →
+
+database persistence →
+
+results UI.
+
+Look for logic gaps.
+
+Test:
+
+* no results
+* one result
+* hundreds of results
+* duplicate results
+* same person's legitimate profile
+* user's connected account
+* image repost
+* article/news image
+* Pinterest result
+* profile aggregator
+* unrelated lookalike
+* AI-generated person
+* username-only matching
+* name-only matching
+* both
+* missing name
+* missing username
+
+Do not treat a visual similarity match alone as confirmed impersonation.
+
+---
+
+# 23. EXCLUDE USER'S LEGITIMATE ACCOUNTS
+
+Verify known/connected accounts are excluded or clearly identified.
+
+ROOK should not warn a user about their own:
+
+* Instagram
+* Facebook
+* known domains
+* connected social accounts
+
+Normalization must account for:
+
+* www
+* mobile domains
+* URL parameters
+* trailing slash
+* uppercase/lowercase
+* @username formatting
+
+---
+
+# 24. THREAT / CONFIDENCE SCORING
+
+Audit the scoring model.
+
+Ensure classifications are explainable and consistent.
+
+Avoid false certainty.
+
+Prefer:
+
+Potential Match
+Low Confidence
+Moderate Confidence
+High Confidence
+
+rather than declaring:
+
+"Confirmed Impersonator"
+
+unless ROOK actually possesses sufficient evidence to make that statement.
+
+Document why a result receives its score.
+
+---
+
+# 25. SEARCH QUERY QUALITY
+
+Audit every query sent to external search providers.
+
+Prevent empty values from becoming search terms.
+
+Normalize optional inputs before building queries.
+
+Pseudo-example:
+
+const parts = [
+sanitizedUsername,
+sanitizedRealName
+].filter(value => value && value.trim().length > 0);
+
+Never use placeholder values as fallback search terms.
+
+Log structured diagnostic metadata in development without logging sensitive user information in production.
+
+---
+
+# 26. DUPLICATE / STALE DATA
+
+Verify scans do not accidentally reuse another user's previous results.
+
+Inspect:
+
+* Redis keys
+* cache keys
+* database queries
+* search cache
+* frontend state
+* React Query/cache
+* persisted storage
+
+Every cache key involving private user data should be appropriately scoped.
+
+Logout should clear sensitive caches.
+
+---
+
+# 27. CONCURRENCY TESTING
+
+Test:
+
+* double-tapping Scan
+* opening multiple scans
+* leaving during scan
+* app background during scan
+* app termination
+* network interruption
+* timeout
+* retries
+* duplicate webhooks
+* duplicate RevenueCat events
+
+Avoid creating duplicate scans or corrupted state.
+
+---
+
+# 28. REVENUECAT / SUBSCRIPTION AUDIT
+
+Verify:
+
+* entitlements
+* packages
+* trial
+* monthly/annual products
+* restore purchases
+* cancellation language
+* expiration
+* grace periods
+* billing retry
+* upgraded plan
+* downgraded plan
+* refunded purchase
+* RevenueCat webhook duplication
+* offline entitlement state
+
+Never rely solely on client-controlled subscription state.
+
+Ensure premium access is enforced server-side where it protects paid server resources.
+
+---
+
+# 29. PAYWALL APPLE COMPLIANCE
+
+Review all subscription wording.
+
+Clearly display:
+
+* plan
+* billing period
+* price
+* trial length where applicable
+* what happens after trial
+* auto-renewal
+* cancellation availability
+
+Provide:
+
+* Restore Purchases
+* Terms
+* Privacy Policy
+
+Do not use misleading CTAs suggesting something is free when an automatically renewing subscription will begin without clear disclosure.
+
+---
+
+# 30. ACCOUNT DELETION
+
+Verify users can initiate account deletion from inside the app if required.
+
+Deletion must appropriately handle:
+
+* auth account
+* database data
+* uploaded images
+* scans
+* threats
+* OAuth credentials
+* cached records
+* connected accounts
+
+Third-party subscription records may follow separate required retention rules.
+
+Explain any retention obligations transparently.
+
+Test account deletion end-to-end.
+
+---
+
+# 31. META DATA DELETION
+
+Verify Meta-related deletion/revocation workflows.
+
+If a user disconnects Facebook/Instagram:
+
+* stop using the token
+* remove stored token if no longer required
+* update connected status
+* handle revoked permission
+* handle revoked Facebook authorization
+
+No stale "Connected" UI.
+
+---
+
+# 32. ERROR HANDLING
+
+No user should ever see:
+
+* stack trace
+* SQL error
+* API secret
+* raw exception
+* internal database schema
+* service-role detail
+* Node traceback
+* debug object
+
+Build safe user-facing errors.
+
+Preserve detailed server diagnostics securely in development/logging systems.
+
+---
+
+# 33. NETWORK FAILURE TESTING
+
+Simulate:
+
+* no internet
+* slow connection
+* timeout
+* Meta outage
+* Google outage
+* OpenAI outage
+* RevenueCat outage
+* database outage
+
+No infinite loaders.
+
+Every loader needs:
+
+* success
+* failure
+* timeout/recovery
+
+state.
+
+---
+
+# 34. UI POLISH AUDIT
+
+Review every production screen visually.
+
+Check:
+
+* alignment
+* spacing
+* typography
+* capitalization
+* button consistency
+* touch targets
+* safe areas
+* iPhone sizes
+* dynamic text
+* keyboard overlap
+* long usernames
+* long names
+* loading skeletons
+* empty states
+* error states
+* disabled states
+* dark mode if supported
+
+There should be no:
+
+* Lorem ipsum
+* test labels
+* temporary copy
+* developer buttons
+* debug badges
+* dead buttons
+* placeholder alerts
+* broken icons
+
+---
+
+# 35. NAVIGATION AUDIT
+
+Tap every button.
+
+Every:
+
+* CTA
+* icon
+* card
+* link
+* tab
+* back button
+* modal
+* close button
+* legal link
+
+must work.
+
+Look for unreachable screens and dead routes.
+
+---
+
+# 36. DEEP LINK / OAUTH RETURN
+
+Test OAuth return behavior when:
+
+* app already open
+* app backgrounded
+* app killed
+
+Protect OAuth with proper state/nonce verification where applicable.
+
+Prevent login CSRF/account confusion.
+
+---
+
+# 37. LOGGING + PII
+
+Search logs for:
+
+* names
+* emails
+* image URLs
+* access tokens
+* authorization headers
+* passwords
+* OAuth codes
+
+Never log secrets.
+
+Avoid unnecessary sensitive information in production logs.
+
+---
+
+# 38. THIRD-PARTY DEPENDENCY AUDIT
+
+Check dependencies for:
+
+* vulnerabilities
+* abandoned packages
+* obsolete packages
+* unnecessary packages
+* insecure transitive dependencies
+
+Do not blindly perform major upgrades.
+
+Apply safe patches.
+
+Flag risky upgrade requirements separately.
+
+---
+
+# 39. PRODUCTION BUILD AUDIT
+
+Inspect production configuration.
+
+Confirm:
+
+* development URLs removed
+* localhost removed
+* staging endpoints removed
+* debug flags disabled
+* verbose logging disabled
+* test accounts removed
+* development API keys removed
+* source maps handled appropriately
+* environment variables correct
+* production OAuth redirect URLs correct
+
+---
+
+# 40. PRIVILEGED ADMIN FUNCTIONS
+
+Search for admin/debug endpoints.
+
+Verify production users cannot:
+
+* elevate privileges
+* change another user's subscription
+* inspect arbitrary scans
+* trigger admin operations
+* access internal dashboards
+
+Never trust:
+
+`isAdmin: true`
+
+coming from client input.
+
+---
+
+# 41. APP REVIEWER PRIVACY EXPLANATIONS
+
+Where permissions or account connections occur, make the reason understandable.
+
+Use concise language such as:
+
+"ROOK uses the photos you select to search for potential unauthorized copies or impersonation."
+
+Where accurate:
+
+"ROOK does not post to your account."
+
+"ROOK will not send messages from your account."
+
+"Disconnect anytime."
+
+Do not make promises the code does not enforce.
+
+---
+
+# 42. FACIAL / IMAGE PROCESSING DISCLOSURE
+
+Review whether our current image matching technology constitutes biometric processing or falls under specific disclosure/consent requirements in applicable jurisdictions.
+
+Do NOT independently declare legal compliance.
+
+Identify:
+
+* what image-derived information is generated
+* whether templates/embeddings are created
+* whether those are persisted
+* retention period
+* third parties receiving images
+
+Flag potential biometric/privacy-law issues for qualified legal review.
+
+---
+
+# 43. AGE / USER ELIGIBILITY
+
+Verify Terms and signup flow have a deliberate age requirement appropriate for the product.
+
+Do not collect unnecessary birthdate information if not required.
+
+Flag unresolved COPPA/minor-user implications for legal review.
+
+---
+
+# 44. REPORTING WORKFLOW
+
+If users can report suspected impersonators:
+
+Do not encourage harassment, brigading, or unsupported accusations.
+
+Make clear users should review evidence before submitting external reports.
+
+Where appropriate, send users to official reporting mechanisms.
+
+---
+
+# 45. SECURITY HEADERS / WEB CONTENT
+
+If web endpoints/legal pages exist, audit:
+
+* HTTPS
+* HSTS
+* CSP
+* X-Content-Type-Options
+* frame protections
+* referrer policy
+* cookie security
+* SameSite
+
+as appropriate.
+
+---
+
+# 46. DATA BACKUP + FAILURE SAFETY
+
+Review production database safety.
+
+Confirm:
+
+* schema migrations are reproducible
+* destructive migrations are protected
+* backups exist/configurable
+* failed migrations cannot wipe production unexpectedly
+
+Do not perform destructive operations during this audit.
+
+---
+
+# 47. SCHEMA QUALITY
+
+Look for:
+
+* missing foreign keys
+* orphan records
+* invalid nullability
+* duplicate users
+* duplicate scans
+* race conditions
+* missing uniqueness constraints
+* missing indexes
+* stale connected-account records
+
+Add safe constraints/indexes where appropriate.
+
+Do not make destructive schema changes without clearly flagging them.
+
+---
+
+# 48. AUTHORIZATION > UI HIDING
+
+Never consider a feature secure because the button is hidden.
+
+Every privileged operation must be enforced on backend/database level.
+
+Test direct requests.
+
+---
+
+# 49. CACHE POISONING / CROSS-USER LEAKS
+
+Audit Redis/cache usage particularly carefully.
+
+Any private scan cache must include sufficient identity/context in keys.
+
+One user's search or scan results must NEVER populate another user's results.
+
+---
+
+# 50. SECURITY RESPONSE
+
+Ensure suspected abuse can be investigated without exposing excessive private data.
+
+Document where security-relevant events are captured:
+
+* repeated failed auth
+* unusual scan volume
+* rate limit triggers
+* account deletion
+* OAuth errors
+
+Do not build invasive user surveillance.
+
+---
+
+# 51. PERFORMANCE AUDIT
+
+Measure obvious bottlenecks.
+
+Look for:
+
+* unnecessary repeated API calls
+* unnecessary image downloads
+* sequential calls that can safely run concurrently
+* unbounded database queries
+* giant payloads
+* memory leaks
+* repeated renders
+* runaway polling
+
+Do not sacrifice correctness/security purely for speed.
+
+---
+
+# 52. ACCESSIBILITY
+
+Check basic Apple accessibility expectations:
+
+* text contrast
+* tappable controls
+* screen reader labels
+* readable font size
+* dynamic content
+* buttons identified correctly
+
+---
+
+# 53. PRODUCT TRUTH AUDIT
+
+Create a mapping:
+
+UI CLAIM → ACTUAL TECHNICAL BEHAVIOR
+
+Examples:
+
+"Monitoring Active"
+
+What exactly is running?
+
+"Photos Indexed"
+
+What does indexed mean?
+
+"Platforms Monitored"
+
+Are we continuously monitoring those platforms or periodically searching?
+
+"Security Score"
+
+How is it calculated?
+
+"Threat Detected"
+
+What qualifies as a threat?
+
+If the UI implies more capability than technically exists, FIX THE WORDING.
+
+---
+
+# 54. NEVER CLAIM PERFECT SECURITY
+
+Search for claims such as:
+
+"100% secure"
+"fully protected"
+"guaranteed"
+"impossible to impersonate"
+"complete protection"
+
+Remove or revise them.
+
+No security product should imply perfect protection.
+
+---
+
+# 55. PRIVACY MANIFEST / STORE DISCLOSURES
+
+Audit the application's actual SDKs and data flows so we can accurately configure Apple's privacy disclosures.
+
+Identify:
+
+DATA TYPE →
+COLLECTED? →
+LINKED TO IDENTITY? →
+TRACKING? →
+PURPOSE →
+THIRD PARTY.
+
+Do not guess.
+
+Generate the final data inventory we should use when completing App Store Connect privacy questions.
+
+Also identify any SDK/API usage that may require Apple's privacy manifest or required-reason API declarations.
+
+---
+
+# 56. APP REVIEW LOGIN INFORMATION
+
+Confirm we have a reliable reviewer test path.
+
+If Meta or Apple needs login credentials or special instructions, identify exactly what should go in review notes.
+
+Do not hardcode reviewer credentials inside production source code.
+
+---
+
+# 57. PREVIOUSLY ABANDONED CODE
+
+Search the codebase for old implementations of:
+
+* onboarding
+* OAuth
+* scan
+* subscriptions
+* results
+* threat scoring
+* API routes
+
+Dead or partially used legacy logic creates security and behavior risk.
+
+Remove safe dead code or clearly flag it.
+
+---
+
+# 58. TEST SUITE
+
+Add or improve tests for critical flows.
+
+Minimum high-priority coverage:
+
+AUTH
+
+* signup
+* login
+* logout
+* account isolation
+
+ONBOARDING
+
+* new user sees onboarding
+* returning user doesn't
+
+SCAN
+
+* username only
+* real name only
+* optional blank values
+* no placeholder leakage
+* duplicate search protection
+
+AUTHORIZATION
+
+* User A cannot access User B data
+
+SUBSCRIPTION
+
+* entitlement enforcement
+
+ACCOUNT DELETION
+
+* user data removal workflow
+
+OAUTH
+
+* invalid state rejected
+
+---
+
+# 59. STATIC SEARCH FOR PRODUCTION RED FLAGS
+
+Search entire repository case-insensitively for:
+
+TODO
+FIXME
+HACK
+TEMP
+TEST
+DEMO
+MOCK
+PLACEHOLDER
+SOPHIE
+SOPHIE RAIN
+localhost
+127.0.0.1
+console.log
+password
+secret
+service_role
+admin
+bypass
+skipAuth
+
+Review every relevant match.
+
+Do not blindly delete legitimate occurrences.
+
+---
+
+# 60. FINAL REVIEW SIMULATION
+
+After fixes, conduct four complete simulations:
+
+### PERSONA A — NEW USER
+
+Install → onboarding → signup → consent → connect account → select photo → scan → results → paywall → purchase → use app.
+
+### PERSONA B — RETURNING USER
+
+Launch → no onboarding → dashboard → scan → results.
+
+### PERSONA C — META REVIEWER
+
+Login/connect Meta → understand permission → demonstrate use → revoke/disconnect → data deletion path.
+
+### PERSONA D — HOSTILE USER
+
+Attempt authorization bypass, parameter tampering, endpoint abuse, malformed inputs, IDOR, scan abuse, file abuse, subscription bypass.
+
+Document outcome.
+
+---
+
+# DO NOT DO THESE THINGS
+
+Do NOT:
+
+* fabricate a successful test
+* mark something secure without testing it
+* claim legal compliance that was not verified
+* claim policies provide "100% legal protection"
+* expose or print secrets
+* perform destructive production attacks
+* attack Meta, Google, Apple, RevenueCat, or external systems
+* alter working core business logic without reason
+* remove required Meta functionality merely to pass tests
+* weaken security to make reviewer access easier
+* bypass legitimate subscription verification
+* replace production logic with mocks
+
+---
+
+# FIX PRIORITY
+
+Classify every issue:
+
+**P0 — Submission blocker / critical vulnerability**
+
+Must be fixed before release.
+
+**P1 — High risk**
+
+Should be fixed before submission.
+
+**P2 — Moderate**
+
+Fix if safely possible now.
+
+**P3 — Polish / future improvement**
+
+Not release blocking.
+
+---
+
+# FINAL DELIVERABLE
+
+After completing the audit and implementing safe fixes, create:
+
+`FINAL_RELEASE_AUDIT.md`
+
+Include:
+
+## 1. Executive Summary
+
+Overall production readiness.
+
+## 2. Meta Review Readiness
+
+PASS / CONDITIONAL PASS / FAIL
+
+## 3. Apple Review Readiness
+
+PASS / CONDITIONAL PASS / FAIL
+
+## 4. Security Readiness
+
+PASS / CONDITIONAL PASS / FAIL
+
+## 5. Privacy Readiness
+
+PASS / CONDITIONAL PASS / FAIL
+
+## 6. Critical Issues Found
+
+Every P0/P1 issue.
+
+## 7. Issues Fixed
+
+For every change:
+
+* problem
+* severity
+* file(s)
+* change
+* validation performed
+
+## 8. Remaining Issues
+
+What still requires work.
+
+## 9. Manual Developer Actions
+
+Examples:
+
+* Meta dashboard configuration
+* Apple Developer/App Store Connect configuration
+* OAuth redirect configuration
+* key rotation
+* DNS
+* reviewer credentials
+* production environment variables
+
+## 10. Legal Counsel Review Items
+
+Anything requiring actual legal judgment.
+
+## 11. Meta Permissions Map
+
+Permission → feature → user benefit → data → storage → deletion.
+
+## 12. Apple Privacy Data Map
+
+Data category → collection → identity linkage → purpose → third parties.
+
+## 13. Penetration Test Results
+
+Test → expected protection → actual result → fix → retest.
+
+## 14. Reviewer Walkthrough
+
+Exact steps a Meta reviewer should follow.
+
+## 15. App Store Reviewer Walkthrough
+
+Exact steps Apple should follow.
+
+## 16. Production Checklist
+
+Every item marked:
+
+✅ Verified
+⚠️ Manual action needed
+❌ Failed
+
+---
+
+# FINAL RELEASE GATE
+
+At the end answer:
+
+**WOULD YOU SUBMIT THIS BUILD TO META AND APPLE TODAY?**
+
+Only answer YES if you believe there are no unresolved P0/P1 engineering issues.
+
+If NO:
+
+give the exact blocking items.
+
+Then state:
+
+**TOP 10 THINGS MOST LIKELY TO CAUSE ROOK TO BE REJECTED, COMPROMISED, LEAK USER DATA, PRODUCE FALSE RESULTS, OR FAIL IN PRODUCTION**
+
+Rank them from highest to lowest risk.
+
+Do not optimize this audit for making the codebase "look ready."
+
+Optimize it for discovering anything that could hurt:
+
+* ROOK
+* our users
+* user data
+* App Store approval
+* Meta approval
+* subscription revenue
+* scan accuracy
+* system availability
+* our reputation.
+
+Be extremely critical.
+
+Assume anything we miss now could become a production incident later.

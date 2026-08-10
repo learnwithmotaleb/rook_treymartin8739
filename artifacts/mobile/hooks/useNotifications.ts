@@ -55,7 +55,7 @@ function showPrePrompt(): Promise<boolean> {
   return new Promise((resolve) => {
     Alert.alert(
       "Stay Protected in Real-Time",
-      "Rook will send you instant alerts when threats to your identity are detected — impersonators, fake profiles, and stolen photos. You can adjust this anytime in Settings.",
+      "Rook will notify you when potential matches to your identity are found — including possible impersonators, lookalike profiles, and reused photos. You can adjust this anytime in Settings.",
       [
         { text: "Not Now", style: "cancel", onPress: () => resolve(false) },
         {

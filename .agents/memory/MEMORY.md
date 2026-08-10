@@ -1,3 +1,4 @@
+- [Biometric compliance implementation](biometric-compliance-impl.md) — BIPA/GDPR Art. 9 full stack: legal docs, consent table, scan gate, mobile UX, TermsUpdateModal, privacy-settings screen.
 - [Phase 11 detection hardening](phase11-detection-hardening.md) — relationship context classifier (credit/collab/mention/fan caps), tightened High gates (90% profile), accountMeta storage + mobile stat chips.
 - [Scan suppression table](scan-suppression-table.md) — suppressedAccountsTable (unique on userId+platform+username) is the authoritative source; loaded as step 0 in pipeline, written on every resolve; replaces old threatsTable-based suppression.
 - [Scan simulation guard](scan-simulation-guard.md) — simulation only fires for demo user (no clerkId); real users always get honest results even if empty.

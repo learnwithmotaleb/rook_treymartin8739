@@ -13,7 +13,9 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { setApiAuthToken, syncSubscriptionTier } from "@/lib/api";
 import { CancellationSurveyModal } from "@/components/CancellationSurveyModal";
+import { TermsUpdateModal } from "@/components/TermsUpdateModal";
 import { useNotifications } from "@/hooks/useNotifications";
+import { CURRENT_TERMS_VERSION } from "@/lib/api";
 import { useSubscription, ENTITLEMENT_PREMIUM, ENTITLEMENT_PRO } from "@/lib/revenuecat";
 import Purchases from "react-native-purchases";
 import Constants from "expo-constants";
@@ -149,6 +151,7 @@ export default function TabLayout() {
   // Safety valve: if initialization takes more than 12 seconds, stop waiting
   // and show a recoverable error rather than a permanent blank screen.
   const [initTimedOut, setInitTimedOut] = useState(false);
+  const [showTermsUpdate, setShowTermsUpdate] = useState(false);
   useEffect(() => {
     if (!isInitializing && (isOnboardingReady || !isSignedIn)) { setInitTimedOut(false); return; }
     const t = setTimeout(() => setInitTimedOut(true), 12_000);
@@ -185,6 +188,24 @@ export default function TabLayout() {
   // getToken intentionally omitted — accessed via ref to keep this effect stable
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser]);
+
+  // Check whether the user has accepted the current Terms / Privacy Policy version.
+  // If not (SSO users, or returning users after a policy update), show TermsUpdateModal.
+  useEffect(() => {
+    if (!isLoaded || isInitializing || !isSignedIn || !isOnboardingReady) return;
+    import("@/lib/api").then(({ getMe }) => {
+      getMe()
+        .then((profile) => {
+          const stored = (profile as any).termsVersion as string | null | undefined;
+          if (!stored || stored !== CURRENT_TERMS_VERSION) {
+            setShowTermsUpdate(true);
+          }
+        })
+        .catch(() => {/* non-fatal */});
+    });
+  // Only run once after the user is fully loaded and onboarded
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, isOnboardingReady]);
 
   // Sync the RevenueCat tier to the server whenever it changes so the server-
   // side scan-quota system reflects the user's actual subscription.
@@ -259,6 +280,14 @@ export default function TabLayout() {
       <CancellationSurveyModal
         visible={showCancellationSurvey}
         onDismiss={dismissCancellationSurvey}
+      />
+      <TermsUpdateModal
+        visible={showTermsUpdate}
+        onAccepted={() => setShowTermsUpdate(false)}
+        onDeleteAccount={() => {
+          setShowTermsUpdate(false);
+          router.push("/(tabs)/profile" as any);
+        }}
       />
     </>
   );

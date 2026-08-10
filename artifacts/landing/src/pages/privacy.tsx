@@ -1,9 +1,11 @@
 import { Link } from "wouter";
 
-const LAST_UPDATED = "July 15, 2026";
+const LAST_UPDATED = "August 10, 2026";
+const TERMS_VERSION = "2026-08-10-v2";
 const APP_NAME = "Rook";
-const CONTACT_EMAIL = "support.rook@gmail.com";
+const PRIVACY_EMAIL = "privacy@getrook.app";
 const SUPPORT_EMAIL = "support.rook@gmail.com";
+const CONTACT_EMAIL = "privacy@getrook.app";
 const BUSINESS_PHONE = "+1 (832) 819-3114";
 const BUSINESS_ADDRESS = "127 N Higgins Ave Suite 307D #2992, Missoula, MT 59802";
 const BUSINESS_NAME = "Rook Identity Labs LLC";
@@ -17,12 +19,29 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-4">
+      <h3 className="text-sm font-semibold text-slate-300 mb-2">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
 function P({ children }: { children: React.ReactNode }) {
   return <p className="text-slate-400 leading-relaxed mb-3">{children}</p>;
 }
 
 function UL({ children }: { children: React.ReactNode }) {
   return <ul className="list-disc list-outside ml-5 text-slate-400 leading-relaxed mb-3 space-y-1.5">{children}</ul>;
+}
+
+function NoticeBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-purple-800/60 bg-purple-950/30 p-5 mb-5">
+      {children}
+    </div>
+  );
 }
 
 export default function Privacy() {
@@ -41,156 +60,381 @@ export default function Privacy() {
         </div>
 
         <h1 className="text-3xl font-extrabold text-white mb-2">Privacy Policy</h1>
-        <p className="text-sm text-slate-500 mb-10">Last updated: {LAST_UPDATED}</p>
+        <p className="text-sm text-slate-500 mb-2">Last updated: {LAST_UPDATED} · Version {TERMS_VERSION}</p>
+        <p className="text-sm text-slate-500 mb-10">Data Controller: {BUSINESS_NAME}</p>
 
         <P>
-          {APP_NAME} ("we", "our", "us") is an AI-powered identity protection service that monitors social
-          platforms for impersonators and stolen photos. This Privacy Policy explains how we collect, use, and
-          protect your information.
+          {APP_NAME} ("we", "our", "us") is an AI-powered identity protection service operated by{" "}
+          <strong className="text-white">{BUSINESS_NAME}</strong>. This Privacy Policy explains how we
+          collect, use, share, and protect your information, and what rights you have over that information.
+        </P>
+
+        <P>
+          <strong className="text-white">Independence.</strong> {APP_NAME} is not affiliated with,
+          endorsed by, or connected to Meta, Instagram, Facebook, Google, X (Twitter), TikTok, Snapchat,
+          LinkedIn, YouTube, Apple, or any other platform we search or integrate with. All trademarks
+          belong to their respective owners.
         </P>
 
         <Section title="1. Information We Collect">
-          <P>We collect information you provide directly and information obtained through connected social accounts:</P>
           <UL>
-            <li><strong className="text-white">Account information:</strong> Name, email address, and username when you register. Authentication is handled by <strong className="text-white">Clerk</strong> — we receive a secure user identifier (Clerk user ID) and basic profile info, but never your password.</li>
-            <li><strong className="text-white">Connected platform data:</strong> When you authorize {APP_NAME} to access a social platform, we receive read-only access to your public profile information — username, profile photo, follower count, and public posts.</li>
-            <li><strong className="text-white">Identity fingerprint data:</strong> A non-reversible digital signature (not raw images) derived from your public photos, used to detect visually similar stolen content.</li>
-            <li><strong className="text-white">Scan results:</strong> Records of monitoring activity, detected threats, and impersonation alerts associated with your account. Stored in a managed <strong className="text-white">PostgreSQL</strong> database.</li>
-            <li><strong className="text-white">Payment information:</strong> Subscriptions are managed by <strong className="text-white">RevenueCat</strong> and billed through the Apple App Store or Google Play Store. We store only your subscription tier and entitlement status — we never see or store your payment card details.</li>
-            <li><strong className="text-white">Usage data:</strong> App interactions, feature usage, and device information to improve the service.</li>
+            <li>
+              <strong className="text-white">Account information:</strong> Name, email address, and
+              username at registration. Authentication is managed by{" "}
+              <strong className="text-white">Clerk</strong> — we receive a secure user identifier and
+              basic profile info; we never receive or store your password.
+            </li>
+            <li>
+              <strong className="text-white">Connected platform data:</strong> When you authorize{" "}
+              {APP_NAME} to access a social platform, we receive read-only access to your public profile
+              — username, profile photo URL, and public media.
+            </li>
+            <li>
+              <strong className="text-white">Image-derived identity data:</strong> Perceptual hash
+              fingerprints and AI-generated feature vectors derived from your public profile photos.
+              See Section 2 for the full written notice required by applicable biometric privacy laws.
+            </li>
+            <li>
+              <strong className="text-white">Scan results:</strong> Records of monitoring activity,
+              potential matches, and alerts stored in a managed PostgreSQL database.
+            </li>
+            <li>
+              <strong className="text-white">Payment information:</strong> Subscriptions are managed by{" "}
+              <strong className="text-white">RevenueCat</strong> through Apple App Store or Google Play.
+              We store only your subscription tier — we never see your payment card number or billing address.
+            </li>
+            <li>
+              <strong className="text-white">Device and usage data:</strong> App interactions, device
+              identifiers for push notifications, and feature usage to improve the service.
+            </li>
+            <li>
+              <strong className="text-white">Consent records:</strong> Timestamps and version numbers of
+              your acceptance of Terms, Privacy Policy, and photo-processing consent. Retained as a legal
+              compliance record.
+            </li>
+            <li>
+              <strong className="text-white">Age confirmation:</strong> A timestamp recording that you
+              declared you are 17 or older at signup. No date of birth is collected or stored.
+            </li>
           </UL>
         </Section>
 
-        <Section title="2. How We Use Your Information">
+        <Section title="2. Biometric and Image-Derived Data — Written Notice">
+          <NoticeBox>
+            <p className="text-purple-300 font-semibold mb-2">
+              ⚠ Required Written Notice (Illinois BIPA / Texas CUBI / GDPR Article 9)
+            </p>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              This section constitutes the written notice required by the Illinois Biometric Information
+              Privacy Act (740 ILCS 14), the Texas Capture or Use of Biometric Identifier Act
+              (Tex. Bus. &amp; Com. Code § 503.001), and analogous state and international privacy laws
+              before the collection of biometric or biometric-adjacent data.
+            </p>
+          </NoticeBox>
+
+          <SubSection title="What We Collect">
+            <P>When you connect a social account or provide a reference photo, {APP_NAME} derives the following from your public profile photos:</P>
+            <UL>
+              <li>
+                <strong className="text-white">Perceptual hash fingerprints (dHash):</strong> A 64-bit
+                numeric hash computed by resizing your photo to a 9×8 pixel grayscale thumbnail and
+                recording pixel-level brightness differences. This is a compact digital signature of the
+                image's visual structure — it is <em>not</em> raw image data, not a scan of facial
+                geometry, and cannot reconstruct or identify a face or person on its own. Used exclusively
+                to detect whether visually similar images appear on other accounts.
+              </li>
+              <li>
+                <strong className="text-white">AI-generated feature vectors (embeddings):</strong>{" "}
+                Floating-point numerical arrays derived from AI analysis of your photos, used to identify
+                visual similarity to potential impersonator accounts. Produced via OpenAI's API and stored
+                as encrypted numerical arrays — they cannot reconstruct the original image.
+              </li>
+              <li>
+                <strong className="text-white">Visual fingerprint metadata:</strong> Aggregate counts and
+                style descriptors summarizing your indexed media. No raw image content is stored by{" "}
+                {APP_NAME}.
+              </li>
+            </UL>
+          </SubSection>
+
+          <SubSection title="Purpose of Collection">
+            <P>
+              <strong className="text-white">Sole purpose:</strong> To detect whether your profile photos
+              or visual identity appear on other social media accounts without your authorization — i.e., to
+              identify potential impersonation or photo theft. This data is never used for advertising,
+              sold to third parties, or used for any purpose other than identity monitoring for your account.
+            </P>
+          </SubSection>
+
+          <SubSection title="Length of Retention">
+            <UL>
+              <li>
+                <strong className="text-white">Perceptual hashes and embeddings:</strong> Retained while
+                your account is active. Deleted immediately upon account deletion or consent withdrawal;
+                production backups purged within 30 days.
+              </li>
+              <li>
+                <strong className="text-white">Consent withdrawal:</strong> You may withdraw photo-processing
+                consent at any time at{" "}
+                <strong className="text-white">Profile → Settings → Privacy → Manage Photo Data</strong>.
+                All photo-derived data is deleted within 24 hours. Your account and scan history are preserved.
+              </li>
+              <li>
+                <strong className="text-white">Maximum retention:</strong> Photo-derived data is not retained
+                for more than 3 years from collection, or 1 year after the purpose is fulfilled (whichever
+                is sooner), consistent with Illinois BIPA § 15(a) and Texas CUBI requirements.
+              </li>
+            </UL>
+          </SubSection>
+
+          <SubSection title="Third-Party Services That Receive Photo Data">
+            <UL>
+              <li>
+                <strong className="text-white">Google Cloud Vision API:</strong> The URL of your public
+                profile photo is sent to Google's Web Detection API to find where that image appears on
+                the open web. Google does not receive your credentials. Governed by the{" "}
+                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                  Google Privacy Policy
+                </a>{" "}and Google Cloud Data Processing Addendum. Google does not retain submitted images
+                for model training under Cloud Vision API terms.
+              </li>
+              <li>
+                <strong className="text-white">OpenAI API:</strong> Public photo content may be sent for
+                AI-powered visual analysis to generate feature vectors. Governed by the{" "}
+                <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                  OpenAI Privacy Policy
+                </a>. {APP_NAME} uses OpenAI's zero data retention settings where available.
+              </li>
+              <li>
+                <strong className="text-white">Serper / Google Custom Search API:</strong> Your name and
+                username (text only — no images) are used as search queries. No image data is transmitted.
+              </li>
+            </UL>
+          </SubSection>
+
+          <SubSection title="Your Consent and Withdrawal Rights">
+            <P>
+              By accepting the Terms of Service and the separate in-app Photo Processing Consent prompt,
+              you provide the written release required under Illinois BIPA § 15(b) and Texas CUBI, and the
+              explicit consent required under GDPR Article 9(2)(a).{" "}
+              <strong className="text-white">
+                You may withdraw this consent at any time
+              </strong>{" "}
+              without penalty by going to{" "}
+              <strong className="text-white">
+                Profile → Settings → Privacy → Manage Photo Data → Withdraw Photo Processing Consent
+              </strong>. Upon withdrawal, all photo-derived data is deleted within 24 hours and photo-based
+              scanning is disabled. Text-based and username-based monitoring will continue.
+            </P>
+          </SubSection>
+
+          <SubSection title="No Sale or Profit from Biometric Data">
+            <P>
+              {APP_NAME} does not sell, lease, trade, or otherwise profit from your image-derived data. We
+              do not disclose it to any party other than the processors listed above, and only for the stated
+              purpose of providing the identity monitoring service.
+            </P>
+          </SubSection>
+
+          <SubSection title="Security Standard">
+            <P>
+              Image-derived data is stored with the same standard of care as other confidential information:
+              encrypted at rest in PostgreSQL, encrypted in transit via TLS 1.2+, access-controlled to the
+              authenticated user's account, and subject to our security review practices.
+            </P>
+          </SubSection>
+        </Section>
+
+        <Section title="3. How We Use Your Information">
           <UL>
-            <li>To scan connected social platforms for impersonators and identity threats.</li>
+            <li>To search social platforms for accounts that may be impersonating you or using your photos.</li>
             <li>To build and maintain your identity fingerprint for comparison against detected accounts.</li>
-            <li>To send alerts when threats are detected (push notifications, per your preferences).</li>
-            <li>To manage your subscription tier and feature access via RevenueCat.</li>
-            <li>To improve our detection algorithms and service quality.</li>
+            <li>To send push notifications when potential matches are found (with your permission).</li>
+            <li>To manage your subscription tier and feature access.</li>
+            <li>To improve our detection algorithms using anonymized, aggregated data.</li>
+            <li>To maintain legally required records of consent.</li>
           </UL>
         </Section>
 
-        <Section title="3. Platform OAuth Access">
-          <P>When you connect a social media account (e.g. Instagram, X, TikTok), {APP_NAME} requests <strong className="text-white">read-only</strong> OAuth permissions. We:</P>
+        <Section title="4. Platform OAuth Access">
+          <P>When you connect a social media account, {APP_NAME} requests <strong className="text-white">read-only</strong> OAuth permissions. We:</P>
           <UL>
             <li>Never post, comment, like, or take any action on your behalf.</li>
             <li>Never access your private messages or direct messages.</li>
             <li>Only read your public profile data and public media.</li>
-            <li>Store OAuth access tokens encrypted at rest to enable ongoing monitoring.</li>
+            <li>Store OAuth access tokens encrypted at rest for ongoing monitoring.</li>
             <li>Use tokens solely to fetch your profile data for impersonation comparison.</li>
           </UL>
-          <P>You can revoke access at any time from the platform's settings page or by disconnecting the account in {APP_NAME}.</P>
-        </Section>
-
-        <Section title="4. Data Sharing and Third-Party Processors">
-          <P>We do not sell your personal information. We share data only with the following processors:</P>
-          <UL>
-            <li><strong className="text-white">Clerk:</strong> Handles user authentication, account creation, and session management. Clerk processes your email address and device information subject to the <a href="https://clerk.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Clerk Privacy Policy</a>.</li>
-            <li><strong className="text-white">RevenueCat:</strong> Manages subscription entitlements and billing reconciliation. Payments are processed directly by Apple or Google — RevenueCat never stores your full payment card data. Subject to the <a href="https://www.revenuecat.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">RevenueCat Privacy Policy</a>.</li>
-            <li><strong className="text-white">Google Cloud Vision:</strong> Photo URLs from your connected accounts are sent to Google's Web Detection API to find where those images appear on the open web. Subject to the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Google Privacy Policy</a>.</li>
-            <li><strong className="text-white">OpenAI:</strong> Anonymized text snippets may be analyzed to generate AI threat explanations. Subject to the <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">OpenAI Privacy Policy</a>.</li>
-            <li><strong className="text-white">PostgreSQL (Replit-managed):</strong> Your account data, scan results, and threat history are stored in a managed PostgreSQL database. Data is encrypted at rest and in transit.</li>
-            <li><strong className="text-white">Replit:</strong> Cloud hosting infrastructure for the {APP_NAME} API server and web presence. Subject to the <a href="https://replit.com/site/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Replit Privacy Policy</a>.</li>
-            <li><strong className="text-white">Law enforcement:</strong> Only when required by applicable law.</li>
-          </UL>
-        </Section>
-
-        <Section title="5. Automated Decision-Making">
           <P>
-            {APP_NAME} uses AI algorithms to automatically analyze social media content and generate threat scores
-            and alerts. These scores are probabilistic estimates based on pattern matching — they are not legal
-            determinations and may contain errors. You have the right to request human review of any automated
-            alert by contacting us at{" "}
-            <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-500 hover:underline">{CONTACT_EMAIL}</a>.
-            All AI-generated results are labeled as such within the app.
+            You can disconnect any account at any time from{" "}
+            <strong className="text-white">Profile → Connected Accounts</strong>. Disconnecting immediately
+            deletes the stored OAuth token.
           </P>
         </Section>
 
-        <Section title="6. Data Retention">
+        <Section title="5. Data Sharing and Sub-Processors">
+          <P>We do not sell your personal information. We share data only with the following processors under contractual data protection obligations:</P>
           <UL>
-            <li><strong className="text-white">Account data:</strong> Retained until account deletion; purged within 30 days thereafter.</li>
+            <li><strong className="text-white">Clerk</strong> — Authentication and session management. Processes your email and device information. <a href="https://clerk.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Privacy Policy</a>.</li>
+            <li><strong className="text-white">RevenueCat</strong> — Subscription entitlements. Payments processed by Apple/Google directly. <a href="https://www.revenuecat.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Privacy Policy</a>.</li>
+            <li><strong className="text-white">Google Cloud Vision</strong> — Receives photo URLs for Web Detection. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Privacy Policy</a>.</li>
+            <li><strong className="text-white">OpenAI</strong> — Receives photo content for AI analysis. <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Privacy Policy</a>.</li>
+            <li><strong className="text-white">Serper / Google Custom Search</strong> — Text search queries only (name, username). No image data.</li>
+            <li><strong className="text-white">Replit</strong> — Cloud hosting for the {APP_NAME} API and database. <a href="https://replit.com/site/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Privacy Policy</a>.</li>
+            <li><strong className="text-white">Law enforcement</strong> — Only when required by valid legal process, and only where we are legally permitted to notify you.</li>
+          </UL>
+
+          <SubSection title="International Data Transfers">
+            <P>
+              All processors listed above are based in the United States. If you are in the EU, EEA, or UK,
+              your data is transferred to the US under{" "}
+              <strong className="text-white">Standard Contractual Clauses (SCCs)</strong> approved by the
+              European Commission, incorporated by reference into our agreements with each processor. For
+              questions about transfer mechanisms, contact{" "}
+              <a href={`mailto:${PRIVACY_EMAIL}`} className="text-blue-500 hover:underline">{PRIVACY_EMAIL}</a>.
+            </P>
+          </SubSection>
+        </Section>
+
+        <Section title="6. Automated Decision-Making">
+          <P>
+            {APP_NAME} uses AI to automatically generate threat scores and alerts. These are{" "}
+            <strong className="text-white">probabilistic estimates — not legal determinations</strong> — and
+            may contain errors (false positives or false negatives). No automated decision produces a legal
+            or similarly significant effect on you. You may dismiss any alert in the app, request human
+            review by emailing{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-500 hover:underline">{CONTACT_EMAIL}</a>,
+            and download your data to verify what we hold.
+          </P>
+        </Section>
+
+        <Section title="7. Data Retention and Deletion">
+          <UL>
+            <li><strong className="text-white">Account data:</strong> Retained while your account is active. Deleted from active systems immediately upon account deletion; production backups purged within 30 days.</li>
             <li><strong className="text-white">Threat history:</strong> Retained for 30 days (Premium), 7 days (Pro), 1 day (Free) from detection, then automatically deleted.</li>
-            <li><strong className="text-white">Identity fingerprint data:</strong> Retained while account is active; deleted upon account deletion.</li>
+            <li><strong className="text-white">Image-derived data (perceptual hashes, embeddings):</strong> Retained while account is active; deleted immediately upon account deletion or consent withdrawal, with backup purge within 30 days. Never retained beyond 3 years from collection.</li>
             <li><strong className="text-white">OAuth tokens:</strong> Deleted immediately upon account disconnection or account deletion.</li>
-            <li><strong className="text-white">Anonymized usage analytics:</strong> May be retained for up to 2 years in aggregated, non-identifiable form.</li>
+            <li><strong className="text-white">Consent records:</strong> Retained for 7 years after account deletion as a legal compliance record.</li>
+            <li><strong className="text-white">Anonymized usage analytics:</strong> May be retained up to 2 years in aggregated, non-identifiable form.</li>
           </UL>
           <P>
-            You may delete your account and all associated data at any time directly in the app under{" "}
-            <strong className="text-white">Profile → Delete Account</strong>. Data is purged from our production
-            systems within 30 days of deletion.
+            Delete your account anytime under{" "}
+            <strong className="text-white">Profile → Delete Account</strong>. Your data is removed from
+            active systems immediately; backups are purged within 30 days.
           </P>
         </Section>
 
-        <Section title="7. Security">
+        <Section title="8. Data Export (Portability)">
+          <P>
+            You can download a machine-readable copy of all your personal data at any time from{" "}
+            <strong className="text-white">Profile → Settings → Privacy → Download My Data</strong>.
+            The export includes your profile, connected accounts, scan history, threat records, and consent
+            logs in JSON format, consistent with GDPR Article 20 (Right to Data Portability).
+          </P>
+        </Section>
+
+        <Section title="9. Security">
           <P>
             All data is encrypted in transit (TLS 1.2+) and at rest. OAuth tokens are stored encrypted.
-            Authentication is handled by Clerk with industry-standard session management. We follow
-            industry-standard security practices and conduct regular security reviews.
+            Authentication is managed by Clerk with industry-standard session controls. All API endpoints
+            are rate-limited to prevent abuse. We conduct regular security reviews.
           </P>
         </Section>
 
-        <Section title="8. Children's Privacy">
+        <Section title="10. Minimum Age">
           <P>
-            {APP_NAME} is not directed to children under 13. We do not knowingly collect personal information
-            from children under 13. If you believe a child under 13 has provided us personal information,
-            contact us immediately at{" "}
-            <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-500 hover:underline">{CONTACT_EMAIL}</a>.
+            {APP_NAME} requires users to be at least <strong className="text-white">17 years old</strong>.
+            By creating an account, you represent that you meet this requirement. We do not knowingly collect
+            personal information from anyone under 17. If you believe a minor has registered, contact us
+            immediately at{" "}
+            <a href={`mailto:${PRIVACY_EMAIL}`} className="text-blue-500 hover:underline">{PRIVACY_EMAIL}</a>{" "}
+            and we will delete the account promptly.
           </P>
         </Section>
 
-        <Section title="9. Your Rights (GDPR — EU/EEA/UK Residents)">
-          <P>If you are located in the European Union, European Economic Area, or United Kingdom, you have the following rights under the GDPR:</P>
+        <Section title="11. Your Rights — EU/EEA/UK Residents (GDPR)">
+          <P>If you are in the EU, EEA, or UK, you have the following rights under the GDPR (Art. 15–22):</P>
           <UL>
-            <li><strong className="text-white">Right of Access:</strong> Request a copy of the personal data we hold about you.</li>
-            <li><strong className="text-white">Right to Rectification:</strong> Request correction of inaccurate or incomplete data.</li>
-            <li><strong className="text-white">Right to Erasure:</strong> Request deletion of your personal data via <strong className="text-white">Profile → Delete Account</strong> or by contacting us.</li>
-            <li><strong className="text-white">Right to Restrict Processing:</strong> Request that we limit how we use your data.</li>
-            <li><strong className="text-white">Right to Data Portability:</strong> Request your personal data in a structured, machine-readable format.</li>
-            <li><strong className="text-white">Right to Object:</strong> Object to processing based on legitimate interests, including profiling.</li>
-            <li><strong className="text-white">Right to Human Review:</strong> Request human review of any automated decision that significantly affects you.</li>
-            <li><strong className="text-white">Right to Withdraw Consent:</strong> Where processing is based on consent, you may withdraw it at any time without affecting prior processing.</li>
+            <li><strong className="text-white">Access (Art. 15):</strong> Request a copy of your personal data. Available immediately via in-app data export.</li>
+            <li><strong className="text-white">Rectification (Art. 16):</strong> Request correction of inaccurate data.</li>
+            <li><strong className="text-white">Erasure (Art. 17):</strong> Delete your account via <strong className="text-white">Profile → Delete Account</strong>, or contact us.</li>
+            <li><strong className="text-white">Restrict Processing (Art. 18):</strong> Request that we limit processing while a dispute is resolved.</li>
+            <li><strong className="text-white">Data Portability (Art. 20):</strong> Download your data in structured JSON format via <strong className="text-white">Profile → Settings → Privacy → Download My Data</strong>.</li>
+            <li><strong className="text-white">Object (Art. 21):</strong> Object to processing based on legitimate interests.</li>
+            <li><strong className="text-white">Withdraw Consent (Art. 7(3)):</strong> Withdraw photo-processing consent at any time via <strong className="text-white">Profile → Settings → Privacy → Manage Photo Data</strong>, without affecting the lawfulness of prior processing.</li>
+            <li><strong className="text-white">Human Review (Art. 22):</strong> Request human review of any automated decision by emailing <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-500 hover:underline">{CONTACT_EMAIL}</a>.</li>
           </UL>
           <P>
-            Our legal basis for processing personal data is: <em>contract performance</em> (providing the
-            service you signed up for), <em>legitimate interests</em> (fraud prevention, security), and{" "}
-            <em>consent</em> (marketing communications, where applicable). To exercise any GDPR right,
-            contact{" "}
-            <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-500 hover:underline">{CONTACT_EMAIL}</a>.
-            We will respond within 30 days. You also have the right to lodge a complaint with your local
-            supervisory authority.
+            <strong className="text-white">Legal bases (Art. 6):</strong>{" "}
+            <em>Contract performance</em> — providing the service you signed up for;{" "}
+            <em>Legitimate interests</em> — security and fraud prevention;{" "}
+            <em>Explicit consent (Art. 9)</em> — photo/image processing for biometric-adjacent data.
           </P>
-        </Section>
-
-        <Section title="10. Your Rights (CCPA — California Residents)">
-          <P>If you are a California resident, the California Consumer Privacy Act (CCPA) gives you additional rights:</P>
-          <UL>
-            <li><strong className="text-white">Right to Know:</strong> Request disclosure of the categories and specific pieces of personal information we collect, use, disclose, or sell.</li>
-            <li><strong className="text-white">Right to Delete:</strong> Request deletion via <strong className="text-white">Profile → Delete Account</strong> or by contacting us.</li>
-            <li><strong className="text-white">Right to Opt-Out of Sale:</strong> We do not sell personal information. No opt-out is required.</li>
-            <li><strong className="text-white">Right to Non-Discrimination:</strong> We will not discriminate against you for exercising any CCPA rights.</li>
-            <li><strong className="text-white">Right to Correct:</strong> Request correction of inaccurate personal information.</li>
-          </UL>
           <P>
-            To exercise CCPA rights, contact{" "}
-            <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-500 hover:underline">{CONTACT_EMAIL}</a>{" "}
-            with subject "CCPA Request". We will respond within 45 days.
+            To exercise any right, contact{" "}
+            <a href={`mailto:${PRIVACY_EMAIL}`} className="text-blue-500 hover:underline">{PRIVACY_EMAIL}</a>.
+            We respond within <strong className="text-white">one calendar month</strong> (extendable by two
+            further months for complex requests, with notice). You also have the right to lodge a complaint
+            with your local supervisory authority (e.g., the ICO in the UK, or your EU Member State DPA).
           </P>
         </Section>
 
-        <Section title="11. Changes to This Policy">
+        <Section title="12. Your Rights — US State Residents">
+          <SubSection title="Illinois — Biometric Information Privacy Act (BIPA)">
+            <P>
+              Illinois residents have the right to: (1) know whether their biometric data is being collected;
+              (2) request a copy of written releases or consent records; (3) have biometric data destroyed
+              pursuant to the retention schedule above. Contact{" "}
+              <a href={`mailto:${PRIVACY_EMAIL}`} className="text-blue-500 hover:underline">{PRIVACY_EMAIL}</a>{" "}
+              with subject "BIPA Request."
+            </P>
+          </SubSection>
+          <SubSection title="Texas — Capture or Use of Biometric Identifier Act (CUBI)">
+            <P>
+              Texas residents have the rights described under CUBI, including notice before capture, consent
+              before use, prohibition on sale, and destruction when the purpose is no longer satisfied.
+              Contact{" "}
+              <a href={`mailto:${PRIVACY_EMAIL}`} className="text-blue-500 hover:underline">{PRIVACY_EMAIL}</a>{" "}
+              with subject "Texas CUBI Request."
+            </P>
+          </SubSection>
+          <SubSection title="California — CCPA/CPRA">
+            <UL>
+              <li><strong className="text-white">Right to Know:</strong> Disclosure of categories and specific pieces of personal information we collect.</li>
+              <li><strong className="text-white">Right to Delete:</strong> Via <strong className="text-white">Profile → Delete Account</strong> or contact us.</li>
+              <li><strong className="text-white">Right to Opt-Out of Sale:</strong> We do not sell personal information.</li>
+              <li><strong className="text-white">Right to Correct:</strong> Request correction of inaccurate information.</li>
+              <li><strong className="text-white">Right to Limit Sensitive Personal Information:</strong> Image-derived data may qualify as sensitive personal information under CPRA. Contact us to limit its use to service provision only.</li>
+              <li><strong className="text-white">Non-Discrimination:</strong> We will not discriminate for exercising CCPA/CPRA rights.</li>
+            </UL>
+            <P>Contact <a href={`mailto:${PRIVACY_EMAIL}`} className="text-blue-500 hover:underline">{PRIVACY_EMAIL}</a> with subject "CCPA Request". We respond within 45 days.</P>
+          </SubSection>
+          <SubSection title="Virginia, Colorado, Connecticut, and Other State Privacy Laws">
+            <P>
+              Residents of states with comprehensive privacy laws have similar access, deletion, correction,
+              portability, and opt-out rights. Contact{" "}
+              <a href={`mailto:${PRIVACY_EMAIL}`} className="text-blue-500 hover:underline">{PRIVACY_EMAIL}</a>{" "}
+              to exercise any state privacy right.
+            </P>
+          </SubSection>
+        </Section>
+
+        <Section title="13. Changes to This Policy">
           <P>
-            We may update this Privacy Policy from time to time. We will notify you of material changes via
-            email or in-app notification. Continued use of the service after changes constitutes acceptance.
+            We will notify you of material changes via email and in-app notification at least 14 days before
+            they take effect. For changes affecting how we process biometric or image-derived data, we will
+            obtain fresh explicit consent before continuing to process under the new terms. Continued use
+            after the effective date constitutes acceptance of non-material changes.
           </P>
         </Section>
 
-        <Section title="12. Contact">
+        <Section title="14. Contact and Data Controller">
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 space-y-1.5">
-            <P><strong className="text-white">Company:</strong> {BUSINESS_NAME}</P>
+            <P><strong className="text-white">Company (Data Controller):</strong> {BUSINESS_NAME}</P>
             <P><strong className="text-white">Address:</strong> {BUSINESS_ADDRESS}</P>
             <P><strong className="text-white">Phone:</strong>{" "}<a href={`tel:${BUSINESS_PHONE.replace(/[^+\d]/g, "")}`} className="text-blue-500 hover:underline">{BUSINESS_PHONE}</a></P>
-            <P><strong className="text-white">Privacy &amp; support inquiries:</strong>{" "}<a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-500 hover:underline">{CONTACT_EMAIL}</a></P>
+            <P><strong className="text-white">Privacy &amp; biometric inquiries:</strong>{" "}<a href={`mailto:${PRIVACY_EMAIL}`} className="text-blue-500 hover:underline">{PRIVACY_EMAIL}</a></P>
+            <P><strong className="text-white">General support:</strong>{" "}<a href={`mailto:${SUPPORT_EMAIL}`} className="text-blue-500 hover:underline">{SUPPORT_EMAIL}</a></P>
           </div>
         </Section>
 
@@ -200,7 +444,7 @@ export default function Privacy() {
           <span className="text-white/20">·</span>
           <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
           <span className="text-white/20">·</span>
-          <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition-colors">{CONTACT_EMAIL}</a>
+          <a href={`mailto:${PRIVACY_EMAIL}`} className="hover:text-white transition-colors">{PRIVACY_EMAIL}</a>
           <span className="ml-auto">© {new Date().getFullYear()} {APP_NAME}</span>
         </div>
       </div>

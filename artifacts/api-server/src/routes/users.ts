@@ -1,16 +1,21 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, isNull, and, desc } from "drizzle-orm";
 import sharp from "sharp";
 import {
   db,
   usersTable,
   connectedAccountsTable,
+  scanJobsTable,
+  threatsTable,
+  photoProcessingConsentsTable,
+  userPhotoHashesTable,
+  identityEmbeddingsTable,
+  visualFingerprintsTable,
+  phashFeedbackTable,
 } from "@workspace/db";
 
 import { getFingerprintForUser } from "../services/fingerprintService";
-import { scanJobsTable } from "@workspace/db";
-import { desc } from "drizzle-orm";
 import { getSubscription } from "../services/subscriptionService";
 import { recalculateScore } from "../services/scoreService";
 
@@ -228,6 +233,249 @@ router.delete("/me", async (req, res): Promise<void> => {
     res.status(204).end();
   } catch (err) {
     req.log.error({ err }, "DELETE /me failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /me/terms ──────────────────────────────────────────────────────────
+// Records that the authenticated user has explicitly accepted the current
+// Terms of Service and Privacy Policy (version-stamped for audit purposes).
+const TermsAcceptanceBody = z.object({
+  termsVersion: z.string().min(1).max(32),
+}).strict();
+
+router.post("/me/terms", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+    const parsed = TermsAcceptanceBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid body" });
+      return;
+    }
+    const now = new Date();
+    await db
+      .update(usersTable)
+      .set({ termsAcceptedAt: now, termsVersion: parsed.data.termsVersion, updatedAt: now })
+      .where(eq(usersTable.id, userId));
+    req.log.info({ userId, termsVersion: parsed.data.termsVersion }, "Terms accepted");
+    res.json({ ok: true, acceptedAt: now.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "POST /me/terms failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Age confirmation ────────────────────────────────────────────────────────
+const AgeConfirmBody = z.object({
+  ageVersion: z.string().min(1).max(20),
+}).strict();
+
+router.post("/me/age-confirm", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+    const parsed = AgeConfirmBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid body" });
+      return;
+    }
+    const now = new Date();
+    await db
+      .update(usersTable)
+      .set({ ageConfirmedAt: now, minimumAgeVersion: parsed.data.ageVersion, updatedAt: now })
+      .where(eq(usersTable.id, userId));
+    req.log.info({ userId, ageVersion: parsed.data.ageVersion }, "Age confirmation recorded");
+    res.json({ ok: true, confirmedAt: now.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "POST /me/age-confirm failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Photo Processing Consent ────────────────────────────────────────────────
+const PhotoConsentBody = z.object({
+  consentVersion: z.string().min(1).max(20).default("1.0"),
+}).strict();
+
+/** GET /me/photo-consent — returns current consent status */
+router.get("/me/photo-consent", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+    const [consent] = await db
+      .select()
+      .from(photoProcessingConsentsTable)
+      .where(
+        and(
+          eq(photoProcessingConsentsTable.userId, userId),
+          isNull(photoProcessingConsentsTable.withdrawnAt)
+        )
+      )
+      .limit(1);
+    res.json({
+      hasConsent: Boolean(consent),
+      consentedAt: consent?.consentedAt?.toISOString() ?? null,
+      consentVersion: consent?.consentVersion ?? null,
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /me/photo-consent failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** POST /me/photo-consent — grant consent */
+router.post("/me/photo-consent", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+    const parsed = PhotoConsentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid body" });
+      return;
+    }
+    // Mark any existing active consent as withdrawn first (idempotent re-consent)
+    const now = new Date();
+    await db
+      .update(photoProcessingConsentsTable)
+      .set({ withdrawnAt: now })
+      .where(
+        and(
+          eq(photoProcessingConsentsTable.userId, userId),
+          isNull(photoProcessingConsentsTable.withdrawnAt)
+        )
+      );
+    // Insert fresh consent record
+    const [row] = await db
+      .insert(photoProcessingConsentsTable)
+      .values({
+        userId,
+        consentVersion: parsed.data.consentVersion,
+        consentedAt: now,
+      })
+      .returning();
+    req.log.info({ userId, consentVersion: parsed.data.consentVersion }, "Photo processing consent recorded");
+    res.json({ ok: true, consentedAt: row?.consentedAt?.toISOString() ?? now.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "POST /me/photo-consent failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** DELETE /me/photo-consent — withdraw consent; triggers data deletion */
+router.delete("/me/photo-consent", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+    const now = new Date();
+    await db
+      .update(photoProcessingConsentsTable)
+      .set({ withdrawnAt: now })
+      .where(
+        and(
+          eq(photoProcessingConsentsTable.userId, userId),
+          isNull(photoProcessingConsentsTable.withdrawnAt)
+        )
+      );
+    // Immediately delete all photo-derived data for this user
+    await Promise.all([
+      db.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId)),
+      db.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId)),
+      db.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId)),
+      db.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId)),
+    ]);
+    req.log.info({ userId }, "Photo processing consent withdrawn + photo data deleted");
+    res.json({ ok: true, withdrawnAt: now.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "DELETE /me/photo-consent failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** DELETE /me/photo-data — delete all photo-derived data without withdrawing consent */
+router.delete("/me/photo-data", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+    await Promise.all([
+      db.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId)),
+      db.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId)),
+      db.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId)),
+      db.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId)),
+    ]);
+    req.log.info({ userId }, "Photo-derived data deleted on user request");
+    res.json({ ok: true, deletedAt: new Date().toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "DELETE /me/photo-data failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** GET /me/export — GDPR Art. 20 data portability export */
+router.get("/me/export", async (req, res): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    const accounts = await db.select().from(connectedAccountsTable).where(eq(connectedAccountsTable.userId, userId));
+    const consentRows = await db.select().from(photoProcessingConsentsTable).where(eq(photoProcessingConsentsTable.userId, userId));
+    const scanJobs = await db
+      .select({
+        id: scanJobsTable.id,
+        status: scanJobsTable.status,
+        startedAt: scanJobsTable.startedAt,
+        completedAt: scanJobsTable.completedAt,
+        threatsFound: scanJobsTable.threatsFound,
+      })
+      .from(scanJobsTable)
+      .where(eq(scanJobsTable.userId, userId));
+    const threats = await db
+      .select({
+        id: threatsTable.id,
+        platform: threatsTable.platform,
+        detectedAt: threatsTable.createdAt,
+        resolvedAt: threatsTable.resolvedAt,
+        severity: threatsTable.severity,
+        resolved: threatsTable.resolved,
+        suspiciousUsername: threatsTable.suspiciousUsername,
+      })
+      .from(threatsTable)
+      .where(eq(threatsTable.userId, userId));
+
+    const exportPayload = {
+      exportedAt: new Date().toISOString(),
+      exportVersion: "1.0",
+      service: "Rook Identity Labs LLC",
+      profile: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        username: user.username,
+        createdAt: user.createdAt,
+        termsAcceptedAt: user.termsAcceptedAt,
+        termsVersion: user.termsVersion,
+        ageConfirmedAt: user.ageConfirmedAt,
+        minimumAgeVersion: user.minimumAgeVersion,
+        securityScore: user.securityScore,
+        scanCount: user.scanCount,
+      },
+      connectedAccounts: accounts.map((a) => ({
+        platform: a.platform,
+        username: a.username,
+        connectedAt: a.createdAt,
+        // Never include token in export
+      })),
+      photoProcessingConsents: consentRows.map((c) => ({
+        consentVersion: c.consentVersion,
+        consentedAt: c.consentedAt,
+        withdrawnAt: c.withdrawnAt,
+      })),
+      scanHistory: scanJobs,
+      threats,
+    };
+
+    res.setHeader("Content-Disposition", 'attachment; filename="rook-data-export.json"');
+    res.setHeader("Content-Type", "application/json");
+    res.json(exportPayload);
+    req.log.info({ userId }, "Data export served (GDPR Art. 20)");
+  } catch (err) {
+    req.log.error({ err }, "GET /me/export failed");
     res.status(500).json({ error: "Internal server error" });
   }
 });
