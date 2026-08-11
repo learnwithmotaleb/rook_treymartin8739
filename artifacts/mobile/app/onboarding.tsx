@@ -24,7 +24,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris, getAccounts, getAccountMedia, uploadAvatar, type AccountMediaItem } from "@/lib/api";
+import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris, getAccounts, getAccountMedia, uploadAvatar, getPhotoConsent, type AccountMediaItem } from "@/lib/api";
 import { INSTAGRAM_APP_ID, FACEBOOK_APP_ID, OAUTH_APP_SCHEME } from "@/constants/oauthConfig";
 import * as WebBrowser from "expo-web-browser";
 import { useColors } from "@/hooks/useColors";
@@ -32,6 +32,7 @@ import { useApp } from "@/context/AppContext";
 import { Platform as SocialPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { PhotoConsentModal } from "@/components/PhotoConsentModal";
 import { ScanPulse } from "@/components/ScanPulse";
 import { analytics } from "@/lib/analytics";
 import { useReduceMotion } from "@/hooks/useReduceMotion";
@@ -1370,6 +1371,22 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   const [mediaHasAccess, setMediaHasAccess] = useState(false);
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [photosConfirmed, setPhotosConfirmed] = useState(false);
+  const [consentModalVisible, setConsentModalVisible] = useState(false);
+  const postConsentRef = useRef<(() => void) | null>(null);
+
+  const showConsentIfNeeded = useCallback(async (after: () => void): Promise<void> => {
+    try {
+      const status = await getPhotoConsent();
+      if (!status.hasConsent) {
+        postConsentRef.current = after;
+        setConsentModalVisible(true);
+        return;
+      }
+    } catch {
+      // Non-fatal — proceed anyway if consent check fails
+    }
+    after();
+  }, []);
 
   const handleOAuth = useCallback(async (forceEphemeral = false) => {
     const cfg = ONBOARDING_OAUTH[platform];
@@ -1508,150 +1525,185 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
 
   const confirmPhotos = useCallback(() => {
     const urls = Array.from(selectedUrls);
-    if (onPhotosPicked && urls.length > 0) onPhotosPicked(platform, urls);
-    setPhotosConfirmed(true);
-  }, [selectedUrls, platform, onPhotosPicked]);
+    if (urls.length > 0) {
+      // Show consent modal before processing any photos for fingerprinting
+      void showConsentIfNeeded(() => {
+        if (onPhotosPicked) onPhotosPicked(platform, urls);
+        setPhotosConfirmed(true);
+      });
+    } else {
+      // No photos selected — no photo processing, skip consent gate
+      setPhotosConfirmed(true);
+    }
+  }, [selectedUrls, platform, onPhotosPicked, showConsentIfNeeded]);
 
   const cfg = ONBOARDING_OAUTH[platform];
   const platformColor = cfg?.color ?? "#3B82F6";
   const snapchatText = platform === "snapchat" ? "#000" : "#fff";
 
+  /** Shared modal dismiss handler — fires postConsentRef action then resets. */
+  const dismissConsentModal = useCallback((proceed: boolean) => {
+    setConsentModalVisible(false);
+    const action = postConsentRef.current;
+    postConsentRef.current = null;
+    if (proceed && action) action();
+    else if (!proceed && action) action(); // Skip also proceeds — just without consent
+  }, []);
+
   // ── Connected state ──────────────────────────────────────────────────────
   if (isConnected) {
     return (
-      <View style={[ph.outerCard, { backgroundColor: colors.card, borderColor: colors.success + "44" }]}>
-        {/* Connected header */}
-        <View style={[ph.connectedRow]}>
-          <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
-            <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+      <>
+        <View style={[ph.outerCard, { backgroundColor: colors.card, borderColor: colors.success + "44" }]}>
+          {/* Connected header */}
+          <View style={[ph.connectedRow]}>
+            <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
+              <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+            </View>
+            <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+              <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Connected</Text>
+            </View>
           </View>
-          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-            <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Connected</Text>
-          </View>
+
+          {/* Photo picker — platform media or camera roll fallback */}
+          {!photosConfirmed && mediaLoading && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 }}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Loading your photos…</Text>
+            </View>
+          )}
+          {!photosConfirmed && !mediaLoading && mediaItems.length > 0 && (
+            <View style={{ gap: 10 }}>
+              <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>
+                Select your reference photos for scanning:
+              </Text>
+              <FlatList
+                data={mediaItems}
+                keyExtractor={(item) => item.id}
+                numColumns={3}
+                scrollEnabled={false}
+                columnWrapperStyle={{ gap: 8 }}
+                contentContainerStyle={{ gap: 8 }}
+                renderItem={({ item }) => {
+                  const selected = selectedUrls.has(item.thumbnailUrl);
+                  return (
+                    <TouchableOpacity
+                      style={[ph.photoCell, { width: PHOTO_CELL, height: PHOTO_CELL, borderColor: selected ? colors.primary : "transparent", borderWidth: selected ? 2 : 0 }]}
+                      onPress={() => togglePhoto(item.thumbnailUrl)}
+                      activeOpacity={0.8}
+                    >
+                      <RNImage source={{ uri: item.thumbnailUrl }} style={{ width: "100%", height: "100%", borderRadius: 10 }} resizeMode="cover" />
+                      {selected && (
+                        <View style={[ph.photoCheck, { backgroundColor: colors.primary }]}>
+                          <Ionicons name="checkmark" size={12} color="#fff" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+              <TouchableOpacity
+                style={[ph.photoConfirmBtn, { backgroundColor: selectedUrls.size > 0 ? colors.primary : colors.secondary, borderColor: colors.border }]}
+                onPress={confirmPhotos}
+                activeOpacity={0.85}
+              >
+                <Text style={[{ color: selectedUrls.size > 0 ? "#fff" : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>
+                  {selectedUrls.size > 0 ? `Use ${selectedUrls.size} photo${selectedUrls.size !== 1 ? "s" : ""} for scan` : "Skip — use profile photo only"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {photosConfirmed && selectedUrls.size > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="images" size={14} color={colors.success} />
+              <Text style={[{ color: colors.success, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
+                {selectedUrls.size} reference photo{selectedUrls.size !== 1 ? "s" : ""} added
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Photo picker — platform media or camera roll fallback */}
-        {!photosConfirmed && mediaLoading && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 }}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Loading your photos…</Text>
-          </View>
-        )}
-        {!photosConfirmed && !mediaLoading && mediaItems.length > 0 && (
-          <View style={{ gap: 10 }}>
-            <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>
-              Select your reference photos for scanning:
-            </Text>
-            <FlatList
-              data={mediaItems}
-              keyExtractor={(item) => item.id}
-              numColumns={3}
-              scrollEnabled={false}
-              columnWrapperStyle={{ gap: 8 }}
-              contentContainerStyle={{ gap: 8 }}
-              renderItem={({ item }) => {
-                const selected = selectedUrls.has(item.thumbnailUrl);
-                return (
-                  <TouchableOpacity
-                    style={[ph.photoCell, { width: PHOTO_CELL, height: PHOTO_CELL, borderColor: selected ? colors.primary : "transparent", borderWidth: selected ? 2 : 0 }]}
-                    onPress={() => togglePhoto(item.thumbnailUrl)}
-                    activeOpacity={0.8}
-                  >
-                    <RNImage source={{ uri: item.thumbnailUrl }} style={{ width: "100%", height: "100%", borderRadius: 10 }} resizeMode="cover" />
-                    {selected && (
-                      <View style={[ph.photoCheck, { backgroundColor: colors.primary }]}>
-                        <Ionicons name="checkmark" size={12} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            <TouchableOpacity
-              style={[ph.photoConfirmBtn, { backgroundColor: selectedUrls.size > 0 ? colors.primary : colors.secondary, borderColor: colors.border }]}
-              onPress={confirmPhotos}
-              activeOpacity={0.85}
-            >
-              <Text style={[{ color: selectedUrls.size > 0 ? "#fff" : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>
-                {selectedUrls.size > 0 ? `Use ${selectedUrls.size} photo${selectedUrls.size !== 1 ? "s" : ""} for scan` : "Skip — use profile photo only"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {photosConfirmed && selectedUrls.size > 0 && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Ionicons name="images" size={14} color={colors.success} />
-            <Text style={[{ color: colors.success, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
-              {selectedUrls.size} reference photo{selectedUrls.size !== 1 ? "s" : ""} added
-            </Text>
-          </View>
-        )}
-      </View>
+        {/* Photo processing consent modal */}
+        <PhotoConsentModal
+          visible={consentModalVisible}
+          onConsent={() => dismissConsentModal(true)}
+          onSkip={() => dismissConsentModal(false)}
+        />
+      </>
     );
   }
 
   // ── Not yet connected ────────────────────────────────────────────────────
   return (
-    <View style={[ph.outerCard, { backgroundColor: colors.card, borderColor: (handle || showManual) ? colors.primary + "55" : colors.border }]}>
-      <View style={ph.platformHeader}>
-        <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
-          <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+    <>
+      <View style={[ph.outerCard, { backgroundColor: colors.card, borderColor: (handle || showManual) ? colors.primary + "55" : colors.border }]}>
+        <View style={ph.platformHeader}>
+          <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
+            <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+          </View>
+          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
         </View>
-        <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
-      </View>
-      <ScaleButton
-        style={[ph.oauthBtn, { backgroundColor: platformColor, opacity: oauthLoading ? 0.7 : 1 }]}
-        onPress={handleOAuth}
-        disabled={oauthLoading}
-        activeOpacity={0.85}
-      >
-        {oauthLoading ? (
-          <ActivityIndicator size="small" color={platform === "snapchat" ? "#000" : "#fff"} />
-        ) : (
-          <>
-            <Ionicons name="log-in-outline" size={16} color={snapchatText} />
-            <Text style={[{ color: snapchatText, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Connect with {label}</Text>
-          </>
-        )}
-      </ScaleButton>
-      {platform === "instagram" && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 2 }}>
-          <Ionicons name="information-circle-outline" size={12} color="#6B7280" />
-          <Text style={{ color: "#6B7280", fontFamily: "Inter_400Regular", fontSize: 11, flex: 1 }}>
-            Requires a Professional or Creator account — free and reversible in Instagram Settings.{" "}
-          </Text>
-          <TouchableOpacity onPress={() => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); }}>
-            <Text style={{ color: "#E1306C", fontFamily: "Inter_500Medium", fontSize: 11 }}>Switch →</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <TouchableOpacity onPress={() => setShowManual((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center" }}>
-        <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>
-          {showManual ? "Hide manual entry" : "Or enter @handle manually"}
-        </Text>
-        <Ionicons name={showManual ? "chevron-up" : "chevron-down"} size={12} color={colors.mutedForeground} />
-      </TouchableOpacity>
-      {showManual && (
-        <View style={[ph.manualRow, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-          <Ionicons name="at" size={16} color={colors.mutedForeground} />
-          <TextInput
-            style={[{ flex: 1, color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }]}
-            placeholder="username"
-            placeholderTextColor={colors.mutedForeground + "88"}
-            value={handle}
-            onChangeText={onHandleChange}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-          />
-          {handle.length > 0 && (
-            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+        <ScaleButton
+          style={[ph.oauthBtn, { backgroundColor: platformColor, opacity: oauthLoading ? 0.7 : 1 }]}
+          onPress={handleOAuth}
+          disabled={oauthLoading}
+          activeOpacity={0.85}
+        >
+          {oauthLoading ? (
+            <ActivityIndicator size="small" color={platform === "snapchat" ? "#000" : "#fff"} />
+          ) : (
+            <>
+              <Ionicons name="log-in-outline" size={16} color={snapchatText} />
+              <Text style={[{ color: snapchatText, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Connect with {label}</Text>
+            </>
           )}
-        </View>
-      )}
-    </View>
+        </ScaleButton>
+        {platform === "instagram" && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 2 }}>
+            <Ionicons name="information-circle-outline" size={12} color="#6B7280" />
+            <Text style={{ color: "#6B7280", fontFamily: "Inter_400Regular", fontSize: 11, flex: 1 }}>
+              Requires a Professional or Creator account — free and reversible in Instagram Settings.{" "}
+            </Text>
+            <TouchableOpacity onPress={() => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); }}>
+              <Text style={{ color: "#E1306C", fontFamily: "Inter_500Medium", fontSize: 11 }}>Switch →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        <TouchableOpacity onPress={() => setShowManual((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center" }}>
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }]}>
+            {showManual ? "Hide manual entry" : "Or enter @handle manually"}
+          </Text>
+          <Ionicons name={showManual ? "chevron-up" : "chevron-down"} size={12} color={colors.mutedForeground} />
+        </TouchableOpacity>
+        {showManual && (
+          <View style={[ph.manualRow, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <Ionicons name="at" size={16} color={colors.mutedForeground} />
+            <TextInput
+              style={[{ flex: 1, color: colors.foreground, fontFamily: "Inter_400Regular", fontSize: 14 }]}
+              placeholder="username"
+              placeholderTextColor={colors.mutedForeground + "88"}
+              value={handle}
+              onChangeText={onHandleChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+            />
+            {handle.length > 0 && (
+              <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* Photo processing consent modal (shown if connect triggers without prior consent) */}
+      <PhotoConsentModal
+        visible={consentModalVisible}
+        onConsent={() => dismissConsentModal(true)}
+        onSkip={() => dismissConsentModal(false)}
+      />
+    </>
   );
 }
 // PlatformHandlesScreen merged into FullProfileSetupScreen (step 8)
