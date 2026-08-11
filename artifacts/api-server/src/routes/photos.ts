@@ -125,14 +125,14 @@ router.post("/photos/search", async (req, res): Promise<void> => {
           type: "stolen_photo",
           severity: "high",
           platform: match.platform,
-          title: "Stolen photo detected",
-          description: `Your photo was found on @${match.username}'s ${platformLabel} profile via reverse image search.`,
-          details: `Discovered via Google Vision WEB_DETECTION API. Confirmed on: ${match.profileUrl}`,
+          title: "Possible photo match",
+          description: `Your photo appears to match content on @${match.username}'s ${platformLabel} profile.`,
+          details: `Visual match found on: ${match.profileUrl}`,
           aiExplanation:
-            `Your uploaded photo was confirmed on @${match.username}'s ${platformLabel} account ` +
-            `through Google's reverse image search (WEB_DETECTION API with ${simPct}% confidence). ` +
-            `This means your image is actively being used without your authorization on another account's profile. ` +
-            `We recommend reporting @${match.username} to ${platformLabel} using the Report button below.`,
+            `Your uploaded photo appears to match content on @${match.username}'s ${platformLabel} account ` +
+            `(${simPct}% visual similarity). ` +
+            `This suggests your image may be in use on another account without your authorization. ` +
+            `We recommend reviewing @${match.username}'s profile and reporting it to ${platformLabel} using the Report button below.`,
           threatScore: simPct,
           suspiciousUsername: match.username,
           matchedMediaCount: 1,
@@ -141,7 +141,7 @@ router.post("/photos/search", async (req, res): Promise<void> => {
               id: `ev_search_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
               type: "post_photo",
               similarity: simPct,
-              label: "Photo confirmed via Google reverse image search",
+              label: "Possible photo match",
               ...(yourPhotoUrl ? { yourPhotoUrl } : {}),
               stolenPhotoUrl,
               stolenPageUrl,
@@ -157,8 +157,8 @@ router.post("/photos/search", async (req, res): Promise<void> => {
           }),
           detectedSignalsJson: JSON.stringify([
             `Visual media similarity confirmed (${Math.round(match.similarity * 40)}/40 match score)`,
-            "Reverse image search confirmed photo match",
-            "Unauthorized photo use detected on external profile",
+            "Visual photo match identified on external profile",
+            "Possible unauthorized photo use detected",
           ]),
           resolved: false,
         });

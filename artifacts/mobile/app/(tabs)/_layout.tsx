@@ -152,11 +152,13 @@ export default function TabLayout() {
   // and show a recoverable error rather than a permanent blank screen.
   const [initTimedOut, setInitTimedOut] = useState(false);
   const [showTermsUpdate, setShowTermsUpdate] = useState(false);
-  // Guard: run the terms DB check at most once per sign-in session.
-  // Without this, every time login() fires (which flips isOnboardingReady
-  // false → true), the effect would re-run, show the modal again even after
-  // the user accepted, and create a fight between setShowTermsUpdate(true/false).
-  const hasCheckedTermsRef = useRef(false);
+  // Guard: run the terms DB check at most once per unique Clerk user ID.
+  // Storing the user ID (not a boolean) means:
+  //  - isSignedIn briefly going false during Clerk re-initialization does NOT
+  //    reset the guard, because clerkUser?.id doesn't change.
+  //  - A different user signing in on the same device DOES trigger a fresh check
+  //    because clerkUser?.id will be different.
+  const checkedTermsForUserRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isInitializing && (isOnboardingReady || !isSignedIn)) { setInitTimedOut(false); return; }
     const t = setTimeout(() => setInitTimedOut(true), 12_000);
@@ -194,24 +196,27 @@ export default function TabLayout() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser]);
 
-  // Reset the per-session terms-check guard whenever the user signs out so that
-  // the next sign-in triggers a fresh check.
+  // Reset the terms-check guard when the user actually changes (sign-out or account
+  // switch). We reset on !clerkUser?.id rather than !isSignedIn because isSignedIn
+  // can briefly be false during Clerk re-initialization without a real sign-out —
+  // that transient flip was resetting the old boolean ref and re-showing the modal.
   useEffect(() => {
-    if (!isSignedIn) {
-      hasCheckedTermsRef.current = false;
+    if (!isSignedIn || !clerkUser?.id) {
+      checkedTermsForUserRef.current = null;
       setShowTermsUpdate(false);
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, clerkUser?.id]);
 
   // Check whether the user has accepted the current Terms / Privacy Policy version.
   // If not (SSO users, or returning users after a policy update), show TermsUpdateModal.
-  // The hasCheckedTermsRef guard ensures this runs at most once per sign-in session —
-  // without it, every time login() fires (flipping isOnboardingReady false → true),
-  // this effect re-runs and can re-show the modal even after the user accepted it.
+  // The checkedTermsForUserRef guard ensures this runs at most once per unique
+  // Clerk user ID — it is not reset by transient isSignedIn/isOnboardingReady flips.
   useEffect(() => {
     if (!isLoaded || isInitializing || !isSignedIn || !isOnboardingReady) return;
-    if (hasCheckedTermsRef.current) return;
-    hasCheckedTermsRef.current = true;
+    const uid = clerkUser?.id;
+    if (!uid) return;
+    if (checkedTermsForUserRef.current === uid) return;
+    checkedTermsForUserRef.current = uid;
     import("@/lib/api").then(({ getMe }) => {
       getMe()
         .then((profile) => {
@@ -223,7 +228,7 @@ export default function TabLayout() {
         .catch(() => {/* non-fatal */});
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isInitializing, isSignedIn, isOnboardingReady]);
+  }, [isLoaded, isInitializing, isSignedIn, isOnboardingReady, clerkUser?.id]);
 
   // Sync the RevenueCat tier to the server whenever it changes so the server-
   // side scan-quota system reflects the user's actual subscription.

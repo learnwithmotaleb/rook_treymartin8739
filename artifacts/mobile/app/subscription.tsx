@@ -197,7 +197,7 @@ function ReportPreview({ colors, threat }: {
                 <Ionicons name="alert-circle-outline" size={12} color={colors.mutedForeground} />
                 <Text style={[rp.matchText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                   {threat.matchedMediaCount > 0
-                    ? `${threat.matchedMediaCount} potential photo match${threat.matchedMediaCount !== 1 ? "es" : ""} · detected via reverse image search`
+                    ? `${threat.matchedMediaCount} potential photo match${threat.matchedMediaCount !== 1 ? "es" : ""} · visual similarity detection`
                     : "Potential impersonation match · upgrade to view full details"}
                 </Text>
               </View>

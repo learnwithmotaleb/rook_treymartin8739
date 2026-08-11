@@ -601,7 +601,11 @@ export default function ThreatDetail() {
 
   const threat = detail ?? summary;
 
-  if (loading) {
+  // Show full-screen skeleton only when there is truly no data at all —
+  // not even a summary from the threat list. When summary exists (the normal
+  // navigation path from alerts), render immediately and let detail arrive
+  // in the background so the screen feels instant.
+  if (loading && !threat) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>

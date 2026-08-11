@@ -814,6 +814,9 @@ async function runScanPipeline(
   await updateJobProgress(jobId, SCAN_STEPS[3].progress, SCAN_STEPS[3].step);
 
   const allCandidates: ImpersonatorCandidate[] = [];
+  // Populated inside the web search block; consumed by the TikTok photo-gate
+  // after step 6. Declared here so it's in scope at both points.
+  const tiktokUsernameVariantKeys = new Set<string>();
 
   // ── Pre-web-search: Threat Actor Corpus Fast-Path ─────────────────────────
   // Compare the user's own photo hashes against known threat actor clusters.
@@ -1075,6 +1078,10 @@ async function runScanPipeline(
         continue;
       }
       allCandidates.push(candidate);
+      // Track TikTok username-variant keys for the photo-gate that runs after step 6.
+      if (wc.platform === "tiktok" && wc.discoveryMethod === "username_variant") {
+        tiktokUsernameVariantKeys.add(`tiktok:${wc.username.toLowerCase().replace(/^@/, "")}`);
+      }
     }
 
     logger.info(
@@ -1305,6 +1312,43 @@ async function runScanPipeline(
       logger.info({ userId }, "No user photo fingerprints available — comparison skipped");
     }
     await sleep(100);
+  }
+
+  // ── TikTok photo-gate ─────────────────────────────────────────────────────
+  // TikTok username-variant candidates are extremely prone to false positives:
+  // creators who post videos *about* or *crediting* a person often appear as
+  // username variants even though they share no photo DNA with the victim.
+  // Gate: only keep TikTok username_variant candidates if their profile photo
+  // (oEmbed thumbnail_url, captured as imageUrl → suspiciousProfileImageUrl)
+  // matched one of the user's monitored photo hashes in step 6 above.
+  // Falls back to username-only if the user has no photo hashes stored yet
+  // (e.g. photo consent not granted), so no TikTok results are lost in that case.
+  if (userHashes.length > 0 && tiktokUsernameVariantKeys.size > 0) {
+    const beforeTikTokGate = allCandidates.length;
+
+    // Filter: remove TikTok username-variant candidates that didn't get a photo
+    // match. profileImageSimilarity < userMatchThreshold means no confirmed match.
+    const tiktokGated = allCandidates.filter((c) => {
+      if (c.platform !== "tiktok") return true;
+      const key = `tiktok:${c.suspiciousUsername.toLowerCase().replace(/^@/, "")}`;
+      if (!tiktokUsernameVariantKeys.has(key)) return true; // not username_variant path
+      const photoMatched = c.signals.profileImageSimilarity >= userMatchThreshold;
+      if (!photoMatched) {
+        logger.info(
+          { username: c.suspiciousUsername, profileImageSimilarity: Math.round(c.signals.profileImageSimilarity * 100) },
+          "TikTok candidate suppressed by photo-gate: no profile photo match"
+        );
+      }
+      return photoMatched;
+    });
+
+    allCandidates.length = 0;
+    allCandidates.push(...tiktokGated);
+
+    const suppressed = beforeTikTokGate - allCandidates.length;
+    if (suppressed > 0) {
+      logger.info({ suppressed, checked: tiktokUsernameVariantKeys.size }, "TikTok photo-gate removed false-positive candidates");
+    }
   }
 
   // NOTE: Bulk retirement removed.

@@ -90,8 +90,9 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     label: "Facebook",
     color: "#1877F2",
     authUrl: "https://www.facebook.com/v22.0/dialog/oauth",
-    // user_photos requires Meta App Review — request only after approval.
-    // Until then, public_profile (no review needed) is sufficient to connect the account.
+    // user_photos requires Meta App Review — included here so the consent screen
+    // shows the permission in screen recordings submitted with the review.
+    // As the app developer you can grant it; general users cannot until Meta approves.
     scopes: ["public_profile", "user_photos"],
     clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID",
     callbackPath: "/api/oauth/facebook/callback",

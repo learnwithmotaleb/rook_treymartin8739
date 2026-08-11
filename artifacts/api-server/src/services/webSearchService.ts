@@ -1145,6 +1145,7 @@ interface TikTokOEmbedData {
   author_name?: string;
   author_url?: string;
   title?: string;
+  thumbnail_url?: string;
   code?: number;
 }
 
@@ -1218,6 +1219,13 @@ async function tiktokVariantProbe(
             username: variant,
             platform: "tiktok",
             profileUrl,
+            // Capture the TikTok profile photo from oEmbed thumbnail_url.
+            // This feeds the pHash comparison in scanOrchestrator step 6 and
+            // is required for the TikTok photo-gate (only username-variant
+            // TikTok candidates that also match a monitored profile photo are
+            // promoted to threats — prevents false positives from fan accounts
+            // or content creators who reference the victim in video titles).
+            ...(data.thumbnail_url ? { imageUrl: data.thumbnail_url } : {}),
             title: `${data.author_name} (@${variant}) on TikTok`,
             snippet: tikTokTitle || `TikTok account @${variant} by ${data.author_name}`,
             similarity: mutClassTT ? Math.max(mutClassTT.probability, heuristicSimTT) : heuristicSimTT,
@@ -1626,7 +1634,7 @@ async function searchByImageUrls(
         platform,
         profileUrl: page.url,
         title: page.pageTitle ?? `${found} on ${platform}`,
-        snippet: "Your photo was found on this profile via Google reverse image search",
+        snippet: "Your photo appears to match content on this profile",
         similarity: 0.95,
         discoveryMethod: "image_search",
         postContext: "original_post",
@@ -2271,7 +2279,7 @@ export async function reverseImageSearchForPhoto(input: {
       profileUrl: page.url,
       imageUrl: nestedImageUrl,
       title: page.pageTitle ?? `${extracted.username} on ${extracted.platform}`,
-      snippet: "Your photo was found on this profile via Google reverse image search",
+      snippet: "Your photo appears to match content on this profile",
       similarity: page.score ?? 0.92,
       discoveryMethod: "image_search",
     });
