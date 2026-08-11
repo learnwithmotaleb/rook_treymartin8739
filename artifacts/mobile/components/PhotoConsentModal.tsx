@@ -70,12 +70,12 @@ export function PhotoConsentModal({ visible, onConsent, onSkip }: Props) {
                 What Rook derives from your photos
               </Text>
               <Item icon="scan-outline" color="#A78BFA" colors={colors}>
-                A <Text style={styles.bold}>64-bit perceptual hash</Text> — a compact numeric
-                fingerprint of image brightness patterns. It is NOT raw image data, NOT facial
+                A <Text style={styles.bold}>perceptual fingerprint</Text> — a compact digital
+                signature of your photo's visual structure. It is NOT raw image data, NOT facial
                 recognition, and cannot reconstruct your photo.
               </Item>
               <Item icon="analytics-outline" color="#60A5FA" colors={colors}>
-                An <Text style={styles.bold}>AI feature vector</Text> — a numerical array used
+                An <Text style={styles.bold}>AI-derived visual representation</Text> — used
                 to detect visually similar images on other accounts. Cannot reconstruct your photo.
               </Item>
             </View>
@@ -98,12 +98,12 @@ export function PhotoConsentModal({ visible, onConsent, onSkip }: Props) {
                 Third-party services that receive photo data
               </Text>
               <Item icon="logo-google" color="#EA4335" colors={colors}>
-                <Text style={styles.bold}>Google Cloud Vision API</Text> — receives your public
-                photo URL to find where that image appears on the web.
+                <Text style={styles.bold}>Google</Text> — receives your public photo URL to
+                find where similar images appear on the web.
               </Item>
               <Item icon="sparkles-outline" color="#F59E0B" colors={colors}>
-                <Text style={styles.bold}>OpenAI API</Text> — analyzes your photo to generate
-                a feature vector for visual similarity matching.
+                <Text style={styles.bold}>OpenAI</Text> — analyzes your photo for visual
+                similarity detection across platforms.
               </Item>
             </View>
 

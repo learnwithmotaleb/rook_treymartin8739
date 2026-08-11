@@ -229,6 +229,31 @@ router.delete("/me", async (req, res): Promise<void> => {
       }
     }
 
+    // Remove the subscriber from RevenueCat so they no longer appear in the
+    // dashboard and their entitlements are fully revoked on RC's side.
+    // The actual App Store / Play Store subscription must be cancelled by the
+    // user through their store settings — neither RC nor our server can cancel
+    // store-managed billing on their behalf.
+    // Requires REVENUECAT_SECRET_KEY to be set (V2 secret from RC dashboard).
+    if (user.clerkId && process.env.REVENUECAT_SECRET_KEY) {
+      try {
+        const rcResp = await fetch(
+          `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(user.clerkId)}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${process.env.REVENUECAT_SECRET_KEY}` },
+          }
+        );
+        if (rcResp.ok || rcResp.status === 404) {
+          req.log.info({ userId, clerkId: user.clerkId }, "RevenueCat subscriber deleted");
+        } else {
+          req.log.warn({ userId, clerkId: user.clerkId, status: rcResp.status }, "RevenueCat subscriber deletion failed (non-fatal)");
+        }
+      } catch (err) {
+        req.log.warn({ userId, clerkId: user.clerkId, err }, "RevenueCat subscriber deletion failed (non-fatal)");
+      }
+    }
+
     req.log.info({ userId }, "User account deleted");
     res.status(204).end();
   } catch (err) {

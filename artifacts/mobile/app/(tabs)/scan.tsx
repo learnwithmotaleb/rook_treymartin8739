@@ -76,8 +76,16 @@ export default function ScanScreen() {
 
   const btnScale = useSharedValue(1);
 
+  // Sync Reanimated shared value with the React-state scanProgress.
+  // withTiming() must be called on a shared value, NOT inside useAnimatedStyle —
+  // useAnimatedStyle can't animate string percentages with withTiming.
+  const progressWidth = useSharedValue(0);
+  useEffect(() => {
+    progressWidth.value = withTiming(scanProgress, { duration: 300 });
+  }, [scanProgress, progressWidth]);
+
   const animatedProgressStyle = useAnimatedStyle(() => ({
-    width: withTiming(`${scanProgress}%` as any, { duration: 300 }),
+    width: `${progressWidth.value}%` as any,
   }));
 
   const animatedBtnStyle = useAnimatedStyle(() => ({
@@ -390,7 +398,7 @@ export default function ScanScreen() {
                 ]}
               >
                 {photoMatches > 0
-                  ? "Tap to review unauthorized use detected"
+                  ? "Tap to review potential matches"
                   : photoCount > 0
                   ? "Included in next scan · Tap to manage"
                   : "Upload photos to monitor for unauthorized use"}
@@ -480,10 +488,10 @@ export default function ScanScreen() {
                   ]}
                 >
                   {lastResult.threatsFound > 0
-                    ? `${lastResult.threatsFound} active threat${lastResult.threatsFound !== 1 ? "s" : ""}${lastResult.photoThreats > 0 ? ` · ${lastResult.photoThreats} photo match${lastResult.photoThreats !== 1 ? "es" : ""}` : ""} detected`
+                    ? `${lastResult.threatsFound} potential threat${lastResult.threatsFound !== 1 ? "s" : ""}${lastResult.photoThreats > 0 ? ` · ${lastResult.photoThreats} photo match${lastResult.photoThreats !== 1 ? "es" : ""}` : ""} flagged`
                     : photoCount > 0
-                    ? `No threats found · ${photoCount} photos verified clean`
-                    : "No new threats found — you're protected"}
+                    ? `No matches found · ${photoCount} photo${photoCount !== 1 ? "s" : ""} checked`
+                    : "No new threats found"}
                 </Text>
                 {lastResult.threatsFound > 0 && (
                   <Text

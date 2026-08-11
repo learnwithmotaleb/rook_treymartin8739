@@ -502,7 +502,7 @@ export default function ManageAccounts() {
               Why connect accounts?
             </Text>
             <Text style={[styles.infoDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Connected accounts let Rook index your photos and captions to build your identity fingerprint — the foundation of impersonator detection. Authenticated accounts get real-time sync.
+              Connected accounts let Rook monitor your photos and public content — the foundation of impersonation detection. Authenticated accounts get real-time sync.
             </Text>
           </View>
         </GlassCard>

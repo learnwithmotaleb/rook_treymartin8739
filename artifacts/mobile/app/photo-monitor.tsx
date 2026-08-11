@@ -591,7 +591,7 @@ export default function PhotoMonitorScreen() {
           <View style={styles.infoRow}>
             <Ionicons name="scan-outline" size={18} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              All monitored photos are searched via Google Cloud Vision simultaneously when you run a scan — your pixels are matched against the entire public web to find unauthorized use.
+              All monitored photos are searched across the web when you run a scan — Rook looks for unauthorized copies and visually similar images wherever they appear publicly.
             </Text>
           </View>
           <View style={[styles.infoRow, { marginTop: 10 }]}>

@@ -8,6 +8,7 @@
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Modal,
   StyleSheet,
   Text,
@@ -15,7 +16,6 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { recordTermsAcceptance, CURRENT_TERMS_VERSION } from "@/lib/api";
 
@@ -27,20 +27,15 @@ interface Props {
   onDeleteAccount: () => void;
 }
 
+const PRIVACY_URL = "https://getrook.app/privacy";
+const TERMS_URL = "https://getrook.app/terms";
+
 export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props) {
   const colors = useColors();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [reviewed, setReviewed] = useState(false);
 
-  const handleReviewAndAccept = useCallback(async () => {
-    if (!reviewed) {
-      // First tap: open legal screen
-      router.push("/legal" as any);
-      setReviewed(true);
-      return;
-    }
-    // Second tap (after review): record acceptance
+  const handleAccept = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -51,7 +46,7 @@ export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props
     } finally {
       setLoading(false);
     }
-  }, [reviewed, onAccepted]);
+  }, [onAccepted]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
@@ -71,8 +66,34 @@ export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props
             monitoring — including the specific data derived, third-party services involved,
             your retention rights, and how to withdraw consent at any time.{"\n\n"}
             These updates are required to comply with Illinois BIPA, Texas CUBI, and GDPR Article 9.
-            Please review and accept to continue using Rook.
           </Text>
+
+          {/* Read links */}
+          <View style={styles.linkRow}>
+            <TouchableOpacity
+              onPress={() => Linking.openURL(TERMS_URL)}
+              activeOpacity={0.7}
+              style={styles.linkBtn}
+            >
+              <Ionicons name="open-outline" size={13} color="#60A5FA" style={{ marginRight: 4 }} />
+              <Text style={[styles.linkText, { fontFamily: "Inter_400Regular" }]}>
+                Terms of Service
+              </Text>
+            </TouchableOpacity>
+
+            <View style={[styles.linkDivider, { backgroundColor: colors.border }]} />
+
+            <TouchableOpacity
+              onPress={() => Linking.openURL(PRIVACY_URL)}
+              activeOpacity={0.7}
+              style={styles.linkBtn}
+            >
+              <Ionicons name="open-outline" size={13} color="#60A5FA" style={{ marginRight: 4 }} />
+              <Text style={[styles.linkText, { fontFamily: "Inter_400Regular" }]}>
+                Privacy Policy
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             Version {CURRENT_TERMS_VERSION}
@@ -82,9 +103,9 @@ export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props
             <Text style={[styles.error, { fontFamily: "Inter_400Regular" }]}>{error}</Text>
           )}
 
-          {/* Primary action */}
+          {/* Accept */}
           <TouchableOpacity
-            onPress={handleReviewAndAccept}
+            onPress={handleAccept}
             disabled={loading}
             style={[styles.acceptBtn, { opacity: loading ? 0.7 : 1 }]}
             activeOpacity={0.82}
@@ -93,7 +114,7 @@ export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <Text style={[styles.acceptText, { fontFamily: "Inter_600SemiBold" }]}>
-                {reviewed ? "Accept & Continue" : "Review Updated Terms →"}
+                I Accept — Continue
               </Text>
             )}
           </TouchableOpacity>
@@ -144,6 +165,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     lineHeight: 21,
+  },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 0,
+  },
+  linkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  linkDivider: {
+    width: 1,
+    height: 16,
+  },
+  linkText: {
+    fontSize: 13,
+    color: "#60A5FA",
+    textDecorationLine: "underline",
   },
   version: {
     fontSize: 11,

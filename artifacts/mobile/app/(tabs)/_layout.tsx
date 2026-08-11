@@ -1,6 +1,6 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, router } from "expo-router";
 import { Icon, Label, NativeTabs, Badge } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -152,6 +152,11 @@ export default function TabLayout() {
   // and show a recoverable error rather than a permanent blank screen.
   const [initTimedOut, setInitTimedOut] = useState(false);
   const [showTermsUpdate, setShowTermsUpdate] = useState(false);
+  // Guard: run the terms DB check at most once per sign-in session.
+  // Without this, every time login() fires (which flips isOnboardingReady
+  // false → true), the effect would re-run, show the modal again even after
+  // the user accepted, and create a fight between setShowTermsUpdate(true/false).
+  const hasCheckedTermsRef = useRef(false);
   useEffect(() => {
     if (!isInitializing && (isOnboardingReady || !isSignedIn)) { setInitTimedOut(false); return; }
     const t = setTimeout(() => setInitTimedOut(true), 12_000);
@@ -189,10 +194,24 @@ export default function TabLayout() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser]);
 
+  // Reset the per-session terms-check guard whenever the user signs out so that
+  // the next sign-in triggers a fresh check.
+  useEffect(() => {
+    if (!isSignedIn) {
+      hasCheckedTermsRef.current = false;
+      setShowTermsUpdate(false);
+    }
+  }, [isSignedIn]);
+
   // Check whether the user has accepted the current Terms / Privacy Policy version.
   // If not (SSO users, or returning users after a policy update), show TermsUpdateModal.
+  // The hasCheckedTermsRef guard ensures this runs at most once per sign-in session —
+  // without it, every time login() fires (flipping isOnboardingReady false → true),
+  // this effect re-runs and can re-show the modal even after the user accepted it.
   useEffect(() => {
     if (!isLoaded || isInitializing || !isSignedIn || !isOnboardingReady) return;
+    if (hasCheckedTermsRef.current) return;
+    hasCheckedTermsRef.current = true;
     import("@/lib/api").then(({ getMe }) => {
       getMe()
         .then((profile) => {
@@ -203,9 +222,8 @@ export default function TabLayout() {
         })
         .catch(() => {/* non-fatal */});
     });
-  // Only run once after the user is fully loaded and onboarded
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn, isOnboardingReady]);
+  }, [isLoaded, isInitializing, isSignedIn, isOnboardingReady]);
 
   // Sync the RevenueCat tier to the server whenever it changes so the server-
   // side scan-quota system reflects the user's actual subscription.

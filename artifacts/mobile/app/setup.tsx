@@ -50,7 +50,7 @@ export default function Setup() {
   const handleContinue = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      Alert.alert("Name Required", "Please enter your full name so Rook can identify your identity fingerprint.");
+      Alert.alert("Name Required", "Please enter your full name so Rook can set up your protection profile.");
       return;
     }
     setLoading(true);
@@ -95,7 +95,7 @@ export default function Setup() {
               { color: colors.foreground, fontFamily: "Inter_700Bold" },
             ]}
           >
-            Build your identity fingerprint
+            Set up your protection profile
           </Text>
           <Text
             style={[

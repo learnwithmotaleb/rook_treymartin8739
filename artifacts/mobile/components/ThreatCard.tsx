@@ -71,10 +71,10 @@ export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
             <View style={lockedStyles.skeletonGroup}>
               <Text style={[lockedStyles.threatHint, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
                 {threat.type === "impersonator" || threat.type === "fake_account"
-                  ? "Impersonation detected"
+                  ? "Potential impersonation"
                   : threat.type === "stolen_photo"
-                  ? "Photo theft found"
-                  : "Identity threat detected"}
+                  ? "Possible photo match"
+                  : "Possible identity threat"}
               </Text>
               <View style={[lockedStyles.skeletonLine, { backgroundColor: colors.border, width: "45%", opacity: 0.4 }]} />
             </View>
@@ -124,7 +124,7 @@ export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
                 <View style={[styles.verifiedBadge, { backgroundColor: colors.success + "22" }]}>
                   <MaterialCommunityIcons name="shield-check" size={10} color={colors.success} />
                   <Text style={[styles.verifiedText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
-                    Verified
+                    High confidence
                   </Text>
                 </View>
               )}
@@ -149,7 +149,7 @@ export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
               <View style={[styles.mediaBadge, { backgroundColor: colors.secondary }]}>
                 <MaterialCommunityIcons name="image-multiple" size={11} color={colors.mutedForeground} />
                 <Text style={[styles.mediaBadgeText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  {threat.matchedMediaCount} media matched
+                  {threat.matchedMediaCount} photo{threat.matchedMediaCount !== 1 ? "s" : ""} found
                 </Text>
               </View>
             )}

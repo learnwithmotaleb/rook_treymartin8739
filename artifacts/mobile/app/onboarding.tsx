@@ -1174,8 +1174,8 @@ const HOW_IT_WORKS = [
   },
   {
     icon: "eye-off-outline" as const,
-    title: "AI-powered similarity matching",
-    body: "Your photos and account details are compared against potential matches using computer vision and identity signals — not platform APIs.",
+    title: "Advanced identity protection",
+    body: "Your photos and account details are compared against potential matches across the web and social platforms — your data stays private.",
   },
   {
     icon: "flag-outline" as const,
@@ -1669,7 +1669,7 @@ const ph = StyleSheet.create({
 });
 
 // ─── S13: Scan Setup (real) ───────────────────────────────────────────────────
-const SCAN_STEPS = ["Building visual fingerprint", "Analyzing media patterns", "Creating protection profile", "Scanning platforms"];
+const SCAN_STEPS = ["Setting up your profile", "Checking for threats", "Building your results", "Finalizing scan"];
 function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColors>; onDone: (threatCount: number) => void }) {
   const [completed, setCompleted] = useState<number[]>([]);
   const [activeStep, setActiveStep] = useState(0);

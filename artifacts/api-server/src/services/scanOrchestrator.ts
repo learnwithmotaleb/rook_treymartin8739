@@ -91,12 +91,12 @@ export function buildSuppressKey(
 
 const SCAN_STEPS = [
   { step: "Verifying connected accounts", progress: 8 },
-  { step: "Indexing your media library", progress: 20 },
-  { step: "Updating identity fingerprint", progress: 35 },
-  { step: "Searching platform variants for impersonators", progress: 50 },
-  { step: "Scanning the web for impostor profiles", progress: 62 },
-  { step: "Analyzing visual media matches", progress: 74 },
-  { step: "Generating AI threat analysis", progress: 88 },
+  { step: "Reviewing your content", progress: 20 },
+  { step: "Updating your protection profile", progress: 35 },
+  { step: "Checking for suspicious accounts", progress: 50 },
+  { step: "Searching for unauthorized copies", progress: 62 },
+  { step: "Reviewing potential matches", progress: 74 },
+  { step: "Analyzing results", progress: 88 },
   { step: "Finalizing results", progress: 98 },
 ] as const;
 

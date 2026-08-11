@@ -427,10 +427,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsOnboardingReady(false);
     // hasSeenOnboarding is scoped per Clerk user id so switching accounts on
     // the same device never inherits another account's onboarding state.
+    //
+    // Returning-user fast path: if AsyncStorage already confirms this userId
+    // has seen onboarding, unblock the layout immediately so the app doesn't
+    // stall on a network round-trip every time the user opens it.
+    //
+    // New-user slow path: AsyncStorage has nothing, so we DON'T set
+    // isOnboardingReady yet. We wait until refreshData() completes and the
+    // server's authoritative onboardingCompleted field is known. This prevents
+    // the race where the layout redirects to /onboarding for an existing user
+    // who reinstalled the app and lost their local AsyncStorage cache.
     if (userId) {
       AsyncStorage.getItem(`hasSeenOnboarding:${userId}`).then((seen) => {
-        setHasSeenOnboarding(seen === "true");
-        setIsOnboardingReady(true);
+        if (seen === "true") {
+          // Confirmed returning user — unblock immediately.
+          setHasSeenOnboarding(true);
+          setIsOnboardingReady(true);
+        }
+        // else: new user or missing cache — isOnboardingReady stays false
+        // until load.finally() below, by which point refreshData() has set
+        // hasSeenOnboarding from the server if onboardingCompleted is true.
       });
     } else {
       setHasSeenOnboarding(false);
@@ -452,7 +468,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           .then(() => refreshData())
           .catch(() => refreshData())
       : refreshData();
-    load.finally(() => setIsLoading(false));
+    // Always unblock the layout after the network call completes.
+    // For returning users this is a no-op (already true). For new users whose
+    // AsyncStorage was empty, this is the first time isOnboardingReady becomes
+    // true — by now refreshData() has already written hasSeenOnboarding if the
+    // server said onboardingCompleted = true, so no onboarding redirect fires.
+    load.finally(() => {
+      setIsOnboardingReady(true);
+      setIsLoading(false);
+    });
   }, [refreshData]);
 
   const logout = useCallback(() => {

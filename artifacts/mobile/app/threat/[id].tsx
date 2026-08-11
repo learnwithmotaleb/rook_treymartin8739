@@ -505,7 +505,7 @@ function EvidencePhotoBox({
         </View>
       </BoxWrapper>
       <Text style={[styles.evidencePhotoLabel, { color: side === "yours" ? colors.success : simColor, fontFamily: "Inter_600SemiBold" }]}>
-        {side === "yours" ? "Your Photo" : "Stolen Copy"}
+        {side === "yours" ? "Your Photo" : "Suspected Match"}
       </Text>
       {caption && (
         <Text style={[styles.evidenceCaption, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>
@@ -1031,7 +1031,7 @@ export default function ThreatDetail() {
               </View>
             </View>
             <Text style={[styles.evidenceSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Tap "Stolen Copy" to view the impersonator's post
+              Tap "Suspected Match" to view the flagged post
             </Text>
             {evidence.map((item) => (
               <EvidenceCard key={item.id} item={item} />

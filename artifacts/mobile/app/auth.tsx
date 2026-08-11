@@ -64,21 +64,45 @@ const glowStyles = StyleSheet.create({
   inner: { width: 104, height: 104, opacity: 0.18 },
 });
 
+/** Maps Clerk error codes/messages to user-friendly copy. */
+function friendlyClerkError(err: { code?: string; longMessage?: string; message?: string }): string {
+  const code = err.code ?? "";
+  if (code === "form_password_pwned" || (err.longMessage ?? "").toLowerCase().includes("data breach") || (err.message ?? "").toLowerCase().includes("data breach")) {
+    return "This password has appeared in a known data breach. Please choose a different, unique password.";
+  }
+  if (code === "form_password_not_strong_enough" || code === "form_password_too_short") {
+    return "Password is too weak. Use at least 8 characters with a mix of letters, numbers, and symbols.";
+  }
+  if (code === "form_identifier_exists" || code === "form_identifier_not_found") {
+    return "An account with this email already exists. Try signing in instead.";
+  }
+  if (code === "form_password_incorrect") {
+    return "Incorrect password. Please try again.";
+  }
+  if (code === "form_code_incorrect") {
+    return "That code is incorrect or expired. Please try again.";
+  }
+  return err.longMessage ?? err.message ?? "Something went wrong. Please try again.";
+}
+
 export default function Auth() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
 
   const { signIn, fetchStatus: signInStatus } = useSignIn();
-  const { signUp, fetchStatus: signUpStatus } = useSignUp();
+  const { signUp, setActive: setSignUpActive, fetchStatus: signUpStatus } = useSignUp() as any;
   const { startSSOFlow } = useSSO();
 
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [code, setCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [ssoLoading, setSsoLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -108,7 +132,7 @@ export default function Auth() {
     setError("");
     try {
       const { error: signInError } = await signIn!.password({ emailAddress: email.trim(), password });
-      if (signInError) { setError(signInError.longMessage ?? signInError.message ?? "Sign in failed"); return; }
+      if (signInError) { setError(friendlyClerkError(signInError)); return; }
       if (signIn!.status === "complete") {
         await completeSignIn();
       } else if (signIn!.status === "needs_second_factor" || signIn!.status === "needs_client_trust") {
@@ -120,7 +144,7 @@ export default function Auth() {
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
-      setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Sign in failed");
+      setError(clerkErr ? friendlyClerkError(clerkErr) : (e?.message ?? "Sign in failed"));
     }
   }, [signIn, email, password, completeSignIn]);
 
@@ -141,40 +165,53 @@ export default function Auth() {
   }, [signIn, code, completeSignIn]);
 
   const handleSignUp = useCallback(async () => {
-    if (!email || !password || !name) { setError("Please fill in all fields"); return; }
+    if (!firstName.trim() || !lastName.trim() || !email || !password) {
+      setError("Please fill in all fields");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
     setError("");
     try {
-      const nameParts = name.trim().split(" ");
-      const { error: signUpError } = await signUp!.password({
-        emailAddress: email.trim(), password,
-        firstName: nameParts[0], lastName: nameParts.slice(1).join(" ") || undefined,
-      } as any);
-      if (signUpError) { setError(signUpError.longMessage ?? signUpError.message ?? "Sign up failed"); return; }
-      await signUp!.verifications.sendEmailCode();
+      // Use signUp.create() — the standard Clerk API.
+      // Name fields are omitted from Clerk (instance config disables them);
+      // the full display name is written to our own backend after verification.
+      await signUp!.create({
+        emailAddress: email.trim(),
+        password,
+      });
+      await (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" });
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
-      setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Sign up failed");
+      setError(clerkErr ? friendlyClerkError(clerkErr) : (e?.message ?? "Sign up failed"));
     }
-  }, [signUp, email, password, name]);
+  }, [signUp, email, password, confirmPassword, firstName, lastName]);
 
   const handleVerify = useCallback(async () => {
     if (!code) { setError("Enter the verification code"); return; }
     setError("");
     try {
-      await signUp!.verifications.verifyEmailCode({ code });
-      if (signUp!.status === "complete") {
-        await signUp!.finalize({ navigate: () => { router.replace("/(tabs)/" as any); } });
-        // Record terms and age acceptance server-side (fire-and-forget; non-blocking)
-        import("../lib/api").then(({ recordTermsAcceptance, recordAgeConfirmation }) => {
-          recordTermsAcceptance().catch(() => { /* non-critical */ });
-          recordAgeConfirmation().catch(() => { /* non-critical */ });
+      const result = await (signUp as any).attemptEmailAddressVerification({ code });
+      if (result.status === "complete") {
+        await setSignUpActive!({ session: result.createdSessionId! });
+        // Store full display name + compliance records in our own backend
+        import("../lib/api").then(({ updateMe, recordTermsAcceptance, recordAgeConfirmation }) => {
+          const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+          if (fullName) updateMe({ name: fullName }).catch(() => {});
+          recordTermsAcceptance().catch(() => {});
+          recordAgeConfirmation().catch(() => {});
         });
-      } else { setError("Verification incomplete. Please try again."); }
+        router.replace("/(tabs)/" as any);
+      } else {
+        setError("Verification incomplete. Please try again.");
+      }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
-      setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Verification failed");
+      setError(clerkErr ? friendlyClerkError(clerkErr) : (e?.message ?? "Verification failed"));
     }
-  }, [signUp, code]);
+  }, [signUp, setSignUpActive, code, firstName, lastName]);
 
   const handleGoogleSSO = useCallback(async () => {
     setError(""); setSsoLoading(true);
@@ -217,6 +254,7 @@ export default function Auth() {
     if (mode === "login") { handleSignIn(); return; }
     if (!termsAccepted) { setError("Please accept the Terms of Service and Privacy Policy to continue"); return; }
     if (!ageConfirmed) { setError("Please confirm you are 17 or older to continue"); return; }
+    if (password !== confirmPassword) { setError("Passwords do not match"); return; }
     handleSignUp();
   };
 
@@ -334,7 +372,7 @@ export default function Auth() {
 
               <GradientButton label={loading ? "Verifying…" : "Verify Email"} onPress={handleVerify} disabled={loading} />
 
-              <TouchableOpacity onPress={() => signUp!.verifications.sendEmailCode()} style={styles.switchRow}>
+              <TouchableOpacity onPress={() => (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" })} style={styles.switchRow}>
                 <Text style={styles.switchText}>Didn't get it? </Text>
                 <Text style={styles.switchLink}>Resend code</Text>
               </TouchableOpacity>
@@ -404,13 +442,13 @@ export default function Auth() {
               <View style={styles.segmentedControl}>
                 <TouchableOpacity
                   style={[styles.segment, mode === "login" && styles.segmentActive]}
-                  onPress={() => { setMode("login"); setError(""); }}
+                  onPress={() => { setMode("login"); setError(""); setConfirmPassword(""); setFirstName(""); setLastName(""); }}
                 >
                   <Text style={[styles.segmentLabel, mode === "login" && styles.segmentLabelActive]}>Sign In</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.segment, mode === "register" && styles.segmentActive]}
-                  onPress={() => { setMode("register"); setError(""); }}
+                  onPress={() => { setMode("register"); setError(""); setPassword(""); setConfirmPassword(""); }}
                 >
                   <Text style={[styles.segmentLabel, mode === "register" && styles.segmentLabelActive]}>Create Account</Text>
                 </TouchableOpacity>
@@ -418,20 +456,38 @@ export default function Auth() {
 
               {/* ── Fields ── */}
               {mode === "register" && (
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Full Name</Text>
-                  <View style={[styles.inputRow, { borderColor: inputBorder("name") }]}>
-                    <Ionicons name="person-outline" size={18} color={focusedField === "name" ? "#3B82F6" : "#6B8EAE"} />
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Your full name"
-                      placeholderTextColor="#3B4C6B"
-                      value={name}
-                      onChangeText={setName}
-                      autoCapitalize="words"
-                      onFocus={() => setFocusedField("name")}
-                      onBlur={() => setFocusedField(null)}
-                    />
+                <View style={styles.nameRow}>
+                  <View style={[styles.field, { flex: 1 }]}>
+                    <Text style={styles.fieldLabel}>First Name</Text>
+                    <View style={[styles.inputRow, { borderColor: inputBorder("firstName") }]}>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="First"
+                        placeholderTextColor="#3B4C6B"
+                        value={firstName}
+                        onChangeText={setFirstName}
+                        autoCapitalize="words"
+                        returnKeyType="next"
+                        onFocus={() => setFocusedField("firstName")}
+                        onBlur={() => setFocusedField(null)}
+                      />
+                    </View>
+                  </View>
+                  <View style={[styles.field, { flex: 1 }]}>
+                    <Text style={styles.fieldLabel}>Last Name</Text>
+                    <View style={[styles.inputRow, { borderColor: inputBorder("lastName") }]}>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="Last"
+                        placeholderTextColor="#3B4C6B"
+                        value={lastName}
+                        onChangeText={setLastName}
+                        autoCapitalize="words"
+                        returnKeyType="next"
+                        onFocus={() => setFocusedField("lastName")}
+                        onBlur={() => setFocusedField(null)}
+                      />
+                    </View>
                   </View>
                 </View>
               )}
@@ -467,8 +523,8 @@ export default function Auth() {
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
-                    returnKeyType="go"
-                    onSubmitEditing={handleSubmit}
+                    returnKeyType={mode === "register" ? "next" : "go"}
+                    onSubmitEditing={mode === "register" ? undefined : handleSubmit}
                     onFocus={() => setFocusedField("password")}
                     onBlur={() => setFocusedField(null)}
                   />
@@ -477,6 +533,34 @@ export default function Auth() {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {mode === "register" && (
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel}>Confirm Password</Text>
+                  <View style={[styles.inputRow, { borderColor: confirmPassword && password !== confirmPassword ? "#EF4444" : inputBorder("confirmPassword") }]}>
+                    <Ionicons name="lock-closed-outline" size={18} color={focusedField === "confirmPassword" ? "#3B82F6" : "#6B8EAE"} />
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="••••••••"
+                      placeholderTextColor="#3B4C6B"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      secureTextEntry={!showConfirmPassword}
+                      autoCapitalize="none"
+                      returnKeyType="go"
+                      onSubmitEditing={handleSubmit}
+                      onFocus={() => setFocusedField("confirmPassword")}
+                      onBlur={() => setFocusedField(null)}
+                    />
+                    <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} hitSlop={8}>
+                      <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={18} color="#6B8EAE" />
+                    </TouchableOpacity>
+                  </View>
+                  {confirmPassword.length > 0 && password !== confirmPassword && (
+                    <Text style={styles.fieldHintError}>Passwords do not match</Text>
+                  )}
+                </View>
+              )}
 
               {error !== "" && <ErrorBanner message={error} />}
 
@@ -647,8 +731,10 @@ const styles = StyleSheet.create({
   segmentLabelActive: { color: "#3B82F6", fontFamily: "Inter_600SemiBold" },
 
   // Fields
+  nameRow: { flexDirection: "row", gap: 10 },
   field: { gap: 7 },
   fieldLabel: { fontFamily: "Inter_500Medium", fontSize: 12, color: "#6B8EAE", letterSpacing: 0.3 },
+  fieldHintError: { fontFamily: "Inter_400Regular", fontSize: 11, color: "#EF4444", marginTop: 2 },
   inputRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     height: 52, borderRadius: 13, borderWidth: 1.5,

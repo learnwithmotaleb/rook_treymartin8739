@@ -105,9 +105,9 @@ export default function Terms() {
             </li>
             <li>
               Grant {APP_NAME} a <strong className="text-white">limited, revocable, non-exclusive</strong>{" "}
-              license to derive perceptual hash fingerprints and AI feature vectors from your public profile
-              photos, and to send your photo URLs to Google Cloud Vision API and OpenAI API, solely for the
-              purpose of detecting potential impersonation of your identity on social media;
+              license to derive AI-powered visual fingerprints from your public profile photos and to
+              process them via our AI service providers, solely for the purpose of detecting potential
+              impersonation of your identity on social media;
             </li>
             <li>
               Understand that this license terminates upon withdrawal of your photo-processing consent

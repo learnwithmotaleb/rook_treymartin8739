@@ -60,7 +60,7 @@ export default function PrivacySettings() {
   const handleWithdraw = useCallback(() => {
     Alert.alert(
       "Withdraw Photo Processing Consent",
-      "This will delete all perceptual hash fingerprints and AI embeddings derived from your photos, and disable photo-based scanning. Text and username monitoring will continue.\n\nThis action cannot be undone — you can re-consent at any time to resume photo scanning.",
+      "This will delete all photo-derived data and disable photo-based scanning. Text and username monitoring will continue.\n\nThis action cannot be undone — you can re-consent at any time to resume photo scanning.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -89,7 +89,7 @@ export default function PrivacySettings() {
   const handleDeletePhotoData = useCallback(() => {
     Alert.alert(
       "Delete Photo Data",
-      "This will delete all perceptual hash fingerprints and AI embeddings derived from your photos. Your consent status is preserved — photo-based scanning will continue (but re-fingerprint your photos on the next scan).\n\nTo also disable photo scanning, use 'Withdraw Consent' instead.",
+      "This will delete all photo-derived data. Your consent status is preserved — photo-based scanning will continue and your photos will be re-analyzed on the next scan.\n\nTo also disable photo scanning, use 'Withdraw Consent' instead.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -193,7 +193,7 @@ export default function PrivacySettings() {
         {/* Photo consent section */}
         <SectionHeader
           title="Photo Processing Consent"
-          subtitle="Rook derives perceptual hash fingerprints and AI feature vectors from your profile photos to detect impersonation. This requires your explicit consent under Illinois BIPA, Texas CUBI, and GDPR Article 9."
+          subtitle="Rook uses AI to analyze your profile photos for identity monitoring. This processing requires your explicit consent under Illinois BIPA, Texas CUBI, and GDPR Article 9."
           colors={colors}
         />
 
@@ -212,7 +212,7 @@ export default function PrivacySettings() {
                 icon="trash-outline"
                 iconColor="#EF4444"
                 label="Withdraw Consent & Delete Photo Data"
-                description="Deletes all fingerprints and embeddings derived from your photos within 24 hours. Photo-based scanning will be disabled. Text monitoring continues."
+                description="Deletes all photo-derived data within 24 hours. Photo-based scanning will be disabled. Text monitoring continues."
                 loading={withdrawing}
                 onPress={handleWithdraw}
                 colors={colors}
@@ -257,7 +257,7 @@ export default function PrivacySettings() {
           <Text style={[styles.retentionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
             Data retention summary
           </Text>
-          <RetentionRow label="Photo fingerprints &amp; AI embeddings" value="Active account. Deleted within 30 days of account deletion or within 24 hours of consent withdrawal. Never kept beyond 3 years." colors={colors} />
+          <RetentionRow label="Photo-derived data" value="Active account. Deleted within 30 days of account deletion or within 24 hours of consent withdrawal. Never kept beyond 3 years." colors={colors} />
           <RetentionRow label="Consent records" value="Retained 7 years as a legal compliance record (BIPA § 15(a))." colors={colors} />
           <RetentionRow label="Scan history &amp; threat alerts" value="30 days (Premium), 7 days (Pro), 1 day (Free)." colors={colors} />
           <RetentionRow label="Account data" value="Until account deletion. Backups purged within 30 days." colors={colors} last />

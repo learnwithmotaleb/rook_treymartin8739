@@ -134,6 +134,16 @@ export default function ProfileScreen() {
   const handleDeleteAccount = async () => {
     setDeleteLoading(true);
     try {
+      // Disassociate device from RevenueCat before deleting the account so
+      // the subscription record is cleaned up on the RC side. This is
+      // best-effort — a failure here is non-fatal.
+      try {
+        const Purchases = (await import("react-native-purchases")).default;
+        await Purchases.logOut();
+      } catch {
+        // RC not configured or already logged out — proceed.
+      }
+
       const token = await getToken();
       const domain = process.env.EXPO_PUBLIC_DOMAIN;
       const base = domain ? `https://${domain}/api` : "/api";
@@ -473,7 +483,7 @@ export default function ProfileScreen() {
               Delete Account
             </Text>
             <Text style={[styles.deleteBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              This will permanently delete your account, connected social accounts, identity fingerprint, all threat history, and cancel any active subscription.{"\n\n"}This action cannot be undone.
+              This will permanently delete your account, connected social accounts, and all threat history.{"\n\n"}If you have an active subscription, cancel it in your App Store or Play Store settings first — deleting the account does not stop future charges.{"\n\n"}This action cannot be undone.
             </Text>
             <TouchableOpacity
               style={[styles.deleteConfirmBtn, { backgroundColor: colors.danger, opacity: deleteLoading ? 0.7 : 1 }]}
