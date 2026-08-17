@@ -94,7 +94,7 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     // user_photos requires Meta App Review — included here so the consent screen
     // shows the permission in screen recordings submitted with the review.
     // As the app developer you can grant it; general users cannot until Meta approves.
-    scopes: ["public_profile", "user_photos"],
+    scopes: ["public_profile"],
     clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID",
     callbackPath: "/api/oauth/facebook/callback",
     usernameHint: "your.profile.name",
