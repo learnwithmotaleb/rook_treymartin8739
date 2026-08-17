@@ -79,6 +79,10 @@ router.get("/me", async (req, res): Promise<void> => {
       totalCaptionsIndexed: fingerprint.totalCaptionsIndexed,
       reelsIndexed: fingerprint.reelsIndexed,
       fingerprintUpdated,
+      // Returned so the mobile client can skip the TermsUpdateModal when the
+      // user's accepted version matches CURRENT_TERMS_VERSION — without this
+      // field the client always fell back to showing the modal on cache miss.
+      termsVersion: user.termsVersion ?? null,
     });
   } catch (err) {
     req.log.error({ err }, "GET /me failed");

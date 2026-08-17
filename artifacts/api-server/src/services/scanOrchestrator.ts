@@ -633,6 +633,10 @@ async function runScanPipeline(
 ): Promise<void> {
   logger.info({ jobId, userId }, "Starting scan pipeline");
 
+  // Immediately mark the job as running so the progress bar moves off 0%
+  // before the initial DB queries complete.
+  await updateJobProgress(jobId, 1, "Starting scan…");
+
   const [user] = await db
     .select()
     .from(usersTable)
@@ -640,23 +644,32 @@ async function runScanPipeline(
 
   if (!user) throw new Error(`User not found: ${userId}`);
 
-  // ── Photo-processing consent gate ──────────────────────────────────────────
-  // BIPA / GDPR Art. 9 require explicit consent before deriving perceptual
-  // hashes or AI embeddings from a user's photos. Demo users (no clerkId) are
-  // exempt because they have no real photos. Real users without active consent
-  // skip all photo-fingerprinting steps but continue with text-based detection.
-  const [activeConsent] = !user.clerkId
-    ? [{ id: "demo" }] // demo user — always allow
-    : await db
-        .select({ id: photoProcessingConsentsTable.id })
-        .from(photoProcessingConsentsTable)
-        .where(
-          and(
-            eq(photoProcessingConsentsTable.userId, userId),
-            isNull(photoProcessingConsentsTable.withdrawnAt)
+  // ── Photo-processing consent gate + parallel DB prefetch ─────────────────
+  // Run consent check, connected accounts, and suppression set in parallel —
+  // all three only need userId which is already known.
+  const [activeConsentResult, connectedAccountsRaw, suppressedRows] = await Promise.all([
+    // BIPA / GDPR Art. 9: real users need active consent for photo fingerprinting.
+    // Demo users (no clerkId) are always allowed — they have no real photos.
+    !user.clerkId
+      ? Promise.resolve([{ id: "demo" }] as { id: string }[])
+      : db
+          .select({ id: photoProcessingConsentsTable.id })
+          .from(photoProcessingConsentsTable)
+          .where(
+            and(
+              eq(photoProcessingConsentsTable.userId, userId),
+              isNull(photoProcessingConsentsTable.withdrawnAt)
+            )
           )
-        )
-        .limit(1);
+          .limit(1),
+    db.select().from(connectedAccountsTable).where(eq(connectedAccountsTable.userId, userId)),
+    db
+      .select({ platform: suppressedAccountsTable.platform, username: suppressedAccountsTable.username })
+      .from(suppressedAccountsTable)
+      .where(eq(suppressedAccountsTable.userId, userId)),
+  ]);
+
+  const [activeConsent] = activeConsentResult;
   const hasPhotoConsent = Boolean(activeConsent);
   if (!hasPhotoConsent) {
     logger.info({ userId }, "No active photo-processing consent — skipping photo fingerprinting steps");
@@ -671,29 +684,13 @@ async function runScanPipeline(
   // Real authenticated users always get genuine scan results (even if empty).
   const isDemoUser = !user.clerkId;
 
-  const connectedAccountsRaw = await db
-    .select()
-    .from(connectedAccountsTable)
-    .where(eq(connectedAccountsTable.userId, userId));
-
   // Sort by platform priority so higher-risk platforms (Instagram, Facebook)
   // are ingested and searched first — urgent threats surface faster.
   const connectedAccounts = [...connectedAccountsRaw].sort(
     (a, b) => getPlatformPriority(a.platform) - getPlatformPriority(b.platform)
   );
 
-  // ── Step 0: Load permanent suppression set ────────────────────────────────
-  // Must happen before any discovery work so we never spend credits re-analyzing
-  // accounts the user has already dismissed. This is the authoritative list —
-  // it is never auto-cleared by the scan lifecycle.
-  const suppressedRows = await db
-    .select({
-      platform: suppressedAccountsTable.platform,
-      username: suppressedAccountsTable.username,
-    })
-    .from(suppressedAccountsTable)
-    .where(eq(suppressedAccountsTable.userId, userId));
-
+  // ── Step 0: Suppression set (already loaded above in parallel) ────────────
   const suppressionSet = new Set(
     suppressedRows.map((r) => buildSuppressKey(r.platform, r.username))
   );
@@ -720,7 +717,6 @@ async function runScanPipeline(
   for (const account of verifiedAccounts) {
     const ingested = await ingestPlatformMedia(account);
     if (ingested) ingestedAccounts.push(ingested);
-    await sleep(100);
   }
 
   // Aggregate totals (real + cached for unverified)
@@ -1029,22 +1025,31 @@ async function runScanPipeline(
         ? allConnectedUsernames
         : [primaryUsername];
 
-      for (let i = 0; i < searchTargets.length; i++) {
-        const searchUsername = searchTargets[i]!;
-        const searchDisplayName = allDisplayNames[i] ?? allDisplayNames[0] ?? undefined;
+      // Run all username searches in parallel — each is independent.
+      // Photos/captions only pass on index 0 to avoid duplicate Vision API calls
+      // (image/caption search is not username-dependent; one pass covers all).
+      const allSearchResults = await Promise.allSettled(
+        searchTargets.map((searchUsername, i) => {
+          const searchDisplayName = allDisplayNames[i] ?? allDisplayNames[0] ?? undefined;
+          return searchForImpersonators({
+            username: searchUsername,
+            connectedPlatforms,
+            photoUrls: i === 0 ? allPhotoUrls : [],
+            captions: i === 0 ? allCaptions : [],
+            planTier,
+            userId,
+            displayName: searchDisplayName,
+          });
+        })
+      );
 
-        const results = await searchForImpersonators({
-          username: searchUsername,
-          connectedPlatforms,
-          // Only pass photos and captions on the first pass to avoid duplicate
-          // Vision API calls — image/caption search is not username-dependent.
-          photoUrls: i === 0 ? allPhotoUrls : [],
-          captions: i === 0 ? allCaptions : [],
-          planTier,
-          userId,
-          displayName: searchDisplayName,
-        });
-
+      for (let i = 0; i < allSearchResults.length; i++) {
+        const result = allSearchResults[i]!;
+        if (result.status === "rejected") {
+          logger.warn({ err: result.reason, pass: i + 1 }, "Web search pass failed (non-fatal)");
+          continue;
+        }
+        const results = result.value;
         for (const c of results) {
           const key = `${c.platform}:${c.username.toLowerCase().replace(/^@/, "")}`;
           if (!seenWebKeys.has(key)) {
@@ -1052,9 +1057,8 @@ async function runScanPipeline(
             mergedWebCandidates.push(c);
           }
         }
-
         logger.info(
-          { searchUsername, pass: i + 1, total: searchTargets.length, found: results.length, merged: mergedWebCandidates.length },
+          { pass: i + 1, total: searchTargets.length, found: results.length, merged: mergedWebCandidates.length },
           "Web search pass complete"
         );
       }
@@ -1096,9 +1100,6 @@ async function runScanPipeline(
       },
       "Web-based impersonator search complete"
     );
-  } else {
-    // Brief pause to maintain realistic scan timing even when web search is off
-    await sleep(200);
   }
 
   // Simulation for accounts with no real candidates from any source.
@@ -1175,8 +1176,10 @@ async function runScanPipeline(
       "Running photo comparison (pHash fast-path + AI embeddings) for candidate profile pictures"
     );
 
-    for (const candidate of candidatesWithImages) {
-      if (!candidate.suspiciousProfileImageUrl) continue;
+    // Process all candidates in parallel — each writes to its own Map key
+    // and its own candidate object, so there is no shared mutable state.
+    await Promise.allSettled(candidatesWithImages.map(async (candidate) => {
+      if (!candidate.suspiciousProfileImageUrl) return;
       const candidateKey = `${candidate.platform}:${candidate.suspiciousUsername}`;
 
       // Download the candidate image ONCE and compute its dHash.
@@ -1301,7 +1304,7 @@ async function runScanPipeline(
           logger.warn({ err, username: candidate.suspiciousUsername }, "AI embedding comparison failed (non-fatal)");
         }
       }
-    }
+    }));  // end Promise.allSettled — all candidates processed in parallel
   } else {
     if (candidatesWithImages.length === 0) {
       logger.info(
@@ -1311,7 +1314,6 @@ async function runScanPipeline(
     } else {
       logger.info({ userId }, "No user photo fingerprints available — comparison skipped");
     }
-    await sleep(100);
   }
 
   // ── TikTok photo-gate ─────────────────────────────────────────────────────
@@ -1590,7 +1592,6 @@ async function runScanPipeline(
 
   // ── Step 7: AI threat explanation ─────────────────────────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[6].progress, SCAN_STEPS[6].step);
-  await sleep(150);
 
   const insertedThreatIds: string[] = [];
 
@@ -1665,7 +1666,6 @@ async function runScanPipeline(
 
   // ── Step 8: Complete ──────────────────────────────────────────────────────
   await updateJobProgress(jobId, SCAN_STEPS[7].progress, SCAN_STEPS[7].step);
-  await sleep(100);
 
   await db
     .update(scanJobsTable)

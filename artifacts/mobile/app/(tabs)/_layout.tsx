@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -196,37 +197,55 @@ export default function TabLayout() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser]);
 
-  // Reset the terms-check guard when the user actually changes (sign-out or account
-  // switch). We reset on !clerkUser?.id rather than !isSignedIn because isSignedIn
-  // can briefly be false during Clerk re-initialization without a real sign-out —
-  // that transient flip was resetting the old boolean ref and re-showing the modal.
+  // Reset the terms-check guard only when the Clerk user actually disappears
+  // (real sign-out / account switch). isSignedIn is intentionally excluded —
+  // it can briefly flip false during Clerk re-initialization without a real
+  // sign-out, which was resetting the guard and re-showing the modal.
   useEffect(() => {
-    if (!isSignedIn || !clerkUser?.id) {
+    if (!clerkUser?.id) {
       checkedTermsForUserRef.current = null;
       setShowTermsUpdate(false);
     }
-  }, [isSignedIn, clerkUser?.id]);
+  }, [clerkUser?.id]);
 
   // Check whether the user has accepted the current Terms / Privacy Policy version.
-  // If not (SSO users, or returning users after a policy update), show TermsUpdateModal.
-  // The checkedTermsForUserRef guard ensures this runs at most once per unique
-  // Clerk user ID — it is not reset by transient isSignedIn/isOnboardingReady flips.
+  //
+  // Priority order:
+  //   1. AsyncStorage cache (keyed by user ID + version) — checked first so
+  //      sign-out/sign-in never re-shows the modal if nothing changed.
+  //   2. Server (getMe) — fallback for fresh installs or new devices where
+  //      AsyncStorage is empty; also seeds the cache for future sign-ins.
+  //
+  // The modal only appears when CURRENT_TERMS_VERSION has actually bumped past
+  // what the user last accepted — not on every sign-in cycle.
   useEffect(() => {
     if (!isLoaded || isInitializing || !isSignedIn || !isOnboardingReady) return;
     const uid = clerkUser?.id;
     if (!uid) return;
     if (checkedTermsForUserRef.current === uid) return;
     checkedTermsForUserRef.current = uid;
-    import("@/lib/api").then(({ getMe }) => {
-      getMe()
-        .then((profile) => {
-          const stored = (profile as any).termsVersion as string | null | undefined;
-          if (!stored || stored !== CURRENT_TERMS_VERSION) {
-            setShowTermsUpdate(true);
-          }
-        })
-        .catch(() => {/* non-fatal */});
-    });
+
+    const cacheKey = `termsVersion:${uid}`;
+    AsyncStorage.getItem(cacheKey).then((cached) => {
+      if (cached === CURRENT_TERMS_VERSION) {
+        // Already accepted this version on this device — nothing to show.
+        return;
+      }
+      // Cache miss or stale version — fall back to the server.
+      import("@/lib/api").then(({ getMe }) => {
+        getMe()
+          .then((profile) => {
+            const stored = (profile as any).termsVersion as string | null | undefined;
+            if (stored === CURRENT_TERMS_VERSION) {
+              // DB confirms acceptance — seed local cache so we skip this next time.
+              AsyncStorage.setItem(cacheKey, CURRENT_TERMS_VERSION).catch(() => {});
+            } else {
+              setShowTermsUpdate(true);
+            }
+          })
+          .catch(() => {/* non-fatal — don't block the user on a network failure */});
+      });
+    }).catch(() => {/* AsyncStorage read failure — fall through silently */});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isInitializing, isSignedIn, isOnboardingReady, clerkUser?.id]);
 
@@ -306,7 +325,14 @@ export default function TabLayout() {
       />
       <TermsUpdateModal
         visible={showTermsUpdate}
-        onAccepted={() => setShowTermsUpdate(false)}
+        onAccepted={() => {
+          setShowTermsUpdate(false);
+          // Seed the local cache so future sign-ins skip the server check.
+          const uid = clerkUser?.id;
+          if (uid) {
+            AsyncStorage.setItem(`termsVersion:${uid}`, CURRENT_TERMS_VERSION).catch(() => {});
+          }
+        }}
         onDeleteAccount={() => {
           setShowTermsUpdate(false);
           router.push("/(tabs)/profile" as any);

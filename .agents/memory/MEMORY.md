@@ -3,6 +3,7 @@
 - [Scan suppression table](scan-suppression-table.md) — suppressedAccountsTable (unique on userId+platform+username) is the authoritative source; loaded as step 0 in pipeline, written on every resolve; replaces old threatsTable-based suppression.
 - [Scan simulation guard](scan-simulation-guard.md) — simulation only fires for demo user (no clerkId); real users always get honest results even if empty.
 - [Clerk name field constraints](clerk-name-fields.md) — lastName is disabled in this Clerk instance; only firstName is accepted; store full name in our own DB.
+- [Clerk sign-up password flow](clerk-signup-password-flow.md) — password must be submitted via update() after email verification, not during create(); useSignUp() signal lacks class methods, use clerk.client.signUp instead.
 - [Clerk session types](clerk-session-types.md) — useSessionList() returns SessionResource[] not SessionWithActivities[]; latestActivity and revoke are not on the TS type; cast to any for access.
 - [Store metadata no dark web](store-metadata-notes.md) — dark web monitor was removed; all metadata files must not reference it; iOS keywords ≤100 chars.
 - [RevenueCat tier sync pattern](revenuecat-tier-sync.md) — RC purchases are authoritative on-device; server quota uses DB; sync via POST /api/billing/revenuecat-sync called after purchase/restore and on tab mount.

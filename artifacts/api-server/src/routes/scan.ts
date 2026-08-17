@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gt } from "drizzle-orm";
 import { db, scanJobsTable } from "@workspace/db";
 import { startScan } from "../services/scanOrchestrator";
 import { checkAndIncrementQuota, getQuotaState } from "../services/rateLimitService";
@@ -39,13 +39,18 @@ router.post("/scan", async (req, res): Promise<void> => {
     const { bypassCache } = bodyParsed.data;
 
     // ── Dedup: return existing running job WITHOUT consuming quota ──────────────
+    // Only consider jobs started within the last 8 minutes as truly "running".
+    // Jobs older than that are presumed stuck (server restart / crash mid-scan)
+    // and should not block a fresh scan attempt.
+    const eightMinsAgo = new Date(Date.now() - 8 * 60 * 1000);
     const activeJobs = await db
       .select()
       .from(scanJobsTable)
       .where(
         and(
           eq(scanJobsTable.userId, userId),
-          eq(scanJobsTable.status, "running")
+          eq(scanJobsTable.status, "running"),
+          gt(scanJobsTable.startedAt, eightMinsAgo)
         )
       );
 
@@ -56,7 +61,10 @@ router.post("/scan", async (req, res): Promise<void> => {
 
     // ── Quota check (only reached when no job is already running) ───────────────
     const sub = await getSubscription(userId);
-    const planTier = (sub.tier ?? "free") as Tier;
+    // normalizeTier maps "pro" → "premium" (pro is sunset; premium limits apply).
+    // This matches what GET /scan/quota-state does — consistency is required so
+    // the UI quota display and the actual enforcement agree.
+    const planTier = normalizeTier(sub.tier ?? "free") as Tier;
 
     const isDeepScan =
       !!(process.env["GOOGLE_CSE_API_KEY"] || process.env["GOOGLE_VISION_API_KEY"]);

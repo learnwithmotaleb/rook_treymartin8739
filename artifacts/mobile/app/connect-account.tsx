@@ -201,6 +201,12 @@ function OAuthButton({
           code_challenge: codeChallenge,
           code_challenge_method: "S256",
         });
+      } else if (platform === "facebook") {
+        state = await getOAuthState();
+        // auth_type=rerequest forces Facebook to show the permission consent
+        // screen even if the user previously authorized the app. Required so
+        // new permissions (user_photos) are always explicitly presented.
+        authUrl = buildAuthUrl(platform, clientId, state, redirectUrl, { auth_type: "rerequest" });
       } else {
         state = await getOAuthState();
         authUrl = buildAuthUrl(platform, clientId, state, redirectUrl);

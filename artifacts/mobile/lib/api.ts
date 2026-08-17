@@ -98,6 +98,8 @@ export interface UserProfile {
   lastScan: string;
   totalPhotosIndexed: number;
   totalCaptionsIndexed: number;
+  /** The terms version the user last accepted, or null if never accepted. */
+  termsVersion?: string | null;
   reelsIndexed: number;
   fingerprintUpdated: string;
 }

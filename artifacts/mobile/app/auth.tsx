@@ -13,12 +13,13 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { useSignIn, useSignUp, useSSO, useAuth } from "@clerk/expo";
+import { useSignIn, useSignUp, useSSO, useAuth, useClerk } from "@clerk/expo";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useColors } from "@/hooks/useColors";
 
@@ -89,9 +90,20 @@ export default function Auth() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
+  // clerk.client.signUp is the live SignUpResource class instance with all methods.
+  // The useSignUp() hook returns a reactive snapshot (plain data object) after
+  // re-renders — it has status/fields for rendering but is missing class methods
+  // like prepareEmailAddressVerification. Always use clerk.client.signUp for actions.
+  const clerk = useClerk();
+  // In Clerk React v6, useSignIn/useSignUp return reactive signal snapshots (plain data
+  // objects). They expose status/fields for rendering but are missing all class methods.
+  // Always use clerk.client.signIn / clerk.client.signUp for any action call, and
+  // clerk.setActive() to activate a session.
+  const liveSignUp = () => (clerk as any).client?.signUp;
+  const liveSignIn = () => (clerk as any).client?.signIn;
 
   const { signIn, fetchStatus: signInStatus } = useSignIn();
-  const { signUp, setActive: setSignUpActive, fetchStatus: signUpStatus } = useSignUp() as any;
+  const { signUp, fetchStatus: signUpStatus } = useSignUp() as any;
   const { startSSOFlow } = useSSO();
 
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -109,61 +121,131 @@ export default function Auth() {
   const [needsSigninCode, setNeedsSigninCode] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  // Explicit loading flag for Clerk calls that go through clerk.client directly
+  // (not via the hook signals) — those calls don't update signInStatus/signUpStatus.
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Whether we've already sent the verification email for this sign-up attempt.
+  // Prevents the useEffect below from re-sending on every re-render.
+  const verificationSentRef = useRef(false);
+  // Stores the return value of signUp.create() — which is `this` on the actual
+  // SignUpResource class instance, guaranteed to have prepareEmailAddressVerification.
+  const createdSignUpRef = useRef<any>(null);
+
+  // When true the user has tapped "Start over" and we show the sign-up form
+  // even if Clerk still has a pending sign-up in its store.
+  const [verifyAbandoned, setVerifyAbandoned] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
-  const loading = signInStatus === "fetching" || signUpStatus === "fetching" || ssoLoading;
+  const loading = authLoading || signInStatus === "fetching" || signUpStatus === "fetching" || ssoLoading;
 
+  // showVerify: true once Clerk has the sign-up created and needs email confirmation.
+  // verifyAbandoned lets the user escape back to the form without having to enter a code.
   const showVerify =
+    !verifyAbandoned &&
     signUp?.status === "missing_requirements" &&
-    (signUp?.unverifiedFields ?? []).includes("email_address") &&
-    (signUp?.missingFields ?? []).length === 0;
+    (signUp?.unverifiedFields ?? []).includes("email_address");
 
+  // Redirect already-signed-in users away from this screen.
   useEffect(() => {
     if (isSignedIn) router.replace("/(tabs)/" as any);
   }, [isSignedIn]);
 
-  const completeSignIn = useCallback(async () => {
-    await signIn!.finalize({ navigate: () => { router.replace("/(tabs)/" as any); } });
-  }, [signIn]);
+  // ── Send email verification code ──────────────────────────────────────────
+  useEffect(() => {
+    if (!showVerify) return;
+    if (verificationSentRef.current) return;
+    verificationSentRef.current = true;
+
+    // useSignUp() returns a computed plain-object signal — it has data fields
+    // and `create` but not `prepareEmailAddressVerification`. Try three sources
+    // in order: clerk.client.signUp → return value of create() → give up.
+    const live = liveSignUp();  // clerk.client.signUp
+    const fallback = createdSignUpRef.current; // return value of create() = `this` on ri
+    const candidate = live ?? fallback;
+
+    console.log("[SignUp] useEffect fired. live:", typeof live,
+      "fallback:", typeof fallback,
+      "hasPrepare:", typeof candidate?.prepareEmailAddressVerification,
+      "hasPrepareVerification:", typeof candidate?.prepareVerification);
+
+    // Pick whichever prepare method exists on the candidate instance.
+    const prepFn: ((opts: { strategy: string }) => Promise<any>) | undefined =
+      candidate?.prepareEmailAddressVerification?.bind(candidate) ??
+      (candidate?.prepareVerification ? (opts: any) => candidate.prepareVerification(opts) : undefined);
+
+    if (!prepFn) {
+      console.log("[SignUp] No prepare method found on any candidate.");
+      setError("Could not send verification email — please tap 'Resend code' to try again.");
+      verificationSentRef.current = false;
+      return;
+    }
+
+    prepFn({ strategy: "email_code" })
+      .then(() => { console.log("[SignUp] prepareEmailAddressVerification resolved — email sent"); })
+      .catch((e: any) => {
+        console.log("[SignUp] prepareEmailAddressVerification rejected:", e?.message, e?.errors);
+        const clerkErr = e?.errors?.[0];
+        setError(clerkErr ? friendlyClerkError(clerkErr) : (e?.message || "Could not send verification email."));
+        verificationSentRef.current = false;
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showVerify]);
 
   const handleSignIn = useCallback(async () => {
     if (!email || !password) { setError("Please fill in all fields"); return; }
     setError("");
+    setAuthLoading(true);
     try {
-      const { error: signInError } = await signIn!.password({ emailAddress: email.trim(), password });
-      if (signInError) { setError(friendlyClerkError(signInError)); return; }
-      if (signIn!.status === "complete") {
-        await completeSignIn();
-      } else if (signIn!.status === "needs_second_factor" || signIn!.status === "needs_client_trust") {
+      // Use the live SignIn resource — useSignIn() signal has no class methods.
+      const live = liveSignIn();
+      const result = await live.create({ identifier: email.trim(), password });
+      console.log("[SignIn] create result.status:", result?.status, "createdSessionId:", result?.createdSessionId);
+      if (result.status === "complete") {
+        await clerk.setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)/" as any);
+      } else if (result.status === "needs_second_factor") {
+        // New-device / MFA verification — prepare an email OTP then show code UI.
+        await live.prepareSecondFactor({ strategy: "email_code" });
         setCode("");
         setNeedsSigninCode(true);
-        await (signIn as any).mfa.sendEmailCode();
       } else {
-        setError("Sign in requires additional verification that isn't supported yet. Please contact support.");
+        setError("Sign in requires additional steps. Please contact support.");
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr ? friendlyClerkError(clerkErr) : (e?.message ?? "Sign in failed"));
+    } finally {
+      setAuthLoading(false);
     }
-  }, [signIn, email, password, completeSignIn]);
+  }, [clerk, email, password]);
 
   const handleVerifySignInCode = useCallback(async () => {
     if (!code) { setError("Enter the verification code"); return; }
     setError("");
+    setAuthLoading(true);
     try {
-      await (signIn as any).mfa.verifyEmailCode({ code });
-      if (signIn!.status === "complete") {
-        await completeSignIn();
+      const live = liveSignIn();
+      const result = await live.attemptSecondFactor({ strategy: "email_code", code });
+      console.log("[SignIn 2FA] attemptSecondFactor result.status:", result?.status);
+      if (result.status === "complete") {
+        await clerk.setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)/" as any);
       } else {
         setError("Verification incomplete. Please try again.");
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Verification failed");
+    } finally {
+      setAuthLoading(false);
     }
-  }, [signIn, code, completeSignIn]);
+  }, [clerk, code]);
 
+  // Step 1 of sign-up: create the Clerk account only.
+  // prepareEmailAddressVerification is triggered by the useEffect above once
+  // Clerk re-renders this component with signUp.status = "missing_requirements".
   const handleSignUp = useCallback(async () => {
     if (!firstName.trim() || !lastName.trim() || !email || !password) {
       setError("Please fill in all fields");
@@ -174,29 +256,74 @@ export default function Auth() {
       return;
     }
     setError("");
+    setAuthLoading(true);
+    setVerifyAbandoned(false);           // un-abandon so the verify screen can show
+    verificationSentRef.current = false; // reset so the effect can send the code
     try {
-      // Use signUp.create() — the standard Clerk API.
-      // Name fields are omitted from Clerk (instance config disables them);
-      // the full display name is written to our own backend after verification.
-      await signUp!.create({
+      // firstName is required by this Clerk instance config.
+      // lastName is disabled — the full display name is stored in our own DB
+      // via updateMe() after email verification completes.
+      // create() returns `this` — the actual SignUpResource class instance —
+      // which always has prepareEmailAddressVerification. Store it as a fallback
+      // for the useEffect in case clerk.client.signUp isn't reachable.
+      const created = await signUp!.create({
+        firstName: firstName.trim(),
         emailAddress: email.trim(),
         password,
       });
-      await (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" });
+      createdSignUpRef.current = created;
+      console.log("[SignUp] create() succeeded — status:", signUp?.status,
+        "created type:", typeof created,
+        "hasPrepare:", typeof (created as any)?.prepareEmailAddressVerification,
+        "hasPrepareVerification:", typeof (created as any)?.prepareVerification);
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
-      setError(clerkErr ? friendlyClerkError(clerkErr) : (e?.message ?? "Sign up failed"));
+      // Use || not ?? so that empty-string Clerk messages (e.g. captcha_unavailable)
+      // also fall through to the default instead of silently showing nothing.
+      const msg = clerkErr ? friendlyClerkError(clerkErr) : (e?.message || "Sign up failed");
+      console.log("[SignUp] create() error — code:", clerkErr?.code, "msg:", msg, "raw:", e?.message);
+      setError(msg || "Sign up failed");
+    } finally {
+      setAuthLoading(false);
     }
   }, [signUp, email, password, confirmPassword, firstName, lastName]);
 
+  // Step 3 of sign-up: user enters the emailed code.
+  // Must use liveSignUp() (clerk.client.signUp) — the hook's signUp snapshot
+  // loses class methods after re-renders.
   const handleVerify = useCallback(async () => {
     if (!code) { setError("Enter the verification code"); return; }
     setError("");
+    setAuthLoading(true);
     try {
-      const result = await (signUp as any).attemptEmailAddressVerification({ code });
-      if (result.status === "complete") {
-        await setSignUpActive!({ session: result.createdSessionId! });
-        // Store full display name + compliance records in our own backend
+      const live = liveSignUp() ?? createdSignUpRef.current;
+      console.log("[Verify] live type:", typeof live, "hasAttempt:", typeof live?.attemptEmailAddressVerification);
+      const result = await live.attemptEmailAddressVerification({ code });
+      console.log("[Verify] result.status:", result?.status, "missing:", result?.missingFields, "unverified:", result?.unverifiedFields, "createdSessionId:", result?.createdSessionId);
+
+      // This Clerk instance requires password to be set as a separate step
+      // *after* email verification (not during create()). When we see
+      // missing_requirements with ["password"], submit it now via update().
+      let final = result;
+      if (result.status === "missing_requirements" && result.missingFields?.includes("password")) {
+        console.log("[Verify] Clerk needs password as post-verification step — calling update()");
+        final = await live.update({ password });
+        console.log("[Verify] update() result.status:", final?.status, "createdSessionId:", final?.createdSessionId);
+      }
+
+      if (final.status === "complete") {
+        await clerk.setActive({ session: final.createdSessionId! });
+
+        // Seed the terms-version cache immediately so the TermsUpdateModal
+        // never fires for a brand-new user who already agreed during sign-up.
+        const clerkUserId: string | undefined = (final as any).createdUserId ?? undefined;
+        if (clerkUserId) {
+          const { CURRENT_TERMS_VERSION } = await import("../lib/api");
+          AsyncStorage.setItem(`termsVersion:${clerkUserId}`, CURRENT_TERMS_VERSION).catch(() => {});
+        }
+
+        // Store full display name + compliance records in our own backend.
+        // Fire-and-forget — the tabs layout login() → updateMe() also covers this.
         import("../lib/api").then(({ updateMe, recordTermsAcceptance, recordAgeConfirmation }) => {
           const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
           if (fullName) updateMe({ name: fullName }).catch(() => {});
@@ -205,21 +332,29 @@ export default function Auth() {
         });
         router.replace("/(tabs)/" as any);
       } else {
-        setError("Verification incomplete. Please try again.");
+        setError(`Verification incomplete (status: ${final.status}). Please try again.`);
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr ? friendlyClerkError(clerkErr) : (e?.message ?? "Verification failed"));
+    } finally {
+      setAuthLoading(false);
     }
-  }, [signUp, setSignUpActive, code, firstName, lastName]);
+  }, [clerk, signUp, code, firstName, lastName, password]);
 
   const handleGoogleSSO = useCallback(async () => {
     setError(""); setSsoLoading(true);
     try {
-      const { createdSessionId, setActive } = await startSSOFlow({ strategy: "oauth_google", redirectUrl: AuthSession.makeRedirectUri() });
+      const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_google", redirectUrl: AuthSession.makeRedirectUri() }) as any;
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId, navigate: () => { router.replace("/(tabs)/" as any); } } as any);
-        // SSO sign-up: record terms and age acceptance fire-and-forget
+        // Seed terms-version cache so TermsUpdateModal never fires for a user
+        // who just consented during this SSO sign-up flow.
+        if (createdUserId) {
+          const { CURRENT_TERMS_VERSION } = await import("../lib/api");
+          AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION).catch(() => {});
+        }
+        // Record compliance server-side fire-and-forget
         import("../lib/api").then(({ recordTermsAcceptance, recordAgeConfirmation }) => {
           recordTermsAcceptance().catch(() => {});
           recordAgeConfirmation().catch(() => {});
@@ -234,10 +369,16 @@ export default function Auth() {
   const handleAppleSSO = useCallback(async () => {
     setError(""); setSsoLoading(true);
     try {
-      const { createdSessionId, setActive } = await startSSOFlow({ strategy: "oauth_apple", redirectUrl: AuthSession.makeRedirectUri() });
+      const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_apple", redirectUrl: AuthSession.makeRedirectUri() }) as any;
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId, navigate: () => { router.replace("/(tabs)/" as any); } } as any);
-        // SSO sign-up: record terms and age acceptance fire-and-forget
+        // Seed terms-version cache so TermsUpdateModal never fires for a user
+        // who just consented during this SSO sign-up flow.
+        if (createdUserId) {
+          const { CURRENT_TERMS_VERSION } = await import("../lib/api");
+          AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION).catch(() => {});
+        }
+        // Record compliance server-side fire-and-forget
         import("../lib/api").then(({ recordTermsAcceptance, recordAgeConfirmation }) => {
           recordTermsAcceptance().catch(() => {});
           recordAgeConfirmation().catch(() => {});
@@ -333,7 +474,7 @@ export default function Auth() {
 
               <GradientButton label={loading ? "Verifying…" : "Verify"} onPress={handleVerifySignInCode} disabled={loading} />
 
-              <TouchableOpacity onPress={() => (signIn as any).mfa.sendEmailCode()} style={styles.switchRow}>
+              <TouchableOpacity onPress={() => liveSignIn()?.prepareSecondFactor({ strategy: "email_code" })} style={styles.switchRow}>
                 <Text style={styles.switchText}>Didn't get it? </Text>
                 <Text style={styles.switchLink}>Resend code</Text>
               </TouchableOpacity>
@@ -372,9 +513,30 @@ export default function Auth() {
 
               <GradientButton label={loading ? "Verifying…" : "Verify Email"} onPress={handleVerify} disabled={loading} />
 
-              <TouchableOpacity onPress={() => (signUp as any).prepareEmailAddressVerification({ strategy: "email_code" })} style={styles.switchRow}>
+              <TouchableOpacity
+                onPress={() => {
+                  verificationSentRef.current = false;
+                  const live = liveSignUp();
+                  (live?.prepareEmailAddressVerification ?? live?.prepareVerification?.bind(live, { strategy: "email_code" }))?.({ strategy: "email_code" });
+                }}
+                style={styles.switchRow}
+              >
                 <Text style={styles.switchText}>Didn't get it? </Text>
                 <Text style={styles.switchLink}>Resend code</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setVerifyAbandoned(true);
+                  setCode("");
+                  setError("");
+                  verificationSentRef.current = false;
+                  setMode("register");
+                }}
+                style={styles.switchRow}
+              >
+                <Text style={styles.switchText}>Wrong email or want to start over? </Text>
+                <Text style={styles.switchLink}>Go back</Text>
               </TouchableOpacity>
               <View nativeID="clerk-captcha" />
             </>
