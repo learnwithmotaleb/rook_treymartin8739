@@ -128,6 +128,9 @@ overrides:
   rollup>@rollup/rollup-win32-x64-gnu: '-'
   rollup>@rollup/rollup-win32-x64-msvc: '-'
   brace-expansion: '>=5.0.7'
+  # React Native 0.81 codegen uses glob 7/minimatch 3, whose CommonJS API
+  # requires the compatible 1.x brace-expansion line.
+  'minimatch@3>brace-expansion': '^1.1.12'
   sharp: '>=0.35.0'
   fast-uri: '>=3.1.4'
   'js-yaml': '>=4.3.0'
