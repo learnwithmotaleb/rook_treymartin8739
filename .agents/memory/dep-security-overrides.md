@@ -20,6 +20,13 @@ Keep the global `brace-expansion` security override on the modern 5.x line, but 
 
 **How to apply:** Keep the nested pnpm override alongside the global one, regenerate the lockfile, then run the native codegen command that EAS uses before retrying an iOS build. Recheck the audit result rather than assuming a previously safe range remains current.
 
+## Expo Launch isolated-install rule
+Put a native-build-critical scoped pnpm override in both the workspace root and the Expo artifact’s `package.json`.
+
+**Why:** Expo Launch can install the mobile artifact as an isolated package, where workspace-level overrides are not read. The mobile manifest becomes the package-manager root for that build.
+
+**How to apply:** Keep the matching nested override in `pnpm.overrides` in the mobile package as well as the root configuration. Validate it with a standalone pnpm install before retrying Expo Launch.
+
 ## Why
 Blanket overrides force pnpm to resolve all instances of the package to the safe version range, even across deeply nested dep chains. This is the only remediation path when the vulnerable package is not a direct dep.
 

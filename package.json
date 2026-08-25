@@ -8,6 +8,11 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
+  "pnpm": {
+    "overrides": {
+      "minimatch@3>brace-expansion": "^1.1.12"
+    }
+  },
   "private": true,
   "devDependencies": {
     "prettier": "^3.8.3",
