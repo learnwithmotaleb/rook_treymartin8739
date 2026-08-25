@@ -27,6 +27,13 @@ Put a native-build-critical scoped pnpm override in both the workspace root and 
 
 **How to apply:** Keep the matching nested override in `pnpm.overrides` in the mobile package as well as the root configuration. Validate it with a standalone pnpm install before retrying Expo Launch.
 
+## Bare-workflow runtime version rule
+When Expo Launch detects a native `ios/` project, configure `runtimeVersion` as an explicit string rather than an app-version policy object.
+
+**Why:** EAS rejects runtime version policies in bare workflows during build-config resolution, before native compilation or submission begins.
+
+**How to apply:** Use the app’s current release version as the manual runtime string and update it deliberately when a release needs a new OTA compatibility boundary.
+
 ## Why
 Blanket overrides force pnpm to resolve all instances of the package to the safe version range, even across deeply nested dep chains. This is the only remediation path when the vulnerable package is not a direct dep.
 

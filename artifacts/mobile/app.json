@@ -90,9 +90,7 @@
       }
     },
     "owner": "treylane100",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/d18c0a79-c32e-483e-ba77-7f64bb35714f"
     }
