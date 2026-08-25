@@ -78,6 +78,7 @@
           "mode": "production"
         }
       ],
+      "./plugins/withModularHeaders",
       "./plugins/withPrivacyManifest"
     ],
     "experiments": {
