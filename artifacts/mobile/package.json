@@ -77,9 +77,6 @@
     "expo-updates": "~29.0.20",
     "react-native-purchases": "^8.12.0",
     "react-native-purchases-ui": "8.12.0",
-    "react-native-view-shot": "^4.0.3",
-    "expo": "~54.0.37",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-native-view-shot": "^4.0.3"
   }
 }
