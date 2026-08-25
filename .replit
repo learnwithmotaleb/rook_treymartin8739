@@ -68,3 +68,4 @@ DEV_NOTIFY_URL = "https://6c2161a6-7017-4ec4-988f-83e568e76224-00-1qirill5i8g8e.
 
 [nix]
 channel = "stable-25_05"
+packages = ["eas-cli"]
