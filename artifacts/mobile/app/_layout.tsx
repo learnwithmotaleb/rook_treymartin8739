@@ -5,14 +5,14 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { ClerkLoaded, ClerkLoading, ClerkProvider } from "@clerk/expo";
+import { ClerkLoaded, ClerkProvider } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import { reloadAppAsync } from "expo";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -50,6 +50,14 @@ function RootLayoutNav() {
       <Stack.Screen name="privacy-settings" options={{ headerShown: false, animation: "slide_from_right" }} />
     </Stack>
   );
+}
+
+function ClerkReadyMarker({ onReady }: { onReady: () => void }) {
+  useEffect(() => {
+    onReady();
+  }, [onReady]);
+
+  return null;
 }
 
 function ClerkStartupFallback() {
@@ -125,6 +133,7 @@ export default function RootLayout() {
 
   // Controls whether the AnimatedSplash is still mounted
   const [splashDone, setSplashDone] = useState(false);
+  const [isClerkReady, setIsClerkReady] = useState(false);
 
   // Minimum duration covers the full animation sequence:
   // logo entrance (700ms) + scan line (1800ms) + wordmark reveal (2300ms) + tagline + hold ≈ 3600ms
@@ -136,11 +145,24 @@ export default function RootLayout() {
 
   // Signal fade-out only when BOTH fonts are ready AND minimum time has passed
   const isReady = (fontsLoaded || !!fontError) && minTimeReached;
+  const finishSplash = useCallback(() => setSplashDone(true), []);
+  const markClerkReady = useCallback(() => setIsClerkReady(true), []);
 
-  // Hide the native Expo splash immediately so our animated one takes over
+  // Do not hide the native splash until fonts are ready. Hiding it before the
+  // first React Native frame can produce a white handoff on release builds.
   useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, fontError]);
+
+  // Reanimated completion callbacks can be skipped by a native release build
+  // after an interrupted animation. Never allow that to strand users on the
+  // animated splash: the app shell must appear even if the callback is missed.
+  useEffect(() => {
+    const timeout = setTimeout(finishSplash, 6_000);
+    return () => clearTimeout(timeout);
+  }, [finishSplash]);
 
   // Notification deep-link handling (unchanged)
   useEffect(() => {
@@ -180,7 +202,7 @@ export default function RootLayout() {
     return (
       <AnimatedSplash
         isReady={isReady}
-        onHidden={() => setSplashDone(true)}
+        onHidden={finishSplash}
       />
     );
   }
@@ -189,11 +211,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
+        {!isClerkReady ? <ClerkStartupFallback /> : null}
         <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-          <ClerkLoading>
-            <ClerkStartupFallback />
-          </ClerkLoading>
           <ClerkLoaded>
+            <ClerkReadyMarker onReady={markClerkReady} />
             <QueryClientProvider client={queryClient}>
               <SubscriptionProvider>
                 <AppProvider>

@@ -2,10 +2,13 @@
  * Rook API Client
  *
  * Calls the backend intelligence system at /api/*
- * The base URL is inferred from EXPO_PUBLIC_DOMAIN (set by the Expo workflow).
+ * The production build uses EXPO_PUBLIC_API_URL, while development uses the
+ * Expo workflow's EXPO_PUBLIC_DOMAIN. Native apps require an absolute URL.
  */
 
 const BASE_URL = (() => {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
+  if (apiUrl) return `${apiUrl}/api`;
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (domain) return `https://${domain}/api`;
   return "/api";

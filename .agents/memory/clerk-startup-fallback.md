@@ -5,8 +5,8 @@ description: Prevent a blank post-splash screen while Clerk initializes in a nat
 
 # Clerk Startup Fallback
 
-When navigation depends on Clerk, pair `ClerkLoaded` with `ClerkLoading` that renders a branded loader and a timeout/retry state.
+Keep the native startup fallback outside `ClerkProvider`, reveal the authenticated app only after a `ClerkLoaded` readiness signal, and include a JavaScript timeout that advances past the animated splash.
 
-**Why:** In release-style startup, Clerk can take several seconds to initialize. A standalone `ClerkLoaded` gate renders no children during that interval, so the custom splash disappears into a blank screen even though the app has not crashed.
+**Why:** On a standalone iOS build, Clerk can suppress provider descendants while initializing and a Reanimated completion callback can be skipped. Either behavior can turn a completed custom splash into an empty screen even when the app has not crashed.
 
-**How to apply:** Keep the auth-gated navigation inside `ClerkLoaded`, render the startup fallback as its sibling inside `ClerkProvider`, and retain the tab-level `isLoaded` guard for post-provider initialization.
+**How to apply:** Mount the visible loader/retry screen as a sibling of `ClerkProvider`; use a tiny component inside `ClerkLoaded` to signal readiness and dismiss it. Preserve a hard splash timeout as a final handoff safeguard. For standalone production requests, prefer the injected absolute API URL over a relative `/api` path.
