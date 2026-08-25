@@ -40,8 +40,8 @@ const APP_BUILD =
 const INFO_ROWS = [
   { label: "App Version", value: APP_VERSION },
   { label: "Build", value: APP_BUILD },
-  { label: "Support", value: "support@tryrook.app" },
-  { label: "Privacy", value: "support@tryrook.app" },
+  { label: "Support", value: "support@getrook.app" },
+  { label: "Privacy", value: "support@getrook.app" },
 ];
 
 export default function Legal() {

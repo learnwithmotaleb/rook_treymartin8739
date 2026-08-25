@@ -13,6 +13,7 @@ const BASE_URL = (() => {
   if (domain) return `https://${domain}/api`;
   return "/api";
 })();
+const API_TIMEOUT_MS = 15_000;
 
 let _authTokenGetter: (() => Promise<string | null>) | null = null;
 
@@ -52,39 +53,58 @@ async function apiFetch<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${BASE_URL}${path}`;
-  const authHeaders: Record<string, string> = {};
-  if (_authTokenGetter) {
-    const token = await _authTokenGetter();
-    if (token) authHeaders["Authorization"] = `Bearer ${token}`;
+  const controller = new AbortController();
+  const abortForCaller = () => controller.abort();
+  if (options.signal?.aborted) {
+    controller.abort();
+  } else {
+    options.signal?.addEventListener("abort", abortForCaller, { once: true });
   }
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders,
-      ...(options.headers ?? {}),
-    },
-  });
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const authHeaders: Record<string, string> = {};
+  try {
+    if (_authTokenGetter) {
+      const token = await _authTokenGetter();
+      if (token) authHeaders["Authorization"] = `Bearer ${token}`;
+    }
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders,
+        ...(options.headers ?? {}),
+      },
+    });
 
-  if (!response.ok) {
-    const body = await response
-      .json()
-      .catch(() => ({ error: "Request failed" })) as Record<string, unknown>;
+    if (!response.ok) {
+      const body = await response
+        .json()
+        .catch(() => ({ error: "Request failed" })) as Record<string, unknown>;
 
-    // Surface structured quota errors so the UI can show the upgrade prompt
-    if (response.status === 429 && body["error"] === "scan_limit_reached") {
-      throw new ScanQuotaError({
-        reason: String(body["reason"] ?? "monthly_limit"),
-        tier: String(body["tier"] ?? "free"),
-        upgradeTo: String(body["upgradeTo"] ?? "pro"),
-        message: String(body["message"] ?? "Scan limit reached. Upgrade to continue."),
-      });
+      // Surface structured quota errors so the UI can show the upgrade prompt
+      if (response.status === 429 && body["error"] === "scan_limit_reached") {
+        throw new ScanQuotaError({
+          reason: String(body["reason"] ?? "monthly_limit"),
+          tier: String(body["tier"] ?? "free"),
+          upgradeTo: String(body["upgradeTo"] ?? "pro"),
+          message: String(body["message"] ?? "Scan limit reached. Upgrade to continue."),
+        });
+      }
+
+      throw new Error(String(body["error"] ?? `HTTP ${response.status}`));
     }
 
-    throw new Error(String(body["error"] ?? `HTTP ${response.status}`));
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("Request timed out. Check your connection and try again.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", abortForCaller);
   }
-
-  return response.json() as Promise<T>;
 }
 
 export interface UserProfile {
@@ -459,9 +479,10 @@ export async function registerPushToken(
 }
 
 export async function deregisterPushToken(
-  platform: "ios" | "android"
+  platform?: "ios" | "android"
 ): Promise<void> {
-  await apiFetch(`/notifications/token?platform=${platform}`, {
+  const query = platform ? `?platform=${platform}` : "";
+  await apiFetch(`/notifications/token${query}`, {
     method: "DELETE",
   });
 }

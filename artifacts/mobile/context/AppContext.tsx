@@ -24,6 +24,7 @@ import {
   updateMe,
   reverseImageSearch,
   refreshAccountTokens,
+  deregisterPushToken,
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
@@ -166,6 +167,7 @@ interface AppContextType {
   isScanning: boolean;
   scanProgress: number;
   scanCurrentStep: string | null;
+  scanError: string | null;
   scanQuotaError: { message: string; upgradeTo: string } | null;
   isLoading: boolean;
   activeThreats: number;
@@ -180,7 +182,7 @@ interface AppContextType {
   showCancellationSurvey: boolean;
   dismissCancellationSurvey: () => void;
   login: (name: string, email: string, userId?: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   completeOnboarding: () => void;
   startScan: () => void;
   checkScanQuota: () => Promise<void>;
@@ -191,6 +193,7 @@ interface AppContextType {
   updateAccount: (id: string, updates: { accessToken?: string; displayName?: string; followers?: number; platformUserId?: string }) => Promise<ConnectedAccount>;
   addIndexedPhotos: (photos: Array<{uri: string; base64?: string}>, source?: "camera_roll" | "account", accountId?: string) => void;
   removeIndexedPhoto: (id: string) => void;
+  clearIndexedPhotos: () => void;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -296,8 +299,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanCurrentStep, setScanCurrentStep] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollInFlightRef = useRef(false);
   const isRefreshingRef = useRef(false);
   const lastRefreshedAtRef = useRef(0);
   // Proactive token refresh: only once per app session (not on every render).
@@ -479,7 +484,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [refreshData]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // The server also reassigns a token on the next account login, but remove
+    // it while this session is valid so a signed-out device gets no alerts.
+    try {
+      await deregisterPushToken();
+    } catch {
+      // Logging out must still succeed when the device is offline.
+    }
     setIsLoggedIn(false);
     setUser(DEFAULT_USER);
     setThreats([]);
@@ -539,6 +551,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const clearIndexedPhotos = useCallback(() => {
+    setIndexedPhotos([]);
+    indexedPhotosRef.current = [];
+    setLocalPhotoThreats([]);
+    localPhotoThreatsRef.current = [];
+    AsyncStorage.multiRemove(["indexedPhotos", "localPhotoThreats"]).catch(() => {});
+  }, []);
+
   const [scanQuotaError, setScanQuotaError] = useState<{ message: string; upgradeTo: string } | null>(null);
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<"active" | "trialing" | "canceled" | "past_due" | null>(null);
@@ -565,6 +585,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const startScan = useCallback(async () => {
     if (isScanning) return;
     setScanQuotaError(null);
+    setScanError(null);
     setIsScanning(true);
     setScanProgress(0);
     setScanCurrentStep(null);
@@ -573,6 +594,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const safetyTimer = setTimeout(() => {
       setIsScanning(false);
       setScanCurrentStep(null);
+      setScanError("The scan took too long to complete. Please check your connection and try again.");
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
@@ -602,6 +624,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
       const handlePollResult = async () => {
+        if (pollInFlightRef.current) return;
+        pollInFlightRef.current = true;
         try {
           const status = await getScanStatus(job.id);
           setScanProgress(status.progress);
@@ -609,7 +633,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setScanCurrentStep(status.currentStep);
           }
 
-          if (status.status === "completed" || status.status === "failed") {
+          if (status.status === "failed") {
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            clearTimeout(safetyTimer);
+            setIsScanning(false);
+            setScanProgress(0);
+            setScanCurrentStep(null);
+            setScanError("The scan could not be completed. Please try again.");
+            return;
+          }
+
+          if (status.status === "completed") {
             if (pollTimerRef.current) {
               clearInterval(pollTimerRef.current);
               pollTimerRef.current = null;
@@ -646,6 +683,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           clearTimeout(safetyTimer);
           setIsScanning(false);
           setScanCurrentStep(null);
+          setScanError("We could not check the scan status. Please check your connection and try again.");
+        } finally {
+          pollInFlightRef.current = false;
         }
       };
 
@@ -658,6 +698,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setScanCurrentStep(null);
       if (err instanceof ScanQuotaError) {
         setScanQuotaError({ message: err.userMessage, upgradeTo: err.upgradeTo });
+      } else {
+        setScanError(err instanceof Error ? err.message : "The scan could not be started. Please try again.");
       }
     }
   }, [isScanning, loadThreats]);
@@ -763,6 +805,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isScanning,
         scanProgress,
         scanCurrentStep,
+        scanError,
         isLoading,
         activeThreats,
         fakeAccounts,
@@ -785,6 +828,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateAccount,
         addIndexedPhotos,
         removeIndexedPhoto,
+        clearIndexedPhotos,
       }}
     >
       {children}

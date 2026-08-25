@@ -2142,15 +2142,24 @@ export default function Onboarding() {
     setIsAddingAccounts(false);
   }, [platformHandles]);
 
-  const saveAndFinish = useCallback((finalAnswers: OnboardingAnswers) => {
-    completeOnboarding();
-    AsyncStorage.setItem("onboardingAnswers", JSON.stringify(finalAnswers)).catch(() => {});
-    saveOnboardingAnswers(finalAnswers as unknown as Record<string, unknown>).catch(() => {});
-    analytics.onboardingCompleted({
-      user_type: finalAnswers.userType ?? undefined,
-      platform_count: finalAnswers.activePlatforms.length,
-      attribution: finalAnswers.attribution ?? undefined,
-    });
+  const saveAndFinish = useCallback(async (finalAnswers: OnboardingAnswers): Promise<boolean> => {
+    try {
+      await saveOnboardingAnswers(finalAnswers as unknown as Record<string, unknown>);
+      await AsyncStorage.setItem("onboardingAnswers", JSON.stringify(finalAnswers));
+      completeOnboarding();
+      analytics.onboardingCompleted({
+        user_type: finalAnswers.userType ?? undefined,
+        platform_count: finalAnswers.activePlatforms.length,
+        attribution: finalAnswers.attribution ?? undefined,
+      });
+      return true;
+    } catch {
+      Alert.alert(
+        "Couldn’t save your setup",
+        "Please check your connection and try again. Your onboarding will stay open until it is saved.",
+      );
+      return false;
+    }
   }, [completeOnboarding]);
 
   const buildFinalAnswers = useCallback((): OnboardingAnswers => ({
@@ -2170,25 +2179,28 @@ export default function Onboarding() {
       animateToStep(step + 1);
     } else {
       const finalAnswers = buildFinalAnswers();
-      saveAndFinish(finalAnswers);
-      router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: String(scanThreatCount) } } as any);
+      if (await saveAndFinish(finalAnswers)) {
+        router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: String(scanThreatCount) } } as any);
+      }
     }
   }, [step, addAccountsForHandles, animateToStep, buildFinalAnswers, saveAndFinish, scanThreatCount]);
 
-  const handleSkip = useCallback(() => {
+  const handleSkip = useCallback(async () => {
     const finalAnswers = buildFinalAnswers();
-    saveAndFinish(finalAnswers);
-    analytics.onboardingSkipped({ at_step: step });
-    // Route to paywall — skipping the questionnaire doesn't skip the subscription
-    // screen. The paywall has its own close/X that drops to free tier.
-    router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: "0" } } as any);
+    if (await saveAndFinish(finalAnswers)) {
+      analytics.onboardingSkipped({ at_step: step });
+      // Route to paywall — skipping the questionnaire doesn't skip the subscription
+      // screen. The paywall has its own close/X that drops to free tier.
+      router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: "0" } } as any);
+    }
   }, [buildFinalAnswers, step, saveAndFinish]);
 
-  const handleMaybeLater = useCallback(() => {
+  const handleMaybeLater = useCallback(async () => {
     const finalAnswers = buildFinalAnswers();
-    saveAndFinish(finalAnswers);
-    // Same as skip — show the paywall rather than bypassing it entirely.
-    router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: "0" } } as any);
+    if (await saveAndFinish(finalAnswers)) {
+      // Same as skip — show the paywall rather than bypassing it entirely.
+      router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: "0" } } as any);
+    }
   }, [buildFinalAnswers, saveAndFinish]);
 
   // Steps that auto-advance on selection — no footer CTA shown

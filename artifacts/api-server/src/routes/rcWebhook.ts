@@ -55,6 +55,8 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
       original_app_user_id?: string;
       expiration_at_ms?: number;
       purchased_at_ms?: number;
+      entitlement_ids?: string[];
+      product_id?: string;
     };
   };
 
@@ -89,16 +91,19 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
 
   try {
     if (eventType === "TRIAL_STARTED") {
-      await handleTrialStarted(userId, event.expiration_at_ms ?? null);
-    } else if (eventType === "CANCELLATION" || eventType === "EXPIRATION") {
-      await handleCancellationOrExpiration(userId);
+      await handleTrialStarted(userId, event.expiration_at_ms ?? null, getTierFromEvent(event));
+    } else if (eventType === "CANCELLATION") {
+      await handleCancellation(userId);
+    } else if (eventType === "EXPIRATION") {
+      await handleExpiration(userId);
     } else if (
       eventType === "INITIAL_PURCHASE" ||
       eventType === "RENEWAL" ||
       eventType === "TRIAL_CONVERTED" ||
-      eventType === "UNCANCELLATION"
+      eventType === "UNCANCELLATION" ||
+      eventType === "TRANSFER"
     ) {
-      await handleReactivation(userId);
+      await handleReactivation(userId, getTierFromEvent(event));
     } else {
       logger.info({ userId, eventType }, "RC webhook: unhandled event type, ignoring");
     }
@@ -111,30 +116,56 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
-async function handleTrialStarted(userId: string, expirationAtMs: number | null): Promise<void> {
+function getTierFromEvent(event: { entitlement_ids?: string[]; product_id?: string }): "free" | "pro" | "premium" {
+  const entitlements = event.entitlement_ids ?? [];
+  if (entitlements.includes("premium")) return "premium";
+  if (entitlements.includes("pro")) return "pro";
+
+  // Product IDs are provided by RevenueCat's signed webhook and cover events
+  // where an entitlement list is unavailable.
+  const productId = event.product_id?.toLowerCase() ?? "";
+  if (productId.includes("premium")) return "premium";
+  if (productId.includes("pro")) return "pro";
+  return "free";
+}
+
+async function handleTrialStarted(
+  userId: string,
+  expirationAtMs: number | null,
+  tier: "free" | "pro" | "premium",
+): Promise<void> {
   const trialEndMs = expirationAtMs ?? (Date.now() + 7 * 24 * 60 * 60 * 1000);
   const trialEndsAt = new Date(trialEndMs);
 
   // Upsert: creates the subscription row if it doesn't exist yet
   await db
     .insert(subscriptionsTable)
-    .values({ userId, tier: "free", status: "trialing", trialEndsAt, billingCycle: "monthly" })
+    .values({ userId, tier, status: "trialing", trialEndsAt, billingCycle: "monthly" })
     .onConflictDoUpdate({
       target: [subscriptionsTable.userId],
-      set: { status: "trialing", trialEndsAt, updatedAt: new Date() },
+      set: { tier, status: "trialing", trialEndsAt, updatedAt: new Date() },
     });
 
   await scheduleTrialReminder(userId, trialEndsAt);
 }
 
-async function handleCancellationOrExpiration(userId: string): Promise<void> {
+async function handleCancellation(userId: string): Promise<void> {
+  // RevenueCat emits CANCELLATION when auto-renew is switched off, not when
+  // access ends. Preserve the verified tier until a later EXPIRATION event.
+  await db
+    .update(subscriptionsTable)
+    .set({ status: "canceled", cancelAtPeriodEnd: true, updatedAt: new Date() })
+    .where(eq(subscriptionsTable.userId, userId));
+}
+
+async function handleExpiration(userId: string): Promise<void> {
   // Upsert: creates the subscription row if it doesn't exist yet
   await db
     .insert(subscriptionsTable)
     .values({ userId, tier: "free", status: "canceled", billingCycle: "monthly" })
     .onConflictDoUpdate({
       target: [subscriptionsTable.userId],
-      set: { status: "canceled", updatedAt: new Date() },
+      set: { tier: "free", status: "canceled", cancelAtPeriodEnd: false, updatedAt: new Date() },
     });
 
   // Cancel any pending trial reminders — trial is over
@@ -174,14 +205,14 @@ async function handleCancellationOrExpiration(userId: string): Promise<void> {
   logger.info({ userId, fireAt }, "Scheduled 30-day win-back notification");
 }
 
-async function handleReactivation(userId: string): Promise<void> {
+async function handleReactivation(userId: string, tier: "free" | "pro" | "premium"): Promise<void> {
   // Upsert: creates the subscription row if it doesn't exist yet
   await db
     .insert(subscriptionsTable)
-    .values({ userId, tier: "free", status: "active", billingCycle: "monthly" })
+    .values({ userId, tier, status: "active", billingCycle: "monthly" })
     .onConflictDoUpdate({
       target: [subscriptionsTable.userId],
-      set: { status: "active", updatedAt: new Date() },
+      set: { tier, status: "active", cancelAtPeriodEnd: false, updatedAt: new Date() },
     });
 
   // Cancel any pending win-back — user resubscribed before the 30-day window

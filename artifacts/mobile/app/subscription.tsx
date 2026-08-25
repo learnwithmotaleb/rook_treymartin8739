@@ -15,6 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useUser } from "@clerk/expo";
 import {
   ActivityIndicator,
   Alert,
@@ -39,7 +40,7 @@ import type { PurchasesPackage } from "react-native-purchases";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { useSubscription, isRevenueCatConfigured } from "@/lib/revenuecat";
+import { identifyRevenueCatUser, useSubscription, isRevenueCatConfigured } from "@/lib/revenuecat";
 import { syncSubscriptionTier, listThreats } from "@/lib/api";
 import type { ThreatSummary } from "@/lib/api";
 
@@ -669,6 +670,7 @@ function ManageScreen({ colors, tier, onClose, topPad }: {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Subscription() {
+  const { user: clerkUser } = useUser();
   const colors      = useColors();
   const insets      = useSafeAreaInsets();
   const { user, completeOnboarding, refreshData } = useApp();
@@ -783,6 +785,8 @@ export default function Subscription() {
     if (!confirmPkg) return;
     setConfirmPkg(null);
     try {
+      if (!clerkUser?.id) throw new Error("Please sign in before purchasing.");
+      await identifyRevenueCatUser(clerkUser.id);
       await purchase(confirmPkg);
       await refreshData();
       if (isFromOnboarding) { completeOnboarding(); router.replace("/(tabs)" as any); }
@@ -790,10 +794,12 @@ export default function Subscription() {
     } catch (err: any) {
       if (err?.userCancelled) return;
     }
-  }, [confirmPkg, purchase, refreshData, isFromOnboarding, completeOnboarding]);
+  }, [confirmPkg, clerkUser?.id, purchase, refreshData, isFromOnboarding, completeOnboarding]);
 
   const handleRestore = useCallback(async () => {
     try {
+      if (!clerkUser?.id) throw new Error("Please sign in before restoring purchases.");
+      await identifyRevenueCatUser(clerkUser.id);
       await restore();
       await refreshData();
       setRestoreMsg("Purchases restored.");
@@ -801,7 +807,7 @@ export default function Subscription() {
       setRestoreMsg("Nothing to restore.");
     }
     setTimeout(() => setRestoreMsg(null), 3000);
-  }, [restore, refreshData]);
+  }, [clerkUser?.id, restore, refreshData]);
 
   // ── Already subscribed ────────────────────────────────────────────────────
   if (alreadySubscribed) {

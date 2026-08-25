@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db, devicePushTokensTable } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -26,30 +26,21 @@ router.patch("/notifications/token", async (req, res): Promise<void> => {
     }
     const { token, platform } = parsed.data;
 
-    const existing = await db
-      .select({ id: devicePushTokensTable.id })
-      .from(devicePushTokensTable)
-      .where(
-        and(
-          eq(devicePushTokensTable.userId, userId),
-          eq(devicePushTokensTable.platform, platform)
-        )
-      )
-      .limit(1);
-
-    if (existing.length > 0) {
-      await db
-        .update(devicePushTokensTable)
-        .set({ token, updatedAt: new Date() })
+    await db.transaction(async (tx) => {
+      // Serialize token reassignment so one physical device can never receive
+      // notifications for two Rook accounts, even if a prior logout failed.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${token}))`);
+      await tx.delete(devicePushTokensTable).where(eq(devicePushTokensTable.token, token));
+      await tx
+        .delete(devicePushTokensTable)
         .where(
           and(
             eq(devicePushTokensTable.userId, userId),
             eq(devicePushTokensTable.platform, platform)
           )
         );
-    } else {
-      await db.insert(devicePushTokensTable).values({ userId, token, platform });
-    }
+      await tx.insert(devicePushTokensTable).values({ userId, token, platform });
+    });
 
     res.json({ ok: true });
   } catch (err) {

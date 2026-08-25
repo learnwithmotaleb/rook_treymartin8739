@@ -8,8 +8,8 @@ const DOMAIN = process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim()
   ?? "getrook.app";
 
 const APP_NAME = "Rook";
-const CONTACT_EMAIL = "support@tryrook.app";
-const SUPPORT_EMAIL = "support@tryrook.app";
+const CONTACT_EMAIL = "support@getrook.app";
+const SUPPORT_EMAIL = "support@getrook.app";
 const PRIVACY_EMAIL = "privacy@getrook.app";
 const BUSINESS_PHONE = "+1 (832) 819-3114";
 const BUSINESS_ADDRESS = "127 N Higgins Ave Suite 307D #2992, Missoula, MT 59802";

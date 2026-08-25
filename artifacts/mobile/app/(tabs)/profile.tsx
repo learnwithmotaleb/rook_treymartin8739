@@ -124,8 +124,8 @@ export default function ProfileScreen() {
         text: "Sign Out",
         style: "destructive",
         onPress: async () => {
+          await logout();
           await signOut();
-          logout();
         },
       },
     ]);
@@ -154,8 +154,8 @@ export default function ProfileScreen() {
       if (!resp.ok && resp.status !== 204) {
         throw new Error("Failed to delete account");
       }
+      await logout();
       await clerkSignOut();
-      logout();
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Could not delete account. Please try again.");
     } finally {

@@ -65,8 +65,8 @@ export default function Support() {
   };
 
   const emailSupport = () => {
-    Linking.openURL("mailto:support@tryrook.app?subject=Support%20Request").catch(() =>
-      Alert.alert("Email Support", "Contact us at support@tryrook.app")
+    Linking.openURL("mailto:support@getrook.app?subject=Support%20Request").catch(() =>
+      Alert.alert("Email Support", "Contact us at support@getrook.app")
     );
   };
 
@@ -214,7 +214,7 @@ export default function Support() {
         </TouchableOpacity>
 
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Rook v1.0.0 · support@tryrook.app
+          Rook v1.0.0 · support@getrook.app
         </Text>
       </ScrollView>
     </View>

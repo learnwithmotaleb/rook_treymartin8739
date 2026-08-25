@@ -1,10 +1,9 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { db, subscriptionsTable, cancellationFeedbackTable } from "@workspace/db";
+import { db, cancellationFeedbackTable } from "@workspace/db";
 
 import { PLAN_CONFIG, normalizeTier } from "../lib/planConfig";
 import { getSubscription } from "../services/subscriptionService";
-import { scheduleTrialReminder } from "../services/schedulerService";
 
 const router: IRouter = Router();
 
@@ -23,9 +22,11 @@ router.get("/billing/subscription", async (req, res): Promise<void> => {
 /**
  * POST /billing/revenuecat-sync
  *
- * Called by the mobile app after a RevenueCat purchase, restore, or on launch
- * to keep the server-side subscription record (used for scan-quota checks)
- * in sync with the authoritative RevenueCat state on the device.
+ * Called by the mobile app after a RevenueCat purchase, restore, or on launch.
+ *
+ * The app is useful for refreshing its own local RevenueCat state, but it
+ * cannot be trusted to authorize server-side quota changes. RevenueCat's
+ * signed server-to-server webhook is the sole writer for paid server tiers.
  */
 const RcSyncBody = z.object({
   tier: z.enum(["free", "pro", "premium"]),
@@ -42,36 +43,17 @@ router.post("/billing/revenuecat-sync", async (req, res): Promise<void> => {
       res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
       return;
     }
-    const { tier: validTier, status, trialEndsAt } = parsed.data;
+    // Parse the established client contract for backwards compatibility, but
+    // deliberately do not persist its tier/status values. A modified client
+    // could otherwise grant itself Premium access by posting arbitrary JSON.
+    void parsed.data;
 
-    const isTrialing = status === "trialing" && !!trialEndsAt;
-    const resolvedStatus = isTrialing ? "trialing" : (status ?? "active");
-    const trialEndsAtDate = isTrialing ? new Date(trialEndsAt!) : undefined;
-
-    await db
-      .insert(subscriptionsTable)
-      .values({
-        userId,
-        tier: validTier,
-        status: resolvedStatus,
-        trialEndsAt: trialEndsAtDate,
-        billingCycle: "monthly",
-      })
-      .onConflictDoUpdate({
-        target: [subscriptionsTable.userId],
-        set: {
-          tier: validTier,
-          status: resolvedStatus,
-          trialEndsAt: trialEndsAtDate,
-          updatedAt: new Date(),
-        },
-      });
-
-    if (isTrialing && trialEndsAtDate) {
-      await scheduleTrialReminder(userId, trialEndsAtDate);
-    }
-
-    res.json({ tier: validTier, synced: true });
+    const subscription = await getSubscription(userId);
+    res.status(202).json({
+      tier: normalizeTier(subscription.tier),
+      synced: false,
+      message: "Subscription changes are applied after RevenueCat verifies the purchase.",
+    });
   } catch (err) {
     req.log.error({ err }, "POST /billing/revenuecat-sync failed");
     res.status(500).json({ error: "Internal server error" });

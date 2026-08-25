@@ -18,7 +18,6 @@ import { TermsUpdateModal } from "@/components/TermsUpdateModal";
 import { useNotifications } from "@/hooks/useNotifications";
 import { CURRENT_TERMS_VERSION } from "@/lib/api";
 import { useSubscription, ENTITLEMENT_PREMIUM, ENTITLEMENT_PRO } from "@/lib/revenuecat";
-import Purchases from "react-native-purchases";
 import Constants from "expo-constants";
 
 function NativeTabLayout() {
@@ -147,7 +146,7 @@ export default function TabLayout() {
   const { login, logout, hasSeenOnboarding, isInitializing, isOnboardingReady, isLoggedIn, showCancellationSurvey, dismissCancellationSurvey } = useApp();
   const colors = useColors();
   const { tier, customerInfo } = useSubscription();
-  useNotifications(isLoggedIn);
+  useNotifications(isLoggedIn, clerkUser?.id);
 
   // Safety valve: if initialization takes more than 12 seconds, stop waiting
   // and show a recoverable error rather than a permanent blank screen.
@@ -187,13 +186,6 @@ export default function TabLayout() {
     const name = clerkUser?.fullName ?? clerkUser?.firstName ?? "";
     const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
     login(name, email, clerkUser?.id);
-    // Identify the user to RevenueCat so purchases are tied to their account
-    // across devices and are recoverable after reinstall.
-    if (clerkUser?.id) {
-      Purchases.logIn(clerkUser.id).catch(() => {
-        // Non-fatal: if RevenueCat identification fails the app still works.
-      });
-    }
   // getToken intentionally omitted — accessed via ref to keep this effect stable
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser]);

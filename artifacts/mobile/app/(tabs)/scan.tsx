@@ -46,6 +46,7 @@ export default function ScanScreen() {
     isLoading,
     scanProgress,
     scanCurrentStep,
+    scanError: scanFailure,
     scanQuotaError,
     startScan,
     checkScanQuota,
@@ -95,7 +96,7 @@ export default function ScanScreen() {
   useEffect(() => {
     if (isScanning) {
       prevScanning.current = true;
-    } else if (prevScanning.current) {
+    } else if (prevScanning.current && !scanFailure) {
       prevScanning.current = false;
       const activeThreats = threats.filter((t) => !t.resolved);
       const activeCount = activeThreats.length;
@@ -148,7 +149,7 @@ export default function ScanScreen() {
         }, 2000);
       });
     }
-  }, [isScanning, threats, resultOpacity, user.tier]);
+  }, [isScanning, scanFailure, threats, resultOpacity, user.tier]);
 
   const hasAccounts = user.connectedAccounts.length > 0;
   const photoCount = indexedPhotos.length;
@@ -569,7 +570,7 @@ export default function ScanScreen() {
               </Text>
             </TouchableOpacity>
           </GlassCard>
-        ) : scanError && isIdle ? (
+        ) : (scanError || scanFailure) && isIdle ? (
           /* Scan error */
           <GlassCard style={[styles.ctaCard, { borderColor: colors.danger + "44" }]}>
             <View style={[styles.ctaIcon, { backgroundColor: colors.danger + "18" }]}>

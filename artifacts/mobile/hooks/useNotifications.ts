@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { Alert, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -82,20 +82,25 @@ async function getExpoPushToken(): Promise<string | null> {
   }
 }
 
-async function upsertToken(): Promise<void> {
+function getPushTokenStorageKey(userId?: string): string {
+  return userId ? `${PUSH_TOKEN_STORED_KEY}:${userId}` : PUSH_TOKEN_STORED_KEY;
+}
+
+async function upsertToken(userId?: string): Promise<void> {
   const token = await getExpoPushToken();
   if (!token) return;
-  const cached = await AsyncStorage.getItem(PUSH_TOKEN_STORED_KEY);
+  const storageKey = getPushTokenStorageKey(userId);
+  const cached = await AsyncStorage.getItem(storageKey);
   if (cached === token) return;
   const platform = Platform.OS === "ios" ? "ios" : "android";
   await registerPushToken(token, platform);
-  await AsyncStorage.setItem(PUSH_TOKEN_STORED_KEY, token);
+  await AsyncStorage.setItem(storageKey, token);
 }
 
-async function removeToken(): Promise<void> {
+async function removeToken(userId?: string): Promise<void> {
   const platform = Platform.OS === "ios" ? "ios" : "android";
   await deregisterPushToken(platform);
-  await AsyncStorage.removeItem(PUSH_TOKEN_STORED_KEY);
+  await AsyncStorage.removeItem(getPushTokenStorageKey(userId));
 }
 
 export async function scheduleScanCompleteNotification(
@@ -205,23 +210,21 @@ export async function applyNotificationPreferences(): Promise<void> {
   }
 }
 
-export function useNotifications(isLoggedIn: boolean): {
+export function useNotifications(isLoggedIn: boolean, userId?: string): {
   registerPush: () => Promise<void>;
   deregisterPush: () => Promise<void>;
 } {
-  const listenerRef = useRef<Notifications.EventSubscription | null>(null);
-
   const registerPush = useCallback(async () => {
     if (Platform.OS === "web") return;
     const granted = await requestPushPermission();
     if (!granted) return;
-    await upsertToken();
+    await upsertToken(userId);
     await scheduleWeeklyReminder();
-  }, []);
+  }, [userId]);
 
   const deregisterPush = useCallback(async () => {
     if (Platform.OS === "web") return;
-    await removeToken();
+    await removeToken(userId);
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     const weeklyId = scheduled.find(
       (n) => (n.content.data as any)?.screen === "dashboard"
@@ -229,7 +232,7 @@ export function useNotifications(isLoggedIn: boolean): {
     if (weeklyId) {
       await Notifications.cancelScheduledNotificationAsync(weeklyId);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (!isLoggedIn || Platform.OS === "web") return;
@@ -240,7 +243,7 @@ export function useNotifications(isLoggedIn: boolean): {
 
       if (status === "granted") {
         if (pushEnabled) {
-          await upsertToken();
+          await upsertToken(userId);
           await scheduleWeeklyReminder();
         }
         return;
@@ -259,19 +262,12 @@ export function useNotifications(isLoggedIn: boolean): {
 
       const granted = await requestPushPermission();
       if (granted) {
-        await upsertToken();
+          await upsertToken(userId);
         await scheduleWeeklyReminder();
       }
     })();
 
-    listenerRef.current = Notifications.addNotificationResponseReceivedListener(
-      () => {}
-    );
-
-    return () => {
-      listenerRef.current?.remove();
-    };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, userId]);
 
   return { registerPush, deregisterPush };
 }

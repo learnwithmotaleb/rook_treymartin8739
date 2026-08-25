@@ -26,6 +26,7 @@ import {
   deletePhotoData,
   downloadMyData,
 } from "@/lib/api";
+import { useApp } from "@/context/AppContext";
 
 type ConsentStatus = {
   hasConsent: boolean;
@@ -36,6 +37,7 @@ type ConsentStatus = {
 export default function PrivacySettings() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { clearIndexedPhotos } = useApp();
 
   const [consent, setConsent] = useState<ConsentStatus | null>(null);
   const [consentLoading, setConsentLoading] = useState(true);
@@ -70,6 +72,7 @@ export default function PrivacySettings() {
             setWithdrawing(true);
             try {
               await withdrawPhotoConsent();
+              clearIndexedPhotos();
               await fetchConsent();
               Alert.alert(
                 "Consent Withdrawn",
@@ -84,7 +87,7 @@ export default function PrivacySettings() {
         },
       ]
     );
-  }, [fetchConsent]);
+  }, [clearIndexedPhotos, fetchConsent]);
 
   const handleDeletePhotoData = useCallback(() => {
     Alert.alert(
@@ -99,6 +102,7 @@ export default function PrivacySettings() {
             setDeletingPhoto(true);
             try {
               await deletePhotoData();
+              clearIndexedPhotos();
               Alert.alert("Done", "All photo-derived fingerprint data has been deleted.");
             } catch {
               Alert.alert("Error", "Could not delete photo data. Please try again.");
@@ -109,7 +113,7 @@ export default function PrivacySettings() {
         },
       ]
     );
-  }, []);
+  }, [clearIndexedPhotos]);
 
   const handleExport = useCallback(async () => {
     setExporting(true);

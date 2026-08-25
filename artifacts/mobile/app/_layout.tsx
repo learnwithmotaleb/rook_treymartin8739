@@ -5,7 +5,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { ClerkLoaded, ClerkProvider } from "@clerk/expo";
+import { ClerkLoaded, ClerkProvider, useAuth, useUser } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
@@ -21,7 +21,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AnimatedSplash } from "@/components/AnimatedSplash";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
-import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { identifyRevenueCatUser, initializeRevenueCat, isRevenueCatConfigured, SubscriptionProvider } from "@/lib/revenuecat";
 
 try {
   initializeRevenueCat();
@@ -57,6 +57,20 @@ function ClerkReadyMarker({ onReady }: { onReady: () => void }) {
   useEffect(() => {
     onReady();
   }, [onReady]);
+
+  return null;
+}
+
+function RevenueCatIdentityBridge() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user?.id || !isRevenueCatConfigured) return;
+    identifyRevenueCatUser(user.id).catch(() => {
+      // The purchase flow awaits the same identification as a hard gate.
+    });
+  }, [isLoaded, isSignedIn, user?.id]);
 
   return null;
 }
@@ -220,6 +234,7 @@ export default function RootLayout() {
         >
           <ClerkLoaded>
             <ClerkReadyMarker onReady={markClerkReady} />
+            <RevenueCatIdentityBridge />
             <QueryClientProvider client={queryClient}>
               <SubscriptionProvider>
                 <AppProvider>
