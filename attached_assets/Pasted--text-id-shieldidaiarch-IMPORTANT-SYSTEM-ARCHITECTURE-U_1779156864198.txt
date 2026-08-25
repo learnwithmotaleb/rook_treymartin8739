@@ -1,7 +1,7 @@
-```text id="shieldidaiarch"
+```text id="rookaiarch"
 IMPORTANT SYSTEM ARCHITECTURE UPDATE:
 
-Enhance the ShieldID platform with a full AI-powered identity intelligence architecture that focuses on COMPLETE account identity matching — not just profile photo matching.
+Enhance the Rook platform with a full AI-powered identity intelligence architecture that focuses on COMPLETE account identity matching — not just profile photo matching.
 
 The system should monitor and analyze:
 - profile photos
@@ -253,7 +253,7 @@ For MVP:
 # 🎯 MOST IMPORTANT PRODUCT GOAL
 ---------------------------------------------------
 
-ShieldID should NOT behave like:
+Rook should NOT behave like:
 “a fake username checker.”
 
 It should behave like:

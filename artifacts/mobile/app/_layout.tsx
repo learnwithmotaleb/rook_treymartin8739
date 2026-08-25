@@ -86,7 +86,7 @@ function ClerkStartupFallback() {
               textAlign: "center",
             }}
           >
-            ShieldID is taking longer than expected to start. Check your connection, then try again.
+            Rook is taking longer than expected to start. Check your connection, then try again.
           </Text>
           <Pressable
             onPress={tryAgain}
@@ -107,7 +107,7 @@ function ClerkStartupFallback() {
         <>
           <ActivityIndicator size="small" color="#3B82F6" />
           <Text style={{ color: "#9CA3AF", fontFamily: "Inter_400Regular", fontSize: 15 }}>
-            Getting ShieldID ready…
+            Getting Rook ready…
           </Text>
         </>
       )}

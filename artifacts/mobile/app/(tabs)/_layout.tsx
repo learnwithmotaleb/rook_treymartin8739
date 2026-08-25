@@ -288,7 +288,7 @@ export default function TabLayout() {
       return (
         <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16 }}>
           <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center", paddingHorizontal: 40 }}>
-            ShieldID is taking longer than expected to start. Check your connection, then try again.
+            Rook is taking longer than expected to start. Check your connection, then try again.
           </Text>
           <TouchableOpacity
             onPress={() => setInitTimedOut(false)}
@@ -304,7 +304,7 @@ export default function TabLayout() {
       <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 14 }}>
         <ActivityIndicator size="small" color={colors.primary} />
         <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15 }}>
-          Getting ShieldID ready…
+          Getting Rook ready…
         </Text>
       </View>
     );

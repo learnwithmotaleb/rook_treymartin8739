@@ -1,9 +1,9 @@
 # ✅ CORRECT PRODUCT FLOW
 ---------------------------------------------------
 
-1. User logs into ShieldID
+1. User logs into Rook
 2. User connects social accounts they own
-3. ShieldID verifies ownership through OAuth/social login
+3. Rook verifies ownership through OAuth/social login
 4. The connected accounts become:
    THE VERIFIED CANONICAL IDENTITY
 5. AI continuously analyzes those accounts
@@ -31,7 +31,7 @@ User connects:
 - X/Twitter
 - YouTube
 
-ShieldID now KNOWS:
+Rook now KNOWS:
 these are the legitimate accounts.
 
 The AI now monitors the internet looking for:
@@ -191,7 +191,7 @@ Threat Score =
 ---------------------------------------------------
 
 1. User connects Instagram account
-2. ShieldID extracts:
+2. Rook extracts:
    - 40 public photos
    - profile images
    - captions
@@ -256,10 +256,10 @@ ALWAYS ACTIVE.
 # ⚠️ IMPORTANT PRODUCT POSITIONING
 ---------------------------------------------------
 
-ShieldID is NOT:
+Rook is NOT:
 “AI finding who the real user is.”
 
-ShieldID IS:
+Rook IS:
 “AI protecting VERIFIED connected identities from impersonation and identity abuse.”
 
 This distinction is extremely important for:

@@ -55,7 +55,7 @@ function showPrePrompt(): Promise<boolean> {
   return new Promise((resolve) => {
     Alert.alert(
       "Stay Protected in Real-Time",
-      "ShieldID will notify you when potential matches to your identity are found — including possible impersonators, lookalike profiles, and reused photos. You can adjust this anytime in Settings.",
+      "Rook will notify you when potential matches to your identity are found — including possible impersonators, lookalike profiles, and reused photos. You can adjust this anytime in Settings.",
       [
         { text: "Not Now", style: "cancel", onPress: () => resolve(false) },
         {
@@ -157,7 +157,7 @@ async function scheduleWeeklyReminder(): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "🛡️ Your Identity is Protected",
-      body: "ShieldID has been monitoring your accounts. Tap to see your security status.",
+      body: "Rook has been monitoring your accounts. Tap to see your security status.",
       data: { screen: "dashboard" },
       sound: true,
     },
@@ -190,7 +190,7 @@ export async function applyNotificationPreferences(): Promise<void> {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "🛡️ Your Identity is Protected",
-          body: "ShieldID has been monitoring your accounts. Tap to see your security status.",
+          body: "Rook has been monitoring your accounts. Tap to see your security status.",
           data: { screen: "dashboard" },
           sound: true,
         },

@@ -1,7 +1,7 @@
-```text id="shieldidv2"
-Build a production-ready mobile app called “ShieldID” using React Native with Expo for iOS and Android.
+```text id="rookv2"
+Build a production-ready mobile app called “Rook” using React Native with Expo for iOS and Android.
 
-ShieldID is a premium AI-powered identity protection platform that continuously monitors the public internet and social platforms for impersonation, stolen profile photos, scam attempts, fake accounts, and identity compromise risks.
+Rook is a premium AI-powered identity protection platform that continuously monitors the public internet and social platforms for impersonation, stolen profile photos, scam attempts, fake accounts, and identity compromise risks.
 
 The app should feel like a next-generation cybersecurity product for creators, professionals, influencers, businesses, and everyday users.
 
