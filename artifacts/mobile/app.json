@@ -25,7 +25,10 @@
         "NSPhotoLibraryUsageDescription": "Rook accesses your photos to build your identity fingerprint and detect stolen images.",
         "NSUserNotificationsUsageDescription": "Rook sends real-time alerts when threats to your identity are detected.",
         "NSFaceIDUsageDescription": "Rook uses Face ID to protect access to your identity data.",
-        "UIBackgroundModes": ["fetch", "remote-notification"],
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       },
       "appStoreAgeRating": "4+",
@@ -73,6 +76,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d18c0a79-c32e-483e-ba77-7f64bb35714f"
+      }
+    },
+    "owner": "treylane100"
   }
 }
