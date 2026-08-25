@@ -5,7 +5,7 @@ import { Icon, Label, NativeTabs, Badge } from "expo-router/unstable-native-tabs
 import { SymbolView } from "expo-symbols";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -160,11 +160,12 @@ export default function TabLayout() {
   //  - A different user signing in on the same device DOES trigger a fresh check
   //    because clerkUser?.id will be different.
   const checkedTermsForUserRef = useRef<string | null>(null);
+  const isStartupPending = !isLoaded || isInitializing || (isSignedIn && !isOnboardingReady);
   useEffect(() => {
-    if (!isInitializing && (isOnboardingReady || !isSignedIn)) { setInitTimedOut(false); return; }
+    if (!isStartupPending) { setInitTimedOut(false); return; }
     const t = setTimeout(() => setInitTimedOut(true), 12_000);
     return () => clearTimeout(t);
-  }, [isInitializing, isOnboardingReady, isSignedIn]);
+  }, [isStartupPending]);
 
   // Keep a stable ref to getToken so the effect below doesn't need it as a
   // dependency. Clerk sometimes returns a new function reference on every
@@ -282,12 +283,12 @@ export default function TabLayout() {
   // Render a blank screen (not null) while loading — returning null from a
   // layout component breaks expo-router's component tree on web and causes
   // "Invalid hook call" errors in child screens.
-  if (!isLoaded || isInitializing || (isSignedIn && !isOnboardingReady)) {
+  if (isStartupPending) {
     if (initTimedOut) {
       return (
         <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16 }}>
           <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center", paddingHorizontal: 40 }}>
-            Taking longer than expected…
+            ShieldID is taking longer than expected to start. Check your connection, then try again.
           </Text>
           <TouchableOpacity
             onPress={() => setInitTimedOut(false)}
@@ -299,7 +300,14 @@ export default function TabLayout() {
         </View>
       );
     }
-    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 14 }}>
+        <ActivityIndicator size="small" color={colors.primary} />
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15 }}>
+          Getting ShieldID ready…
+        </Text>
+      </View>
+    );
   }
 
   if (!isSignedIn) {

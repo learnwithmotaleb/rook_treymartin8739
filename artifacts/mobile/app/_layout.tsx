@@ -5,14 +5,15 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { ClerkProvider, ClerkLoaded } from "@clerk/expo";
+import { ClerkLoaded, ClerkLoading, ClerkProvider } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
+import { reloadAppAsync } from "expo";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import React, { useEffect, useState } from "react";
-import { Alert, Platform } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -48,6 +49,69 @@ function RootLayoutNav() {
       <Stack.Screen name="legal" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="privacy-settings" options={{ headerShown: false, animation: "slide_from_right" }} />
     </Stack>
+  );
+}
+
+function ClerkStartupFallback() {
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setTimedOut(true), 12_000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const tryAgain = () => {
+    reloadAppAsync().catch(() => setTimedOut(false));
+  };
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 14,
+        paddingHorizontal: 32,
+        backgroundColor: "#070B12",
+      }}
+    >
+      {timedOut ? (
+        <>
+          <Text
+            style={{
+              color: "#9CA3AF",
+              fontFamily: "Inter_400Regular",
+              fontSize: 15,
+              lineHeight: 22,
+              textAlign: "center",
+            }}
+          >
+            ShieldID is taking longer than expected to start. Check your connection, then try again.
+          </Text>
+          <Pressable
+            onPress={tryAgain}
+            style={({ pressed }) => ({
+              paddingHorizontal: 26,
+              paddingVertical: 12,
+              borderRadius: 12,
+              backgroundColor: "#3B82F6",
+              opacity: pressed ? 0.82 : 1,
+            })}
+          >
+            <Text style={{ color: "#FFFFFF", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+              Try Again
+            </Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <ActivityIndicator size="small" color="#3B82F6" />
+          <Text style={{ color: "#9CA3AF", fontFamily: "Inter_400Regular", fontSize: 15 }}>
+            Getting ShieldID ready…
+          </Text>
+        </>
+      )}
+    </View>
   );
 }
 
@@ -123,10 +187,13 @@ export default function RootLayout() {
 
   // ── Phase 2: full app ────────────────────────────────────────────────────
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <ClerkLoaded>
-        <SafeAreaProvider>
-          <ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+          <ClerkLoading>
+            <ClerkStartupFallback />
+          </ClerkLoading>
+          <ClerkLoaded>
             <QueryClientProvider client={queryClient}>
               <SubscriptionProvider>
                 <AppProvider>
@@ -144,9 +211,9 @@ export default function RootLayout() {
                 </AppProvider>
               </SubscriptionProvider>
             </QueryClientProvider>
-          </ErrorBoundary>
-        </SafeAreaProvider>
-      </ClerkLoaded>
-    </ClerkProvider>
+          </ClerkLoaded>
+        </ClerkProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }
