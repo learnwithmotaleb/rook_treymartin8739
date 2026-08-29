@@ -103,7 +103,7 @@ Rook does not target children. It handles sensitive personal identity data (soci
 
 | Field | Value |
 |---|---|
-| Name | Rook — Identity Protection |
+| Name | Rook: Impersonation Protection |
 | Subtitle | AI-Powered Impersonator Shield |
 | Category | Utilities (primary), Lifestyle (secondary) |
 | Age Rating | 4+ (see Section 2a) |

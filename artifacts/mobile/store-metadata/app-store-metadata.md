@@ -4,7 +4,7 @@
 
 ### App Name (30 chars max)
 ```
-Rook: Identity Protection
+Rook: Impersonation Protection
 ```
 
 ### Subtitle (30 chars max)

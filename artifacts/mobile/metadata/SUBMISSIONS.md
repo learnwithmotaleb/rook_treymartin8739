@@ -60,7 +60,7 @@ This creates a signed `.aab` (Android App Bundle) for the Play Store.
 1. Go to [appstoreconnect.apple.com](https://appstoreconnect.apple.com)
 2. **My Apps → +  → New App**
 3. Platform: **iOS**
-4. Name: `Rook — Identity Protection` (matches `metadata/ios/en-US/name.txt`)
+4. Name: `Rook: Impersonation Protection` (matches `metadata/ios/en-US/name.txt`)
 5. Primary language: **English (U.S.)**
 6. Bundle ID: `com.getrook.app`
 7. SKU: `rook-ios-001`
@@ -69,7 +69,7 @@ This creates a signed `.aab` (Android App Bundle) for the Play Store.
 
 | Field | Value |
 |---|---|
-| Name | Rook — Identity Protection |
+| Name | Rook: Impersonation Protection |
 | Subtitle | AI-Powered Impersonator Shield |
 | Privacy Policy URL | https://tryrook.app/api/legal/privacy |
 | Category (Primary) | Utilities |
