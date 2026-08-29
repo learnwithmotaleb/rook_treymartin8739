@@ -65,7 +65,7 @@ Both platforms are configured in `eas.json`. The `production` profile uses the `
 | Prolonged Graphic or Sadistic Realistic Violence | None |
 | Mature/Suggestive Themes | None |
 | Graphic Sexual Content and Nudity | None |
-| Unrestricted Web Access | **Yes** (browser auth flows for social OAuth) |
+| Unrestricted Web Access | **No** (Rook opens restricted OAuth authorization pages; it does not provide a general-purpose browser) |
 | Gambling and Contests | None |
 | Made for Kids | **No** |
 
@@ -93,7 +93,7 @@ Rook does not target children. It handles sensitive personal identity data (soci
 - Requires account creation (Clerk auth)
 - Handles OAuth tokens for social platforms
 - Stores personal identity information
-- Is appropriately rated 4+/Everyone with "Unrestricted Web Access" flagged (OAuth flows)
+- Is appropriately rated 4+/Everyone; restricted OAuth authorization pages do not constitute unrestricted web access
 
 ---
 
@@ -411,7 +411,7 @@ Populates the reviewer's Rook account with connected accounts, 3 threat cards, A
 - [x] `ITSAppUsesNonExemptEncryption: false` (standard HTTPS/TLS only)
 - [x] `UIBackgroundModes`: fetch, remote-notification declared
 - [x] EAS production `EXPO_PUBLIC_API_URL` → `https://getrook.app`
-- [x] Age rating: 4+ All Ages with Unrestricted Web Access flagged (OAuth browser flows)
+- [x] Age rating: 4+ All Ages; unrestricted web access is No because OAuth is limited to provider authorization pages
 - [x] RevenueCat in-app purchases: one Premium entitlement with monthly and annual subscriptions
 - [x] Restore Purchases flow implemented in paywall screen
 - [ ] **[M6 — Manual]** Fill EAS submit placeholders in `eas.json` (Apple ID, ASC App ID, Team ID)
