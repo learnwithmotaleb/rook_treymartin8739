@@ -21,15 +21,12 @@ export type AnalyticsEvent =
   | "scan_completed"
   | "preview_viewed"
   | "paywall_viewed"
-  | "scan_purchased"
-  | "scan_unlocked_via_subscription"
   | "subscription_started"
   | "subscription_restored"
   | "threat_found"
   | "threat_resolved"
   | "threat_reported"
-  | "upsell_dismissed"
-  | "upsell_tapped";
+  ;
 
 export type EventProperties = Record<
   string,
@@ -76,18 +73,10 @@ export const analytics = {
   previewViewed: (props?: { threat_count?: number; high?: number }) =>
     trackEvent("preview_viewed", props),
 
-  scanPurchased: (props?: { price?: string; via?: string }) =>
-    trackEvent("scan_purchased", props),
-
   subscriptionStarted: (props?: { tier?: string; source?: string }) =>
     trackEvent("subscription_started", props),
 
   subscriptionRestored: (props?: { source?: string }) =>
     trackEvent("subscription_restored", props),
 
-  upsellTapped: (props?: { source?: string }) =>
-    trackEvent("upsell_tapped", props),
-
-  upsellDismissed: (props?: { source?: string }) =>
-    trackEvent("upsell_dismissed", props),
 } as const;

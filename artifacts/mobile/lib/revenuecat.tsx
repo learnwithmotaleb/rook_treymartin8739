@@ -1,14 +1,9 @@
 /**
  * RevenueCat subscription context for Rook.
  *
- * Tiers:
- *   "premium" entitlement → Premium tier (unlimited accounts, daily scans)
- *   "pro"     entitlement → Pro tier     (3 accounts, weekly scans)
- *   neither               → Free tier
- *
- * Offerings:
- *   "pro"     — $rc_monthly + $rc_annual packages for Pro
- *   "premium" — $rc_monthly + $rc_annual packages for Premium
+ * The current offering contains monthly and annual Rook Premium packages.
+ * The legacy "pro" entitlement is accepted only to preserve access for an
+ * existing subscriber during migration; it maps to Premium everywhere.
  */
 
 import React, { createContext, useContext } from "react";
@@ -29,10 +24,8 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 
 export const ENTITLEMENT_PRO = "pro";
 export const ENTITLEMENT_PREMIUM = "premium";
-export const ENTITLEMENT_SCAN_UNLOCK = "scan_unlocked";
-export const OFFERING_SCAN_UNLOCK = "scan_unlock";
 
-export type RCTier = "free" | "pro" | "premium";
+export type RCTier = "free" | "premium";
 
 /** True only after a successful Purchases.configure() call. Guarded by _layout.tsx try/catch. */
 export let isRevenueCatConfigured = false;
@@ -82,7 +75,7 @@ export async function identifyRevenueCatUser(clerkUserId: string): Promise<void>
 export function getTierFromCustomerInfo(info: CustomerInfo | null | undefined): RCTier {
   if (!info) return "free";
   if (info.entitlements.active[ENTITLEMENT_PREMIUM]) return "premium";
-  if (info.entitlements.active[ENTITLEMENT_PRO]) return "pro";
+  if (info.entitlements.active[ENTITLEMENT_PRO]) return "premium";
   return "free";
 }
 
@@ -93,7 +86,6 @@ export interface SubscriptionContextValue {
   offerings: PurchasesOfferings | undefined;
   tier: RCTier;
   isSubscribed: boolean;
-  isScanUnlocked: boolean;
   isLoading: boolean;
   purchase: (pkg: PurchasesPackage) => Promise<CustomerInfo>;
   restore: () => Promise<CustomerInfo>;
@@ -149,15 +141,11 @@ function useSubscriptionContext(): SubscriptionContextValue {
   });
 
   const tier = getTierFromCustomerInfo(customerInfoQuery.data);
-  const isScanUnlocked =
-    !!customerInfoQuery.data?.entitlements.active[ENTITLEMENT_SCAN_UNLOCK];
-
   return {
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
     tier,
     isSubscribed: tier !== "free",
-    isScanUnlocked,
     isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
     purchase: purchaseMutation.mutateAsync,
     restore: restoreMutation.mutateAsync,

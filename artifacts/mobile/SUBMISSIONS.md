@@ -115,7 +115,7 @@ Rook does not target children. It handles sensitive personal identity data (soci
 
 1. **App Information:** Fill name, subtitle, category, content rights (see Section 2a)
 2. **Pricing & Availability:** Set price to Free (monetized via in-app purchases via RevenueCat)
-3. **In-App Purchases:** Confirm RevenueCat products are linked (do not configure IAP directly in App Store Connect — RevenueCat manages this)
+3. **In-App Purchases:** Create the store products and introductory offers in App Store Connect, then link them in RevenueCat
 4. **App Privacy:** Complete the privacy nutrition label:
    - Data collected: Contact Info (email for breach scanning), Identifiers (user ID)
    - Data used for: App Functionality, Analytics
@@ -229,9 +229,10 @@ Set in App Store Connect: App Information → Export Compliance → "Uses only s
 ## 9. Pricing & Availability
 
 - **Base app:** Free to download
-- **Monetization:** RevenueCat in-app purchases (configured in RevenueCat dashboard)
-  - Pro: monthly / yearly subscription
-  - Premium: monthly / yearly subscription
+- **Monetization:** Rook Premium through RevenueCat
+  - Monthly: `premium_monthly_v2` — $9.99/month
+  - Annual: `premium_annual_v2` — $69.99/year
+  - Eligible new subscribers: 7-day introductory trial
 - **Regions:** All available countries
 - **Release type:** Manual release (hold for developer release after review approval)
 
@@ -332,7 +333,7 @@ PERMISSIONS:
 
 **Step 8 — Profile & data deletion:**
 1. Tap **Profile** → edit avatar / name / username
-2. **Subscription** → paywall (Pro/Premium, 7-day trial, restore purchases)
+2. **Subscription** → Rook Premium monthly/yearly paywall, 7-day trial, restore purchases
 3. **Security Settings** → active sessions, biometric lock
 4. **Legal** → Privacy Policy + Terms of Service web view
 5. **Delete Account** → confirmation dialog → full data deletion
@@ -374,7 +375,7 @@ Populates the reviewer's Rook account with connected accounts, 3 threat cards, A
 | 2:45–3:15 | Alerts → Threat Detail | "Tap a threat: suspicious account, similarity score, AI analysis. Tap Resolve to dismiss." |
 | 3:15–3:40 | Tools → AI Scam Analyzer | "Paste a suspicious message → Analyze → AI verdict with confidence level." |
 | 3:40–4:00 | Photo Monitor | "Upload photo → indexed for similarity matching across social platforms." |
-| 4:00–4:30 | Profile → Subscription paywall | "Tap Subscription → Pro ($4.99/mo) and Premium ($9.99/mo) with 7-day trial. Restore Purchases available." |
+| 4:00–4:30 | Profile → Subscription paywall | "Tap Subscription → Rook Premium at $9.99/month or $69.99/year, with a 7-day introductory trial for eligible new subscribers. Restore Purchases is available." |
 | 4:30–4:50 | Delete Account flow | "Profile → Delete Account → confirmation → all data purged within 30 days." |
 | 4:50–5:00 | Closing | "All Meta API calls use v22.0. Permissions: `instagram_business_basic` (no review), `public_profile` (no review). HTTPS + HMAC state + PKCE throughout." |
 
@@ -411,10 +412,10 @@ Populates the reviewer's Rook account with connected accounts, 3 threat cards, A
 - [x] `UIBackgroundModes`: fetch, remote-notification declared
 - [x] EAS production `EXPO_PUBLIC_API_URL` → `https://getrook.app`
 - [x] Age rating: 4+ All Ages with Unrestricted Web Access flagged (OAuth browser flows)
-- [x] RevenueCat in-app purchases: Pro + Premium subscriptions with 7-day free trial
+- [x] RevenueCat in-app purchases: one Premium entitlement with monthly and annual subscriptions
 - [x] Restore Purchases flow implemented in paywall screen
 - [ ] **[M6 — Manual]** Fill EAS submit placeholders in `eas.json` (Apple ID, ASC App ID, Team ID)
 - [ ] **[M7 — Manual]** Upload 5 iPhone 6.9" screenshots in App Store Connect (see Section 5)
 - [ ] **[M8 — Manual]** Complete App Privacy nutrition label in App Store Connect
 - [ ] **[M9 — Manual]** Set age rating questionnaire in App Store Connect (see Section 2a)
-- [ ] **[M10 — Manual]** Configure RevenueCat product IDs in App Store Connect IAP catalog
+- [ ] **[M10 — Manual]** Create `premium_monthly_v2` and `premium_annual_v2` in App Store Connect and Google Play, set $9.99/$69.99 pricing, and add the 7-day introductory offers

@@ -1,7 +1,7 @@
 /**
  * Scan Results Preview — shown to free-tier users after a scan completes.
  * Real threat counts are visible; card content is blurred to create urgency.
- * CTAs: unlock for $2.99 (one-time) or subscribe to Pro/Premium.
+ * CTA: subscribe to Rook Premium for full results and continuous monitoring.
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -321,30 +321,28 @@ export default function ScanResultsPreview() {
         </Animated.View>
       </ScrollView>
 
-      {/* Sticky CTA footer — Premium trial is the sole primary action.
-          Scan unlock ($4.99) is available as a fallback inside scan-unlock.tsx
-          after the user explicitly taps "Not now" on the trial offer. */}
+      {/* Sticky CTA footer — Rook Premium is the only paid offer. */}
       <View style={[styles.footer, { paddingBottom: bottomPad + 12, backgroundColor: colors.background, borderTopColor: colors.border }]}>
         <TouchableOpacity
           style={[styles.primaryCta, { backgroundColor: colors.primary }]}
           activeOpacity={0.85}
           onPress={() => {
             analytics.paywallViewed({ source: "scan_results_preview", tier: "free", option: "premium" });
-            router.push("/scan-unlock" as any);
+            router.push("/subscription" as any);
           }}
         >
           <MaterialCommunityIcons name="crown" size={18} color="#fff" />
           <Text style={[styles.primaryCtaText, { fontFamily: "Inter_700Bold" }]}>
-            Start 7-Day Free Trial
+            View Rook Premium Plans
           </Text>
         </TouchableOpacity>
 
         <Text style={[styles.trialNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          No charge today · $9.99/mo after trial · cancel anytime
+          Monthly or annual plan · cancel anytime
         </Text>
 
         <TouchableOpacity
-          onPress={() => router.push("/scan-unlock" as any)}
+          onPress={() => router.push("/subscription" as any)}
           activeOpacity={0.7}
         >
           <Text style={[styles.restoreLink, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>

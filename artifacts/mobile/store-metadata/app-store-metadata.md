@@ -31,7 +31,7 @@ We track every place your photos appear across the web. If someone is using your
 Every detected threat includes a complete AI breakdown — risk score, confidence level, detected signals, matched evidence, and a tailored action plan.
 
 📅 Scheduled Automatic Monitoring
-Pro users get weekly scans. Premium users get daily scans. Zero manual effort — your identity is always being watched.
+Rook Premium users get daily automated scans. Zero manual effort — your identity is always being watched.
 
 🔔 Instant Push Alerts
 One centralized alert feed. Review, dismiss, or report threats from your phone with everything you need in one place.
@@ -41,9 +41,8 @@ Your personal security score (0–100) updates in real time as threats are found
 
 PLANS
 
-Free — Manual scans, 1 connected account, basic threat feed
-Pro — Weekly automatic scans, up to 3 accounts, AI threat analysis
-Premium — Daily automatic scans, unlimited accounts, full AI analysis + priority support
+Free — 1 connected account and 1 manual scan per month
+Rook Premium — Unlimited connected accounts, daily monitoring, alerts, full evidence, advanced risk scoring, and reports
 
 Rook is built for creators, influencers, executives, public figures, and anyone with a meaningful digital presence worth protecting.
 
@@ -161,20 +160,18 @@ Saved to `attached_assets/appstore/` — 5 screenshots generated:
 2. Register Bundle ID `com.getrook.app` in Certificates, IDs & Profiles
 3. Create app in App Store Connect → My Apps → "+" → New App
 4. Create In-App Purchases:
-   - Product ID: `com.getrook.app.pro_monthly` — $4.99/month — "Rook Pro Monthly"
-   - Product ID: `com.getrook.app.premium_monthly` — $9.99/month — "Rook Premium Monthly"
-   - Product ID: `com.getrook.app.pro_annual` — $39.99/year — "Rook Pro Annual"
-   - Product ID: `com.getrook.app.premium_annual` — $79.99/year — "Rook Premium Annual"
+   - Product ID: `premium_monthly_v2` — $9.99/month — "Rook Premium Monthly"
+   - Product ID: `premium_annual_v2` — $69.99/year — "Rook Premium Annual"
+   - Add a 7-day introductory trial to both products for eligible new subscribers
 
 ### RevenueCat Setup
 1. Create project at https://app.revenuecat.com
 2. Add iOS app (com.getrook.app) and Android app
-3. Create Entitlements: `pro` and `premium`
+3. Use the single current Entitlement: `premium`
 4. Create Products matching Apple/Google IDs above
-5. Create two Offerings:
-   - Offering ID `pro` → attach pro monthly + annual packages
-   - Offering ID `premium` → attach premium monthly + annual packages
-6. Copy API keys → add to Replit secrets:
+5. Make Offering ID `premium` current, with `$rc_monthly` and `$rc_annual` packages
+6. Keep any legacy Pro or scan-unlock resources inactive only until existing-subscriber access has been verified
+7. Copy API keys → add to Replit secrets:
    - `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`
    - `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`
    - `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY`

@@ -17,7 +17,7 @@ import { CancellationSurveyModal } from "@/components/CancellationSurveyModal";
 import { TermsUpdateModal } from "@/components/TermsUpdateModal";
 import { useNotifications } from "@/hooks/useNotifications";
 import { CURRENT_TERMS_VERSION } from "@/lib/api";
-import { useSubscription, ENTITLEMENT_PREMIUM, ENTITLEMENT_PRO } from "@/lib/revenuecat";
+import { useSubscription, ENTITLEMENT_PREMIUM } from "@/lib/revenuecat";
 import Constants from "expo-constants";
 
 function NativeTabLayout() {
@@ -254,9 +254,7 @@ export default function TabLayout() {
     if (!customerInfo) return;
     if (Constants.executionEnvironment === "storeClient") return;
     // Detect if the user is currently in a free-trial period from RC.
-    const activeEntitlement =
-      customerInfo.entitlements.active[ENTITLEMENT_PREMIUM] ??
-      customerInfo.entitlements.active[ENTITLEMENT_PRO];
+    const activeEntitlement = customerInfo.entitlements.active[ENTITLEMENT_PREMIUM];
     const isInTrial = activeEntitlement?.periodType === "TRIAL";
     const trialEndsAt = isInTrial ? (activeEntitlement?.expirationDate ?? undefined) : undefined;
 

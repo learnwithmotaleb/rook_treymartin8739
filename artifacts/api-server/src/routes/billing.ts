@@ -29,7 +29,7 @@ router.get("/billing/subscription", async (req, res): Promise<void> => {
  * signed server-to-server webhook is the sole writer for paid server tiers.
  */
 const RcSyncBody = z.object({
-  tier: z.enum(["free", "pro", "premium"]),
+  tier: z.enum(["free", "premium"]),
   status: z.enum(["active", "trialing", "canceled"]).optional(),
   trialEndsAt: z.string().datetime({ offset: true }).optional(),
 });

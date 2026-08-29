@@ -14,8 +14,8 @@ const PRIVACY_EMAIL = "privacy@getrook.app";
 const BUSINESS_PHONE = "+1 (832) 819-3114";
 const BUSINESS_ADDRESS = "127 N Higgins Ave Suite 307D #2992, Missoula, MT 59802";
 const BUSINESS_NAME = "Rook Identity Labs LLC";
-const LAST_UPDATED = "August 10, 2026";
-const TERMS_VERSION = "2026-08-10-v2";
+const LAST_UPDATED = "August 28, 2026";
+const TERMS_VERSION = "2026-08-28-v3";
 
 const html = (title: string, body: string) => `<!DOCTYPE html>
 <html lang="en">
@@ -173,7 +173,7 @@ function servePrivacy(_req: Request, res: Response) {
     <h2>7. Data Retention and Deletion</h2>
     <ul>
       <li><strong>Account data:</strong> Retained while your account is active. Deleted from active systems immediately upon account deletion; purged from production backups within 30 days.</li>
-      <li><strong>Threat history:</strong> Retained for 30 days (Premium), 7 days (Pro), 1 day (Free) from detection, then automatically deleted.</li>
+      <li><strong>Threat history:</strong> Retained for 30 days for both Free and Premium accounts. Free accounts can see limited previews; Premium unlocks full evidence and reports.</li>
       <li><strong>Image-derived data (perceptual hashes, embeddings):</strong> Retained while account is active; deleted immediately upon account deletion or consent withdrawal, with backup purge within 30 days. Never retained beyond 3 years from collection.</li>
       <li><strong>OAuth tokens:</strong> Deleted immediately upon account disconnection or deletion.</li>
       <li><strong>Consent records:</strong> Retained for 7 years after account deletion as a legal compliance record (Illinois BIPA Section 15(a) requires retention schedules to be maintained).</li>
@@ -253,7 +253,7 @@ function serveTerms(_req: Request, res: Response) {
     <p><strong>Independence.</strong> ${APP_NAME} is not affiliated with, endorsed by, or connected to Meta, Instagram, Facebook, Google, X (Twitter), TikTok, Snapchat, LinkedIn, Apple, or any other platform. All trademarks belong to their respective owners.</p>
 
     <h2>1. The Service</h2>
-    <p>${APP_NAME} provides AI-powered identity monitoring services including detection of social media impersonators and potential photo theft. Scan results are probabilistic estimates — see Section 5. The Service is provided in Free, Pro, and Premium tiers.</p>
+    <p>${APP_NAME} provides AI-powered identity monitoring services including detection of social media impersonators and potential photo theft. Scan results are probabilistic estimates — see Section 5. The Service is provided in Free and Rook Premium tiers.</p>
 
     <h2>2. Eligibility and Account Registration</h2>
     <p>You must be at least <strong>17 years old</strong> to use the Service. By creating an account, you represent that you are 17 or older. You must provide accurate information at registration. Account authentication is handled by <strong>Clerk</strong>. You are responsible for maintaining the security of your credentials and for all activity under your account.</p>
@@ -283,11 +283,10 @@ function serveTerms(_req: Request, res: Response) {
 
     <h2>6. Subscriptions and Payments</h2>
     <ul>
-      <li><strong>Free:</strong> 1 connected account, manual scans, 1-day threat history.</li>
-      <li><strong>Pro — $4.99/month</strong> (or $39.99/year): Up to 3 connected accounts, weekly scheduled scans, 7-day threat history, push alerts.</li>
-      <li><strong>Premium — $9.99/month</strong> (or $79.99/year): Up to 10 connected accounts, daily scans, advanced AI analysis, 30-day threat history, priority support.</li>
+      <li><strong>Free:</strong> 1 connected account, 1 manual scan per month, and 1 image per scan.</li>
+      <li><strong>Rook Premium — $9.99/month</strong> (or $69.99/year): Unlimited connected accounts and scans, daily automated monitoring, full evidence, real-time alerts, advanced risk scoring, priority processing, 30-day threat history, and downloadable reports.</li>
     </ul>
-    <p>All paid plans include a <strong>7-day free trial</strong> for new subscribers — no charge during the trial. Subscriptions are billed in advance and <strong>auto-renew</strong> unless cancelled at least 24 hours before the end of the billing period. After the trial, you will be charged the applicable price unless you cancel before the trial ends. Subscription management is through iOS Settings or Google Play Subscriptions. No partial refunds for unused time. Price changes will be communicated with at least 30 days' notice.</p>
+    <p>Eligible new Rook Premium subscribers receive one <strong>7-day free trial</strong>. Eligibility is determined by Apple or Google. No charge is made during the trial. Subscriptions are billed in advance and <strong>auto-renew</strong> unless cancelled at least 24 hours before the end of the billing period. After the trial, you will be charged the selected monthly or yearly price unless you cancel before the trial ends. Subscription management is through iOS Settings or Google Play Subscriptions. No partial refunds for unused time. Price changes will be communicated with at least 30 days' notice.</p>
 
     <h2>7. Acceptable Use</h2>
     <p>You agree not to:</p>
@@ -357,7 +356,7 @@ function serveSupport(_req: Request, res: Response) {
     <p>Rook searches public web indexes including Instagram, Facebook, X (Twitter), TikTok, and more using public search APIs. Rook is not affiliated with any of these platforms.</p>
 
     <h2>How often are scans performed?</h2>
-    <p>Free accounts get one manual scan per month. Pro accounts scan weekly on a schedule. Premium accounts scan daily. You can also trigger a manual scan anytime from the Scan tab.</p>
+    <p>Free accounts get one manual scan per month. Rook Premium includes daily automated monitoring and unlimited manual scans.</p>
 
     <h2>How do I cancel my subscription?</h2>
     <ul>

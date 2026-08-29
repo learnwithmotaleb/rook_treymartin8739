@@ -120,16 +120,14 @@ Take at least 3 screenshots showing:
 ### 2f. In-App Purchases / Subscriptions
 
 1. **Features → Subscriptions → + New Subscription Group** → name: "Rook Protection"
-2. Create three products:
+2. Create two products:
 
 | Product ID | Display Name | Price |
 |---|---|---|
-| `rook_pro_monthly` | Rook Pro (Monthly) | $7.99/month |
-| `rook_pro_yearly` | Rook Pro (Annual) | $59.99/year |
-| `rook_premium_monthly` | Rook Premium (Monthly) | $14.99/month |
-| `rook_premium_yearly` | Rook Premium (Annual) | $99.99/year |
+| `premium_monthly_v2` | Rook Premium (Monthly) | $9.99/month |
+| `premium_annual_v2` | Rook Premium (Annual) | $69.99/year |
 
-3. Add 7-day free trial to all paid tiers
+3. Add a 7-day introductory trial to both products for eligible new subscribers
 4. Copy Product IDs into RevenueCat dashboard
 
 ### 2g. Submit Build
@@ -188,12 +186,10 @@ In **Monetize → Products → Subscriptions**, create:
 
 | Product ID | Name | Price |
 |---|---|---|
-| `rook_pro_monthly` | Rook Pro Monthly | $7.99 |
-| `rook_pro_yearly` | Rook Pro Annual | $59.99 |
-| `rook_premium_monthly` | Rook Premium Monthly | $14.99 |
-| `rook_premium_yearly` | Rook Premium Annual | $99.99 |
+| `premium_monthly_v2` | Rook Premium Monthly | $9.99 |
+| `premium_annual_v2` | Rook Premium Annual | $69.99 |
 
-Add 7-day free trial to all tiers.
+Add a 7-day introductory trial to both products for eligible new subscribers.
 
 ### 3f. Submit Build
 
@@ -210,10 +206,11 @@ Or upload the `.aab` manually via **Production → Releases → Create new relea
 1. In [RevenueCat dashboard](https://app.revenuecat.com):
    - Connect Apple App Store app (via App Store Connect API key)
    - Connect Google Play app (via service account JSON)
-2. Create **Entitlements**: `pro`, `premium`
-3. Create **Products**: add all 8 subscription product IDs from both stores
-4. Create **Offerings**: map products to entitlements
-5. Verify the `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, and `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY` are set in EAS secrets (via `eas secret:create`)
+2. Use the single **Entitlement**: `premium`
+3. Add the monthly and annual products from both stores
+4. Make the `premium` offering current, with `$rc_monthly` and `$rc_annual` packages
+5. Leave legacy Pro and scan-unlock resources inactive until existing-subscriber access has been verified
+6. Verify the `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, and `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY` are set in EAS secrets (via `eas secret:create`)
 
 ---
 

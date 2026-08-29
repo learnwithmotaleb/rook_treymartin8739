@@ -1,14 +1,14 @@
 /**
  * Subscription / Paywall — CalAI-style flow
  *
- * Screen 0: Intro — "We want to protect your identity, free."
- * Screen 1: Reminder — "We'll alert you before your trial ends"
+ * Screen 0: Intro — Rook Premium protection overview
+ * Screen 1: Reminder — store-confirmed introductory-offer eligibility
  *           (SKIPPED on threat path: fromOnboarding=1 + threatCount > 0)
  * Screen 2: Plan select — Annual (default) vs Monthly + checkout
  *
- * Pricing strategy:
- *   Premium Annual  — $69.99/year ($5.83/mo) | 7-day free trial | SAVE 42%
- *   Premium Monthly — $9.99/month             | 7-day free trial
+ * Rook Premium is the only paid tier. The current RevenueCat offering provides
+ * monthly and annual packages; store metadata supplies localized prices and
+ * introductory-offer eligibility.
  *
  * RevenueCat package prices override fallbacks when available.
  * RC product IDs: premium_monthly_v2, premium_annual_v2
@@ -46,10 +46,8 @@ import type { ThreatSummary } from "@/lib/api";
 
 type BillingCycle = "annual" | "monthly";
 
-/** Normalize legacy "pro" tier to "Premium" in all user-facing labels. */
 function displayTier(tier: string): string {
-  const normalized = tier === "pro" ? "premium" : tier;
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return tier === "free" ? "Free" : "Rook Premium";
 }
 
 const FALLBACK = {
@@ -77,18 +75,18 @@ function ConfirmModal({ visible, pkg, onConfirm, onCancel }: {
               <Ionicons name="shield-checkmark" size={30} color={colors.primary} />
             </View>
           </View>
-          <Text style={[cm.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Start Your Free Trial</Text>
+          <Text style={[cm.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>Review Rook Premium</Text>
           <Text style={[cm.product, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
             {pkg.product.title || "Rook Premium"}
           </Text>
           <Text style={[cm.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {FALLBACK.trialDays} days free, then {pkg.product.priceString}{isAnnual ? "/year" : "/month"}
+            {pkg.product.priceString}{isAnnual ? "/year" : "/month"}
           </Text>
           <Text style={[cm.note, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            No charge until your trial ends. Cancel anytime in your device's subscription settings — at least 24 hours before renewal.
+            Your app store purchase sheet will confirm whether you qualify for an introductory trial, the exact price, and the first charge date. Cancel at least 24 hours before renewal.
           </Text>
           <TouchableOpacity style={[cm.confirmBtn, { backgroundColor: colors.foreground }]} onPress={onConfirm} activeOpacity={0.85}>
-            <Text style={[cm.confirmText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>Start Free Trial</Text>
+            <Text style={[cm.confirmText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>Continue to App Store</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={onCancel} style={cm.cancelBtn}>
             <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Not now</Text>
@@ -330,7 +328,7 @@ function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad
         <Text style={[s0.headline, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           {hasThreats
             ? "We found threats.\nSee your full report."
-            : "We want to protect\nyour identity,\nfree."}
+            : "Protect your identity\nwith Rook Premium."}
         </Text>
       </View>
 
@@ -345,7 +343,7 @@ function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad
       <View style={[s0.bottom, { paddingBottom: bottomPad + 24 }]}>
         <View style={s0.noPayRow}>
           <Ionicons name="checkmark" size={16} color={colors.foreground} />
-          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>No Payment Due Now</Text>
+          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Review plans before purchase</Text>
         </View>
         <TouchableOpacity style={[s0.cta, { backgroundColor: colors.foreground }]} onPress={onContinue} activeOpacity={0.88}>
           <Text style={[s0.ctaText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>Try Now</Text>
@@ -398,10 +396,10 @@ function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad }: {
       {/* Text — pinned to top of screen */}
       <View style={[s1.topText, { paddingTop: topPad + 72 }]}>
         <Text style={[s1.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          We'll alert you before{"\n"}your trial ends
+          Your app store confirms{"\n"}trial eligibility
         </Text>
         <Text style={[s1.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          As long as notifications are enabled
+          Eligible new subscribers may receive 7 days free
         </Text>
       </View>
 
@@ -423,10 +421,10 @@ function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad }: {
       <View style={[s1.bottom, { paddingBottom: bottomPad + 24 }]}>
         <View style={s1.noPayRow}>
           <Ionicons name="checkmark" size={16} color={colors.foreground} />
-          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>No Payment Due Now</Text>
+          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Final terms appear before purchase</Text>
         </View>
         <TouchableOpacity style={[s1.cta, { backgroundColor: colors.foreground }]} onPress={onContinue} activeOpacity={0.88}>
-          <Text style={[s1.ctaText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>Continue for FREE</Text>
+          <Text style={[s1.ctaText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>View Plans</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -504,9 +502,7 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
       {/* Main content scrolls up from below the hero */}
       <View style={[s2.body, { paddingBottom: bottomPad + 24 }]}>
         <Text style={[s2.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          {billingCycle === "annual"
-            ? `Start your ${FALLBACK.trialDays}-day free\ntrial to continue`
-            : "Start your Rook\nProtection plan"}
+          Start your Rook Premium{"\n"}protection plan
         </Text>
 
         {/* Plan cards */}
@@ -517,9 +513,9 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBillingCycle("annual"); }}
             activeOpacity={0.85}
           >
-            {/* "7 DAYS FREE" badge */}
+            {/* Eligibility-safe introductory-offer badge */}
             <View style={[s2.planTag, { backgroundColor: colors.foreground }]}>
-              <Text style={[{ color: colors.background, fontFamily: "Inter_700Bold", fontSize: 11 }]}>{FALLBACK.trialDays} DAYS FREE</Text>
+              <Text style={[{ color: colors.background, fontFamily: "Inter_700Bold", fontSize: 11 }]}>TRIAL IF ELIGIBLE</Text>
             </View>
             <View style={s2.planRow}>
               <View style={[s2.check, { backgroundColor: billingCycle === "annual" ? colors.foreground : "transparent", borderColor: billingCycle === "annual" ? colors.foreground : colors.mutedForeground + "60" }]}>
@@ -527,7 +523,7 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 15 }]}>
-                  Start for free & save {FALLBACK.annual.savings}
+                  Save {FALLBACK.annual.savings} with annual billing
                 </Text>
                 <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
                   {annualTotal} billed annually
@@ -570,8 +566,8 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
         {/* Fine print */}
         <Text style={[s2.finePrint, { color: colors.mutedForeground + "99", fontFamily: "Inter_400Regular" }]}>
           {billingCycle === "annual"
-            ? `${FALLBACK.trialDays} days free, then ${annualTotal} per year.\nBilled annually and renews automatically unless cancelled in the App Store.`
-            : `${monthlyPrice} per month.\nRenews automatically unless cancelled in the App Store.`}
+            ? `Eligible new subscribers receive ${FALLBACK.trialDays} days free, then ${annualTotal} per year.\nBilled annually and renews automatically unless cancelled in your app store.`
+            : `Eligible new subscribers receive ${FALLBACK.trialDays} days free, then ${monthlyPrice} per month.\nRenews automatically unless cancelled in your app store.`}
         </Text>
 
         {/* Links */}
@@ -582,11 +578,11 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
               : <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Restore</Text>}
           </TouchableOpacity>
           <Text style={[{ color: colors.mutedForeground + "60" }]}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL("https://rook.app/terms")}>
+          <TouchableOpacity onPress={() => Linking.openURL("https://getrook.app/terms")}>
             <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Terms</Text>
           </TouchableOpacity>
           <Text style={[{ color: colors.mutedForeground + "60" }]}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL("https://rook.app/privacy")}>
+          <TouchableOpacity onPress={() => Linking.openURL("https://getrook.app/privacy")}>
             <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Privacy</Text>
           </TouchableOpacity>
         </View>
@@ -814,8 +810,10 @@ export default function Subscription() {
     return <ManageScreen colors={colors} tier={currentTier} onClose={handleClose} topPad={topPad} />;
   }
 
-  // ── RC not configured ─────────────────────────────────────────────────────
-  if (!isRevenueCatConfigured) {
+  // Native release builds fail explicitly if billing is unavailable. During
+  // local/web development the full paywall still renders with fallback prices
+  // so the complete flow remains reviewable and testable.
+  if (!isRevenueCatConfigured && !__DEV__) {
     return (
       <View style={[{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 28 }]}>
         <LinearGradient colors={[colors.primary + "20", "transparent"]} style={StyleSheet.absoluteFill} />

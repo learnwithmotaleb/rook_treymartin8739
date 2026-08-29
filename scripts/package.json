@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "seed:revenuecat": "tsx ./src/seedRevenueCat.ts",
-    "update:pricing": "tsx ./src/updatePricing.ts",
+    "configure:revenuecat": "tsx ./src/configurePremiumPlan.ts",
     "migrate:infrastructure": "tsx ./src/migrate-infrastructure.ts",
     "backfill:actors": "tsx ./src/backfill-threat-actors.ts",
     "generate:icon": "tsx ./src/generate-icon.ts",

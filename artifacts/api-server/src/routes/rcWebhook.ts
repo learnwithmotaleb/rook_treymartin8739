@@ -91,7 +91,12 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
 
   try {
     if (eventType === "TRIAL_STARTED") {
-      await handleTrialStarted(userId, event.expiration_at_ms ?? null, getTierFromEvent(event));
+      await handleTrialStarted(
+        userId,
+        event.expiration_at_ms ?? null,
+        getTierFromEvent(event),
+        getBillingCycleFromEvent(event),
+      );
     } else if (eventType === "CANCELLATION") {
       await handleCancellation(userId);
     } else if (eventType === "EXPIRATION") {
@@ -103,7 +108,11 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
       eventType === "UNCANCELLATION" ||
       eventType === "TRANSFER"
     ) {
-      await handleReactivation(userId, getTierFromEvent(event));
+      await handleReactivation(
+        userId,
+        getTierFromEvent(event),
+        getBillingCycleFromEvent(event),
+      );
     } else {
       logger.info({ userId, eventType }, "RC webhook: unhandled event type, ignoring");
     }
@@ -116,23 +125,33 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
-function getTierFromEvent(event: { entitlement_ids?: string[]; product_id?: string }): "free" | "pro" | "premium" {
+function getTierFromEvent(event: { entitlement_ids?: string[]; product_id?: string }): "free" | "premium" {
   const entitlements = event.entitlement_ids ?? [];
   if (entitlements.includes("premium")) return "premium";
-  if (entitlements.includes("pro")) return "pro";
+  if (entitlements.includes("pro")) return "premium";
 
   // Product IDs are provided by RevenueCat's signed webhook and cover events
   // where an entitlement list is unavailable.
   const productId = event.product_id?.toLowerCase() ?? "";
   if (productId.includes("premium")) return "premium";
-  if (productId.includes("pro")) return "pro";
+  if (productId.includes("pro")) return "premium";
   return "free";
+}
+
+function getBillingCycleFromEvent(
+  event: { product_id?: string },
+): "monthly" | "yearly" {
+  const productId = event.product_id?.toLowerCase() ?? "";
+  return productId.includes("annual") || productId.includes("yearly")
+    ? "yearly"
+    : "monthly";
 }
 
 async function handleTrialStarted(
   userId: string,
   expirationAtMs: number | null,
-  tier: "free" | "pro" | "premium",
+  tier: "free" | "premium",
+  billingCycle: "monthly" | "yearly",
 ): Promise<void> {
   const trialEndMs = expirationAtMs ?? (Date.now() + 7 * 24 * 60 * 60 * 1000);
   const trialEndsAt = new Date(trialEndMs);
@@ -140,10 +159,10 @@ async function handleTrialStarted(
   // Upsert: creates the subscription row if it doesn't exist yet
   await db
     .insert(subscriptionsTable)
-    .values({ userId, tier, status: "trialing", trialEndsAt, billingCycle: "monthly" })
+    .values({ userId, tier, status: "trialing", trialEndsAt, billingCycle })
     .onConflictDoUpdate({
       target: [subscriptionsTable.userId],
-      set: { tier, status: "trialing", trialEndsAt, updatedAt: new Date() },
+      set: { tier, status: "trialing", trialEndsAt, billingCycle, updatedAt: new Date() },
     });
 
   await scheduleTrialReminder(userId, trialEndsAt);
@@ -205,14 +224,18 @@ async function handleExpiration(userId: string): Promise<void> {
   logger.info({ userId, fireAt }, "Scheduled 30-day win-back notification");
 }
 
-async function handleReactivation(userId: string, tier: "free" | "pro" | "premium"): Promise<void> {
+async function handleReactivation(
+  userId: string,
+  tier: "free" | "premium",
+  billingCycle: "monthly" | "yearly",
+): Promise<void> {
   // Upsert: creates the subscription row if it doesn't exist yet
   await db
     .insert(subscriptionsTable)
-    .values({ userId, tier, status: "active", billingCycle: "monthly" })
+    .values({ userId, tier, status: "active", billingCycle })
     .onConflictDoUpdate({
       target: [subscriptionsTable.userId],
-      set: { tier, status: "active", cancelAtPeriodEnd: false, updatedAt: new Date() },
+      set: { tier, status: "active", billingCycle, cancelAtPeriodEnd: false, updatedAt: new Date() },
     });
 
   // Cancel any pending win-back — user resubscribed before the 30-day window

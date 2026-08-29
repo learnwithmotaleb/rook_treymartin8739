@@ -450,24 +450,6 @@ export async function getSubscription(): Promise<SubscriptionInfo> {
   return apiFetch<SubscriptionInfo>("/billing/subscription");
 }
 
-export async function createCheckoutSession(
-  tier: "pro" | "premium",
-  billingCycle: "monthly" | "yearly"
-): Promise<{ url: string | null; sessionId: string }> {
-  return apiFetch("/billing/checkout", {
-    method: "POST",
-    body: JSON.stringify({ tier, billingCycle }),
-  });
-}
-
-export async function createPortalSession(): Promise<{ url: string }> {
-  return apiFetch("/billing/portal", { method: "POST" });
-}
-
-export async function cancelSubscription(): Promise<{ cancelAtPeriodEnd: boolean }> {
-  return apiFetch("/billing/cancel", { method: "POST" });
-}
-
 export async function registerPushToken(
   token: string,
   platform: "ios" | "android"
@@ -555,7 +537,7 @@ export async function reverseImageSearch(input: {
 }
 
 export async function syncSubscriptionTier(
-  tier: "free" | "pro" | "premium",
+  tier: "free" | "premium",
   options?: { status?: "active" | "trialing" | "canceled"; trialEndsAt?: string }
 ): Promise<void> {
   await apiFetch("/billing/revenuecat-sync", {
