@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "configure:revenuecat": "tsx ./src/configurePremiumPlan.ts",
+    "cleanup:revenuecat": "tsx ./src/cleanupLegacyRevenueCat.ts",
     "migrate:infrastructure": "tsx ./src/migrate-infrastructure.ts",
     "backfill:actors": "tsx ./src/backfill-threat-actors.ts",
     "generate:icon": "tsx ./src/generate-icon.ts",

@@ -170,7 +170,7 @@ Saved to `attached_assets/appstore/` — 5 screenshots generated:
 3. Use the single current Entitlement: `premium`
 4. Create Products matching Apple/Google IDs above
 5. Make Offering ID `premium` current, with `$rc_monthly` and `$rc_annual` packages
-6. Keep any legacy Pro or scan-unlock resources inactive only until existing-subscriber access has been verified
+6. Do not recreate the retired Pro or scan-unlock products, entitlements, or offerings
 7. Copy API keys → add to Replit secrets:
    - `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`
    - `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`

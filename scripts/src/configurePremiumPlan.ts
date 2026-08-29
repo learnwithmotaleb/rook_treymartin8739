@@ -207,7 +207,7 @@ async function run() {
   }
 
   console.log("RevenueCat now uses Rook Premium as the current monthly/yearly offering.");
-  console.log("Legacy Pro and scan-unlock resources were left inactive for subscriber safety.");
+  console.log("Only the current Premium products are configured.");
 }
 
 run().catch((error) => {
