@@ -113,81 +113,95 @@ id = "s4IyNX6G2WrSLXCflXFW3"
 uri = "file://attached_assets/appstore/screenshot-01-dashboard.png"
 type = "image"
 title = "Screenshot 1 — Dashboard"
+logical_id = "37c81218-c228-4de5-8793-32e8046119e7"
 
 [[outputs]]
 id = "whETEuZLwmgGMEgjHJW3z"
 uri = "file://attached_assets/appstore/screenshot-02-alerts.png"
 type = "image"
 title = "Screenshot 2 — Alerts Feed"
+logical_id = "d2e30547-e6e1-4c7a-95f6-fd45ca7b5dce"
 
 [[outputs]]
 id = "CclBlW8XMJt7mbo-L_kLb"
 uri = "file://attached_assets/appstore/screenshot-03-scan.png"
 type = "image"
 title = "Screenshot 3 — Active Scan"
+logical_id = "abc73360-20af-4434-a5f2-2647f95e256a"
 
 [[outputs]]
 id = "4-ygK1UipOvr_M482R_Ns"
 uri = "file://attached_assets/appstore/screenshot-04-threat-detail.png"
 type = "image"
 title = "Screenshot 4 — Threat Detail"
+logical_id = "28ef3cda-7922-4b52-b451-8eb5c144486b"
 
 [[outputs]]
 id = "hI_HKU9sO0PsxrWN3bhG9"
 uri = "file://attached_assets/appstore/screenshot-05-subscription.png"
 type = "image"
 title = "Screenshot 5 — Subscription"
+logical_id = "80c55643-e715-4169-87a0-48b948c29990"
 
 [[outputs]]
 id = "2Z0z3jRSsTZyo9t9viEtC"
 uri = "file://artifacts/mobile/store-metadata/app-store-metadata.md"
 type = "text"
 title = "App Store Metadata (full copy)"
+logical_id = "bbc131f3-aff2-4007-92d8-51cb85340a33"
 
 [[outputs]]
 id = "YVAF9VuZhxma8js9oynAg"
 uri = "file://artifacts/mobile/assets/images/onboarding/s0-hero.png"
 type = "image"
 title = "S0 — Brand Hook hero"
+logical_id = "5cef6a63-1632-4cb2-ada4-15f77d0ee149"
 
 [[outputs]]
 id = "1QPMYJvIPPGaohJCckQ_L"
 uri = "file://artifacts/mobile/assets/images/onboarding/s7-genuine-alex.png"
 type = "image"
 title = "S7 — @alexjones (genuine)"
+logical_id = "6c2bdc2c-dcbb-4ac4-aa7e-06d5358eb452"
 
 [[outputs]]
 id = "qkjqZ-5ZhxF9zTKrp8-AE"
 uri = "file://artifacts/mobile/assets/images/onboarding/s7-impersonator.png"
 type = "image"
 title = "S7 — @alexjone5 (impersonator)"
+logical_id = "38465166-c4df-44e4-8783-39280e388f2f"
 
 [[outputs]]
 id = "_fMZcjB89Ra1c-E3IKfyX"
 uri = "file://artifacts/mobile/assets/images/onboarding/s10-sarah.png"
 type = "image"
 title = "S10 — @sarahcreates avatar"
+logical_id = "d0bea587-d931-47d0-a78e-25a200603955"
 
 [[outputs]]
 id = "mu06IyXLPrwPvRBfd2aWI"
 uri = "file://artifacts/mobile/assets/images/onboarding/s10-mark.png"
 type = "image"
 title = "S10 — @mkdesign avatar"
+logical_id = "2f75d577-245b-4f10-8ee2-841350a19ec7"
 
 [[outputs]]
 id = "BlQO_hQ9wQb3_pBsVtY7K"
 uri = "file://artifacts/mobile/assets/images/onboarding/s10-brandpro.png"
 type = "image"
 title = "S10 — @brandpro avatar"
+logical_id = "a24af229-250d-4256-9198-78a948929a90"
 
 [[outputs]]
 id = "v7aSF3ohjDsP0BN8vZ9-C"
 uri = "file://artifacts/mobile/assets/images/onboarding/s13-scan-world.png"
 type = "image"
 title = "S13 — Global scan network"
+logical_id = "454e65fb-f0c0-4ccc-8da1-efaf7e20cbfb"
 
 [[outputs]]
 id = "z2atnkesWkD68h9jgBSG2"
 uri = "file://artifacts/mobile/assets/images/onboarding/s15-report-locked.png"
 type = "image"
 title = "S15 — Locked identity report"
+logical_id = "0970236e-96c0-4a30-bc64-a237abfdc181"
