@@ -25,7 +25,7 @@
       },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "review",
-        "EXPO_PUBLIC_API_URL": "https://getrook.app"
+        "EXPO_PUBLIC_API_URL": "https://tryrook.app"
       }
     },
     "preview": {
