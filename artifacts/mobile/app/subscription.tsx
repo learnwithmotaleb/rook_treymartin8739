@@ -41,7 +41,7 @@ import type { PurchasesPackage } from "react-native-purchases";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { identifyRevenueCatUser, useSubscription, isRevenueCatConfigured } from "@/lib/revenuecat";
-import { syncSubscriptionTier, listThreats } from "@/lib/api";
+import { getSubscription, syncSubscriptionTier, listThreats } from "@/lib/api";
 import type { ThreatSummary } from "@/lib/api";
 
 type BillingCycle = "annual" | "monthly";
@@ -687,6 +687,28 @@ export default function Subscription() {
   const [restoreMsg, setRestoreMsg]     = useState<string | null>(null);
   const [devUpgrading, setDevUpgrading] = useState(false);
   const [topThreat, setTopThreat]       = useState<ThreatSummary | null>(null);
+  const [serverTier, setServerTier]     = useState<string | null>(null);
+  const [subscriptionCheckDone, setSubscriptionCheckDone] = useState(false);
+
+  // The paywall can be reached directly from onboarding before AppContext's
+  // background refresh has populated user.tier. Hydrate the authoritative
+  // server subscription here so reviewer/test accounts that were granted
+  // Premium do not see a stale purchase screen.
+  useEffect(() => {
+    let cancelled = false;
+    getSubscription()
+      .then((subscription) => {
+        if (cancelled) return;
+        setServerTier(subscription.tier);
+        setSubscriptionCheckDone(true);
+      })
+      .catch(() => {
+        if (!cancelled) setSubscriptionCheckDone(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fetch the user's most severe real threat for Screen 0 preview.
   // We only do this once on mount; failure is silently swallowed — the fallback
@@ -708,7 +730,7 @@ export default function Subscription() {
     return () => { cancelled = true; };
   }, []);
 
-  const currentTier = (user.tier ?? "free") as string;
+  const currentTier = (serverTier ?? user.tier ?? "free") as string;
   const alreadySubscribed = currentTier !== "free";
 
   // ── Package resolution ────────────────────────────────────────────────────
@@ -804,6 +826,17 @@ export default function Subscription() {
     }
     setTimeout(() => setRestoreMsg(null), 3000);
   }, [clerkUser?.id, restore, refreshData]);
+
+  if (!subscriptionCheckDone && currentTier === "free") {
+    return (
+      <View style={[{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 14 }]}>
+        <ActivityIndicator size="small" color={colors.primary} />
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15 }}>
+          Checking your Rook plan…
+        </Text>
+      </View>
+    );
+  }
 
   // ── Already subscribed ────────────────────────────────────────────────────
   if (alreadySubscribed) {

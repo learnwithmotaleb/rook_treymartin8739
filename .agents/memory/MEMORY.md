@@ -28,3 +28,4 @@
 - [Account deletion identity cleanup](account-deletion-identity-cleanup.md) — "Delete Account" must also delete the Clerk user via Clerk's API, not just the local DB row, or re-signup with the same identity is treated as returning.
 - [App Store subscription API quirks](app-store-subscription-api.md) — initial prices require inline PATCH; availability and introductory trials use dedicated territory resources.
 - [App Store age rating](app-store-age-rating.md) — restricted OAuth pages are not unrestricted web access; marking them unrestricted forces Rook to 17+ instead of 4+.
+- [Reviewer subscription hydration](reviewer-subscription-hydration.md) — server-granted Premium accounts must hydrate their server tier on the paywall before purchase UI is chosen.
