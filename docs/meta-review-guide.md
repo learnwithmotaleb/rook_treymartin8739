@@ -1,9 +1,9 @@
 # Rook — Meta App Review Guide
 
 **App:** Rook — Identity Protection  
-**Bundle ID:** `com.tryrook.app`  
+**Bundle ID:** `com.getrook.app`
 **Permissions under review:** `instagram_business_basic`, `user_photos`  
-**Live domain:** `https://tryrook.app`  
+**Live domain:** `https://getrook.app`
 
 ---
 
@@ -34,8 +34,11 @@ Rook requests `instagram_business_basic` to allow users to connect their Instagr
 
 ### `user_photos` (Facebook)
 
-**Why Rook needs it:**  
-Rook requests `user_photos` to access the authenticated user's own Facebook photo library. These photos are used exclusively to build a perceptual hash (dHash) fingerprint of the user's visual identity. The fingerprint is then compared against suspicious accounts found during monitoring scans.
+**Current build status:**
+The tested build requests `public_profile` only. `user_photos` is the additional permission being submitted for approval and will be added to the live Facebook OAuth scope only after Meta approves it.
+
+**Why Rook needs it after approval:**
+Rook will use `user_photos` to access the authenticated user's own Facebook photo library. These photos will be used exclusively to build a perceptual hash (dHash) fingerprint of the user's visual identity. The fingerprint will then be compared against suspicious accounts found during monitoring scans.
 
 **Important:** No photos are stored permanently. Only the computed hash values (64-bit integers) are retained. The original images are never uploaded to Rook's servers.
 
@@ -49,17 +52,14 @@ Rook requests `user_photos` to access the authenticated user's own Facebook phot
 Register these in your Facebook App Dashboard → **Settings → Basic → App Domains**:
 
 ```
-tryrook.app
-RookApp.replit.app
+getrook.app
 ```
 
 Register these in **Facebook Login → Settings → Valid OAuth Redirect URIs**:
 
 ```
-https://tryrook.app/api/oauth/instagram/callback
-https://tryrook.app/api/oauth/facebook/callback
-https://RookApp.replit.app/api/oauth/instagram/callback
-https://RookApp.replit.app/api/oauth/facebook/callback
+https://getrook.app/api/oauth/instagram/callback
+https://getrook.app/api/oauth/facebook/callback
 ```
 
 ---
@@ -148,8 +148,8 @@ After connecting Facebook, the reviewer will see:
 
 ## Privacy Policy and Data Handling
 
-**Privacy Policy URL:** `https://tryrook.app/privacy`  
-**Terms of Service URL:** `https://tryrook.app/terms`
+**Privacy Policy URL:** `https://getrook.app/privacy`
+**Terms of Service URL:** `https://getrook.app/terms`
 
 Key data handling facts for Meta review:
 - Photo data is processed in-memory only; original images are never written to disk
@@ -164,11 +164,11 @@ Key data handling facts for Meta review:
 | Permission | Used For | Data Stored | Required? |
 |---|---|---|---|
 | `instagram_business_basic` | Identity verification, profile photo, caption fingerprinting | dHash of profile photo + caption hashes | Yes |
-| `user_photos` | Build photo fingerprint from user's own library | dHash values only, no images | Yes |
+| `user_photos` | Build photo fingerprint from user's own library after approval | dHash values only, no images | Pending approval; not requested by this build |
 | `public_profile` (Facebook) | Display name + profile photo in connected accounts list | Display name + avatar URL | Yes |
 
 ---
 
 ## Support Contact
 
-For questions during the review process: **support@tryrook.app**
+For questions during the review process: **support@getrook.app**

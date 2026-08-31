@@ -219,7 +219,7 @@ Tap **"Connected Accounts"** in the Profile screen.
 6. The browser closes automatically. The app shows **"Instagram Connected ✓"**
 7. Repeat steps 1–6 for **Facebook**:
    - Select Facebook → browser opens → log in
-   - Approve **`public_profile`** and **`user_photos`** permissions
+   - Approve **`public_profile`**
    - App shows **"Facebook Connected ✓"**
 8. Return to Profile → Connected Accounts — both accounts now appear active
 
@@ -227,14 +227,14 @@ Tap **"Connected Accounts"** in the Profile screen.
 
 > **Why these permissions?**  
 > `instagram_business_basic` — Rook uses this to verify the user is the legitimate owner of the connecting account and to build a photo fingerprint from their own media.  
-> `user_photos` — Used to build a perceptual hash (dHash) fingerprint from the user's own Facebook photo library for impersonation detection. No photos are stored permanently — only computed hash values.
+> `user_photos` — This additional permission is pending Meta approval and is not requested by the current build. Once approved, it will be used to build a perceptual hash (dHash) fingerprint from the user's own Facebook photo library for impersonation detection. No photos will be stored permanently — only computed hash values.
 
 ---
 
 ### Step 20 — Privacy Policy
 From the Profile tab, scroll to the bottom and tap **"Legal & Privacy"** (or **"Privacy Policy"**).
 
-**Expected:** In-app browser opens `https://tryrook.app/privacy`. Page loads correctly.
+**Expected:** In-app browser opens `https://getrook.app/privacy`. Page loads correctly.
 
 ---
 
@@ -258,4 +258,4 @@ From the Profile tab, scroll to the bottom and tap **"Legal & Privacy"** (or **"
 
 ---
 
-*For support during review: support@tryrook.app*
+*For support during review: support@getrook.app*

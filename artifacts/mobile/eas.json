@@ -17,6 +17,17 @@
         "EXPO_PUBLIC_APP_ENV": "development"
       }
     },
+    "meta-review": {
+      "distribution": "internal",
+      "channel": "meta-review",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "review",
+        "EXPO_PUBLIC_API_URL": "https://getrook.app"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "channel": "preview",

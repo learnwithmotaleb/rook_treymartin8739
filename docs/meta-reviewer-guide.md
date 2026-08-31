@@ -2,7 +2,7 @@
 
 **App:** Rook — Identity Protection  
 **Bundle ID:** `com.getrook.app`  
-**iOS version:** 1.0.0 (Build 1)  
+**iOS version:** 1.0.0 (Build 2)
 **Live domain:** `https://getrook.app`  
 **Support email:** support@getrook.app  
 

@@ -29,3 +29,4 @@
 - [App Store subscription API quirks](app-store-subscription-api.md) — initial prices require inline PATCH; availability and introductory trials use dedicated territory resources.
 - [App Store age rating](app-store-age-rating.md) — restricted OAuth pages are not unrestricted web access; marking them unrestricted forces Rook to 17+ instead of 4+.
 - [Reviewer subscription hydration](reviewer-subscription-hydration.md) — server-granted Premium accounts must hydrate their server tier on the paywall before purchase UI is chosen.
+- [EAS simulator builds](eas-simulator-builds.md) — cloud simulator artifacts need an Expo PAT; Linux can validate the bundle but cannot launch Apple’s Simulator.
