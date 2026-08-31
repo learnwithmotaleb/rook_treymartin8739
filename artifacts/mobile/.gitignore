@@ -39,3 +39,7 @@ yarn-error.*
 .vercel
 
 .env
+
+# Meta App Review simulator output
+meta-review-build/
+meta-review-build.tar.gz
