@@ -9,11 +9,12 @@
  * GET    /api/admin/user/:userId/costs     — per-user API cost breakdown
  * POST   /api/admin/seed-reviewer          — seed an account with full demo data for review
  * DELETE /api/admin/seed-reviewer/:clerkId — remove all seeded reviewer data for an account
+ * POST   /api/admin/prepare-real-reviewer   — enable a real account and remove an obsolete demo
  */
 
 import { Router, type Request, type Response, type NextFunction, type IRouter } from "express";
 import { z } from "zod";
-import { eq, gte, and, sql } from "drizzle-orm";
+import { eq, gte, and, sql, isNull } from "drizzle-orm";
 import {
   db,
   apiCostLogTable,
@@ -26,6 +27,7 @@ import {
   visualFingerprintsTable,
   userIdentityProfilesTable,
   subscriptionsTable,
+  photoProcessingConsentsTable,
 } from "@workspace/db";
 import {
   getSystemMonthlyStats,
@@ -842,6 +844,165 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
   });
   } catch (err) {
     logger.error({ err }, "DELETE /admin/seed-reviewer failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── POST /api/admin/prepare-real-reviewer ────────────────────────────────────
+
+router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
+  try {
+    const PrepareBody = z.object({
+      clerkId: z.string().startsWith("user_"),
+      email: z.string().email(),
+      obsoleteClerkId: z.string().startsWith("user_"),
+    }).refine((value) => value.clerkId !== value.obsoleteClerkId, {
+      message: "The real and obsolete Clerk IDs must be different",
+    });
+    const parsed = PrepareBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
+      return;
+    }
+
+    const { clerkId, email, obsoleteClerkId } = parsed.data;
+    const now = new Date();
+    const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+    const result = await db.transaction(async (tx) => {
+      const [realUser] = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.clerkId, clerkId))
+        .limit(1);
+      if (!realUser) throw new Error("REAL_REVIEWER_NOT_FOUND");
+
+      const realAccounts = await tx
+        .select({
+          platform: connectedAccountsTable.platform,
+          username: connectedAccountsTable.username,
+        })
+        .from(connectedAccountsTable)
+        .where(eq(connectedAccountsTable.userId, realUser.id));
+
+      const activePlatforms = [...new Set(realAccounts.map((account) => account.platform))];
+      const platformHandles = Object.fromEntries(
+        realAccounts
+          .filter((account) => account.username)
+          .map((account) => [account.platform, account.username]),
+      );
+
+      await tx
+        .update(usersTable)
+        .set({
+          email: email.trim().toLowerCase(),
+          onboardingAnswers: {
+            primaryConcern: "impersonation",
+            goalFollowUp: null,
+            userType: "individual",
+            typeFollowUp: null,
+            followerRange: null,
+            activePlatforms,
+            attribution: "app-review",
+            perceivedRisk: 5,
+            identityInput: null,
+            platformHandles,
+          },
+          termsAcceptedAt: now,
+          termsVersion: "2026-08-10-v2",
+          ageConfirmedAt: now,
+          minimumAgeVersion: "1.0",
+          updatedAt: now,
+        })
+        .where(eq(usersTable.id, realUser.id));
+
+      await tx
+        .update(photoProcessingConsentsTable)
+        .set({ withdrawnAt: now })
+        .where(
+          and(
+            eq(photoProcessingConsentsTable.userId, realUser.id),
+            isNull(photoProcessingConsentsTable.withdrawnAt),
+          ),
+        );
+      await tx.insert(photoProcessingConsentsTable).values({
+        userId: realUser.id,
+        consentVersion: "1.0",
+        consentedAt: now,
+      });
+
+      await tx
+        .insert(subscriptionsTable)
+        .values({
+          userId: realUser.id,
+          tier: "premium",
+          status: "active",
+          billingCycle: "yearly",
+          currentPeriodEnd: oneYearFromNow,
+          cancelAtPeriodEnd: false,
+          trialEndsAt: null,
+        })
+        .onConflictDoUpdate({
+          target: subscriptionsTable.userId,
+          set: {
+            tier: "premium",
+            status: "active",
+            billingCycle: "yearly",
+            currentPeriodEnd: oneYearFromNow,
+            cancelAtPeriodEnd: false,
+            trialEndsAt: null,
+            updatedAt: now,
+          },
+        });
+
+      const deletedDemoUsers = await tx
+        .delete(usersTable)
+        .where(eq(usersTable.clerkId, obsoleteClerkId))
+        .returning({ id: usersTable.id });
+
+      return {
+        userId: realUser.id,
+        connectedAccountsPreserved: realAccounts.length,
+        deletedDemoUsers: deletedDemoUsers.length,
+      };
+    });
+
+    if (process.env.CLERK_SECRET_KEY) {
+      const clerkResponse = await fetch(
+        `https://api.clerk.com/v1/users/${encodeURIComponent(obsoleteClerkId)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
+        },
+      );
+      if (!clerkResponse.ok && clerkResponse.status !== 404) {
+        logger.warn(
+          { obsoleteClerkId, status: clerkResponse.status },
+          "Obsolete reviewer Clerk deletion failed",
+        );
+      }
+    }
+
+    logger.info(
+      { clerkId, obsoleteClerkId, userId: result.userId },
+      "Admin: real reviewer prepared and obsolete demo removed",
+    );
+    res.json({
+      ok: true,
+      clerkId,
+      userId: result.userId,
+      tier: "premium",
+      onboardingCompleted: true,
+      connectedAccountsPreserved: result.connectedAccountsPreserved,
+      deletedDemoUsers: result.deletedDemoUsers,
+      premiumUntil: oneYearFromNow.toISOString(),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "REAL_REVIEWER_NOT_FOUND") {
+      res.status(404).json({ error: "Real reviewer account not found" });
+      return;
+    }
+    logger.error({ err }, "POST /admin/prepare-real-reviewer failed");
     res.status(500).json({ error: "Internal server error" });
   }
 });
