@@ -69,7 +69,7 @@ export default function Terms() {
           <P>
             {APP_NAME} provides AI-powered identity monitoring services including detection of social media
             impersonators and potential photo theft. Scan results are probabilistic estimates — see Section 5.
-            The Service is provided in Free, Pro, and Premium tiers.
+            The Service is provided in Free and Premium tiers.
           </P>
         </Section>
 
@@ -158,22 +158,19 @@ export default function Terms() {
 
         <Section title="6. Subscriptions and Payments">
           <P>
-            {APP_NAME} offers three subscription tiers. All paid subscriptions include a{" "}
-            <strong className="text-white">7-day free trial</strong> for new subscribers — no charge during
-            the trial.
+            {APP_NAME} offers a Free tier and a Rook Premium subscription. Eligible new subscribers may
+            receive a <strong className="text-white">7-day introductory trial</strong>. Eligibility, localized
+            pricing, and the first charge date are confirmed by the App Store or Google Play purchase sheet.
           </P>
           <UL>
             <li>
-              <strong className="text-white">Free:</strong> 1 connected account, manual scans, 1-day
-              threat history. No charge.
+              <strong className="text-white">Free:</strong> 1 connected account, 1 manual scan per month,
+              1 monitored image per scan, and basic scan results. No charge.
             </li>
             <li>
-              <strong className="text-white">Pro — $4.99/month</strong> (or $39.99/year): Up to 3 connected
-              accounts, weekly scheduled scans, push alerts, 7-day threat history.
-            </li>
-            <li>
-              <strong className="text-white">Premium — $9.99/month</strong> (or $79.99/year): Up to 10
-              connected accounts, daily scans, advanced AI analysis, 30-day threat history, priority support.
+              <strong className="text-white">Rook Premium — $9.99/month</strong> (or $69.99/year): Unlimited
+              connected accounts, scans, and monitored images; daily automated monitoring; push alerts; full
+              evidence; 30-day threat history; advanced risk scoring; priority processing; and downloadable reports.
             </li>
           </UL>
           <P>

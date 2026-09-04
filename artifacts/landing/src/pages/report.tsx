@@ -133,13 +133,8 @@ export default function ReportPage() {
               <span className="font-bold text-white text-lg tracking-wide">ROOK</span>
             </span>
           </Link>
-          <a
-            href="https://apps.apple.com"
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
-          >
-            Get the app →
+          <a href="/#hero-form" className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">
+            Join early access →
           </a>
         </div>
       </header>
@@ -174,9 +169,9 @@ export default function ReportPage() {
                   {" "}on {platformLabel}.
                 </h1>
                 <p className="text-slate-400 leading-relaxed">
-                  A Rook user flagged this account as fake and is asking for
-                  community help reporting it. Every report counts — platforms take
-                  down fake accounts faster when multiple users report them.
+                  A Rook user flagged this account as a potential impersonator and is
+                  asking for community help reviewing and reporting it. The platform
+                  makes the final decision on any enforcement action.
                 </p>
               </div>
             ) : (
@@ -267,16 +262,14 @@ export default function ReportPage() {
               Are you being impersonated?
             </h2>
             <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-              Rook scans Instagram, TikTok, X, Facebook and more — automatically
-              alerting you the moment a fake account is found.
+              Rook checks supported public identity signals and monitored photos for
+              potential impersonation matches, then helps you review the evidence.
             </p>
             <a
-              href="https://apps.apple.com"
-              target="_blank"
-              rel="noreferrer"
+              href="/#hero-form"
               className="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-full bg-blue-500 hover:bg-blue-400 text-white font-semibold text-sm transition-colors"
             >
-              Check if you're being impersonated →
+              Join Rook early access →
             </a>
             <p className="text-slate-600 text-xs mt-3">Free to start · No credit card needed</p>
           </div>

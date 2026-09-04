@@ -18,10 +18,10 @@ const stagger: Variants = {
 };
 
 const STATS = [
-  { value: "$10B+", label: "Lost to social media fraud in 2023", source: "FTC" },
-  { value: "5.4B", label: "Fake accounts removed annually", source: "Meta" },
-  { value: "197 days", label: "Average time to discover a breach", source: "IBM" },
-  { value: "1 in 10", label: "Adults targeted by impersonation", source: "FTC" },
+  { value: "1", label: "Free identity scan each month", note: "Free plan" },
+  { value: "Daily", label: "Automated monitoring available", note: "Premium" },
+  { value: "30 days", label: "Threat history retained", note: "Premium" },
+  { value: "7 days", label: "Introductory trial for eligible users", note: "Premium" },
 ];
 
 
@@ -36,7 +36,7 @@ const FAQS = [
   },
   {
     q: "Which platforms do you monitor?",
-    a: "Rook monitors Instagram, X (Twitter), TikTok, Facebook, LinkedIn, YouTube, and Snapchat — all live now. Connect any of your accounts and your first scan runs immediately.",
+    a: "Rook currently supports account connections for Instagram, Facebook, X (Twitter), YouTube, LinkedIn, and Snapchat. TikTok appears in the app but connection support is still coming. You can also add monitored photos and run an identity scan from the app.",
   },
   {
     q: "Will you access my private messages or personal data?",
@@ -44,15 +44,19 @@ const FAQS = [
   },
   {
     q: "How quickly will I be notified if a threat is found?",
-    a: "Rook runs automated, scheduled scans and delivers push notifications directly to your phone when a potential threat is detected. Pro users get weekly automated scans, Premium users get daily — you'll know within hours, not months.",
+    a: "Rook Premium runs daily automated scans and can send a push notification when a potential threat is detected. Free members can run one manual scan each month.",
   },
   {
     q: "What happens when Rook finds an impersonator?",
-    a: "You'll receive an instant alert with full details on the fake account, including AI analysis and evidence. From there, you can view the impersonator's profile and report them directly to the platform with guided step-by-step instructions. Rook handles the evidence documentation.",
+    a: "Rook presents the potential match with a risk assessment and guidance for reviewing and reporting the account. Premium includes full evidence, advanced risk scoring, and downloadable threat reports. Detection is evidence-based, but no automated scan can guarantee it will find every impersonator.",
   },
   {
     q: "Is my data secure?",
-    a: "Yes. All data is encrypted in transit and at rest. We never sell your personal information. You can delete your account and all associated data at any time from the app. We comply with GDPR and CCPA.",
+    a: "Rook protects data in transit and at rest and does not sell personal information. In the app, you can download your account data, delete stored photo data, withdraw photo-processing consent, or permanently delete your account. See our Privacy Policy for complete details.",
+  },
+  {
+    q: "How much does Rook Premium cost?",
+    a: "Rook Premium is $9.99 per month or $69.99 per year. Eligible new subscribers may receive a 7-day introductory trial. Your App Store or Google Play purchase sheet confirms eligibility, localized pricing, and the first charge date. Subscriptions are managed and cancelled through your app store.",
   },
 ];
 
@@ -288,7 +292,7 @@ function PhoneMockup() {
         </div>
         <div>
           <div style={{ color: "#A78BFA", fontSize: 10, fontWeight: 600 }}>+2 threats hidden</div>
-          <div style={{ color: C.muted, fontSize: 8, marginTop: 1 }}>Upgrade to Pro to see all alerts</div>
+          <div style={{ color: C.muted, fontSize: 8, marginTop: 1 }}>Upgrade to Premium to see all alerts</div>
         </div>
       </div>
     </motion.div>
@@ -531,7 +535,7 @@ export default function Home() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400" />
               </span>
-              Instagram, X, TikTok, Facebook &amp; more · All platforms live now
+              Instagram, Facebook, X &amp; more · TikTok connection coming later
             </motion.div>
 
             <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[1.05]">
@@ -541,8 +545,8 @@ export default function Home() {
             </motion.h1>
 
             <motion.p variants={fadeUp} className="text-lg text-muted-foreground max-w-lg leading-relaxed">
-              1 in 10 people are being impersonated online. Most don't find out until their reputation is already damaged, their followers are scammed, and the fake account has thousands of followers.
-              <span className="text-white font-medium"> Rook is AI-powered impersonator detection and photo monitoring — it finds threats before the damage is done.</span>
+              Fake profiles and stolen photos can put your reputation and your community at risk before you know they exist.
+              <span className="text-white font-medium"> Rook uses identity signals, photo matching, and AI-assisted analysis to surface potential impersonation threats and help you respond.</span>
             </motion.p>
 
             <motion.div variants={fadeUp} id="hero-form" className="w-full max-w-md">
@@ -552,7 +556,7 @@ export default function Home() {
                   <Lock className="w-3 h-3" /> Free to start · No credit card
                 </p>
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3 h-3 text-green-400" /> Cancel anytime
+                  <CheckCircle2 className="w-3 h-3 text-green-400" /> Cancel through your app store
                 </p>
               </div>
 
@@ -594,7 +598,7 @@ export default function Home() {
               >
                 <span className="font-extrabold text-3xl text-white tracking-tight">{s.value}</span>
                 <span className="text-xs text-muted-foreground font-medium leading-tight max-w-[140px]">{s.label}</span>
-                <span className="text-[10px] text-white/20 font-medium uppercase tracking-wider mt-0.5">Source: {s.source}</span>
+                <span className="text-[10px] text-white/20 font-medium uppercase tracking-wider mt-0.5">{s.note}</span>
               </motion.div>
             ))}
           </div>
@@ -615,11 +619,11 @@ export default function Home() {
               Finally — a solution
             </motion.div>
             <motion.h2 variants={fadeUp} className="text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
-              Know the moment your{" "}
+              See when Rook finds a potential{" "}
               <span className="text-gradient-primary">identity is threatened.</span>
             </motion.h2>
             <motion.p variants={fadeUp} className="text-lg text-muted-foreground leading-relaxed">
-              Rook scans for impersonators and stolen photos so you don't have to. The moment something goes wrong, you're the first to know — with everything you need to act immediately.
+              Rook scans public identity signals and your monitored photos for suspicious matches, then brings the evidence and reporting guidance together in one place.
             </motion.p>
           </motion.div>
 
@@ -633,18 +637,17 @@ export default function Home() {
             <div className="absolute inset-0 bg-primary/5 rounded-3xl blur-2xl" />
             <div className="relative glass-panel rounded-3xl p-8 flex flex-col gap-6 border border-white/[0.07]">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-lg">Live Threat Monitor</span>
-                <div className="flex items-center gap-2 text-green-400 text-sm">
-                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  Active
+                <span className="font-bold text-lg">Example Threat Monitor</span>
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  Illustrative preview
                 </div>
               </div>
               {[
                 { platform: "Instagram", status: "2 username variants scanned", time: "2m ago", type: "clean" },
-                { platform: "TikTok", status: "Impersonator detected + reported", time: "11m ago", type: "threat" },
+                { platform: "Instagram", status: "Potential impersonator detected", time: "11m ago", type: "threat" },
                 { platform: "X (Twitter)", status: "Profile photo match found", time: "34m ago", type: "threat" },
                 { platform: "Facebook", status: "No matching profiles found", time: "1h ago", type: "clean" },
-                { platform: "LinkedIn", status: "Name variant monitoring active", time: "2h ago", type: "clean" },
+                { platform: "LinkedIn", status: "Public profile signals reviewed", time: "2h ago", type: "clean" },
               ].map((item, i) => (
                 <motion.div
                   key={i}
@@ -677,19 +680,19 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-              Enterprise-grade protection. Built for everyone.
+              Serious identity protection. Built for individuals.
             </h2>
-            <p className="text-muted-foreground">The tools usually reserved for celebrities and Fortune 500 companies — now available to any creator, professional, or individual.</p>
+            <p className="text-muted-foreground">Practical monitoring, evidence, and privacy controls for creators, professionals, families, and anyone with an online identity.</p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { icon: <ScanFace className="w-5 h-5 text-primary" />, title: "AI Impersonator Detection", desc: "Our neural net scans profile photos, bios, and handles across major platforms to find clones before they can scam your followers." },
-              { icon: <Eye className="w-5 h-5 text-primary" />, title: "Stolen Photo Monitoring", desc: "We track where your images appear across the web and social platforms — surfacing every unauthorized use of your face." },
-              { icon: <Database className="w-5 h-5 text-primary" />, title: "AI Threat Analysis", desc: "Every detected threat comes with a full AI breakdown: risk score, detected signals, and matched evidence — so you know exactly what you're dealing with and what to do next." },
-              { icon: <Activity className="w-5 h-5 text-primary" />, title: "Scheduled Monitoring", desc: "Pro and Premium users get automatic weekly or daily scans — no manual action needed. Your identity is watched even when you're not thinking about it." },
-              { icon: <Bell className="w-5 h-5 text-primary" />, title: "Instant Threat Alerts", desc: "One centralized alert feed. Review, dismiss, or report threats directly from your phone — with full evidence and AI analysis." },
-              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Multi-Platform Coverage", desc: "Instagram, X, TikTok, Facebook, LinkedIn, YouTube, and Snapchat — all monitored from one unified dashboard. Connect all your accounts in under two minutes." },
+              { icon: <ScanFace className="w-5 h-5 text-primary" />, title: "Evidence-Based Detection", desc: "Rook compares public profile signals, names, handles, and available photos to surface likely impersonation matches for your review." },
+              { icon: <Eye className="w-5 h-5 text-primary" />, title: "Photo Monitoring", desc: "Add photos to your identity profile so Rook can look for suspicious visual matches across supported public sources." },
+              { icon: <Database className="w-5 h-5 text-primary" />, title: "Threat Analysis", desc: "Potential threats include a risk score, detected signals, and available evidence. Premium unlocks full evidence and downloadable reports." },
+              { icon: <Activity className="w-5 h-5 text-primary" />, title: "Daily Premium Monitoring", desc: "Rook Premium includes automated daily scans, unlimited manual scans, and priority processing. Free includes one manual scan each month." },
+              { icon: <Bell className="w-5 h-5 text-primary" />, title: "Threat Alerts", desc: "Review potential threats in one alert feed. Premium can send push notifications and provides reporting guidance with full evidence." },
+              { icon: <Globe className="w-5 h-5 text-primary" />, title: "Connected Identity", desc: "Connect supported Instagram, Facebook, X, YouTube, LinkedIn, and Snapchat accounts from one app. TikTok connection is coming later." },
             ].map((feature, i) => (
               <motion.div
                 key={i}
@@ -713,15 +716,15 @@ export default function Home() {
       {/* ── How It Works ──────────────────────────────────────────────────────── */}
       <section id="how-it-works" className="py-16 px-6 bg-white/[0.01] border-b border-white/5">
         <div className="max-w-7xl mx-auto text-center">
-          <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-4">Setup takes 2 minutes</p>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-12">Three steps to complete protection.</h2>
+          <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-4">Designed for a clear first scan</p>
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-12">Three steps to start monitoring.</h2>
 
           <div className="grid md:grid-cols-3 gap-8 relative">
             <div className="hidden md:block absolute top-10 left-[18%] right-[18%] h-px bg-gradient-to-r from-transparent via-border to-transparent" />
             {[
-              { step: 1, title: "Connect Your Accounts", desc: "Link your social profiles in under 2 minutes to establish your verified digital identity baseline." },
-              { step: 2, title: "AI Scanning Begins", desc: "Rook immediately begins scanning your connected platforms for impersonators, stolen photos, and identity threats." },
-              { step: 3, title: "Get Instant Alerts", desc: "Receive push notifications the moment a threat is detected, with everything you need to act immediately." },
+              { step: 1, title: "Build Your Identity Profile", desc: "Connect supported social accounts and add the photos you want Rook to monitor." },
+              { step: 2, title: "Run an Identity Scan", desc: "Rook checks public sources for suspicious names, handles, profile signals, and available photo matches." },
+              { step: 3, title: "Review and Respond", desc: "Evaluate potential matches, inspect available evidence, and follow platform-specific reporting guidance." },
             ].map((item, i) => (
               <motion.div
                 key={i}
@@ -750,16 +753,16 @@ export default function Home() {
           <div className="text-center mb-10">
             <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-4">Simple, transparent pricing</p>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">Your digital identity <span className="text-gradient-primary">is worth protecting.</span></h2>
-            <p className="text-muted-foreground text-lg">Lock in launch pricing today. Cancel anytime. No questions asked.</p>
+            <p className="text-muted-foreground text-lg">Start free, then choose monthly or annual Premium in the app.</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <div className="glass-panel p-8 rounded-3xl flex flex-col">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Free</h3>
               <div className="text-4xl font-extrabold mb-1">$0</div>
               <div className="text-sm text-muted-foreground mb-8">Free forever</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {["1 connected account", "Basic impersonation alerts", "Manual scans only", "Standard support"].map((f, i) => (
+                {["1 connected account", "1 manual scan per month", "1 monitored image per scan", "Basic scan results"].map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
                     <CheckCircle2 className="w-4 h-4 text-muted-foreground/50 shrink-0 mt-0.5" />{f}
                   </li>
@@ -774,36 +777,23 @@ export default function Home() {
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
                 Most Popular
               </div>
-              <h3 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Pro</h3>
-              <div className="text-4xl font-extrabold mb-1">$11.99</div>
-              <div className="text-sm text-primary/70 mb-8 font-medium">per month · 7-day free trial</div>
+              <h3 className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Rook Premium</h3>
+              <div className="text-4xl font-extrabold mb-1">$9.99</div>
+              <div className="text-sm text-primary/70 mb-2 font-medium">per month</div>
+              <div className="text-sm text-muted-foreground mb-8">$69.99/year · about $5.83/month · save 42%</div>
               <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {["3 connected accounts", "AI-powered scanning", "Stolen photo detection", "Weekly automated scans", "Real-time alerts + full evidence"].map((f, i) => (
+                {["Unlimited accounts, scans, and monitored images", "Daily automated monitoring", "Push alerts + full evidence", "30-day threat history", "Advanced risk scoring + downloadable reports"].map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm font-medium">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />{f}
                   </li>
                 ))}
               </ul>
               <button onClick={scrollToWaitlist} className="w-full py-3 rounded-xl bg-primary hover:bg-primary/90 text-white transition-colors font-bold shadow-lg shadow-primary/20 text-sm">
-                Reserve My Spot
+                Get Premium Early Access
               </button>
-            </div>
-
-            <div className="glass-panel p-8 rounded-3xl flex flex-col">
-              <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3">Premium</h3>
-              <div className="text-4xl font-extrabold mb-1">$24.99</div>
-              <div className="text-sm text-muted-foreground mb-8">per month · 7-day free trial</div>
-              <ul className="flex flex-col gap-4 mb-8 flex-1">
-                {["Unlimited accounts & scans", "Daily automated monitoring", "30-day threat history", "Advanced risk scoring + early access", "Downloadable threat reports"].map((f, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-purple-400/60 shrink-0 mt-0.5" />
-                    <span className="text-foreground/90">{f}</span>
-                  </li>
-                ))}
-              </ul>
-              <button onClick={scrollToWaitlist} className="w-full py-3 rounded-xl border border-purple-500/30 hover:bg-purple-500/10 text-purple-300 transition-colors font-semibold text-sm">
-                Claim Early Access
-              </button>
+              <p className="text-[11px] text-muted-foreground text-center leading-relaxed mt-4">
+                7-day introductory trial for eligible new subscribers. Your app store confirms eligibility and localized pricing. Cancel through the App Store or Google Play.
+              </p>
             </div>
           </div>
         </div>
@@ -827,14 +817,14 @@ export default function Home() {
         >
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-8">
             <Users className="w-3.5 h-3.5" />
-            Join thousands of people already protecting their identity
+            Built for people who take their online identity seriously
           </div>
           <h2 className="text-4xl md:text-6xl font-extrabold tracking-tighter mb-6 leading-tight">
             The next impersonation attempt{" "}
             <span className="text-gradient-primary">won't wait.</span>
           </h2>
           <p className="text-xl text-muted-foreground mb-10 leading-relaxed">
-            Free to start. Takes 2 minutes. Join the waitlist and be first to protect your identity when we launch.
+            Free to start. Join the waitlist and be among the first to monitor your identity with Rook.
           </p>
           <div id="cta-form">
             <WaitlistForm className="max-w-md mx-auto" buttonText="Protect My Identity" />
@@ -842,8 +832,8 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-center gap-6 mt-6 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> No credit card required</span>
             <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-400" /> Free to start</span>
-            <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Setup in 2 minutes</span>
-            <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-primary" /> Cancel anytime</span>
+            <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Guided setup</span>
+            <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-primary" /> App-store billing</span>
           </div>
         </motion.div>
       </section>

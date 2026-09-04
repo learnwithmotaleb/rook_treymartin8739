@@ -312,7 +312,7 @@ export default function Privacy() {
         <Section title="7. Data Retention and Deletion">
           <UL>
             <li><strong className="text-white">Account data:</strong> Retained while your account is active. Deleted from active systems immediately upon account deletion; production backups purged within 30 days.</li>
-            <li><strong className="text-white">Threat history:</strong> Retained for 30 days (Premium), 7 days (Pro), 1 day (Free) from detection, then automatically deleted.</li>
+            <li><strong className="text-white">Threat history:</strong> Retained for up to 30 days under current Free and Premium plans, then automatically deleted.</li>
             <li><strong className="text-white">Image-derived data:</strong> Retained while account is active; deleted immediately upon account deletion or consent withdrawal, with backup purge within 30 days. Never retained beyond 3 years from collection.</li>
             <li><strong className="text-white">OAuth tokens:</strong> Deleted immediately upon account disconnection or account deletion.</li>
             <li><strong className="text-white">Consent records:</strong> Retained for 7 years after account deletion as a legal compliance record.</li>
