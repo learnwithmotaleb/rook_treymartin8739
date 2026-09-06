@@ -1,12 +1,12 @@
 ---
 name: Dep security overrides pattern
-description: How to use pnpm-workspace.yaml overrides to remediate transitive high-severity vulnerabilities when no direct upgrade path exists.
+description: How to apply and verify pnpm overrides for transitive high-severity vulnerabilities in this workspace.
 ---
 
 # Dependency Security Overrides Pattern
 
 ## Rule
-When `pnpm audit` reports high/critical vulns in transitive deps where no direct dependency can be upgraded, add blanket overrides to `pnpm-workspace.yaml` under the `overrides:` key.
+When `pnpm audit` reports high/critical vulnerabilities in transitive dependencies where no direct dependency can be upgraded, add a compatible override and verify that it actually changes the lockfile. In this workspace, root `package.json` `pnpm.overrides` can shadow or supersede matching workspace-level pins, so security overrides may need to be present there.
 
 ## Current overrides (security-related)
 - `ws: '>=8.21.0'` — GHSA-3h5q-q39x-f9x3, Memory exhaustion DoS via ws fragments (8.x fixed in 8.21.0)
@@ -35,13 +35,15 @@ When Expo Launch detects a native `ios/` project, configure `runtimeVersion` as 
 **How to apply:** Use the app’s current release version as the manual runtime string and update it deliberately when a release needs a new OTA compatibility boundary.
 
 ## Why
-Blanket overrides force pnpm to resolve all instances of the package to the safe version range, even across deeply nested dep chains. This is the only remediation path when the vulnerable package is not a direct dep.
+Blanket overrides force pnpm to resolve all instances of the package to the safe version range, even across deeply nested dependency chains.
+
+**Why:** A workspace-level override can parse successfully while leaving vulnerable locked versions unchanged when root-level pnpm override configuration is also present. A successful install alone is therefore not proof that remediation applied.
 
 ## How to apply
 1. Run `pnpm audit 2>&1 | grep -A8 "high\|critical"` to find the vulnerable package name and patched version range.
-2. Add `'<package>': '>=<patched-version>'` to `overrides:` in `pnpm-workspace.yaml` with a comment citing the GHSA ID.
+2. Add `'<package>': '>=<patched-version>'` to the active root override configuration; keep workspace/native-build copies only where isolated installs require them.
 3. Run `pnpm install` to apply.
-4. Verify with `pnpm audit 2>&1 | tail -3`.
+4. Inspect `pnpm-lock.yaml` or `pnpm why` to confirm the resolved version moved, then verify with `pnpm audit`.
 5. Run `pnpm run typecheck` to confirm nothing broke.
 
 ## Audit posture
