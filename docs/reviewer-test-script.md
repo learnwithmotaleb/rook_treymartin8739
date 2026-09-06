@@ -10,11 +10,12 @@
 
 ### Reviewer Credentials
 
-| Field | Value |
-|---|---|
-| Email | `rooktestuser@gmail.com` |
-| Password | `RookReview2026!` |
-| Account type | Premium (active subscription, full feature access) |
+Enter the current reviewer email and password only in App Store Connect's
+protected **App Review Information** fields. Never store reviewer credentials
+in source control or public documentation.
+
+The supplied account must have an active Premium subscription and must be
+validated on a clean device before submission.
 
 > **Note for Meta reviewers:** A second clean account will be used for testing the Facebook/Instagram connection flow. See Step 19 for the OAuth flow.
 
@@ -39,11 +40,10 @@ Open Rook from your home screen. The animated splash screen appears (Rook logo +
 ---
 
 ### Step 2 — Sign In
-Tap **"Sign In"** and enter the credentials above. Tap **"Continue"**.
+Tap **"Sign In"** and enter the credentials from App Store Connect's protected
+review fields. Tap **"Continue"**.
 
 **Expected:** Authentication succeeds. App transitions to the Dashboard tab.
-
-> **First-time device notice:** The first time these credentials are used on a new device, our auth provider (Clerk) requires a one-time 6-digit email verification code as a security check for unrecognized devices. If you see a **"Verify it's you"** screen after signing in, a code was just sent to `rooktestuser@gmail.com`. Enter the code to continue — this only happens once per device; subsequent sign-ins on the same device go straight to the Dashboard. If review is blocked on this step, contact us via the app review notes and we will confirm receipt of the code.
 
 ---
 

@@ -13,6 +13,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction, type IRouter } from "express";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { eq, gte, and, sql, isNull } from "drizzle-orm";
 import {
@@ -49,7 +50,13 @@ function requireAdminKey(req: Request, res: Response, next: NextFunction): void 
     return;
   }
   const provided = req.headers["x-admin-key"];
-  if (provided !== adminKey) {
+  const providedKey = typeof provided === "string" ? provided : "";
+  const providedBuffer = Buffer.from(providedKey);
+  const expectedBuffer = Buffer.from(adminKey);
+  const valid =
+    providedBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(providedBuffer, expectedBuffer);
+  if (!valid) {
     logger.warn({ ip: req.ip }, "Admin dashboard: unauthorized access attempt");
     res.status(403).json({ error: "Forbidden" });
     return;

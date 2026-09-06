@@ -27,8 +27,8 @@ interface Props {
   onDeleteAccount: () => void;
 }
 
-const PRIVACY_URL = "https://getrook.app/privacy";
-const TERMS_URL = "https://getrook.app/terms";
+const PRIVACY_URL = "https://tryrook.app/privacy";
+const TERMS_URL = "https://tryrook.app/terms";
 
 export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props) {
   const colors = useColors();

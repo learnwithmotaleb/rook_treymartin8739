@@ -811,7 +811,7 @@ export default function ThreatDetail() {
 
   const handleShareCard = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const reportUrl = `https://getrook.app/report?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(cleanHandle)}`;
+    const reportUrl = `https://tryrook.app/report?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(cleanHandle)}`;
     share(reportUrl);
   };
 
@@ -1266,7 +1266,7 @@ export default function ThreatDetail() {
             platform={platform}
             suspiciousUsername={suspiciousUsername || "unknown"}
             threatScore={threat.threatScore}
-            reportUrl={`https://getrook.app/report?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(cleanHandle)}`}
+            reportUrl={`https://tryrook.app/report?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(cleanHandle)}`}
           />
         </View>
       </View>

@@ -375,8 +375,8 @@ PERMISSIONS:
 - [x] Facebook Graph API token exchange pinned to v22.0
 - [x] Facebook Graph API profile + permissions endpoints pinned to v22.0
 - [x] Data deletion callback at `POST /api/oauth/facebook/data-deletion`
-- [x] Privacy Policy live at `https://getrook.app/privacy`
-- [x] Terms of Service live at `https://getrook.app/terms`
+- [x] Privacy Policy live at `https://tryrook.app/privacy`
+- [x] Terms of Service live at `https://tryrook.app/terms`
 - [x] Business address + phone in Privacy Policy and Terms of Service
 - [x] Instagram tokens auto-refreshed every 24 h (before 60-day expiry)
 - [x] HMAC-signed OAuth state token (CSRF protection, 15-min window)
@@ -395,7 +395,7 @@ PERMISSIONS:
 - [x] Camera, Photo Library, Notifications, Face ID usage strings in `infoPlist`
 - [x] `ITSAppUsesNonExemptEncryption: false` (standard HTTPS/TLS only)
 - [x] `UIBackgroundModes`: fetch, remote-notification declared
-- [x] EAS production `EXPO_PUBLIC_API_URL` → `https://getrook.app`
+- [x] EAS production `EXPO_PUBLIC_API_URL` → `https://tryrook.app`
 - [x] Age rating: 4+ All Ages; unrestricted web access is No because OAuth is limited to provider authorization pages
 - [x] RevenueCat in-app purchases: one Premium entitlement with monthly and annual subscriptions
 - [x] Restore Purchases flow implemented in paywall screen

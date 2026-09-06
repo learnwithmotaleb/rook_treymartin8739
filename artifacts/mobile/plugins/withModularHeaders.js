@@ -6,9 +6,9 @@
  * to integrate that dependency chain as static libraries during EAS builds.
  */
 
-const { withPodfile } = require("@expo/config-plugins");
+const { withPodfile } = require("expo/config-plugins");
 
-/** @type {import('@expo/config-plugins').ConfigPlugin} */
+/** @type {import('expo/config-plugins').ConfigPlugin} */
 const withModularHeaders = (config) =>
   withPodfile(config, (config) => {
     const directive = "use_modular_headers!";

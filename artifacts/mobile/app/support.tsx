@@ -169,9 +169,9 @@ export default function Support() {
         </Text>
         <GlassCard noPadding>
           {[
-            { label: "Privacy Policy", url: "https://getrook.app/privacy" },
-            { label: "Terms of Service", url: "https://getrook.app/terms" },
-            { label: "Open Source Licenses", url: "https://getrook.app/privacy" },
+            { label: "Privacy Policy", url: "https://tryrook.app/privacy" },
+            { label: "Terms of Service", url: "https://tryrook.app/terms" },
+            { label: "Open Source Licenses", url: "https://tryrook.app/privacy" },
           ].map((item, i, arr) => (
             <TouchableOpacity
               key={item.label}

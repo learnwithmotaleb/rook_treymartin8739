@@ -14,7 +14,7 @@ submission instructions: Meta needs the simulator bundle, not an `.ipa`.
 | Build number | `2` |
 | EAS profile | `meta-review` |
 | Build target | iOS Simulator |
-| API | `https://getrook.app` |
+| API | `https://tryrook.app` |
 | OAuth callback | `com.getrook.app://oauth` |
 
 ## Produced bundle
@@ -102,7 +102,7 @@ and launch check succeeds.
 7. Open **Alerts**, open a threat, and verify the threat detail and report
    guidance screens.
 8. Open **Profile → Legal & Privacy** and confirm the privacy page loads at
-   `https://getrook.app/privacy`.
+   `https://tryrook.app/privacy`.
 
 ### Permission scope honesty
 

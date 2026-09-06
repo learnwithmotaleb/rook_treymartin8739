@@ -16,7 +16,7 @@ import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL
-  ?? "https://getrook.app";
+  ?? "https://tryrook.app";
 
 const LEGAL_LINKS = [
   {

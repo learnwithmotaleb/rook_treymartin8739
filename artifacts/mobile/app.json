@@ -3,7 +3,6 @@
     "name": "Rook",
     "slug": "rook",
     "version": "1.0.0",
-    "privacyPolicyUrl": "https://getrook.app/privacy",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "com.getrook.app",
@@ -30,9 +29,7 @@
           "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "appStoreAgeRating": "4+",
-      "_ageRatingNote": "Age rating (4+, All Ages) is configured in App Store Connect → App Information → Age Rating. It cannot be encoded in app.json — Expo/EAS has no config key for this. See metadata/README.md and SUBMISSIONS.md Section 2a for the exact questionnaire answers."
+      }
     },
     "android": {
       "package": "com.getrook.app",

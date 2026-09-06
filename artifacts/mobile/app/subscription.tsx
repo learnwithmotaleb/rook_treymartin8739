@@ -587,11 +587,11 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
               : <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Restore</Text>}
           </TouchableOpacity>
           <Text style={[{ color: colors.mutedForeground + "60" }]}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL("https://getrook.app/terms")}>
+          <TouchableOpacity onPress={() => Linking.openURL("https://tryrook.app/terms")}>
             <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Terms</Text>
           </TouchableOpacity>
           <Text style={[{ color: colors.mutedForeground + "60" }]}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL("https://getrook.app/privacy")}>
+          <TouchableOpacity onPress={() => Linking.openURL("https://tryrook.app/privacy")}>
             <Text style={[s2.link, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Privacy</Text>
           </TouchableOpacity>
         </View>

@@ -23,7 +23,7 @@
  * or diagnostic reports. Those data types are intentionally not declared.
  */
 
-const { withDangerousMod } = require("@expo/config-plugins");
+const { withDangerousMod } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
@@ -161,7 +161,7 @@ const PRIVACY_MANIFEST = `<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 `;
 
-/** @type {import('@expo/config-plugins').ConfigPlugin} */
+/** @type {import('expo/config-plugins').ConfigPlugin} */
 const withPrivacyManifest = (config) => {
   return withDangerousMod(config, [
     "ios",

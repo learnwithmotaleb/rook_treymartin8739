@@ -57,18 +57,18 @@ identity theft,impersonator,social media monitor,brand protection,AI security,pr
 
 ### Support URL
 ```
-https://getrook.app/support
+https://tryrook.app/support
 ```
 *(redirect to: mailto:support@getrook.app)*
 
 ### Marketing URL
 ```
-https://getrook.app
+https://tryrook.app
 ```
 
 ### Privacy Policy URL
 ```
-https://getrook.app/privacy
+https://tryrook.app/privacy
 ```
 
 ### Copyright
