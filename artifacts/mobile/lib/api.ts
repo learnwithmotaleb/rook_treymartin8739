@@ -2,17 +2,53 @@
  * Rook API Client
  *
  * Calls the backend intelligence system at /api/*
- * The production build uses EXPO_PUBLIC_API_URL, while development uses the
- * Expo workflow's EXPO_PUBLIC_DOMAIN. Native apps require an absolute URL.
+ * Native production builds require EXPO_PUBLIC_API_URL to be a verified,
+ * absolute HTTPS URL. Development may use the Expo workflow domain.
  */
 
-const BASE_URL = (() => {
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
-  if (apiUrl) return `${apiUrl}/api`;
+import { Platform } from "react-native";
+
+function absoluteHttpsUrl(value: string | undefined): string | null {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) {
+      return null;
+    }
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function getBaseUrl(): string {
+  const configuredApiUrl = absoluteHttpsUrl(process.env.EXPO_PUBLIC_API_URL);
+  if (configuredApiUrl) return `${configuredApiUrl}/api`;
+
+  const isNativeProduction =
+    Platform.OS !== "web" && process.env.EXPO_PUBLIC_APP_ENV === "production";
+  if (isNativeProduction) {
+    throw new Error(
+      "Production API is not configured. Set EXPO_PUBLIC_API_URL to an absolute HTTPS URL."
+    );
+  }
+
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (domain) return `https://${domain}/api`;
+  const domainUrl = domain
+    ? absoluteHttpsUrl(domain.startsWith("http") ? domain : `https://${domain}`)
+    : null;
+  if (domainUrl) return `${domainUrl}/api`;
+
+  if (Platform.OS !== "web") {
+    throw new Error(
+      "Native API is not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_DOMAIN to an absolute HTTPS URL."
+    );
+  }
+
   return "/api";
-})();
+}
+
 const API_TIMEOUT_MS = 15_000;
 
 let _authTokenGetter: (() => Promise<string | null>) | null = null;
@@ -52,7 +88,7 @@ async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${BASE_URL}${path}`;
+  const url = `${getBaseUrl()}${path}`;
   const controller = new AbortController();
   const abortForCaller = () => controller.abort();
   if (options.signal?.aborted) {
@@ -160,6 +196,7 @@ export interface ScanJob {
 
 export interface ThreatSummary {
   id: string;
+  scanJobId: string | null;
   type: string;
   severity: "high" | "medium" | "low";
   platform: string | null;
@@ -167,6 +204,7 @@ export interface ThreatSummary {
   description: string;
   threatScore: number;
   matchedMediaCount: number;
+  evidenceCount?: number;
   suspiciousUsername: string | null;
   resolved: boolean;
   resolveAction: string | null;
@@ -325,6 +363,10 @@ export async function getScanStatus(jobId: string): Promise<ScanJob> {
   return apiFetch<ScanJob>(`/scan/${jobId}`);
 }
 
+export async function getScanResults(jobId: string): Promise<ThreatSummary[]> {
+  return apiFetch<ThreatSummary[]>(`/scan/${jobId}/results`);
+}
+
 export async function getLatestScan(): Promise<ScanJob> {
   return apiFetch<ScanJob>("/scan/latest");
 }
@@ -334,8 +376,12 @@ export interface ScanQuotaState {
   scansUsed: number;
   scansAllowed: number;
   tier: string;
+  /** Maximum images analyzed per scan; -1 means unlimited. */
+  imagesPerScan?: number;
   upgradeTo?: string;
   message: string | null;
+  /** ISO date for the next free monthly allowance, or null for unlimited plans. */
+  resetsAt?: string | null;
 }
 
 export async function getScanQuotaState(): Promise<ScanQuotaState> {

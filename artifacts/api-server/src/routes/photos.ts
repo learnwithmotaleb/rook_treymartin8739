@@ -1,7 +1,13 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
-import { db, connectedAccountsTable, threatsTable, suppressedAccountsTable } from "@workspace/db";
+import { eq, and, isNull } from "drizzle-orm";
+import {
+  db,
+  connectedAccountsTable,
+  threatsTable,
+  suppressedAccountsTable,
+  photoProcessingConsentsTable,
+} from "@workspace/db";
 import {
   reverseImageSearchForPhoto,
   isVisionConfigured,
@@ -23,6 +29,24 @@ const MAX_BASE64_BYTES = 8 * 1024 * 1024; // 8 MB limit
  */
 router.post("/photos/search", async (req, res): Promise<void> => {
   const userId = req.userId;
+
+  // Fail closed before validating or forwarding any image data. The client UI
+  // is not a security boundary; direct API callers must also have an active,
+  // non-withdrawn consent record.
+  const [activeConsent] = await db
+    .select({ id: photoProcessingConsentsTable.id })
+    .from(photoProcessingConsentsTable)
+    .where(
+      and(
+        eq(photoProcessingConsentsTable.userId, userId),
+        isNull(photoProcessingConsentsTable.withdrawnAt)
+      )
+    )
+    .limit(1);
+  if (!activeConsent) {
+    res.status(403).json({ error: "Active photo-processing consent is required." });
+    return;
+  }
 
   const parsedBody = z.object({
     imageUrl: z.string().url().optional(),

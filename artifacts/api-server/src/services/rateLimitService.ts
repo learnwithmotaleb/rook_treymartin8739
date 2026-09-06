@@ -20,6 +20,13 @@ import { eq } from "drizzle-orm";
 import { db, usageQuotasTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 
+export class QuotaTrackingError extends Error {
+  constructor() {
+    super("We could not verify your scan allowance. No scan was started; please try again.");
+    this.name = "QuotaTrackingError";
+  }
+}
+
 // ─── Tier configuration ───────────────────────────────────────────────────────
 
 interface TierLimits {
@@ -178,9 +185,10 @@ export async function checkAndIncrementQuota(
           : limits.deepScansPerDay - newDeepScansToday,
     };
   } catch (err) {
-    // If quota tracking fails, allow the scan to proceed (fail open)
-    logger.error({ err, userId }, "Quota check failed — allowing scan (fail-open)");
-    return { allowed: true };
+    // Never start a billable/limited scan without recording its usage. Failing
+    // closed prevents an unavailable quota store from silently bypassing limits.
+    logger.error({ err, userId }, "Quota check failed — scan not started");
+    throw new QuotaTrackingError();
   }
 }
 
@@ -202,8 +210,9 @@ export async function getQuotaState(
       deepScansToday: quota.dayKey === dayKey(now) ? quota.deepScansToday : 0,
       flaggedForAbuse: quota.flaggedForAbuse,
     };
-  } catch {
-    return null;
+  } catch (err) {
+    logger.error({ err, userId }, "Could not read scan quota state");
+    throw new QuotaTrackingError();
   }
 }
 

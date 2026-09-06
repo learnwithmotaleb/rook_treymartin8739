@@ -14,15 +14,15 @@ AI Guard for Your Online Identity
 
 ### Description (4000 chars max)
 ```
-Rook is your AI-powered identity shield — monitoring every corner of the internet for impersonators, stolen photos, and identity threats across all major social platforms.
+Rook is your AI-powered identity shield — monitoring the open web for impersonators, stolen photos, and identity threats.
 
 WHAT ROOK DOES
-Rook watches Instagram, X (Twitter), TikTok, Facebook, LinkedIn, YouTube, and Snapchat so you don't have to. The moment a threat is detected, you're alerted with full AI analysis, evidence, and actionable next steps.
+At launch, Rook connects to Instagram, Facebook, and X (Twitter). TikTok, LinkedIn, YouTube, and Snapchat connections are marked Coming Soon and are not actionable. When a threat is detected, you're alerted with AI analysis, evidence, and actionable next steps.
 
 KEY FEATURES
 
 🔍 Impersonator Detection
-Our AI scans profiles, photos, bios, and handles across every major platform to find accounts mimicking you — before they can scam your followers, clients, or fans.
+Our AI scans public web results and supported connected-account signals to find accounts mimicking you — before they can scam your followers, clients, or fans.
 
 📸 Stolen Photo Monitoring
 We track every place your photos appear across the web. If someone is using your face without permission, Rook finds it and shows you exactly where.

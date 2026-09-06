@@ -66,6 +66,10 @@ export async function getOrCreateUserByClerkId(
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
+  // Clerk IDs are immutable and globally unique. Including the complete ID makes
+  // this JIT-created handle deterministic and collision-free even when two people
+  // have the same display name (or no name claim at all).
+  const generatedUsername = `@rook_${clerkUserId.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
 
   // ON CONFLICT DO NOTHING handles the race where two concurrent requests both
   // pass the SELECT check before either INSERT completes (e.g. app launch fires
@@ -76,7 +80,7 @@ export async function getOrCreateUserByClerkId(
       clerkId: clerkUserId,
       name,
       email,
-      username: `@${name.toLowerCase().replace(/\s+/g, "")}`,
+      username: generatedUsername,
       avatarInitials: initials,
       securityScore: 72,
       scoreTrend: 0,

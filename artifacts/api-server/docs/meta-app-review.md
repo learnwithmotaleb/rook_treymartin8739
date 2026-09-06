@@ -9,7 +9,7 @@ This document describes what Rook does, why each Meta permission is requested, a
 **App name:** Rook — Identity Protection  
 **Category:** Utilities / Privacy & Security  
 **Platform:** iOS (Expo / React Native) + Server-side API  
-**Purpose:** Rook monitors a user's own social media accounts for impersonators, stolen photos, and credential leaks. Users connect their accounts so Rook can build an identity fingerprint (photos + captions) and detect copycats across the web.
+**Purpose:** Rook monitors a user's own social media accounts for impersonators, stolen photos, and credential leaks. Instagram, Facebook, and X are the launch-ready connections; other platforms shown in the app are non-actionable Coming Soon items. After separate explicit photo-processing consent, users may select photos to build an identity fingerprint and detect copycats across the web.
 
 ---
 
@@ -24,7 +24,7 @@ This document describes what Rook does, why each Meta permission is requested, a
 | **Data accessed** | Username, follower count, profile photo, post thumbnails |
 | **Data NOT accessed** | DMs, comments, stories, insights, contact lists |
 | **Data stored** | Hashed perceptual fingerprints (pHash) of the user's own photos. Raw photos are never stored. |
-| **Data shared** | Never shared with third parties. |
+| **Data shared** | Photo URLs may be sent to the Google Cloud Vision and OpenAI processors disclosed in Rook's photo-consent notice and Privacy Policy, only after explicit consent. |
 
 **Why this scope is needed:**  
 Rook must read the user's own public posts to compute perceptual photo hashes. These hashes are compared against suspicious accounts discovered through web searches — if the hashes match, the account is flagged as a potential impersonator. Without `instagram_business_basic`, Rook cannot fetch the media needed to build the user's identity fingerprint.
@@ -32,9 +32,10 @@ Rook must read the user's own public posts to compute perceptual photo hashes. T
 **User experience flow:**
 1. User taps "Connect Instagram" inside Rook.
 2. User is directed to Instagram OAuth consent screen.
-3. After approval, Rook fetches the user's profile and last N posts via the Graph API.
-4. Photos are hashed and stored; raw pixel data is discarded.
-5. Rook periodically refreshes the token (every 50 days) to keep monitoring active.
+3. After approval, Rook fetches account metadata and offers the user a choice of reference photos.
+4. Before any selected photo is hashed or sent to a disclosed processor, Rook presents its separate photo-processing notice and records explicit consent. Skip performs no photo processing.
+5. Consented photos are hashed; raw pixel data is discarded after processing.
+6. Rook periodically refreshes the token (every 50 days) to keep monitoring active.
 
 **Screencast / test credentials:**  
 _(Attach screencast of the OAuth flow + monitoring dashboard in your App Review submission. Provide a sandboxed test Instagram Business account for the reviewer if required.)_
@@ -66,7 +67,7 @@ When a user connects their Facebook account, Rook needs to confirm the account's
 | **Token expiry** | If refresh fails after 3 attempts, the token is discarded, `needs_reconnect` is flagged, and the user is notified via push notification to re-authenticate. |
 | **Data deletion** | On account removal (`DELETE /api/accounts/:id`), all tokens, hashes, and stored media for that account are deleted. |
 | **Data retention** | No raw photos stored. Perceptual hashes are retained only while the account is connected. |
-| **Third-party sharing** | None. Data is processed exclusively within Rook's own infrastructure. |
+| **Third-party processing** | Google Cloud Vision and OpenAI may receive consented photo data for the limited identity-monitoring purposes disclosed in the in-app notice and Privacy Policy. Data is not sold or used for advertising. |
 | **Minors** | Rook's Terms of Service require users to be 18+. |
 
 ---

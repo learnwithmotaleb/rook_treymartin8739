@@ -27,6 +27,7 @@ import {
   downloadMyData,
 } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
+import { PhotoConsentModal } from "@/components/PhotoConsentModal";
 
 type ConsentStatus = {
   hasConsent: boolean;
@@ -44,6 +45,7 @@ export default function PrivacySettings() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showConsentNotice, setShowConsentNotice] = useState(false);
 
   const fetchConsent = useCallback(async () => {
     try {
@@ -235,15 +237,17 @@ export default function PrivacySettings() {
             </>
           )}
 
-          {consent && !consent.hasConsent && (
+          {!consentLoading && !consent?.hasConsent && (
             <>
               <Divider colors={colors} />
-              <View style={styles.noConsentNote}>
-                <Ionicons name="information-circle-outline" size={15} color={colors.mutedForeground} />
-                <Text style={[styles.noConsentText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Photo scanning is disabled. To enable it, connect a social account — you'll be shown the consent notice before any photo processing begins.
-                </Text>
-              </View>
+              <ActionRow
+                icon="shield-checkmark-outline"
+                iconColor="#A78BFA"
+                label="Review Notice & Enable Photo Scanning"
+                description="Review the required disclosure and explicitly opt in. No photos are processed unless consent is successfully recorded."
+                onPress={() => setShowConsentNotice(true)}
+                colors={colors}
+              />
             </>
           )}
         </Card>
@@ -263,10 +267,18 @@ export default function PrivacySettings() {
           </Text>
           <RetentionRow label="Photo-derived data" value="Active account. Deleted within 30 days of account deletion or within 24 hours of consent withdrawal. Never kept beyond 3 years." colors={colors} />
           <RetentionRow label="Consent records" value="Retained 7 years as a legal compliance record (BIPA § 15(a))." colors={colors} />
-          <RetentionRow label="Scan history &amp; threat alerts" value="30 days (Premium), 7 days (Pro), 1 day (Free)." colors={colors} />
+          <RetentionRow label="Scan history &amp; threat alerts" value="30 days for the current Free and Premium plans." colors={colors} />
           <RetentionRow label="Account data" value="Until account deletion. Backups purged within 30 days." colors={colors} last />
         </View>
       </ScrollView>
+      <PhotoConsentModal
+        visible={showConsentNotice}
+        onConsent={() => {
+          setShowConsentNotice(false);
+          void fetchConsent();
+        }}
+        onSkip={() => setShowConsentNotice(false)}
+      />
     </View>
   );
 }

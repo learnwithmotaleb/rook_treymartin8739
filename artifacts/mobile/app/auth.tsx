@@ -22,6 +22,12 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { useSignIn, useSignUp, useSSO, useAuth, useClerk } from "@clerk/expo";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useColors } from "@/hooks/useColors";
+import {
+  CURRENT_TERMS_VERSION,
+  recordAgeConfirmation,
+  recordTermsAcceptance,
+  updateMe,
+} from "@/lib/api";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -131,6 +137,10 @@ export default function Auth() {
   // Stores the return value of signUp.create() — which is `this` on the actual
   // SignUpResource class instance, guaranteed to have prepareEmailAddressVerification.
   const createdSignUpRef = useRef<any>(null);
+  // setActive updates Clerk synchronously enough to trigger the signed-in
+  // redirect effect. Keep that redirect from racing the required compliance
+  // writes; the success path navigates explicitly after they complete.
+  const recordingComplianceRef = useRef(false);
 
   // When true the user has tapped "Start over" and we show the sign-up form
   // even if Clerk still has a pending sign-up in its store.
@@ -149,7 +159,7 @@ export default function Auth() {
 
   // Redirect already-signed-in users away from this screen.
   useEffect(() => {
-    if (isSignedIn) router.replace("/(tabs)/" as any);
+    if (isSignedIn && !recordingComplianceRef.current) router.replace("/(tabs)/" as any);
   }, [isSignedIn]);
 
   // ── Send email verification code ──────────────────────────────────────────
@@ -312,24 +322,19 @@ export default function Auth() {
       }
 
       if (final.status === "complete") {
+        recordingComplianceRef.current = true;
         await clerk.setActive({ session: final.createdSessionId! });
-
-        // Seed the terms-version cache immediately so the TermsUpdateModal
-        // never fires for a brand-new user who already agreed during sign-up.
+        // Compliance records are a prerequisite for entering the app. Do not
+        // seed the local terms cache until the server has durably recorded both.
+        const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+        await Promise.all([
+          recordTermsAcceptance(),
+          recordAgeConfirmation(),
+          fullName ? updateMe({ name: fullName }) : Promise.resolve(),
+        ]);
         const clerkUserId: string | undefined = (final as any).createdUserId ?? undefined;
-        if (clerkUserId) {
-          const { CURRENT_TERMS_VERSION } = await import("../lib/api");
-          AsyncStorage.setItem(`termsVersion:${clerkUserId}`, CURRENT_TERMS_VERSION).catch(() => {});
-        }
-
-        // Store full display name + compliance records in our own backend.
-        // Fire-and-forget — the tabs layout login() → updateMe() also covers this.
-        import("../lib/api").then(({ updateMe, recordTermsAcceptance, recordAgeConfirmation }) => {
-          const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-          if (fullName) updateMe({ name: fullName }).catch(() => {});
-          recordTermsAcceptance().catch(() => {});
-          recordAgeConfirmation().catch(() => {});
-        });
+        if (clerkUserId) await AsyncStorage.setItem(`termsVersion:${clerkUserId}`, CURRENT_TERMS_VERSION);
+        recordingComplianceRef.current = false;
         router.replace("/(tabs)/" as any);
       } else {
         setError(`Verification incomplete (status: ${final.status}). Please try again.`);
@@ -343,53 +348,53 @@ export default function Auth() {
   }, [clerk, signUp, code, firstName, lastName, password]);
 
   const handleGoogleSSO = useCallback(async () => {
+    if (!termsAccepted || !ageConfirmed) {
+      setError("Please accept the Terms of Service and Privacy Policy and confirm you are 17 or older to continue.");
+      return;
+    }
     setError(""); setSsoLoading(true);
     try {
       const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_google", redirectUrl: AuthSession.makeRedirectUri() }) as any;
       if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId, navigate: () => { router.replace("/(tabs)/" as any); } } as any);
-        // Seed terms-version cache so TermsUpdateModal never fires for a user
-        // who just consented during this SSO sign-up flow.
+        recordingComplianceRef.current = true;
+        await setActive({ session: createdSessionId } as any);
+        await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
         if (createdUserId) {
-          const { CURRENT_TERMS_VERSION } = await import("../lib/api");
-          AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION).catch(() => {});
+          await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
         }
-        // Record compliance server-side fire-and-forget
-        import("../lib/api").then(({ recordTermsAcceptance, recordAgeConfirmation }) => {
-          recordTermsAcceptance().catch(() => {});
-          recordAgeConfirmation().catch(() => {});
-        });
+        recordingComplianceRef.current = false;
+        router.replace("/(tabs)/" as any);
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Google sign in failed");
     } finally { setSsoLoading(false); }
-  }, [startSSOFlow]);
+  }, [startSSOFlow, termsAccepted, ageConfirmed]);
 
   const handleAppleSSO = useCallback(async () => {
+    if (!termsAccepted || !ageConfirmed) {
+      setError("Please accept the Terms of Service and Privacy Policy and confirm you are 17 or older to continue.");
+      return;
+    }
     setError(""); setSsoLoading(true);
     try {
       const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_apple", redirectUrl: AuthSession.makeRedirectUri() }) as any;
       if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId, navigate: () => { router.replace("/(tabs)/" as any); } } as any);
-        // Seed terms-version cache so TermsUpdateModal never fires for a user
-        // who just consented during this SSO sign-up flow.
+        recordingComplianceRef.current = true;
+        await setActive({ session: createdSessionId } as any);
+        await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
         if (createdUserId) {
-          const { CURRENT_TERMS_VERSION } = await import("../lib/api");
-          AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION).catch(() => {});
+          await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
         }
-        // Record compliance server-side fire-and-forget
-        import("../lib/api").then(({ recordTermsAcceptance, recordAgeConfirmation }) => {
-          recordTermsAcceptance().catch(() => {});
-          recordAgeConfirmation().catch(() => {});
-        });
+        recordingComplianceRef.current = false;
+        router.replace("/(tabs)/" as any);
       }
     } catch (e: any) {
       if ((e as any).code === "ERR_REQUEST_CANCELED") return;
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Apple sign in failed");
     } finally { setSsoLoading(false); }
-  }, [startSSOFlow]);
+  }, [startSSOFlow, termsAccepted, ageConfirmed]);
 
   const handleSubmit = () => {
     if (mode === "login") { handleSignIn(); return; }
@@ -567,6 +572,13 @@ export default function Auth() {
                 </ScrollView>
               )}
 
+              {/* SSO can create an account, so its legal acknowledgements must be
+                  explicit before a provider flow can begin. */}
+              <View style={styles.ssoConsent}>
+                <TermsCheckbox accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
+                <AgeCheckbox confirmed={ageConfirmed} onToggle={() => setAgeConfirmed((v) => !v)} />
+              </View>
+
               {/* ── SSO Buttons ── */}
               <View style={styles.ssoGroup}>
                 <TouchableOpacity
@@ -726,13 +738,6 @@ export default function Auth() {
 
               {error !== "" && <ErrorBanner message={error} />}
 
-              {mode === "register" && (
-                <>
-                  <TermsCheckbox accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
-                  <AgeCheckbox confirmed={ageConfirmed} onToggle={() => setAgeConfirmed((v) => !v)} />
-                </>
-              )}
-
               <GradientButton
                 label={loading ? (mode === "login" ? "Signing in…" : "Creating account…") : (mode === "login" ? "Sign In" : "Create Account")}
                 onPress={handleSubmit}
@@ -862,6 +867,7 @@ const styles = StyleSheet.create({
 
   // SSO
   ssoGroup: { gap: 10 },
+  ssoConsent: { gap: 10, marginBottom: 16 },
   ssoBtn: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#131C2B", borderWidth: 1, borderColor: "#1A2740",

@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { getSubscription } from "../services/subscriptionService";
-import { resolveUserId } from "../lib/demoUser";
+import { DemoUserDisabledError, resolveUserId } from "../lib/demoUser";
 import { tierAtLeast, type Tier } from "../lib/planConfig";
 
 export function requirePlan(minTier: "pro" | "premium") {
@@ -25,6 +25,13 @@ export function requirePlan(minTier: "pro" | "premium") {
 
       next();
     } catch (err) {
+      if (err instanceof DemoUserDisabledError) {
+        res.status(401).json({
+          error: "Unauthorized",
+          message: "A valid authenticated user is required.",
+        });
+        return;
+      }
       next(err);
     }
   };

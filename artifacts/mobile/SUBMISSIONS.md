@@ -117,9 +117,10 @@ Rook does not target children. It handles sensitive personal identity data (soci
 2. **Pricing & Availability:** Set price to Free (monetized via in-app purchases via RevenueCat)
 3. **In-App Purchases:** Create the store products and introductory offers in App Store Connect, then link them in RevenueCat
 4. **App Privacy:** Complete the privacy nutrition label:
-   - Data collected: Contact Info (email for breach scanning), Identifiers (user ID)
-   - Data used for: App Functionality, Analytics
-   - Data not linked to user: Diagnostic
+    - Data collected and linked: Contact Info (email, name), Identifiers (user ID and device ID via the push notification token), User Content (photos/videos for identity fingerprinting), and Purchase History (subscription entitlement/restoration)
+    - Data used for: App Functionality only
+    - Production analytics and crash/diagnostic reporting are disabled; do not declare those categories unless that processing is added
+    - No tracking or data sold to third parties
    - No data sold to third parties
 5. **App Review Information:** See Section 10
 
@@ -142,7 +143,7 @@ Rook does not target children. It handles sensitive personal identity data (soci
 1. **Store listing:** Paste copy from `metadata/android/en-US/`
 2. **Content rating:** Complete questionnaire (Section 2b)
 3. **Target audience:** Set to 18+ (handles personal identity data)
-4. **App access:** No restrictions — reviewer can create an account with test credentials (Section 10)
+4. **App access:** Authentication is required. Reviewers can create an account with Apple, Google, or email. Any dedicated review account must be supplied only through the store's secure review-information field, never this repository.
 5. **Ads:** App does not contain ads → declare **No ads**
 6. **Data safety:** Declare:
    - Data collected: Email address (used for breach checking, not shared/sold)
@@ -233,6 +234,7 @@ Set in App Store Connect: App Information → Export Compliance → "Uses only s
   - Monthly: `premium_monthly_v2` — $9.99/month
   - Annual: `premium_annual_v2` — $69.99/year
   - Eligible new subscribers: 7-day introductory trial
+- **Current limits:** Free includes 1 connected account and 1 manual scan per month. Premium includes unlimited connected accounts and scans, plus daily monitoring.
 - **Regions:** All available countries
 - **Release type:** Manual release (hold for developer release after review approval)
 
@@ -246,25 +248,20 @@ Provide these notes in App Store Connect and Google Play Console review submissi
 Rook is an AI-powered identity protection app that monitors social media 
 accounts for impersonators, stolen photos, and data breaches.
 
-TEST ACCOUNT CREDENTIALS:
-• Create a new account using Sign In with Apple / Google / Email on the auth screen
-• OR use the demo mode: tap "Try Demo" on the auth screen (no credentials needed)
-
-DEMO MODE:
-The app includes a built-in demo mode with simulated threat data so reviewers 
-can explore all features without needing real social media accounts connected.
+APP ACCESS:
+• Create a new account using Sign In with Apple, Google, or email.
+• If a dedicated review account is needed, provide it only in the store's secure review-information field. No credentials belong in source-controlled notes.
 
 KEY FEATURES TO REVIEW:
 1. Dashboard — Security score ring, shield status, connected accounts overview
-2. Scan — Tap "Start Full Scan" to run an identity scan (demo: returns simulated results)
+2. Scan — Tap "Start Full Scan" to run an identity scan
 3. Alerts — Filterable threat feed (All/High/Medium/Low)
 4. Tools — AI Scam Analyzer, Photo Monitor, Recovery Hub
 5. Profile — Subscription status, connected accounts, settings
 
 SOCIAL OAUTH FLOWS:
-The app supports connecting Instagram/Facebook/X accounts via OAuth. These are 
-standard browser-based OAuth flows — no special credentials needed to review 
-(the demo mode bypasses these flows entirely).
+The launch build supports connecting Instagram/Facebook/X accounts via OAuth.
+TikTok/YouTube/LinkedIn/Snapchat are visible as Coming Soon and cannot be selected.
 
 PERMISSIONS:
 • Camera: Used for photo fingerprinting (can be declined — feature works without it)
@@ -298,11 +295,9 @@ PERMISSIONS:
 3. Tap **Next** through all → **Get Started** → select protection goal → **Continue**
 4. Dashboard appears (security score at 0 until accounts are connected)
 
-**Step 2 — Demo Mode (recommended for review — no social accounts needed):**
-1. Dashboard → tap 📊 icon (top right) → **Try Demo Mode**
-2. App fills with simulated Instagram/Facebook/X accounts and 3 pre-seeded threats
-3. Security score ring animates to 72, Alerts tab shows threat cards, Scan tab becomes active
-4. All features fully usable in demo mode without real OAuth connections
+**Step 2 — Review the dashboard:**
+1. Complete onboarding and open the dashboard.
+2. The security score and account summary reflect the review account's real current data.
 
 **Step 3 — Connect Instagram (uses test tester account from 11c):**
 1. Dashboard → **Connect Accounts** → **Instagram**
@@ -319,7 +314,7 @@ PERMISSIONS:
 **Step 5 — Run a scan:**
 1. Tap **Scan** tab → radar animation
 2. Tap **Start Full Scan** → progress bar → results in ~5–10 s
-3. "No new threats found — you're protected" **or** threat cards if demo mode active
+3. Review the real result returned for the connected account
 
 **Step 6 — Alerts & Threat Detail:**
 1. Tap **Alerts** tab → threat feed with filter bar (All / High / Medium / Low)
@@ -352,22 +347,13 @@ PERMISSIONS:
 3. Test users can grant `public_profile` immediately (no App Review needed)
 4. Provide reviewer with the test user login link + credentials
 
-**Seed reviewer account with demo data:**
-```bash
-curl -X POST https://getrook.app/api/admin/seed-reviewer \
-  -H "Content-Type: application/json" \
-  -H "x-admin-key: $ADMIN_API_KEY" \
-  -d '{"clerkId": "<reviewer_clerk_id>"}'
-```
-Populates the reviewer's Rook account with connected accounts, 3 threat cards, AI analysis, and identity fingerprint data. The reviewer's Clerk ID appears in the URL bar after sign-in or can be retrieved from the Profile tab → user ID display.
-
 ### 11d. App Review Video Script (< 5 minutes)
 
 | Time | Action | Talking Point |
 |---|---|---|
 | 0:00–0:15 | Launch from home screen → auth screen | "Rook — AI identity protection. Users sign in via Apple, Google, or email using Clerk." |
 | 0:15–0:35 | Sign in with Apple → onboarding | "New users see a 4-step onboarding. Swipe through → Get Started → select protection goal." |
-| 0:35–1:00 | Dashboard → enable Demo Mode | "Demo Mode loads simulated data so reviewers can see all features instantly." |
+| 0:35–1:00 | Complete onboarding → Dashboard | "The dashboard reflects the signed-in account's real connected-account and scan status." |
 | 1:00–1:15 | Dashboard overview | "Security score ring (72/100), connected accounts, 3 active alerts, recent scan time." |
 | 1:15–1:50 | Connect Instagram (live OAuth) | "Tap Connect → Instagram. Browser opens, user signs in, grants `instagram_business_basic`. Browser closes — account connected." |
 | 1:50–2:10 | Connect Facebook (live OAuth) | "Tap Connect → Facebook. User grants `public_profile` only. Account connected immediately." |
@@ -399,7 +385,6 @@ Populates the reviewer's Rook account with connected accounts, 3 threat cards, A
 - [x] CORS restricted to explicit allowlist (getrook.app, tryrook.app, Replit domains)
 - [ ] **[M1 — Manual]** Register `com.getrook.app://oauth` as OAuth redirect URI in Meta App Dashboard → Products → Instagram/Facebook → Valid OAuth Redirect URIs
 - [ ] **[M2 — Manual]** Add reviewer Instagram and Facebook accounts as Testers in Meta Developer Console
-- [ ] **[M3 — Manual]** Set `ADMIN_API_KEY` in production deployment for seed-reviewer endpoint
 - [ ] **[M4 — Manual]** Record ≤5-min App Review video following Section 11d script
 - [ ] **[M5 — Manual]** Submit `user_photos` for Facebook App Review after initial approval
 

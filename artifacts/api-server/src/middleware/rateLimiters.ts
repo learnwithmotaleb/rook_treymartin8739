@@ -17,10 +17,12 @@ function userIdKey(req: Parameters<typeof rateLimit>[0] extends infer R ? R exte
   return (req as any).userId ?? "unauthenticated";
 }
 
-/** 6 scan initiations per authenticated user per 10 minutes. */
+/** 20 scan initiations per authenticated user per 10 minutes.
+ * Active jobs are deduplicated and plan quotas remain the actual scan guard;
+ * this leaves room for a reviewer retrying a transient request. */
 export const scanLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 6,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => (req as any).userId ?? "unauthenticated",

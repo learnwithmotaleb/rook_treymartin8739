@@ -10,7 +10,7 @@
  * monthly and annual packages; store metadata supplies localized prices and
  * introductory-offer eligibility.
  *
- * RevenueCat package prices override fallbacks when available.
+ * Store-provided RevenueCat prices are the only purchasable prices.
  * RC product IDs: premium_monthly_v2, premium_annual_v2
  */
 
@@ -40,8 +40,13 @@ import type { PurchasesPackage } from "react-native-purchases";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { identifyRevenueCatUser, useSubscription, isRevenueCatConfigured } from "@/lib/revenuecat";
-import { getSubscription, syncSubscriptionTier, listThreats } from "@/lib/api";
+import {
+  getValidatedPremiumOffering,
+  identifyRevenueCatUser,
+  useSubscription,
+  isRevenueCatConfigured,
+} from "@/lib/revenuecat";
+import { getSubscription, listThreats } from "@/lib/api";
 import type { ThreatSummary } from "@/lib/api";
 
 type BillingCycle = "annual" | "monthly";
@@ -49,12 +54,6 @@ type BillingCycle = "annual" | "monthly";
 function displayTier(tier: string): string {
   return tier === "free" ? "Free" : "Rook Premium";
 }
-
-const FALLBACK = {
-  annual: { perMonth: "$5.83", total: "$69.99", savings: "42%" },
-  monthly: { perMonth: "$9.99" },
-  trialDays: 7,
-};
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 function ConfirmModal({ visible, pkg, onConfirm, onCancel }: {
@@ -365,12 +364,13 @@ const s0 = StyleSheet.create({
 });
 
 // ─── Screen 1: Trial Reminder ─────────────────────────────────────────────────
-function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad }: {
+function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad, isTrialEligible }: {
   colors: ReturnType<typeof useColors>;
   onBack: () => void;
   onContinue: () => void;
   topPad: number;
   bottomPad: number;
+  isTrialEligible: boolean;
 }) {
   const bellAnim  = useRef(new Animated.Value(0)).current;
   const badgeAnim = useRef(new Animated.Value(0)).current;
@@ -396,10 +396,12 @@ function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad }: {
       {/* Text — pinned to top of screen */}
       <View style={[s1.topText, { paddingTop: topPad + 72 }]}>
         <Text style={[s1.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Your app store confirms{"\n"}trial eligibility
+          {isTrialEligible ? "Your app store confirms\ntrial eligibility" : "Review your plan\nbefore purchase"}
         </Text>
         <Text style={[s1.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Eligible new subscribers may receive 7 days free
+          {isTrialEligible
+            ? "Your introductory offer will be shown in the purchase sheet"
+            : "Your app store will show the final price and terms"}
         </Text>
       </View>
 
@@ -450,7 +452,7 @@ const s1 = StyleSheet.create({
 });
 
 // ─── Screen 2: Plan Select ────────────────────────────────────────────────────
-function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBillingCycle, isPurchasing, isRestoring, onRestore, getAnnualTotal, getMonthlyPrice, topPad, bottomPad, restoreMsg }: {
+function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBillingCycle, isPurchasing, isRestoring, onRestore, getAnnualTotal, getMonthlyPrice, topPad, bottomPad, restoreMsg, isOfferingAvailable, isTrialEligible, isLoadingOffering }: {
   colors: ReturnType<typeof useColors>;
   onBack: () => void;
   onContinue: () => void;
@@ -464,15 +466,12 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
   topPad: number;
   bottomPad: number;
   restoreMsg: string | null;
+  isOfferingAvailable: boolean;
+  isTrialEligible: boolean;
+  isLoadingOffering: boolean;
 }) {
   const annualTotal = getAnnualTotal();
   const monthlyPrice = getMonthlyPrice();
-
-  const annualPerMonth = (() => {
-    const match = annualTotal.replace(/[^0-9.]/g, "");
-    const num = parseFloat(match);
-    return isNaN(num) ? FALLBACK.annual.perMonth : `$${(num / 12).toFixed(2)}`;
-  })();
 
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }]}>
@@ -513,23 +512,24 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBillingCycle("annual"); }}
             activeOpacity={0.85}
           >
-            {/* Eligibility-safe introductory-offer badge */}
-            <View style={[s2.planTag, { backgroundColor: colors.foreground }]}>
-              <Text style={[{ color: colors.background, fontFamily: "Inter_700Bold", fontSize: 11 }]}>TRIAL IF ELIGIBLE</Text>
-            </View>
+            {isTrialEligible && (
+              <View style={[s2.planTag, { backgroundColor: colors.foreground }]}>
+                <Text style={[{ color: colors.background, fontFamily: "Inter_700Bold", fontSize: 11 }]}>INTRO OFFER AVAILABLE</Text>
+              </View>
+            )}
             <View style={s2.planRow}>
               <View style={[s2.check, { backgroundColor: billingCycle === "annual" ? colors.foreground : "transparent", borderColor: billingCycle === "annual" ? colors.foreground : colors.mutedForeground + "60" }]}>
                 {billingCycle === "annual" && <Ionicons name="checkmark" size={15} color={colors.background} />}
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 15 }]}>
-                  Save {FALLBACK.annual.savings} with annual billing
+                  Annual
                 </Text>
                 <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
                   {annualTotal} billed annually
                 </Text>
               </View>
-              <Text style={[{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }]}>{annualPerMonth}/mo</Text>
+              <Text style={[{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 16 }]}>{annualTotal}</Text>
             </View>
           </TouchableOpacity>
 
@@ -553,21 +553,30 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
 
         {/* CTA */}
         <TouchableOpacity
-          style={[s2.cta, { backgroundColor: colors.foreground, opacity: isPurchasing ? 0.7 : 1 }]}
+          style={[s2.cta, { backgroundColor: colors.foreground, opacity: isPurchasing || !isOfferingAvailable ? 0.5 : 1 }]}
           onPress={onContinue}
-          disabled={isPurchasing}
+          disabled={isPurchasing || !isOfferingAvailable}
           activeOpacity={0.88}
         >
           {isPurchasing
             ? <ActivityIndicator color={colors.background} size="small" />
-            : <Text style={[s2.ctaText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>Continue</Text>}
+            : <Text style={[s2.ctaText, { color: colors.background, fontFamily: "Inter_700Bold" }]}>
+                {isOfferingAvailable ? "Continue" : isLoadingOffering ? "Loading plans…" : "Plans unavailable"}
+              </Text>}
         </TouchableOpacity>
+        {!isOfferingAvailable && (
+          <Text style={[s2.finePrint, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+            We can’t load the approved App Store or Google Play plans right now. Checkout is unavailable; please try again later.
+          </Text>
+        )}
 
         {/* Fine print */}
         <Text style={[s2.finePrint, { color: colors.mutedForeground + "99", fontFamily: "Inter_400Regular" }]}>
-          {billingCycle === "annual"
-            ? `Eligible new subscribers receive ${FALLBACK.trialDays} days free, then ${annualTotal} per year.\nBilled annually and renews automatically unless cancelled in your app store.`
-            : `Eligible new subscribers receive ${FALLBACK.trialDays} days free, then ${monthlyPrice} per month.\nRenews automatically unless cancelled in your app store.`}
+          {isTrialEligible
+            ? "Your app store will confirm your introductory offer, exact price, and first charge date before purchase."
+            : billingCycle === "annual"
+              ? `${annualTotal} billed annually. Renews automatically unless cancelled in your app store.`
+              : `${monthlyPrice} billed monthly. Renews automatically unless cancelled in your app store.`}
         </Text>
 
         {/* Links */}
@@ -680,12 +689,20 @@ export default function Subscription() {
   const topPad           = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad        = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const { offerings, tier: rcTier, isPurchasing, isLoading: rcIsLoading, purchase, restore, isRestoring } = useSubscription();
+  const {
+    offerings,
+    isPurchasing,
+    isLoading: rcIsLoading,
+    purchase,
+    restore,
+    isRestoring,
+    isTrialEligible,
+    trialEligibleProductIds,
+  } = useSubscription();
   const [paywallStep, setPaywallStep]   = useState(0);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("annual");
   const [confirmPkg, setConfirmPkg]     = useState<PurchasesPackage | null>(null);
   const [restoreMsg, setRestoreMsg]     = useState<string | null>(null);
-  const [devUpgrading, setDevUpgrading] = useState(false);
   const [topThreat, setTopThreat]       = useState<ThreatSummary | null>(null);
   const [serverTier, setServerTier]     = useState<string | null>(null);
   const [subscriptionCheckDone, setSubscriptionCheckDone] = useState(false);
@@ -734,21 +751,23 @@ export default function Subscription() {
   const alreadySubscribed = currentTier !== "free";
 
   // ── Package resolution ────────────────────────────────────────────────────
+  const validatedOffering = getValidatedPremiumOffering(offerings);
+  const isSelectedPlanTrialEligible = billingCycle === "annual"
+    ? trialEligibleProductIds.includes("premium_annual_v2")
+    : trialEligibleProductIds.includes("premium_monthly_v2");
   const getPremiumPackage = useCallback((cycle: BillingCycle): PurchasesPackage | null => {
-    const offering = offerings?.all["premium"] ?? offerings?.current ?? null;
-    if (!offering) return null;
-    if (cycle === "annual") return offering.annual ?? offering.availablePackages.find((p) => p.packageType === "ANNUAL") ?? null;
-    return offering.monthly ?? offering.availablePackages.find((p) => p.packageType === "MONTHLY") ?? null;
-  }, [offerings]);
+    if (!validatedOffering) return null;
+    return cycle === "annual" ? validatedOffering.annual : validatedOffering.monthly;
+  }, [validatedOffering]);
 
   const getAnnualTotal = useCallback((): string => {
     const pkg = getPremiumPackage("annual");
-    return pkg?.product?.priceString ?? FALLBACK.annual.total;
+    return pkg?.product?.priceString ?? "—";
   }, [getPremiumPackage]);
 
   const getMonthlyPrice = useCallback((): string => {
     const pkg = getPremiumPackage("monthly");
-    return pkg?.product?.priceString ?? FALLBACK.monthly.perMonth;
+    return pkg?.product?.priceString ?? "—";
   }, [getPremiumPackage]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -775,29 +794,18 @@ export default function Subscription() {
     setPaywallStep(2);
   }, []);
 
-  const handleDevUpgrade = useCallback(async () => {
-    setDevUpgrading(true);
-    try {
-      await syncSubscriptionTier("premium");
-      await refreshData();
-      Alert.alert("✓ Dev Mode", "Plan set to Premium");
-    } catch (err: any) {
-      Alert.alert("Error", err?.message ?? "Failed");
-    } finally {
-      setDevUpgrading(false);
-    }
-  }, [refreshData]);
-
   const handleStep2Continue = useCallback(() => {
     const pkg = getPremiumPackage(billingCycle);
     if (!pkg) {
-      if (__DEV__) { handleDevUpgrade(); return; }
-      Alert.alert("Store not available", "In-app purchases require the App Store or Google Play.");
+      Alert.alert(
+        "Plans unavailable",
+        "The approved subscription plans could not be loaded. Checkout is unavailable; please try again later.",
+      );
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setConfirmPkg(pkg);
-  }, [billingCycle, getPremiumPackage, handleDevUpgrade]);
+  }, [billingCycle, getPremiumPackage]);
 
   const handleConfirmPurchase = useCallback(async () => {
     if (!confirmPkg) return;
@@ -809,8 +817,13 @@ export default function Subscription() {
       await refreshData();
       if (isFromOnboarding) { completeOnboarding(); router.replace("/(tabs)" as any); }
       else { router.back(); }
-    } catch (err: any) {
-      if (err?.userCancelled) return;
+    } catch (err: unknown) {
+      const purchaseError = err as { userCancelled?: boolean; message?: string };
+      if (purchaseError.userCancelled) return;
+      Alert.alert(
+        "Purchase not completed",
+        purchaseError.message ?? "The App Store or Google Play purchase could not be completed. Please try again.",
+      );
     }
   }, [confirmPkg, clerkUser?.id, purchase, refreshData, isFromOnboarding, completeOnboarding]);
 
@@ -818,11 +831,20 @@ export default function Subscription() {
     try {
       if (!clerkUser?.id) throw new Error("Please sign in before restoring purchases.");
       await identifyRevenueCatUser(clerkUser.id);
-      await restore();
-      await refreshData();
-      setRestoreMsg("Purchases restored.");
-    } catch {
-      setRestoreMsg("Nothing to restore.");
+      const restoredInfo = await restore();
+      const hasRestoredPremium = !!(
+        restoredInfo.entitlements.active.premium ||
+        restoredInfo.entitlements.active.pro
+      );
+      if (hasRestoredPremium) {
+        await refreshData();
+        setRestoreMsg("Your Rook Premium purchases were restored.");
+      } else {
+        setRestoreMsg("No active Rook Premium purchases were found for this store account.");
+      }
+    } catch (err: unknown) {
+      const restoreError = err as { message?: string };
+      setRestoreMsg(restoreError.message ?? "Unable to restore purchases. Please try again.");
     }
     setTimeout(() => setRestoreMsg(null), 3000);
   }, [clerkUser?.id, restore, refreshData]);
@@ -843,9 +865,7 @@ export default function Subscription() {
     return <ManageScreen colors={colors} tier={currentTier} onClose={handleClose} topPad={topPad} />;
   }
 
-  // Native release builds fail explicitly if billing is unavailable. During
-  // local/web development the full paywall still renders with fallback prices
-  // so the complete flow remains reviewable and testable.
+  // Release builds fail explicitly if the billing SDK is unavailable.
   if (!isRevenueCatConfigured && !__DEV__) {
     return (
       <View style={[{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 28 }]}>
@@ -895,6 +915,7 @@ export default function Subscription() {
         onContinue={handleStep1Continue}
         topPad={topPad}
         bottomPad={bottomPad}
+        isTrialEligible={isTrialEligible}
       />
     );
   }
@@ -907,7 +928,7 @@ export default function Subscription() {
         onContinue={handleStep2Continue}
         billingCycle={billingCycle}
         setBillingCycle={setBillingCycle}
-        isPurchasing={isPurchasing || devUpgrading}
+        isPurchasing={isPurchasing}
         isRestoring={isRestoring}
         onRestore={handleRestore}
         getAnnualTotal={getAnnualTotal}
@@ -915,6 +936,9 @@ export default function Subscription() {
         topPad={topPad}
         bottomPad={bottomPad}
         restoreMsg={restoreMsg}
+        isOfferingAvailable={!!validatedOffering}
+        isTrialEligible={isSelectedPlanTrialEligible}
+        isLoadingOffering={rcIsLoading}
       />
       <ConfirmModal
         visible={!!confirmPkg}

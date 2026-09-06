@@ -8,15 +8,19 @@
  *
  * Required-reason API categories declared here:
  *  - NSPrivacyAccessedAPICategoryUserDefaults (CA92.1) — AsyncStorage
- *  - NSPrivacyAccessedAPICategoryFileTimestamp (C617.1) — react-native-view-shot, expo-image-picker
- *  - NSPrivacyAccessedAPICategorySystemBootTime (35F9.1) — react-native-reanimated perf timing
+ *  - NSPrivacyAccessedAPICategoryFileTimestamp (C617.1) — image-picker and
+ *    share-card image handling
  *
  * Collected data types:
  *  - Email address (linked, app functionality)
  *  - Name (linked, app functionality)
  *  - Photos or Videos (linked, app functionality — identity fingerprint)
  *  - User ID (linked, app functionality)
- *  - Product Interaction (linked, analytics/app functionality)
+ *  - Device ID (linked, app functionality — push notification token)
+ *  - Purchase History (linked, app functionality — RevenueCat subscriptions)
+ *
+ * Production analytics is currently disabled and the app does not send crash
+ * or diagnostic reports. Those data types are intentionally not declared.
  */
 
 const { withDangerousMod } = require("@expo/config-plugins");
@@ -59,28 +63,6 @@ const PRIVACY_MANIFEST = `<?xml version="1.0" encoding="UTF-8"?>
       <array>
         <!-- C617.1: Display file information or use it for app functionality -->
         <string>C617.1</string>
-      </array>
-    </dict>
-
-    <!-- System boot time — react-native-reanimated, react-native performance timing -->
-    <dict>
-      <key>NSPrivacyAccessedAPIType</key>
-      <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
-      <key>NSPrivacyAccessedAPITypeReasons</key>
-      <array>
-        <!-- 35F9.1: Calculate time intervals for animation / performance measurement -->
-        <string>35F9.1</string>
-      </array>
-    </dict>
-
-    <!-- Disk space — expo-image-picker, react-native-view-shot -->
-    <dict>
-      <key>NSPrivacyAccessedAPIType</key>
-      <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
-      <key>NSPrivacyAccessedAPITypeReasons</key>
-      <array>
-        <!-- E174.1: Display disk space information to the user or take action based on it -->
-        <string>E174.1</string>
       </array>
     </dict>
 
@@ -146,10 +128,10 @@ const PRIVACY_MANIFEST = `<?xml version="1.0" encoding="UTF-8"?>
       </array>
     </dict>
 
-    <!-- Product Interaction — scan history, alert views, feature usage -->
+    <!-- Purchase history — subscription entitlement and restoration via RevenueCat -->
     <dict>
       <key>NSPrivacyCollectedDataType</key>
-      <string>NSPrivacyCollectedDataTypeProductInteraction</string>
+      <string>NSPrivacyCollectedDataTypePurchaseHistory</string>
       <key>NSPrivacyCollectedDataTypeLinked</key>
       <true/>
       <key>NSPrivacyCollectedDataTypeTracking</key>
@@ -157,7 +139,20 @@ const PRIVACY_MANIFEST = `<?xml version="1.0" encoding="UTF-8"?>
       <key>NSPrivacyCollectedDataTypePurposes</key>
       <array>
         <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-        <string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+      </array>
+    </dict>
+
+    <!-- Device ID — Expo push token linked to the signed-in user for alerts -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeDeviceID</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
       </array>
     </dict>
 

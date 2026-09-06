@@ -29,7 +29,7 @@ import {
 } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { buildScanCacheKey, getCached, setCache } from "./cacheService";
-import type { Tier } from "../lib/planConfig";
+import { PLAN_CONFIG, type Tier } from "../lib/planConfig";
 import {
   generateSimulatedCandidates,
   buildThreatFromCandidate,
@@ -644,6 +644,13 @@ async function runScanPipeline(
 
   if (!user) throw new Error(`User not found: ${userId}`);
 
+  // This cap applies to image analysis inputs, not account ingestion. We still
+  // refresh account metadata, but never quietly send more images to hashing,
+  // embedding, or reverse-image search than the user's plan allows.
+  const imagesPerScan = PLAN_CONFIG[planTier].imagesPerScan;
+  const limitImages = <T,>(items: T[]): T[] =>
+    imagesPerScan === -1 ? items : items.slice(0, imagesPerScan);
+
   // ── Photo-processing consent gate + parallel DB prefetch ─────────────────
   // Run consent check, connected accounts, and suppression set in parallel —
   // all three only need userId which is already known.
@@ -769,8 +776,12 @@ async function runScanPipeline(
         }
       }
     }
-    allUserHashes = await storeUserPhotoHashes(userId, photoHashInputs);
-    logger.info({ userId, total: photoHashInputs.length, hashed: allUserHashes.length }, "User photo hashes ready");
+    const limitedPhotoHashInputs = limitImages(photoHashInputs);
+    allUserHashes = await storeUserPhotoHashes(userId, limitedPhotoHashInputs);
+    logger.info(
+      { userId, available: photoHashInputs.length, analyzed: limitedPhotoHashInputs.length, imagesPerScan },
+      "User photo hashes ready"
+    );
   }
 
   // Fire-and-forget: recompute cross-platform identity anchor.
@@ -789,10 +800,10 @@ async function runScanPipeline(
     const allIngestedImageUrls = ingestedAccounts.flatMap((a) =>
       a.mediaItems.filter((m) => m.type === "image" && m.url).map((m) => m.url as string)
     );
-    const embeddingTargetUrls = [
+    const embeddingTargetUrls = limitImages([
       ...profilePhotoUrls,
       ...allIngestedImageUrls.filter((u) => !profilePhotoUrls.includes(u)),
-    ].slice(0, 20);
+    ]).slice(0, 20);
 
     buildUserPhotoEmbeddings(userId, embeddingTargetUrls, 20).catch((err) =>
       logger.warn({ err }, "Background AI embedding generation failed (non-fatal)")
@@ -961,11 +972,11 @@ async function runScanPipeline(
 
     // Profile photos first so Strategy 2 (reverse image search) always has
     // at least one URL to work with, even when post photos aren't accessible.
-    const allPhotoUrls = [
+    const allPhotoUrls = limitImages([
       ...profilePhotoUrls,
       ...postPhotoUrls,
       ...indexedPhotoUrls,
-    ].slice(0, webSearchLimits.maxTotalPhotoUrls);
+    ]).slice(0, webSearchLimits.maxTotalPhotoUrls);
 
     const allCaptions = ingestedAccounts.flatMap((a) =>
       a.mediaItems
@@ -1135,7 +1146,7 @@ async function runScanPipeline(
   // detection (publishedAt of the specific photo that matched the candidate).
   let userHashDates: DatedPhotoHash[] = [];
   try {
-    userHashDates = await loadUserPhotoHashesWithDates(userId);
+    userHashDates = limitImages(await loadUserPhotoHashesWithDates(userId));
   } catch {
     // Non-fatal: temporal scoring will be skipped for this scan
   }
@@ -1146,7 +1157,7 @@ async function runScanPipeline(
     ? [...allUserHashes]
     : userHashDates.map((h) => h.dHash);
   if (userHashes.length === 0) {
-    userHashes = await loadUserDHashes(userId);
+    userHashes = limitImages(await loadUserDHashes(userId));
     logger.info({ userId, loaded: userHashes.length }, "Loaded user dHashes from persistent store");
   }
 
@@ -1719,6 +1730,7 @@ async function runScanPipeline(
       realCandidates: allCandidates.filter((c) => !c.simulated).length,
       simulatedCandidates: allCandidates.filter((c) => c.simulated).length,
       mediaIndexed: { photos: totalPhotos, captions: totalCaptions, reels: totalReels },
+      imagesAnalyzed: imagesPerScan === -1 ? "unlimited" : Math.min(imagesPerScan, allUserHashes.length),
     },
     "Scan pipeline completed"
   );

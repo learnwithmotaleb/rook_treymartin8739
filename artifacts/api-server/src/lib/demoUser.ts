@@ -2,8 +2,8 @@
  * Demo User Helper
  *
  * Creates and seeds a demo user with connected accounts and fingerprint data
- * for demonstration purposes. In production, this is replaced by a proper
- * OAuth-based authentication flow.
+ * for local development demonstrations only. Production requests must be
+ * authenticated and must never be assigned this shared account.
  */
 
 import { eq } from "drizzle-orm";
@@ -17,6 +17,20 @@ import {
 import { logger } from "./logger";
 
 const DEMO_EMAIL = "demo@getrook.app";
+const isDevelopment = process.env["NODE_ENV"] === "development";
+
+export class DemoUserDisabledError extends Error {
+  constructor() {
+    super("Demo users are available only when NODE_ENV=development.");
+    this.name = "DemoUserDisabledError";
+  }
+}
+
+function requireDevelopmentDemoMode(): void {
+  if (!isDevelopment) {
+    throw new DemoUserDisabledError();
+  }
+}
 
 const DEMO_ACCOUNTS = [
   { platform: "instagram", username: "@alexjohnson", followers: 12400, photosIndexed: 84, captionsIndexed: 72, reelsIndexed: 18 },
@@ -28,6 +42,8 @@ const DEMO_ACCOUNTS = [
 ];
 
 export async function getOrCreateDemoUser(): Promise<User> {
+  requireDevelopmentDemoMode();
+
   const [existing] = await db
     .select()
     .from(usersTable)
@@ -82,6 +98,8 @@ export async function getOrCreateDemoUser(): Promise<User> {
 }
 
 export async function resolveUserId(headerValue: string | string[] | undefined): Promise<string> {
+  requireDevelopmentDemoMode();
+
   const raw = Array.isArray(headerValue) ? headerValue[0] : headerValue;
   const id = raw?.trim() ?? "";
 

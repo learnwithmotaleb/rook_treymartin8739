@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,9 +22,8 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { getAccounts, getOAuthRedirectUris, getOAuthState, getXOAuthInit, getPhotoConsent } from "@/lib/api";
+import { getAccounts, getOAuthRedirectUris, getOAuthState, getXOAuthInit } from "@/lib/api";
 import { INSTAGRAM_APP_ID, FACEBOOK_APP_ID, OAUTH_APP_SCHEME } from "@/constants/oauthConfig";
-import { PhotoConsentModal } from "@/components/PhotoConsentModal";
 
 interface PlatformConfig {
   label: string;
@@ -123,7 +122,7 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
 const ALL_PLATFORMS = Object.keys(PLATFORM_CONFIGS) as NonNullable<AppPlatform>[];
 
 // Platforms that are visible in the picker but not yet available for connection.
-const LAUNCH_DISABLED_PLATFORMS = new Set<string>(["tiktok"]);
+const LAUNCH_DISABLED_PLATFORMS = new Set<string>(["tiktok", "youtube", "linkedin", "snapchat"]);
 
 // App IDs imported from shared constants — single source of truth across
 // connect-account.tsx and onboarding.tsx.
@@ -358,24 +357,6 @@ export default function ConnectAccount() {
   const [step, setStep] = useState<"pick" | "connect">(
     initialPlatform ? "connect" : "pick"
   );
-  const [consentModalVisible, setConsentModalVisible] = useState(false);
-  const postConsentRef = useRef<(() => void) | null>(null);
-
-  /** Check photo-processing consent; if missing, show modal and defer `after` until resolved. */
-  const checkAndShowConsent = useCallback(async (after: () => void): Promise<void> => {
-    try {
-      const status = await getPhotoConsent();
-      if (!status.hasConsent) {
-        postConsentRef.current = after;
-        setConsentModalVisible(true);
-        return;
-      }
-    } catch {
-      // Non-fatal — if consent check fails, proceed anyway
-    }
-    after();
-  }, []);
-
   // When a deep-link arrives for a launch-disabled platform, stay on pick step
   // and show a clear "coming soon" message so the user knows why it didn't open.
   useEffect(() => {
@@ -421,9 +402,10 @@ export default function ConnectAccount() {
         },
       } as any);
     };
-    // Show photo-processing consent modal on first connection if not yet consented.
-    await checkAndShowConsent(navigate);
-  }, [refreshData, selectedPlatform, checkAndShowConsent]);
+    // Connecting an account does not itself process photos. Defer the notice
+    // until an actual photo-selection/processing action is requested.
+    navigate();
+  }, [refreshData, selectedPlatform]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedPlatform) return;
@@ -444,8 +426,6 @@ export default function ConnectAccount() {
         ]);
       } else {
         await addAccount(selectedPlatform, trimmed, undefined, displayName.trim() || undefined);
-        // After adding the account, show photo-processing consent if not yet given.
-        // The success alert and navigation happen after the user resolves the modal.
         const succeedAndGoBack = () => {
           Alert.alert(
             "Account Added",
@@ -453,14 +433,16 @@ export default function ConnectAccount() {
             [{ text: "Done", onPress: () => router.back() }]
           );
         };
-        await checkAndShowConsent(succeedAndGoBack);
+        // A manual account entry contains no photo data, so do not interrupt
+        // account setup with a biometric/photo-consent modal.
+        succeedAndGoBack();
       }
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to connect account.");
     } finally {
       setSubmitting(false);
     }
-  }, [selectedPlatform, username, isExistingAccount, params.existingId, addAccount, updateAccount, config, checkAndShowConsent]);
+  }, [selectedPlatform, username, isExistingAccount, params.existingId, addAccount, updateAccount, config]);
 
   const selectPlatform = (platform: NonNullable<AppPlatform>) => {
     setSelectedPlatform(platform);
@@ -796,23 +778,6 @@ export default function ConnectAccount() {
           )}
         </ScrollView>
       </View>
-
-      {/* Photo processing consent modal — shown first time a social account is connected */}
-      <PhotoConsentModal
-        visible={consentModalVisible}
-        onConsent={() => {
-          setConsentModalVisible(false);
-          const action = postConsentRef.current;
-          postConsentRef.current = null;
-          action?.();
-        }}
-        onSkip={() => {
-          setConsentModalVisible(false);
-          const action = postConsentRef.current;
-          postConsentRef.current = null;
-          action?.();
-        }}
-      />
     </KeyboardAvoidingView>
   );
 }

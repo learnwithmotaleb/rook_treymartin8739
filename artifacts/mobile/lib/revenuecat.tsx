@@ -24,8 +24,36 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 
 export const ENTITLEMENT_PRO = "pro";
 export const ENTITLEMENT_PREMIUM = "premium";
+export const PREMIUM_MONTHLY_PRODUCT_ID = "premium_monthly_v2";
+export const PREMIUM_ANNUAL_PRODUCT_ID = "premium_annual_v2";
 
 export type RCTier = "free" | "premium";
+
+export interface PremiumOfferingPackages {
+  monthly: PurchasesPackage;
+  annual: PurchasesPackage;
+}
+
+/**
+ * Purchases must only be made with the two products approved for Rook Premium.
+ * Do not fall back to package type here: a dashboard misconfiguration must
+ * disable checkout rather than selling an unintended product.
+ */
+export function getValidatedPremiumOffering(
+  offerings: PurchasesOfferings | undefined,
+): PremiumOfferingPackages | null {
+  const packages = offerings?.current?.availablePackages;
+  if (!packages) return null;
+
+  const monthly = packages.find(
+    (pkg) => pkg.product.identifier === PREMIUM_MONTHLY_PRODUCT_ID,
+  );
+  const annual = packages.find(
+    (pkg) => pkg.product.identifier === PREMIUM_ANNUAL_PRODUCT_ID,
+  );
+
+  return monthly && annual ? { monthly, annual } : null;
+}
 
 /** True only after a successful Purchases.configure() call. Guarded by _layout.tsx try/catch. */
 export let isRevenueCatConfigured = false;
@@ -91,6 +119,9 @@ export interface SubscriptionContextValue {
   restore: () => Promise<CustomerInfo>;
   isPurchasing: boolean;
   isRestoring: boolean;
+  /** True only when RevenueCat/store explicitly confirms an intro offer. */
+  isTrialEligible: boolean;
+  trialEligibleProductIds: readonly string[];
   refetch: () => void;
 }
 
@@ -108,6 +139,16 @@ function useSubscriptionContext(): SubscriptionContextValue {
   const offeringsQuery = useQuery({
     queryKey: ["revenuecat", "offerings"],
     queryFn: () => Purchases.getOfferings(),
+    staleTime: 300_000,
+    enabled: isRevenueCatConfigured,
+  });
+
+  const trialEligibilityQuery = useQuery({
+    queryKey: ["revenuecat", "trial-eligibility"],
+    queryFn: () => Purchases.checkTrialOrIntroductoryPriceEligibility([
+      PREMIUM_MONTHLY_PRODUCT_ID,
+      PREMIUM_ANNUAL_PRODUCT_ID,
+    ]),
     staleTime: 300_000,
     enabled: isRevenueCatConfigured,
   });
@@ -141,6 +182,10 @@ function useSubscriptionContext(): SubscriptionContextValue {
   });
 
   const tier = getTierFromCustomerInfo(customerInfoQuery.data);
+  const trialEligibleProductIds = Object.entries(trialEligibilityQuery.data ?? {})
+    .filter(([, eligibility]) => eligibility.status === 2) // INTRO_ELIGIBILITY_STATUS_ELIGIBLE
+    .map(([productId]) => productId);
+  const isTrialEligible = trialEligibleProductIds.length > 0;
   return {
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
@@ -151,6 +196,8 @@ function useSubscriptionContext(): SubscriptionContextValue {
     restore: restoreMutation.mutateAsync,
     isPurchasing: purchaseMutation.isPending,
     isRestoring: restoreMutation.isPending,
+    isTrialEligible,
+    trialEligibleProductIds,
     refetch: () => {
       void customerInfoQuery.refetch();
       void offeringsQuery.refetch();

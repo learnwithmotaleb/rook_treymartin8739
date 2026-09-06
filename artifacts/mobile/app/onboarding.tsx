@@ -803,6 +803,7 @@ const ALL_PLATFORMS: Array<{ id: NonNullable<SocialPlatform>; label: string }> =
   { id: "snapchat", label: "Snapchat" },
   { id: "linkedin", label: "LinkedIn" },
 ];
+const COMING_SOON_PLATFORMS = new Set<string>(["tiktok", "youtube", "linkedin", "snapchat"]);
 
 // ─── S8: Full Profile + Account Setup (merged) ───────────────────────────────
 // Replaces old IdentityInputScreen (step 8) + PlatformHandlesScreen (step 10).
@@ -832,6 +833,27 @@ function FullProfileSetupScreen({
   photoUri: string | null;
   onPhotoSelect: (uri: string, base64?: string) => void;
 }) {
+  const [photoConsentVisible, setPhotoConsentVisible] = useState(false);
+  const pendingReferencePhoto = useRef<{ uri: string; base64?: string } | null>(null);
+
+  const processReferencePhoto = useCallback(async (uri: string, base64?: string) => {
+    if (!uri) {
+      onPhotoSelect("", undefined);
+      return;
+    }
+    try {
+      const status = await getPhotoConsent();
+      if (status.hasConsent) {
+        onPhotoSelect(uri, base64);
+      } else {
+        pendingReferencePhoto.current = { uri, base64 };
+        setPhotoConsentVisible(true);
+      }
+    } catch {
+      Alert.alert("Photo consent unavailable", "We couldn't confirm your photo-processing consent. Please try again before adding a reference photo.");
+    }
+  }, [onPhotoSelect]);
+
   const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -843,7 +865,7 @@ function FullProfileSetupScreen({
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      onPhotoSelect(asset.uri, asset.base64 ?? undefined);
+      void processReferencePhoto(asset.uri, asset.base64 ?? undefined);
     }
   };
 
@@ -877,7 +899,7 @@ function FullProfileSetupScreen({
               <View style={[inp.photoFilled, { backgroundColor: colors.primary + "14", borderColor: colors.primary + "55" }]}>
                 <Ionicons name="checkmark-circle" size={18} color={colors.success} />
                 <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 }]}>Reference photo added — we'll search for copies</Text>
-                <TouchableOpacity onPress={() => onPhotoSelect("", undefined)}>
+                  <TouchableOpacity onPress={() => onPhotoSelect("", undefined)}>
                   <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
                 </TouchableOpacity>
               </View>
@@ -931,6 +953,19 @@ function FullProfileSetupScreen({
         </View>
 
       </ScrollView>
+      <PhotoConsentModal
+        visible={photoConsentVisible}
+        onConsent={() => {
+          setPhotoConsentVisible(false);
+          const photo = pendingReferencePhoto.current;
+          pendingReferencePhoto.current = null;
+          if (photo) onPhotoSelect(photo.uri, photo.base64);
+        }}
+        onSkip={() => {
+          pendingReferencePhoto.current = null;
+          setPhotoConsentVisible(false);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -1383,7 +1418,8 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
         return;
       }
     } catch {
-      // Non-fatal — proceed anyway if consent check fails
+      Alert.alert("Photo consent unavailable", "We couldn't confirm your photo-processing consent. Please try again before processing photos.");
+      return;
     }
     after();
   }, []);
@@ -1547,10 +1583,26 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
     const action = postConsentRef.current;
     postConsentRef.current = null;
     if (proceed && action) action();
-    else if (!proceed && action) action(); // Skip also proceeds — just without consent
+    // Skipping closes the notice only. In particular, never run the deferred
+    // photo indexing action without a successful, recorded consent.
+    if (!proceed) setPhotosConfirmed(true);
   }, []);
 
   // ── Connected state ──────────────────────────────────────────────────────
+  if (COMING_SOON_PLATFORMS.has(platform)) {
+    return (
+      <View style={[ph.outerCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: 0.55 }]}>
+        <View style={ph.platformHeader}>
+          <View style={[ph.platIcon, { backgroundColor: platformColor + "20" }]}>
+            <PlatformIcon platform={platform as NonNullable<SocialPlatform>} size={22} />
+          </View>
+          <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
+          <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 12 }]}>Coming Soon</Text>
+        </View>
+      </View>
+    );
+  }
+
   if (isConnected) {
     return (
       <>

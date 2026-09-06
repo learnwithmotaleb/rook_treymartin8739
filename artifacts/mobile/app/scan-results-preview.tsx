@@ -1,7 +1,8 @@
 /**
  * Scan Results Preview — shown to free-tier users after a scan completes.
- * Real threat counts are visible; card content is blurred to create urgency.
- * CTA: subscribe to Rook Premium for full results and continuous monitoring.
+ * Free members receive a meaningful safety summary. Premium gates the underlying
+ * evidence, advanced analysis, and continuous monitoring—not the fact that a
+ * potential threat exists or the immediate protective action to take.
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -15,7 +16,7 @@ import {
   Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,24 +26,30 @@ import { GlassCard } from "@/components/GlassCard";
 import { SecurityScoreRing } from "@/components/SecurityScoreRing";
 import { analytics } from "@/lib/analytics";
 
-function BlurredThreatCard({
-  color,
+function FreeThreatCard({
   colors,
-  label,
-  platform,
+  threat,
 }: {
-  color: string;
   colors: ReturnType<typeof useColors>;
-  label: string;
-  platform: string;
+  threat: {
+    title: string;
+    platform: string | null;
+    severity: "high" | "medium" | "low";
+    threatScore: number;
+    evidenceCount: number;
+    matchedMediaCount: number;
+  };
 }) {
+  const color = threat.severity === "high" ? colors.danger : threat.severity === "medium" ? colors.warning : colors.success;
+  const platform = threat.platform ?? "Unknown platform";
+  const evidenceCount = Math.max(threat.evidenceCount, threat.matchedMediaCount);
   return (
     <View style={[blurStyles.card, { backgroundColor: colors.card, borderColor: color + "44" }]}>
       <View style={[blurStyles.accentBar, { backgroundColor: color + "80" }]} />
       <View style={blurStyles.body}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <View style={[blurStyles.badge, { backgroundColor: color + "22", borderColor: color + "44" }]}>
-            <Text style={[blurStyles.badgeText, { color, fontFamily: "Inter_700Bold" }]}>{label}</Text>
+            <Text style={[blurStyles.badgeText, { color, fontFamily: "Inter_700Bold" }]}>{threat.severity.toUpperCase()}</Text>
           </View>
           <View style={[blurStyles.platBadge, { backgroundColor: colors.secondary }]}>
             <Text style={[blurStyles.platText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -50,8 +57,15 @@ function BlurredThreatCard({
             </Text>
           </View>
         </View>
-        <View style={[blurStyles.blurRow, { backgroundColor: colors.border }]} />
-        <View style={[blurStyles.blurRow, { backgroundColor: colors.border, width: "65%" }]} />
+        <Text style={[blurStyles.threatTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]} numberOfLines={1}>
+          {threat.title}
+        </Text>
+        <Text style={[blurStyles.threatMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {threat.threatScore}% confidence · {evidenceCount} evidence signal{evidenceCount === 1 ? "" : "s"}
+        </Text>
+        <Text style={[blurStyles.threatAction, { color, fontFamily: "Inter_500Medium" }]}>
+          Next: review and report or block this account
+        </Text>
       </View>
       <View style={blurStyles.lockWrap}>
         <Ionicons name="lock-closed" size={16} color={colors.mutedForeground} />
@@ -79,14 +93,16 @@ const blurStyles = StyleSheet.create({
   badgeText: { fontSize: 10 },
   platBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   platText: { fontSize: 11 },
-  blurRow: { height: 10, borderRadius: 5 },
+  threatTitle: { fontSize: 13 },
+  threatMeta: { fontSize: 11 },
+  threatAction: { fontSize: 11 },
   lockWrap: { padding: 14, justifyContent: "center" },
 });
 
 export default function ScanResultsPreview() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { threats, user, indexedPhotos } = useApp();
+  const { lastScanThreats, user, indexedPhotos } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -96,27 +112,14 @@ export default function ScanResultsPreview() {
 
   const [perceivedRisk, setPerceivedRisk] = useState<number | null>(null);
 
-  const params = useLocalSearchParams<{
-    total?: string;
-    high?: string;
-    medium?: string;
-    low?: string;
-    platforms?: string;
-  }>();
-
-  const activeThreats = threats.filter((t) => !t.resolved);
-  const highCount = params.high !== undefined
-    ? Number(params.high)
-    : activeThreats.filter((t) => t.severity === "high").length;
-  const medCount = params.medium !== undefined
-    ? Number(params.medium)
-    : activeThreats.filter((t) => t.severity === "medium").length;
-  const lowCount = params.low !== undefined
-    ? Number(params.low)
-    : activeThreats.filter((t) => t.severity === "low").length;
-  const totalCount = params.total !== undefined
-    ? Number(params.total)
-    : activeThreats.length;
+  // This page describes the just-completed scan only. Historical unresolved
+  // alerts remain available in Alerts and must not influence this scan's
+  // severity breakdown or preview cards.
+  const activeThreats = lastScanThreats.filter((t) => !t.resolved);
+  const highCount = activeThreats.filter((t) => t.severity === "high").length;
+  const medCount = activeThreats.filter((t) => t.severity === "medium").length;
+  const lowCount = activeThreats.filter((t) => t.severity === "low").length;
+  const totalCount = activeThreats.length;
 
   useEffect(() => {
     analytics.previewViewed({ threat_count: totalCount, high: highCount });
@@ -134,20 +137,11 @@ export default function ScanResultsPreview() {
   }, []);
 
   const urgencyColor = highCount > 0 ? colors.danger : medCount > 0 ? colors.warning : colors.success;
-  const urgencyLabel = highCount > 0 ? "High-priority threats found" : medCount > 0 ? "Medium-risk threats found" : "Low-risk activity detected";
+  const urgencyLabel = totalCount === 0
+    ? "No potential threats found"
+    : highCount > 0 ? "High-priority threats found" : medCount > 0 ? "Medium-risk threats found" : "Potential threats found";
 
-  const previewPlatforms =
-    params.platforms
-      ? params.platforms.split(",").filter(Boolean)
-      : activeThreats.length > 0
-        ? activeThreats.slice(0, 3).map((t) => t.platform ?? "unknown")
-        : ["instagram", "tiktok", "x"];
-
-  const PREVIEW_CARDS = [
-    { color: colors.danger, label: "HIGH", platform: previewPlatforms[0] ?? "instagram" },
-    { color: colors.warning, label: "MED", platform: previewPlatforms[1] ?? "tiktok" },
-    { color: colors.mutedForeground, label: "LOW", platform: previewPlatforms[2] ?? "x" },
-  ].slice(0, Math.min(Math.max(totalCount, 2), 3));
+  const previewThreats = activeThreats.slice(0, 3);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -236,7 +230,7 @@ export default function ScanResultsPreview() {
               ) : null;
             })()}
             <Text style={[styles.heroSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Unlock to see full details, evidence, and removal steps
+               Premium unlocks detailed evidence, advanced analysis, and guided removal support.
             </Text>
 
             {/* Severity breakdown */}
@@ -268,23 +262,29 @@ export default function ScanResultsPreview() {
             </View>
           </GlassCard>
 
-          {/* Blurred threat previews */}
+          {/* Free safety summary: results stay useful without exposing evidence. */}
           <View style={styles.previewSection}>
             <View style={styles.previewHeader}>
               <Text style={[styles.previewTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Detected Threats
+                {totalCount === 0 ? "Your result" : "Potential threats"}
               </Text>
               <View style={[styles.lockBadge, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                 <Ionicons name="lock-closed" size={11} color={colors.mutedForeground} />
                 <Text style={[styles.lockText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                  Locked
+                  Evidence locked
                 </Text>
               </View>
             </View>
 
             <View style={styles.cardsStack}>
-              {PREVIEW_CARDS.map((card, i) => (
-                <BlurredThreatCard key={i} {...card} colors={colors} />
+              {totalCount === 0 ? (
+                <View style={[styles.cleanResult, { backgroundColor: colors.success + "12", borderColor: colors.success + "44" }]}>
+                  <Ionicons name="shield-checkmark" size={22} color={colors.success} />
+                  <Text style={[styles.cleanResultTitle, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>No potential threats found</Text>
+                  <Text style={[styles.cleanResultText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>We found no potential threats in this scan. Keep an eye on your accounts and scan again when your monthly allowance resets.</Text>
+                </View>
+              ) : previewThreats.map((threat) => (
+                <FreeThreatCard key={threat.id} threat={threat} colors={colors} />
               ))}
               {totalCount > 3 && (
                 <View style={[styles.moreCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -410,6 +410,9 @@ const styles = StyleSheet.create({
   cardsStack: { gap: 8 },
   moreCard: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 14, borderWidth: 1 },
   moreText: { fontSize: 13 },
+  cleanResult: { alignItems: "center", gap: 8, padding: 18, borderRadius: 14, borderWidth: 1 },
+  cleanResultTitle: { fontSize: 14 },
+  cleanResultText: { fontSize: 12, textAlign: "center", lineHeight: 18 },
 
   featureCard: { gap: 12 },
   featureTitle: { fontSize: 14 },

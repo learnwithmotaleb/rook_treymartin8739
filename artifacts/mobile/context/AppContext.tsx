@@ -14,6 +14,7 @@ import {
   listThreats,
   startScan as apiStartScan,
   getScanStatus,
+  getScanResults,
   getLatestScan,
   getScanQuotaState,
   getSubscription,
@@ -28,6 +29,7 @@ import {
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
+  type ScanQuotaState,
   ScanQuotaError,
 } from "@/lib/api";
 
@@ -84,6 +86,7 @@ export interface MatchedEvidence {
 
 export interface Threat {
   id: string;
+  scanJobId: string | null;
   type: ThreatType;
   severity: Severity;
   platform: Platform;
@@ -98,6 +101,7 @@ export interface Threat {
   threatScore: number;
   suspiciousUsername: string;
   matchedMediaCount: number;
+  evidenceCount: number;
   evidence: MatchedEvidence[];
   scoreBreakdown: ThreatScoreBreakdown;
   detectedSignals: string[];
@@ -167,8 +171,13 @@ interface AppContextType {
   isScanning: boolean;
   scanProgress: number;
   scanCurrentStep: string | null;
+  /** Number of potential threats created by the most recently completed scan. */
+  lastScanThreatsFound: number | null;
+  /** Threat summaries created by the just-completed scan only. */
+  lastScanThreats: Threat[];
   scanError: string | null;
   scanQuotaError: { message: string; upgradeTo: string } | null;
+  scanQuota: ScanQuotaState | null;
   isLoading: boolean;
   activeThreats: number;
   fakeAccounts: number;
@@ -215,6 +224,7 @@ function formatRelativeTime(isoString: string): string {
 function mapSummaryToThreat(t: ThreatSummary): Threat {
   return {
     id: t.id,
+    scanJobId: t.scanJobId,
     type: t.type as ThreatType,
     severity: t.severity,
     platform: (t.platform ?? null) as Platform,
@@ -229,6 +239,7 @@ function mapSummaryToThreat(t: ThreatSummary): Threat {
     threatScore: t.threatScore,
     suspiciousUsername: t.suspiciousUsername ?? "",
     matchedMediaCount: t.matchedMediaCount,
+    evidenceCount: t.evidenceCount ?? 0,
     highConfidence: t.highConfidence ?? false,
     evidence: [],
     scoreBreakdown: {
@@ -299,7 +310,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanCurrentStep, setScanCurrentStep] = useState<string | null>(null);
+  const [lastScanThreatsFound, setLastScanThreatsFound] = useState<number | null>(null);
+  const [lastScanThreats, setLastScanThreats] = useState<Threat[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanQuota, setScanQuota] = useState<ScanQuotaState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollInFlightRef = useRef(false);
@@ -376,6 +390,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (quotaState && !quotaState.canScan && quotaState.message) {
             setScanQuotaError({ message: quotaState.message, upgradeTo: quotaState.upgradeTo ?? "premium" });
           }
+           if (quotaState) setScanQuota(quotaState);
           // Subscription state for trial banner and cancellation survey
           if (sub) {
             setTrialEndsAt(sub.trialEndsAt ?? null);
@@ -495,6 +510,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsLoggedIn(false);
     setUser(DEFAULT_USER);
     setThreats([]);
+    setLastScanThreats([]);
+    setLastScanThreatsFound(null);
     setIndexedPhotos([]);
     indexedPhotosRef.current = [];
     setLocalPhotoThreats([]);
@@ -572,13 +589,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const checkScanQuota = useCallback(async () => {
     try {
       const state = await getScanQuotaState();
+      setScanQuota(state);
       if (!state.canScan && state.message) {
         setScanQuotaError({ message: state.message, upgradeTo: state.upgradeTo ?? "premium" });
       } else if (state.canScan) {
         setScanQuotaError(null);
       }
     } catch {
-      // Ignore — quota check is best-effort
+      // The scan endpoint remains authoritative; leave the last known state
+      // visible instead of falsely claiming an allowance is available.
     }
   }, []);
 
@@ -589,6 +608,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsScanning(true);
     setScanProgress(0);
     setScanCurrentStep(null);
+    setLastScanThreats([]);
+    setLastScanThreatsFound(null);
 
     // Safety: never leave isScanning stuck true for more than 3 minutes
     const safetyTimer = setTimeout(() => {
@@ -602,7 +623,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, 3 * 60 * 1000);
 
     // Snapshot monitored photos at scan start so the list can't change mid-scan
-    const photosSnapshot = [...indexedPhotosRef.current];
+    // Keep client-side reverse-image searches aligned with the plan's image
+    // allowance. Server-side scan analysis independently enforces the same
+    // cap for account media.
+    const photosSnapshot = user.tier === "free"
+      ? indexedPhotosRef.current.slice(0, 1)
+      : [...indexedPhotosRef.current];
 
     // Fire Vision searches for all monitored photos in parallel with the backend scan.
     // Each photo is searched independently; failures are non-fatal.
@@ -619,7 +645,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       : Promise.resolve();
 
     try {
-      const job = await apiStartScan({ bypassCache: true });
+      // Normal app scans use the server cache. This preserves fresh-enough
+      // discoveries while avoiding unnecessary external lookups.
+      const job = await apiStartScan();
 
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
@@ -656,18 +684,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             // Wait for any in-flight photo scans before the final data refresh
             await photoScanPromise.catch(() => {});
 
-            setIsScanning(false);
             setScanProgress(100);
             setScanCurrentStep(null);
-            const freshThreats = await loadThreats();
-            const profile = await getMe();
-            const accounts = await getAccounts();
-            setUser(mapProfileToUser(profile, accounts));
+            const scanResultSummaries = await getScanResults(job.id);
+            const scanThreats = scanResultSummaries.map(mapSummaryToThreat);
+            setLastScanThreats(scanThreats);
+            setLastScanThreatsFound(scanThreats.length);
+            // Refresh historical Alerts separately. A dashboard refresh failure
+            // must not erase or relabel the successfully loaded scan result.
+            await loadThreats().catch(() => {});
+            try {
+              const [profile, accounts] = await Promise.all([getMe(), getAccounts()]);
+              setUser(mapProfileToUser(profile, accounts));
+            } catch {
+              // The scan-scoped result is already available; keep existing profile data.
+            }
+            setIsScanning(false);
+            getScanQuotaState().then(setScanQuota).catch(() => {});
 
-            const allActive = [
-              ...freshThreats.filter((t) => !t.resolved),
-              ...localPhotoThreatsRef.current.filter((t) => !t.resolved),
-            ];
+            const allActive = scanThreats.filter((t) => !t.resolved);
             const activeCount = allActive.length;
             scheduleScanCompleteNotification(activeCount).catch(() => {});
             const highSeverity = allActive.filter((t) => t.severity === "high");
@@ -702,7 +737,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setScanError(err instanceof Error ? err.message : "The scan could not be started. Please try again.");
       }
     }
-  }, [isScanning, loadThreats]);
+  }, [isScanning, loadThreats, user.tier]);
 
   useEffect(() => {
     return () => {
@@ -805,6 +840,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isScanning,
         scanProgress,
         scanCurrentStep,
+        lastScanThreatsFound,
+        lastScanThreats,
         scanError,
         isLoading,
         activeThreats,
@@ -821,6 +858,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         startScan,
         checkScanQuota,
         scanQuotaError,
+        scanQuota,
         resolveThreat,
         refreshData,
         addAccount,

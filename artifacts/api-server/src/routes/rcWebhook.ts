@@ -10,6 +10,10 @@ import { logger } from "../lib/logger.js";
 import { scheduleTrialReminder } from "../services/schedulerService.js";
 
 const router: IRouter = Router();
+const PREMIUM_PRODUCT_IDS = new Set([
+  "premium_monthly_v2",
+  "premium_annual_v2",
+]);
 
 /**
  * POST /rc-webhook
@@ -126,15 +130,18 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
 });
 
 function getTierFromEvent(event: { entitlement_ids?: string[]; product_id?: string }): "free" | "premium" {
+  const productId = event.product_id?.toLowerCase();
+  // If RevenueCat supplied a product ID, do not grant Premium from a product
+  // outside the two approved Rook Premium SKUs, even if a dashboard mapping is
+  // accidentally changed.
+  if (productId && !PREMIUM_PRODUCT_IDS.has(productId)) return "free";
+
   const entitlements = event.entitlement_ids ?? [];
   if (entitlements.includes("premium")) return "premium";
   if (entitlements.includes("pro")) return "premium";
 
-  // Product IDs are provided by RevenueCat's signed webhook and cover events
-  // where an entitlement list is unavailable.
-  const productId = event.product_id?.toLowerCase() ?? "";
-  if (productId.includes("premium")) return "premium";
-  if (productId.includes("pro")) return "premium";
+  // Product IDs cover webhook variants where an entitlement list is absent.
+  if (productId && PREMIUM_PRODUCT_IDS.has(productId)) return "premium";
   return "free";
 }
 
@@ -142,7 +149,7 @@ function getBillingCycleFromEvent(
   event: { product_id?: string },
 ): "monthly" | "yearly" {
   const productId = event.product_id?.toLowerCase() ?? "";
-  return productId.includes("annual") || productId.includes("yearly")
+  return productId === "premium_annual_v2"
     ? "yearly"
     : "monthly";
 }

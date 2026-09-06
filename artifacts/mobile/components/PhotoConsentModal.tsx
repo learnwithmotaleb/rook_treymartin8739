@@ -24,7 +24,8 @@ interface Props {
   visible: boolean;
   /** Called when the user taps "I Understand & Agree". Modal will close. */
   onConsent: () => void;
-  /** Called when the user taps "Skip for Now". Photo processing is disabled for this session. */
+  /** Called when the user taps "Skip for Now". The caller must discard any
+   * pending photo-processing action; skip is never consent. */
   onSkip: () => void;
 }
 

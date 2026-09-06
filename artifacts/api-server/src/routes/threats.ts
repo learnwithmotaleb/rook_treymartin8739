@@ -67,6 +67,7 @@ function parseThreat(t: typeof threatsTable.$inferSelect) {
 
   return {
     id: t.id,
+    scanJobId: t.scanJobId,
     type: t.type,
     severity: t.severity,
     platform: t.platform,
@@ -93,11 +94,13 @@ function parseThreat(t: typeof threatsTable.$inferSelect) {
 
 function parseThreatSummary(t: typeof threatsTable.$inferSelect) {
   const signals = parseSignals(t.detectedSignalsJson);
+  const evidenceCount = safeParseJson<unknown[]>(t.evidenceJson, []).length;
   const highConfidence =
     signals.flags.includes("firstScanHighConfidence") ||
     signals.flags.includes("sharedThreatActor");
   return {
     id: t.id,
+    scanJobId: t.scanJobId,
     type: t.type,
     severity: t.severity,
     platform: t.platform,
@@ -105,6 +108,7 @@ function parseThreatSummary(t: typeof threatsTable.$inferSelect) {
     description: t.description,
     threatScore: t.threatScore,
     matchedMediaCount: t.matchedMediaCount,
+    evidenceCount,
     suspiciousUsername: t.suspiciousUsername,
     resolved: t.resolved,
     resolveAction: t.resolveAction ?? null,
@@ -190,6 +194,7 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
 
     if (isFree) {
       const signals = parseSignals(threat.detectedSignalsJson);
+      const evidenceCount = safeParseJson<unknown[]>(threat.evidenceJson, []).length;
       res.json({
         id: threat.id,
         type: threat.type,
@@ -203,6 +208,11 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
         suspiciousUsername: threat.suspiciousUsername,
         matchedMediaCount: threat.matchedMediaCount,
         evidence: [],
+        evidenceCount,
+        confidence: threat.threatScore,
+        nextStep: threat.platform
+          ? `Report or block this account through ${threat.platform}'s official safety tools.`
+          : "Review the affected account and secure it if you do not recognize the activity.",
         scoreBreakdown: {},
         detectedSignals: signals.flags,
         confirmedVictims: signals.confirmedVictims ?? null,

@@ -24,7 +24,6 @@ import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
 import { Skeleton } from "@/components/Skeleton";
-import { getScanQuotaState } from "@/lib/api";
 
 function formatNextScan(iso: string): string {
   const due = new Date(iso);
@@ -46,8 +45,10 @@ export default function ScanScreen() {
     isLoading,
     scanProgress,
     scanCurrentStep,
+    lastScanThreats,
     scanError: scanFailure,
     scanQuotaError,
+    scanQuota,
     startScan,
     checkScanQuota,
     threats,
@@ -98,17 +99,14 @@ export default function ScanScreen() {
       prevScanning.current = true;
     } else if (prevScanning.current && !scanFailure) {
       prevScanning.current = false;
-      const activeThreats = threats.filter((t) => !t.resolved);
+      const activeThreats = lastScanThreats.filter((t) => !t.resolved);
+      // The job's count is the result of this scan. The alert list may also
+      // contain older unresolved threats, which must not turn a clean scan
+      // into a false "threats found" result.
       const activeCount = activeThreats.length;
       const photoCount = activeThreats.filter(
         (t) => t.type === "stolen_photo"
       ).length;
-      const highCount = activeThreats.filter((t) => t.severity === "high").length;
-      const medCount = activeThreats.filter((t) => t.severity === "medium").length;
-      const lowCount = activeThreats.filter((t) => t.severity === "low").length;
-      const topPlatforms = [
-        ...new Set(activeThreats.slice(0, 3).map((t) => t.platform ?? "unknown")),
-      ].join(",");
       setLastResult({
         threatsFound: activeCount,
         photoThreats: photoCount,
@@ -132,16 +130,7 @@ export default function ScanScreen() {
                 ? Haptics.NotificationFeedbackType.Warning
                 : Haptics.NotificationFeedbackType.Success
             );
-            router.push({
-              pathname: "/scan-results-preview",
-              params: {
-                total: String(activeCount),
-                high: String(highCount),
-                medium: String(medCount),
-                low: String(lowCount),
-                platforms: topPlatforms,
-              },
-            } as any);
+            router.push("/scan-results-preview" as any);
           } else if (activeCount > 0) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             router.push("/(tabs)/alerts");
@@ -149,18 +138,23 @@ export default function ScanScreen() {
         }, 2000);
       });
     }
-  }, [isScanning, scanFailure, threats, resultOpacity, user.tier]);
+  }, [isScanning, scanFailure, lastScanThreats, resultOpacity, user.tier]);
 
   const hasAccounts = user.connectedAccounts.length > 0;
   const photoCount = indexedPhotos.length;
+  const scanImageCount = user.tier === "free" ? Math.min(photoCount, 1) : photoCount;
   const photoMatches = threats.filter(
     (t) => !t.resolved && t.type === "stolen_photo"
   ).length;
 
   const canScan = hasAccounts || photoCount > 0;
+  const quotaAllowsScan = scanQuota?.canScan ?? true;
+  const quotaResetLabel = scanQuota?.resetsAt
+    ? new Date(scanQuota.resetsAt).toLocaleDateString("en-US", { month: "long", day: "numeric" })
+    : null;
 
   const handleScan = () => {
-    if (isScanning || !canScan) return;
+    if (isScanning || !canScan || !quotaAllowsScan) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLastResult(null);
     setScanError(null);
@@ -513,6 +507,18 @@ export default function ScanScreen() {
         )}
 
         {/* ── Bottom action area ── */}
+        {user.tier === "free" && isIdle && scanQuota && (
+          <View style={[styles.quotaNote, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
+            <Text style={[styles.quotaNoteText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {scanQuota.scansUsed}/{scanQuota.scansAllowed} free scan this month
+              {scanQuota.imagesPerScan !== undefined && scanQuota.imagesPerScan !== -1
+                ? ` · up to ${scanQuota.imagesPerScan} image${scanQuota.imagesPerScan === 1 ? "" : "s"} per scan`
+                : ""}
+              {quotaResetLabel ? ` · Resets ${quotaResetLabel}` : ""}
+            </Text>
+          </View>
+        )}
         {!canScan && isIdle ? (
           /* No accounts AND no photos */
           <GlassCard
@@ -681,7 +687,7 @@ export default function ScanScreen() {
                 btnScale.value = withSpring(1);
               }}
               onPress={handleScan}
-              disabled={isScanning}
+              disabled={isScanning || !quotaAllowsScan}
             >
               <Reanimated.View
                 style={[
@@ -689,13 +695,13 @@ export default function ScanScreen() {
                   {
                     backgroundColor: isScanning
                       ? colors.secondary
-                      : colors.primary,
-                    borderColor: isScanning ? colors.border : colors.primary,
+                      : quotaAllowsScan ? colors.primary : colors.secondary,
+                    borderColor: isScanning || !quotaAllowsScan ? colors.border : colors.primary,
                   },
                   animatedBtnStyle,
                 ]}
               >
-                {!isScanning && (
+                    {!isScanning && quotaAllowsScan && (
                   <LinearGradient
                     colors={["#FFFFFF18", "transparent"]}
                     style={StyleSheet.absoluteFill}
@@ -722,7 +728,7 @@ export default function ScanScreen() {
                       Scanning…
                     </Text>
                   </>
-                ) : (
+                ) : quotaAllowsScan ? (
                   <>
                     <MaterialCommunityIcons
                       name="radar"
@@ -736,6 +742,13 @@ export default function ScanScreen() {
                       ]}
                     >
                       Start Full Scan
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="calendar-outline" size={22} color={colors.mutedForeground} />
+                    <Text style={[styles.scanBtnText, { color: colors.mutedForeground, fontFamily: "Inter_600SemiBold" }]}>
+                      Next scan {quotaResetLabel ?? "next month"}
                     </Text>
                   </>
                 )}
@@ -753,10 +766,10 @@ export default function ScanScreen() {
                 ]}
               >
                 {hasAccounts && photoCount > 0
-                  ? `Scans ${user.connectedAccounts.length} account${user.connectedAccounts.length !== 1 ? "s" : ""} · checks ${photoCount} photo${photoCount !== 1 ? "s" : ""} for misuse`
+                  ? `Scans ${user.connectedAccounts.length} account${user.connectedAccounts.length !== 1 ? "s" : ""} · checks ${scanImageCount} photo${scanImageCount !== 1 ? "s" : ""} for misuse${user.tier === "free" && photoCount > scanImageCount ? " (Free plan limit)" : ""}`
                   : hasAccounts
                   ? `Scans ${user.connectedAccounts.length} connected account${user.connectedAccounts.length !== 1 ? "s" : ""} for impersonators & fake profiles`
-                  : `Checks ${photoCount} photo${photoCount !== 1 ? "s" : ""} for unauthorized use across the web`}
+                  : `Checks ${scanImageCount} photo${scanImageCount !== 1 ? "s" : ""} for unauthorized use across the web${user.tier === "free" && photoCount > scanImageCount ? " (Free plan limit)" : ""}`}
               </Text>
             )}
           </>
@@ -963,4 +976,16 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     paddingHorizontal: 10,
   },
+  quotaNote: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  quotaNoteText: { fontSize: 12, textAlign: "center" },
 });

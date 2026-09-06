@@ -234,7 +234,7 @@ export class OAuthService {
       }
     }
 
-    if (process.env["NODE_ENV"] === "production") {
+    if (process.env["NODE_ENV"] !== "development") {
       throw new StateResolutionError();
     }
     const { getOrCreateDemoUser } = await import("../lib/demoUser");

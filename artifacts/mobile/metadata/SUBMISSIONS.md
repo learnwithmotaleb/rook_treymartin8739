@@ -224,7 +224,9 @@ Or upload the `.aab` manually via **Production → Releases → Create new relea
 - [ ] Push notifications arrive for new threats
 - [ ] Privacy Policy and Terms URLs load correctly
 - [ ] All deep links (oauth callbacks) redirect back to the app
-- [ ] No placeholder text visible in the UI ("TODO", "MOCK", "COMING SOON")
+- [ ] Instagram, Facebook, and X OAuth connections work; TikTok, YouTube, LinkedIn, and Snapchat remain visibly non-actionable as Coming Soon
+- [ ] App Privacy declares linked Identifiers for both user ID and the device identifier represented by the push notification token
+- [ ] Store copy matches current limits: Free has 1 connected account and 1 manual scan/month; Premium has unlimited accounts/scans and daily monitoring (legacy Pro is not advertised)
 - [ ] App name and bundle ID match between `app.json` and store listing
 
 ---
