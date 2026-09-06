@@ -3,7 +3,7 @@
 **App:** Rook — Identity Protection  
 **Bundle ID:** `com.getrook.app`
 **Permissions under review:** `instagram_business_basic`, `user_photos`  
-**Live domain:** `https://getrook.app`
+**Live domain:** `https://tryrook.app`
 
 ---
 
@@ -58,8 +58,8 @@ getrook.app
 Register these in **Facebook Login → Settings → Valid OAuth Redirect URIs**:
 
 ```
-https://getrook.app/api/oauth/instagram/callback
-https://getrook.app/api/oauth/facebook/callback
+https://tryrook.app/api/oauth/instagram/callback
+https://tryrook.app/api/oauth/facebook/callback
 ```
 
 ---
@@ -148,8 +148,8 @@ After connecting Facebook, the reviewer will see:
 
 ## Privacy Policy and Data Handling
 
-**Privacy Policy URL:** `https://getrook.app/privacy`
-**Terms of Service URL:** `https://getrook.app/terms`
+**Privacy Policy URL:** `https://tryrook.app/privacy`
+**Terms of Service URL:** `https://tryrook.app/terms`
 
 Key data handling facts for Meta review:
 - Photo data is processed in-memory only; original images are never written to disk

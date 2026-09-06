@@ -21,6 +21,6 @@ SUBSCRIPTION PLANS
 YOUR PRIVACY IS PROTECTED
 Rook only reads your public profile and media — we never post, comment, or message on your behalf. All data is encrypted. You can delete your account and all data at any time.
 
-Privacy Policy: https://getrook.app/api/legal/privacy
-Terms of Service: https://getrook.app/api/legal/terms
+Privacy Policy: https://tryrook.app/privacy
+Terms of Service: https://tryrook.app/terms
 Support: support@getrook.app

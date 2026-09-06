@@ -3,7 +3,7 @@
 **App:** Rook — Identity Protection  
 **Bundle ID:** `com.getrook.app`  
 **iOS version:** 1.0.0 (Build 2)
-**Live domain:** `https://getrook.app`  
+**Live domain:** `https://tryrook.app`
 **Support email:** support@getrook.app  
 
 ---
@@ -258,9 +258,9 @@ These URIs must be registered in the Meta App Dashboard:
 
 | Platform | Redirect URI |
 |----------|-------------|
-| Instagram — server callback | `https://getrook.app/api/oauth/instagram/callback` |
+| Instagram — server callback | `https://tryrook.app/api/oauth/instagram/callback` |
 | Instagram — mobile deep link | `com.getrook.app://oauth` |
-| Facebook — server callback | `https://getrook.app/api/oauth/facebook/callback` |
+| Facebook — server callback | `https://tryrook.app/api/oauth/facebook/callback` |
 | Facebook — mobile deep link | `com.getrook.app://oauth` |
 
 > The mobile deep-link URIs are used when Rook detects the callback is coming from an iOS/Android client (via User-Agent). ASWebAuthenticationSession intercepts the `com.getrook.app://oauth` URL and returns control to the app automatically.
@@ -275,7 +275,7 @@ User taps "Connect Instagram"
   → App opens ASWebAuthenticationSession → instagram.com/oauth/authorize
       (scope: instagram_business_basic)
   → User grants consent on Instagram
-  → Meta redirects to https://getrook.app/api/oauth/instagram/callback?code=...&state=...
+  → Meta redirects to https://tryrook.app/api/oauth/instagram/callback?code=...&state=...
   → Server verifies HMAC state token (one-time use, 15-min expiry)
   → Server exchanges code for short-lived token via POST (client_secret not in URL/logs)
   → Server upgrades to long-lived token (60 days)

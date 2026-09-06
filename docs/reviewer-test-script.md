@@ -234,7 +234,7 @@ Tap **"Connected Accounts"** in the Profile screen.
 ### Step 20 — Privacy Policy
 From the Profile tab, scroll to the bottom and tap **"Legal & Privacy"** (or **"Privacy Policy"**).
 
-**Expected:** In-app browser opens `https://getrook.app/privacy`. Page loads correctly.
+**Expected:** In-app browser opens `https://tryrook.app/privacy`. Page loads correctly.
 
 ---
 

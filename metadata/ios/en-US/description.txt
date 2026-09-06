@@ -23,7 +23,7 @@ Rook only reads your public profile and media — we never post, comment, like, 
 
 Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime from your iPhone Settings > Apple ID > Subscriptions.
 
-Privacy Policy: https://getrook.app/api/legal/privacy
-Terms of Service: https://getrook.app/api/legal/terms
+Privacy Policy: https://tryrook.app/privacy
+Terms of Service: https://tryrook.app/terms
 
 Questions or support: support@getrook.app

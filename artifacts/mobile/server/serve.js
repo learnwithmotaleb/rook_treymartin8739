@@ -39,6 +39,31 @@ const MIME_TYPES = {
   ".map": "application/json",
 };
 
+function indexStaticFiles(rootDir) {
+  const files = new Map();
+  if (!fs.existsSync(rootDir)) return files;
+
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolutePath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+      } else if (entry.isFile()) {
+        const relativePath = path.relative(rootDir, absolutePath);
+        files.set(`/${relativePath.split(path.sep).join("/")}`, {
+          content: fs.readFileSync(absolutePath),
+          extension: path.extname(absolutePath).toLowerCase(),
+        });
+      }
+    }
+  };
+
+  visit(rootDir);
+  return files;
+}
+
+const STATIC_FILES = indexStaticFiles(STATIC_ROOT);
+
 function getAppName() {
   try {
     const appJsonPath = path.resolve(__dirname, "..", "app.json");
@@ -50,7 +75,12 @@ function getAppName() {
 }
 
 function serveManifest(platform, res) {
-  const manifestPath = MANIFEST_PATHS[platform];
+  const manifestPath =
+    platform === "ios"
+      ? MANIFEST_PATHS.ios
+      : platform === "android"
+        ? MANIFEST_PATHS.android
+        : null;
 
   if (!manifestPath || !fs.existsSync(manifestPath)) {
     res.writeHead(404, { "content-type": "application/json" });
@@ -86,27 +116,42 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
 }
 
 function serveStaticFile(urlPath, res) {
-  const safePath = path.posix.normalize(`/${urlPath}`).replace(/^\/+/, "");
-  const filePath = path.resolve(STATIC_ROOT, safePath);
-  const relativePath = path.relative(STATIC_ROOT, filePath);
+  let decodedPath;
+  try {
+    decodedPath = decodeURIComponent(urlPath);
+  } catch {
+    res.writeHead(400);
+    res.end("Bad Request");
+    return;
+  }
 
-  if (relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+  const segments = decodedPath.split("/").filter(Boolean);
+  if (
+    segments.some(
+      (segment) =>
+        segment === "." ||
+        segment === ".." ||
+        segment.includes("\0") ||
+        segment.includes("\\"),
+    )
+  ) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
   }
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+  const requestPath = `/${segments.join("/")}`;
+  const asset = STATIC_FILES.get(requestPath);
+
+  if (!asset) {
     res.writeHead(404);
     res.end("Not Found");
     return;
   }
 
-  const ext = path.extname(filePath).toLowerCase();
-  const contentType = MIME_TYPES[ext] || "application/octet-stream";
-  const content = fs.readFileSync(filePath);
+  const contentType = MIME_TYPES[asset.extension] || "application/octet-stream";
   res.writeHead(200, { "content-type": contentType });
-  res.end(content);
+  res.end(asset.content);
 }
 
 const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
