@@ -55,5 +55,12 @@
         "EXPO_PUBLIC_API_URL": "https://tryrook.app"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6804614269"
+      }
+    }
   }
 }
