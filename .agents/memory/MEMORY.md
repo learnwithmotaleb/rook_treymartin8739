@@ -28,6 +28,7 @@
 - [Account deletion identity cleanup](account-deletion-identity-cleanup.md) — "Delete Account" must also delete the Clerk user via Clerk's API, not just the local DB row, or re-signup with the same identity is treated as returning.
 - [App Store subscription API quirks](app-store-subscription-api.md) — initial prices require inline PATCH; availability and introductory trials use dedicated territory resources.
 - [App Store subscription territory pricing](app-store-subscription-territory-pricing.md) — every enabled territory needs an upfront price row; a U.S. base price alone leaves subscription versions unreviewable.
+- [Subscription EULA metadata](subscription-eula-metadata.md) — subscription apps using Apple’s standard EULA must include its functional URL in the App Store description.
 - [App Store age rating](app-store-age-rating.md) — restricted OAuth pages are not unrestricted web access; marking them unrestricted forces Rook to 17+ instead of 4+.
 - [Reviewer subscription hydration](reviewer-subscription-hydration.md) — server-granted Premium accounts must hydrate their server tier on the paywall before purchase UI is chosen.
 - [EAS simulator builds](eas-simulator-builds.md) — cloud simulator artifacts need an Expo PAT; Linux can validate the bundle but cannot launch Apple’s Simulator.
