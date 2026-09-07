@@ -65,6 +65,7 @@ EXPO_PUBLIC_FACEBOOK_CLIENT_ID = "26608295255537344"
 DEV_NOTIFY_URL = "https://6c2161a6-7017-4ec4-988f-83e568e76224-00-1qirill5i8g8e.janeway.replit.dev"
 
 [userenv.production]
+APP_REVIEW_CLERK_USER_ID = "user_3IfqGLKBm2g1Pa5rvfbDuGNemUI"
 
 [nix]
 channel = "stable-25_05"
