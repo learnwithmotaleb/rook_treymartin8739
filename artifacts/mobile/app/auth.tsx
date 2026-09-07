@@ -348,7 +348,7 @@ export default function Auth() {
   }, [clerk, signUp, code, firstName, lastName, password]);
 
   const handleGoogleSSO = useCallback(async () => {
-    if (!termsAccepted || !ageConfirmed) {
+    if (mode === "register" && (!termsAccepted || !ageConfirmed)) {
       setError("Please accept the Terms of Service and Privacy Policy and confirm you are 17 or older to continue.");
       return;
     }
@@ -356,11 +356,13 @@ export default function Auth() {
     try {
       const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_google", redirectUrl: AuthSession.makeRedirectUri() }) as any;
       if (createdSessionId && setActive) {
-        recordingComplianceRef.current = true;
+        recordingComplianceRef.current = mode === "register";
         await setActive({ session: createdSessionId } as any);
-        await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
-        if (createdUserId) {
-          await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
+        if (mode === "register") {
+          await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
+          if (createdUserId) {
+            await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
+          }
         }
         recordingComplianceRef.current = false;
         router.replace("/(tabs)/" as any);
@@ -369,10 +371,10 @@ export default function Auth() {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Google sign in failed");
     } finally { setSsoLoading(false); }
-  }, [startSSOFlow, termsAccepted, ageConfirmed]);
+  }, [startSSOFlow, mode, termsAccepted, ageConfirmed]);
 
   const handleAppleSSO = useCallback(async () => {
-    if (!termsAccepted || !ageConfirmed) {
+    if (mode === "register" && (!termsAccepted || !ageConfirmed)) {
       setError("Please accept the Terms of Service and Privacy Policy and confirm you are 17 or older to continue.");
       return;
     }
@@ -380,11 +382,13 @@ export default function Auth() {
     try {
       const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_apple", redirectUrl: AuthSession.makeRedirectUri() }) as any;
       if (createdSessionId && setActive) {
-        recordingComplianceRef.current = true;
+        recordingComplianceRef.current = mode === "register";
         await setActive({ session: createdSessionId } as any);
-        await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
-        if (createdUserId) {
-          await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
+        if (mode === "register") {
+          await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
+          if (createdUserId) {
+            await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
+          }
         }
         recordingComplianceRef.current = false;
         router.replace("/(tabs)/" as any);
@@ -394,7 +398,7 @@ export default function Auth() {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Apple sign in failed");
     } finally { setSsoLoading(false); }
-  }, [startSSOFlow, termsAccepted, ageConfirmed]);
+  }, [startSSOFlow, mode, termsAccepted, ageConfirmed]);
 
   const handleSubmit = () => {
     if (mode === "login") { handleSignIn(); return; }
@@ -572,12 +576,30 @@ export default function Auth() {
                 </ScrollView>
               )}
 
-              {/* SSO can create an account, so its legal acknowledgements must be
-                  explicit before a provider flow can begin. */}
-              <View style={styles.ssoConsent}>
-                <TermsCheckbox accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
-                <AgeCheckbox confirmed={ageConfirmed} onToggle={() => setAgeConfirmed((v) => !v)} />
+              {/* ── Mode toggle ── */}
+              <View style={styles.segmentedControl}>
+                <TouchableOpacity
+                  style={[styles.segment, mode === "login" && styles.segmentActive]}
+                  onPress={() => { setMode("login"); setError(""); setConfirmPassword(""); setFirstName(""); setLastName(""); }}
+                >
+                  <Text style={[styles.segmentLabel, mode === "login" && styles.segmentLabelActive]}>Sign In</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.segment, mode === "register" && styles.segmentActive]}
+                  onPress={() => { setMode("register"); setError(""); setPassword(""); setConfirmPassword(""); }}
+                >
+                  <Text style={[styles.segmentLabel, mode === "register" && styles.segmentLabelActive]}>Create Account</Text>
+                </TouchableOpacity>
               </View>
+
+              {/* Legal acknowledgements belong to account creation only. Returning
+                  users retain their recorded acceptance and sign in without friction. */}
+              {mode === "register" && (
+                <View style={styles.ssoConsent}>
+                  <TermsCheckbox accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
+                  <AgeCheckbox confirmed={ageConfirmed} onToggle={() => setAgeConfirmed((v) => !v)} />
+                </View>
+              )}
 
               {/* ── SSO Buttons ── */}
               <View style={styles.ssoGroup}>
@@ -610,22 +632,6 @@ export default function Auth() {
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>or continue with email</Text>
                 <View style={styles.dividerLine} />
-              </View>
-
-              {/* ── Mode toggle ── */}
-              <View style={styles.segmentedControl}>
-                <TouchableOpacity
-                  style={[styles.segment, mode === "login" && styles.segmentActive]}
-                  onPress={() => { setMode("login"); setError(""); setConfirmPassword(""); setFirstName(""); setLastName(""); }}
-                >
-                  <Text style={[styles.segmentLabel, mode === "login" && styles.segmentLabelActive]}>Sign In</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.segment, mode === "register" && styles.segmentActive]}
-                  onPress={() => { setMode("register"); setError(""); setPassword(""); setConfirmPassword(""); }}
-                >
-                  <Text style={[styles.segmentLabel, mode === "register" && styles.segmentLabelActive]}>Create Account</Text>
-                </TouchableOpacity>
               </View>
 
               {/* ── Fields ── */}
