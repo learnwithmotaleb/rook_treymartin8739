@@ -163,6 +163,16 @@ export interface UserProfile {
   fingerprintUpdated: string;
 }
 
+export async function requestAppReviewTicket(
+  identifier: string,
+  accessCode: string,
+): Promise<{ ticket: string }> {
+  return apiFetch<{ ticket: string }>("/auth/app-review-ticket", {
+    method: "POST",
+    body: JSON.stringify({ identifier, accessCode }),
+  });
+}
+
 export interface AccountProfile {
   id: string;
   platform: string;

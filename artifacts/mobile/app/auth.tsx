@@ -26,6 +26,7 @@ import {
   CURRENT_TERMS_VERSION,
   recordAgeConfirmation,
   recordTermsAcceptance,
+  requestAppReviewTicket,
   updateMe,
 } from "@/lib/api";
 
@@ -125,6 +126,7 @@ export default function Auth() {
   const [ssoLoading, setSsoLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [needsSigninCode, setNeedsSigninCode] = useState(false);
+  const [useReviewAccessCode, setUseReviewAccessCode] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   // Explicit loading flag for Clerk calls that go through clerk.client directly
@@ -219,6 +221,7 @@ export default function Auth() {
         // New-device / MFA verification — prepare an email OTP then show code UI.
         await live.prepareSecondFactor({ strategy: "email_code" });
         setCode("");
+        setUseReviewAccessCode(false);
         setNeedsSigninCode(true);
       } else {
         setError("Sign in requires additional steps. Please contact support.");
@@ -252,6 +255,27 @@ export default function Auth() {
       setAuthLoading(false);
     }
   }, [clerk, code]);
+
+  const handleReviewAccessCode = useCallback(async () => {
+    if (!code) { setError("Enter the App Review access code"); return; }
+    setError("");
+    setAuthLoading(true);
+    try {
+      const { ticket } = await requestAppReviewTicket(email.trim(), code);
+      const live = liveSignIn();
+      const result = await live.create({ strategy: "ticket", ticket });
+      if (result.status === "complete") {
+        await clerk.setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)/" as any);
+      } else {
+        setError("App Review access could not be completed. Please try again.");
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "App Review access failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [clerk, code, email]);
 
   // Step 1 of sign-up: create the Clerk account only.
   // prepareEmailAddressVerification is triggered by the useEffect above once
@@ -458,20 +482,25 @@ export default function Auth() {
             <>
               <View style={styles.cardHeader}>
                 <Text style={styles.headline}>Verify it's you</Text>
-                <Text style={styles.subheadline}>We sent a 6-digit code to{"\n"}<Text style={styles.emailHighlight}>{email}</Text></Text>
+                <Text style={styles.subheadline}>
+                  {useReviewAccessCode
+                    ? "Enter the temporary access code provided in App Store Connect."
+                    : <>We sent a 6-digit code to{"\n"}<Text style={styles.emailHighlight}>{email}</Text></>}
+                </Text>
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Verification Code</Text>
+                <Text style={styles.fieldLabel}>{useReviewAccessCode ? "App Review Access Code" : "Verification Code"}</Text>
                 <View style={[styles.inputRow, { borderColor: inputBorder("code") }]}>
                   <Ionicons name="key-outline" size={18} color={focusedField === "code" ? "#3B82F6" : "#6B8EAE"} />
                   <TextInput
                     style={styles.textInput}
-                    placeholder="• • • • • •"
+                    placeholder={useReviewAccessCode ? "Enter review access code" : "• • • • • •"}
                     placeholderTextColor="#3B4C6B"
                     value={code}
                     onChangeText={setCode}
-                    keyboardType="number-pad"
+                    keyboardType={useReviewAccessCode ? "default" : "number-pad"}
+                    secureTextEntry={useReviewAccessCode}
                     autoCapitalize="none"
                     onFocus={() => setFocusedField("code")}
                     onBlur={() => setFocusedField(null)}
@@ -481,13 +510,31 @@ export default function Auth() {
 
               {error !== "" && <ErrorBanner message={error} />}
 
-              <GradientButton label={loading ? "Verifying…" : "Verify"} onPress={handleVerifySignInCode} disabled={loading} />
+              <GradientButton
+                label={loading ? "Verifying…" : (useReviewAccessCode ? "Continue App Review" : "Verify")}
+                onPress={useReviewAccessCode ? handleReviewAccessCode : handleVerifySignInCode}
+                disabled={loading}
+              />
 
-              <TouchableOpacity onPress={() => liveSignIn()?.prepareSecondFactor({ strategy: "email_code" })} style={styles.switchRow}>
-                <Text style={styles.switchText}>Didn't get it? </Text>
-                <Text style={styles.switchLink}>Resend code</Text>
+              {!useReviewAccessCode && (
+                <TouchableOpacity onPress={() => liveSignIn()?.prepareSecondFactor({ strategy: "email_code" })} style={styles.switchRow}>
+                  <Text style={styles.switchText}>Didn't get it? </Text>
+                  <Text style={styles.switchLink}>Resend code</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => {
+                  setUseReviewAccessCode((value) => !value);
+                  setCode("");
+                  setError("");
+                }}
+                style={styles.switchRow}
+              >
+                <Text style={styles.switchLink}>
+                  {useReviewAccessCode ? "Use email verification instead" : "Use App Review access code"}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setNeedsSigninCode(false); setCode(""); setError(""); }} style={styles.switchRow}>
+              <TouchableOpacity onPress={() => { setNeedsSigninCode(false); setUseReviewAccessCode(false); setCode(""); setError(""); }} style={styles.switchRow}>
                 <Text style={styles.switchLink}>Start over</Text>
               </TouchableOpacity>
             </>
