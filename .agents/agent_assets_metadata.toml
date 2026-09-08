@@ -205,3 +205,17 @@ uri = "file://artifacts/mobile/assets/images/onboarding/s15-report-locked.png"
 type = "image"
 title = "S15 — Locked identity report"
 logical_id = "0970236e-96c0-4a30-bc64-a237abfdc181"
+
+[[outputs]]
+id = "sq3ng5aYlfGyYENYfate1"
+uri = "file://docs/impersonation-resolution-strategy.md"
+type = "text"
+title = "Rook Impersonation Resolution Strategy"
+description = "Founder decision memo: launch first, then build a verified, user-controlled Resolution Copilot in V2, with policy boundaries, scoring, architecture impact, safety gates, and rollout KPIs."
+logical_id = "9662f5b5-ae3f-421b-855f-726d7cace28a"
+content_hash = "sha256:2d5dee4ac85a2a6eee1c6bd58cd14965e936e7f3d6069c18a681361246892728"
+size = 46912
+mtime_ms = 1788839445611
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:6c2161a6-7017-4ec4-988f-83e568e76224/9662f5b5-ae3f-421b-855f-726d7cace28a/ee907285-8390-48ce-9f12-b97382043dff"
+storage_version_token = "1788839470130451"
+content_type = "text/markdown"
