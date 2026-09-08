@@ -1,0 +1,253 @@
+detection alone only solves half of the user’s problem.
+
+
+
+The bigger problem we need to solve is:
+
+
+
+Once Rook has identified and verified that an account is genuinely impersonating one of our users, how can Rook help create a highly effective, streamlined, repeatable path toward getting that impersonation account reviewed, restricted, deactivated, or removed by the platform as quickly and consistently as possible?
+
+
+
+I do NOT want you to jump directly into building anything yet.
+
+
+
+I want you to act as a senior product strategist, trust-and-safety architect, growth product manager, platform policy specialist, and mobile app architect.
+
+
+
+Your task is to deeply brainstorm and identify the strongest possible feature concept for solving this problem.
+
+
+
+Important constraints:
+
+
+
+Do not assume Rook has the authority to remove third-party accounts.
+
+Do not promise or imply guaranteed takedowns.
+
+Do not design anything that relies on fake reports, automated spam reporting, coordinated harassment, brigading, bot accounts, deceptive activity, platform manipulation, or circumvention of Meta systems.
+
+The feature must comply with Meta Platform Terms, Instagram/Facebook policies, Apple App Store Review Guidelines, privacy requirements, user-generated-content requirements, and general trust-and-safety expectations.
+
+Prefer mechanisms that use legitimate user actions, verified identity ownership, accurate evidence, consent, moderation, transparency, and appropriate platform reporting channels.
+
+Consider abuse prevention from the beginning so Rook cannot be weaponized against legitimate accounts, competitors, ex-partners, fan accounts, parody accounts, journalists, critics, or innocent users.
+
+Do not assume access to an API unless Meta currently provides and permits that API for the intended use.
+
+Clearly separate what is technically possible today from what might require a future Meta partnership, approved reporting relationship, trusted flagger relationship, or other platform cooperation.
+
+
+
+Do not constrain yourself to a traditional “report account” workflow.
+
+
+
+Explore whether the ideal solution could involve community participation, verified users, reputation systems, evidence validation, distributed review, platform-native reporting, escalation, case management, trust signals, network effects, moderation, identity verification, or entirely different approaches.
+
+
+
+However, do not force any of those concepts into the answer. They are only areas to consider.
+
+
+
+The goal is to independently determine the strongest product concept.
+
+
+
+For each serious concept you consider, evaluate:
+
+
+
+How the feature would work from the user’s perspective.
+
+Why it could meaningfully increase the probability or speed of legitimate impersonation-account removal.
+
+Whether it complies with Meta and Apple policies.
+
+What could cause Meta or Apple to reject, restrict, or ban the feature.
+
+How Rook would prevent abuse.
+
+Whether human moderation would be required.
+
+Whether users would need to verify their identity or ownership of their authentic social account.
+
+Whether participation from other Rook users would improve effectiveness.
+
+Whether the feature creates a meaningful network effect.
+
+Whether the feature would increase retention and justify a recurring Rook subscription.
+
+Technical difficulty.
+
+Operational/moderation cost.
+
+Legal/privacy risk.
+
+Expected effectiveness.
+
+Scalability from 1,000 users to millions of users.
+
+Whether Meta could interpret the system as coordinated reporting or platform manipulation.
+
+How to redesign the concept if that risk exists.
+
+What data Rook would need to store.
+
+What evidence Rook would need before allowing a case to proceed.
+
+How Rook could measure whether the system actually improves removal outcomes.
+
+
+
+After brainstorming broadly, narrow everything down to the TOP 3 concepts.
+
+
+
+Score each concept from 1–10 for:
+
+
+
+Likelihood of improving removal outcomes
+
+Meta compliance
+
+Apple compliance
+
+Abuse resistance
+
+User experience
+
+Network-effect potential
+
+Retention potential
+
+Technical feasibility
+
+Scalability
+
+Competitive moat
+
+
+
+Then select ONE concept as the strongest recommendation for Rook.
+
+
+
+Explain exactly why it is the best match for our product.
+
+
+
+Also answer this product strategy question:
+
+
+
+SHOULD WE ADD THIS FEATURE BEFORE ROOK’S INITIAL APP STORE RELEASE, OR SHOULD WE RELEASE THE CURRENT CORE PRODUCT FIRST AND ADD THIS IN A FUTURE UPDATE?
+
+
+
+Evaluate both options carefully.
+
+
+
+For “before launch,” consider:
+
+
+
+whether this feature is essential to Rook’s core value proposition
+
+whether users may be disappointed if Rook only detects threats but cannot meaningfully help resolve them
+
+whether it would materially improve conversion
+
+whether it would materially improve early reviews
+
+whether it could differentiate Rook at launch
+
+whether delaying launch to build it creates more risk than value
+
+whether it introduces new Meta/App Store review complexity
+
+whether it introduces additional moderation, legal, privacy, backend, or security requirements
+
+whether the feature needs real-world data before we know how to build it properly
+
+
+
+For “after launch,” consider:
+
+
+
+whether launching Rook now would allow us to validate demand first
+
+whether existing users could give us data about how often impersonation accounts are found
+
+whether we could measure how frequently users attempt to report accounts
+
+whether we could learn actual platform-removal timelines
+
+whether this information would allow us to design the feature more intelligently
+
+whether the feature could become a major V2 retention and growth release
+
+whether launching without it weakens Rook’s initial value proposition too much
+
+
+
+Give a definitive recommendation:
+
+
+
+BUILD BEFORE LAUNCH
+
+
+
+or
+
+
+
+LAUNCH FIRST, ADD IN V2
+
+
+
+Do not give a vague “it depends” conclusion.
+
+
+
+Support the recommendation with product, technical, compliance, growth, and business reasoning.
+
+
+
+Finally, create a suggested roadmap:
+
+
+
+Current Rook Launch
+→ Immediate Post-Launch Measurement
+→ Feature Prototype
+→ Closed Beta
+→ Compliance Review
+→ Full Release
+→ Future Platform Partnership Strategy
+
+
+
+Do not modify any existing Rook code during this task.
+
+
+
+This is strategy and research only.
+
+
+
+Before recommending implementation, inspect the existing Rook architecture and identify whether the recommended concept would require changes to authentication, database schema, backend APIs, moderation systems, notifications, analytics, legal pages, privacy policy, terms of service, onboarding, paywall, or App Store/Meta review materials.
+
+
+
+The final result should read like a product decision memo for the founder of Rook Identity Labs.
