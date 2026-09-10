@@ -33,3 +33,4 @@
 - [Reviewer subscription hydration](reviewer-subscription-hydration.md) — server-granted Premium accounts must hydrate their server tier on the paywall before purchase UI is chosen.
 - [EAS simulator builds](eas-simulator-builds.md) — cloud simulator artifacts need an Expo PAT; Linux can validate the bundle but cannot launch Apple’s Simulator.
 - [EAS App Store submission](eas-app-store-submission.md) — non-interactive TestFlight uploads require a remote ASC API key or a complete local Expo project with all config plugins.
+- [App Store subscription image replacement](app-store-subscription-image-replacement.md) — submitted subscription images require removing review items, completing the old submission, then rebuilding a new draft.
