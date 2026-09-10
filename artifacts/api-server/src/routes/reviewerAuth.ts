@@ -22,6 +22,97 @@ function secureStringEqual(provided: string, expected: string): boolean {
   );
 }
 
+type ClerkReviewer = {
+  id: string;
+  email_addresses?: Array<{ email_address?: string }>;
+  private_metadata?: Record<string, unknown>;
+};
+
+async function clerkRequest(
+  path: string,
+  clerkSecretKey: string,
+  init?: RequestInit,
+): Promise<globalThis.Response> {
+  return fetch(`https://api.clerk.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${clerkSecretKey}`,
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+}
+
+async function resolveReviewer(
+  configuredReviewerId: string,
+  identifier: string,
+  clerkSecretKey: string,
+): Promise<ClerkReviewer> {
+  const configuredResponse = await clerkRequest(
+    `/v1/users/${encodeURIComponent(configuredReviewerId)}`,
+    clerkSecretKey,
+  );
+  if (configuredResponse.ok) {
+    return (await configuredResponse.json()) as ClerkReviewer;
+  }
+  if (configuredResponse.status !== 404) {
+    throw new Error(`Clerk configured-user lookup failed (${configuredResponse.status})`);
+  }
+
+  const searchResponse = await clerkRequest(
+    `/v1/users?email_address=${encodeURIComponent(identifier)}&limit=2`,
+    clerkSecretKey,
+  );
+  if (!searchResponse.ok) {
+    throw new Error(`Clerk reviewer search failed (${searchResponse.status})`);
+  }
+  const matches = (await searchResponse.json()) as ClerkReviewer[];
+  if (matches.length > 1) {
+    throw new Error("Clerk reviewer search returned multiple users");
+  }
+
+  let reviewer = matches[0];
+  if (!reviewer) {
+    const createResponse = await clerkRequest("/v1/users", clerkSecretKey, {
+      method: "POST",
+      body: JSON.stringify({
+        email_address: [identifier],
+        first_name: "Alex",
+        last_name: "Rivera",
+        skip_password_checks: true,
+        skip_password_requirement: true,
+      }),
+    });
+    if (!createResponse.ok) {
+      throw new Error(`Clerk reviewer creation failed (${createResponse.status})`);
+    }
+    reviewer = (await createResponse.json()) as ClerkReviewer;
+  }
+
+  const privateMetadata = reviewer.private_metadata ?? {};
+  if (privateMetadata["rookAppReviewer"] !== true) {
+    const updateResponse = await clerkRequest(
+      `/v1/users/${encodeURIComponent(reviewer.id)}/metadata`,
+      clerkSecretKey,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          private_metadata: {
+            ...privateMetadata,
+            rookAppReviewer: true,
+          },
+        }),
+      },
+    );
+    if (!updateResponse.ok) {
+      throw new Error(`Clerk reviewer metadata update failed (${updateResponse.status})`);
+    }
+    reviewer = (await updateResponse.json()) as ClerkReviewer;
+  }
+
+  return reviewer;
+}
+
 router.post(
   "/auth/app-review-ticket",
   reviewerAuthLimiter,
@@ -49,16 +140,7 @@ router.post(
     }
 
     try {
-      const userResponse = await fetch(`https://api.clerk.com/v1/users/${reviewerUserId}`, {
-        headers: { Authorization: `Bearer ${clerkSecretKey}` },
-      });
-      if (!userResponse.ok) {
-        throw new Error(`Clerk user lookup failed (${userResponse.status})`);
-      }
-
-      const reviewer = (await userResponse.json()) as {
-        email_addresses?: Array<{ email_address?: string }>;
-      };
+      const reviewer = await resolveReviewer(reviewerUserId, identifier, clerkSecretKey);
       const belongsToReviewer = reviewer.email_addresses?.some(
         (entry) => entry.email_address?.trim().toLowerCase() === identifier,
       );
@@ -74,7 +156,7 @@ router.post(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          user_id: reviewerUserId,
+          user_id: reviewer.id,
           expires_in_seconds: 60,
         }),
       });
@@ -87,8 +169,8 @@ router.post(
         throw new Error("Clerk sign-in ticket response did not include a token");
       }
 
-      logger.info({ reviewerUserId }, "App Review sign-in ticket issued");
-      res.json({ ticket: ticket.token });
+      logger.info({ reviewerUserId: reviewer.id }, "App Review sign-in ticket issued");
+      res.json({ ticket: ticket.token, reviewerUserId: reviewer.id });
     } catch (error) {
       logger.error({ err: error }, "App Review sign-in ticket failed");
       res.status(502).json({ error: "Could not start App Review access. Please try again." });
