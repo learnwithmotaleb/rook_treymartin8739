@@ -97,11 +97,11 @@ function servePrivacy(_req: Request, res: Response) {
     </div>
 
     <h3>What We Collect</h3>
-    <p>When you connect a social account or provide a reference photo, ${APP_NAME} derives the following from your public profile photos:</p>
+     <p>When you connect a social account or provide a reference photo, ${APP_NAME} may process profile photos, post images, reel thumbnails, and photos you select in the app. Raw image bytes or source URLs may be sent to Google Cloud Vision and OpenAI for the disclosed comparison and analysis features.</p>
     <ul>
-      <li><strong>Perceptual hash fingerprints (dHash):</strong> A 64-bit numeric hash computed by resizing your photo to a 9×8 pixel grayscale thumbnail and recording pixel-level brightness differences. This is a compact digital signature of the image's visual structure — it is <em>not</em> raw image data, not a scan of facial geometry, and cannot reconstruct or identify a face or person on its own. It is used exclusively to detect whether visually similar images appear on other accounts.</li>
-      <li><strong>AI-generated feature vectors (embeddings):</strong> Floating-point numerical arrays derived from AI analysis of your photos, used to identify visual similarity to potential impersonator accounts. These are produced by OpenAI's API and stored as encrypted numerical arrays — they cannot reconstruct the original image.</li>
-      <li><strong>Visual fingerprint metadata:</strong> Aggregate counts and style descriptors summarizing your indexed media. No raw image content is stored by ${APP_NAME}.</li>
+       <li><strong>Perceptual hash fingerprints (dHash):</strong> A 64-bit numeric hash computed by resizing your photo to a 9×8 pixel grayscale thumbnail and recording pixel-level brightness differences. This is a compact digital signature of image structure — it is not raw image data and is not a scan of facial geometry.</li>
+       <li><strong>AI-generated feature vectors (embeddings):</strong> Floating-point numerical arrays derived from AI analysis of your photos, used to compare image similarity to potential impersonator accounts. Rook does not perform facial recognition or create a facial-geometry template. These arrays cannot reconstruct the original image.</li>
+       <li><strong>Visual fingerprint metadata:</strong> Aggregate counts and style descriptors summarizing your indexed media. A compressed avatar image selected in the app is stored in your profile; other source images are processed transiently and are not retained as image files.</li>
     </ul>
 
     <h3>Purpose of Collection</h3>
@@ -109,8 +109,8 @@ function servePrivacy(_req: Request, res: Response) {
 
     <h3>Length of Retention</h3>
     <ul>
-      <li><strong>Perceptual hashes and embeddings:</strong> Retained while your account is active. Automatically destroyed upon account deletion or within 30 days thereafter (production backups purged on the same schedule).</li>
-      <li><strong>If you withdraw photo-processing consent:</strong> All perceptual hashes, embeddings, and visual fingerprint data for your account are deleted within 24 hours of withdrawal. You can withdraw consent at any time in <strong>Profile → Settings → Privacy → Manage Photo Data</strong>. Withdrawing consent does not delete your account or your scan history.</li>
+       <li><strong>Perceptual hashes, source URLs, and embeddings:</strong> Retained while your account is active and deleted from active systems on account deletion or photo-data deletion. Production backups are purged within 30 days where backups apply.</li>
+       <li><strong>If you withdraw photo-processing consent:</strong> All locally stored photo hashes, source URLs, embeddings, visual fingerprint data, and the stored avatar image are deleted immediately from active systems. You can withdraw consent at any time in <strong>Profile → Settings → Privacy → Manage Photo Data</strong>. Withdrawing consent does not delete your account or scan history.</li>
       <li><strong>Maximum retention period:</strong> Photo-derived data is not retained for more than 3 years from the date of collection, or 1 year after the purpose is fulfilled (whichever is sooner), consistent with Illinois BIPA Section 15(a) and Texas CUBI requirements.</li>
     </ul>
 
@@ -182,7 +182,7 @@ function servePrivacy(_req: Request, res: Response) {
     <p>Delete your account anytime under <strong>Profile → Delete Account</strong>. This deletes all your data from active systems immediately; backups are purged within 30 days.</p>
 
     <h2>8. Data Export (Portability)</h2>
-    <p>You can download a machine-readable copy of all your personal data at any time from <strong>Profile → Settings → Privacy → Download My Data</strong>. The export includes your profile, connected accounts, scan history, threat records, and consent logs in JSON format, consistent with GDPR Article 20.</p>
+     <p>You can download a machine-readable copy of personal data currently accessible for your account from <strong>Profile → Settings → Privacy → Download My Data</strong>. The JSON export includes profile and avatar metadata/value, connected-account metadata (never OAuth secrets), scan history, threat records, consent logs, photo hashes/source URLs, identity embeddings, and related visual-fingerprint data.</p>
 
     <h2>9. Security</h2>
     <p>All data is encrypted in transit (TLS 1.2+) and at rest. OAuth tokens are stored encrypted. Authentication is managed by Clerk with industry-standard session controls. We conduct regular security reviews and rate-limit all API endpoints to prevent abuse.</p>
@@ -369,10 +369,10 @@ function serveSupport(_req: Request, res: Response) {
     <p>Go to <strong>Profile → Delete Account</strong>. This immediately removes your account and all associated data from active systems. Backups are purged within 30 days. You can also email <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> with "Delete My Account" in the subject line.</p>
 
     <h2>How do I download my data?</h2>
-    <p>Go to <strong>Profile → Settings → Privacy → Download My Data</strong>. You'll receive a JSON file with your profile, scan history, threat records, and consent logs.</p>
+     <p>Go to <strong>Profile → Settings → Privacy → Download My Data</strong>. You'll receive a JSON file with your profile and avatar, account metadata (not OAuth secrets), scan history, threat records, consent logs, and directly related photo data.</p>
 
     <h2>How do I withdraw consent for photo processing?</h2>
-    <p>Go to <strong>Profile → Settings → Privacy → Manage Photo Data → Withdraw Photo Processing Consent</strong>. This deletes all your perceptual hash data within 24 hours. Text-based identity monitoring will continue. Your account and scan history are preserved.</p>
+     <p>Go to <strong>Profile → Settings → Privacy → Manage Photo Data → Withdraw Photo Processing Consent</strong>. This immediately deletes locally stored hashes, source URLs, embeddings, visual-fingerprint data, and the stored avatar from active systems, and disables new photo processing. Text-based identity monitoring continues; your account and scan history are preserved.</p>
 
     <div class="card">
       <p><a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms">Terms of Service</a></p>

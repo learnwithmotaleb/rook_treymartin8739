@@ -263,7 +263,7 @@ router.get("/admin/user/:userId/costs", async (req, res): Promise<void> => {
 //   - visual_fingerprints: styleEmbeddingJson = '"reviewer_seed"'
 //   - user_identity_profiles: canonicalHashClusterJson = '"reviewer_seed"'
 
-const REVIEWER_PHOTO = "https://randomuser.me/api/portraits/women/44.jpg";
+const REVIEWER_PHOTO = "https://tryrook.app/reviewer-sample-photo.jpg";
 const IMPERSONATOR_PHOTO_ALIKE = "https://randomuser.me/api/portraits/women/46.jpg";
 const STRANGER_PHOTO = "https://randomuser.me/api/portraits/women/50.jpg";
 
@@ -543,7 +543,7 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
   const now = new Date();
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
   const fourDaysFromNow = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
-  const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+  const expiredAt = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
   // ── Step 1: Upsert users row (insert on first call, update on repeat) ─────────
@@ -575,6 +575,21 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
     .returning({ id: usersTable.id });
 
   const userId = dbUser.id;
+
+  // Remove the previous deterministic completed review job before rebuilding
+  // it. Threats are removed first because scan_job_id is intentionally nullable.
+  await db.delete(threatsTable).where(
+    and(
+      eq(threatsTable.userId, userId),
+      sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
+    ),
+  );
+  await db.delete(scanJobsTable).where(
+    and(
+      eq(scanJobsTable.userId, userId),
+      sql`${scanJobsTable.metadataJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
+    ),
+  );
 
   // ── Step 2: Remove any previously seeded connected accounts ──────────────────
   await db
@@ -656,7 +671,21 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
     );
 
   // ── Step 5: Insert fresh threats ──────────────────────────────────────────────
-  const threats = buildReviewerThreats(userId);
+  const [reviewScanJob] = await db.insert(scanJobsTable).values({
+    userId,
+    status: "completed",
+    progress: 100,
+    currentStep: "complete",
+    threatsFound: 4,
+    metadataJson: JSON.stringify({ isReviewerSeed: true }),
+    startedAt: threeDaysAgo,
+    completedAt: threeDaysAgo,
+  }).returning();
+  if (!reviewScanJob) throw new Error("Failed to create reviewer scan job");
+  const threats = buildReviewerThreats(userId).map((threat) => ({
+    ...threat,
+    scanJobId: reviewScanJob.id,
+  }));
   const threatsInserted = await db
     .insert(threatsTable)
     .values(
@@ -718,33 +747,34 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
     .insert(subscriptionsTable)
     .values({
       userId,
-      tier,
-      status: "active",
+      tier: "free",
+      status: "canceled",
       billingCycle: "yearly",
-      currentPeriodEnd: oneYearFromNow,
-      cancelAtPeriodEnd: false,
+      currentPeriodEnd: expiredAt,
+      cancelAtPeriodEnd: true,
       trialEndsAt: null,
     })
     .onConflictDoUpdate({
       target: subscriptionsTable.userId,
       set: {
-        tier,
-        status: "active",
+        tier: "free",
+        status: "canceled",
         billingCycle: "yearly",
-        currentPeriodEnd: oneYearFromNow,
-        cancelAtPeriodEnd: false,
+        currentPeriodEnd: expiredAt,
+        cancelAtPeriodEnd: true,
         trialEndsAt: null,
         updatedAt: now,
       },
     });
 
-  logger.info({ clerkId, userId, tier }, "Admin: reviewer account seeded");
+  logger.info({ userId }, "Admin: reviewer account seeded");
 
   res.json({
     ok: true,
     clerkId,
     userId,
-    tier,
+    tier: "free",
+    scanJobId: reviewScanJob.id,
     threatsSeeded: threatsInserted.length,
     accountsSeeded: accountsSeeded.length,
     note: "All seeded rows tagged isReviewerSeed:true — use DELETE /api/admin/seed-reviewer/:clerkId to clean up.",
@@ -779,7 +809,7 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
 
   const userId = dbUser.id;
 
-  const [deletedThreats, deletedAccounts, deletedFingerprints, deletedProfiles] =
+  const [deletedThreats, deletedAccounts, deletedFingerprints, deletedProfiles, deletedScanJobs] =
     await Promise.all([
       db
         .delete(threatsTable)
@@ -820,6 +850,15 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
           )
         )
         .returning({ id: userIdentityProfilesTable.id }),
+      db
+        .delete(scanJobsTable)
+        .where(
+          and(
+            eq(scanJobsTable.userId, userId),
+            sql`${scanJobsTable.metadataJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
+          ),
+        )
+        .returning({ id: scanJobsTable.id }),
     ]);
 
   // Reset the granted subscription back to free so the account doesn't keep
@@ -833,7 +872,8 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
     deletedThreats.length +
     deletedAccounts.length +
     deletedFingerprints.length +
-    deletedProfiles.length;
+    deletedProfiles.length +
+    deletedScanJobs.length;
 
   logger.info({ clerkId, userId, rowsDeleted }, "Admin: reviewer seed data cleaned up");
 
@@ -847,6 +887,7 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
       connectedAccounts: deletedAccounts.length,
       visualFingerprints: deletedFingerprints.length,
       identityProfiles: deletedProfiles.length,
+      scanJobs: deletedScanJobs.length,
     },
   });
   } catch (err) {
@@ -874,7 +915,7 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
 
     const { clerkId, email, obsoleteClerkId } = parsed.data;
     const now = new Date();
-    const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+    const expiredAt = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const result = await db.transaction(async (tx) => {
       const [realUser] = await tx
@@ -942,21 +983,21 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
         .insert(subscriptionsTable)
         .values({
           userId: realUser.id,
-          tier: "premium",
-          status: "active",
+          tier: "free",
+          status: "canceled",
           billingCycle: "yearly",
-          currentPeriodEnd: oneYearFromNow,
-          cancelAtPeriodEnd: false,
+          currentPeriodEnd: expiredAt,
+          cancelAtPeriodEnd: true,
           trialEndsAt: null,
         })
         .onConflictDoUpdate({
           target: subscriptionsTable.userId,
           set: {
-            tier: "premium",
-            status: "active",
+            tier: "free",
+            status: "canceled",
             billingCycle: "yearly",
-            currentPeriodEnd: oneYearFromNow,
-            cancelAtPeriodEnd: false,
+            currentPeriodEnd: expiredAt,
+            cancelAtPeriodEnd: true,
             trialEndsAt: null,
             updatedAt: now,
           },
@@ -998,11 +1039,11 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
       ok: true,
       clerkId,
       userId: result.userId,
-      tier: "premium",
+      tier: "free",
       onboardingCompleted: true,
       connectedAccountsPreserved: result.connectedAccountsPreserved,
       deletedDemoUsers: result.deletedDemoUsers,
-      premiumUntil: oneYearFromNow.toISOString(),
+      subscriptionStatus: "canceled",
     });
   } catch (err) {
     if (err instanceof Error && err.message === "REAL_REVIEWER_NOT_FOUND") {

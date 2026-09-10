@@ -72,8 +72,8 @@ export function PhotoConsentModal({ visible, onConsent, onSkip }: Props) {
               </Text>
               <Item icon="scan-outline" color="#A78BFA" colors={colors}>
                 A <Text style={styles.bold}>perceptual fingerprint</Text> — a compact digital
-                signature of your photo's visual structure. It is NOT raw image data, NOT facial
-                recognition, and cannot reconstruct your photo.
+                signature of your photo's visual structure. It is NOT raw image data. Rook compares
+                image similarity; it does not perform facial recognition or create a facial-geometry template.
               </Item>
               <Item icon="analytics-outline" color="#60A5FA" colors={colors}>
                 An <Text style={styles.bold}>AI-derived visual representation</Text> — used
@@ -99,12 +99,12 @@ export function PhotoConsentModal({ visible, onConsent, onSkip }: Props) {
                 Third-party services that receive photo data
               </Text>
               <Item icon="logo-google" color="#EA4335" colors={colors}>
-                <Text style={styles.bold}>Google</Text> — receives your public photo URL to
-                find where similar images appear on the web.
+                <Text style={styles.bold}>Google Cloud Vision</Text> — may receive a public photo URL
+                or image bytes to find where similar images appear on the web.
               </Item>
               <Item icon="sparkles-outline" color="#F59E0B" colors={colors}>
-                <Text style={styles.bold}>OpenAI</Text> — analyzes your photo for visual
-                similarity detection across platforms.
+                <Text style={styles.bold}>OpenAI</Text> — may receive image bytes for visual
+                similarity analysis across platforms.
               </Item>
             </View>
 
@@ -114,9 +114,10 @@ export function PhotoConsentModal({ visible, onConsent, onSkip }: Props) {
                 How long it is kept
               </Text>
               <Item icon="time-outline" color="#94A3B8" colors={colors}>
-                While your account is active. Deleted within 30 days of account deletion.
-                Never retained beyond 3 years. You can delete it at any time without deleting
-                your account.
+                While your account is active. Photo hashes, source URLs, embeddings, visual
+                fingerprint data, and a stored compressed avatar are deleted from active systems
+                when you withdraw consent or delete photo data. Backups are purged within 30 days
+                where backups apply.
               </Item>
             </View>
 

@@ -10,6 +10,7 @@ import {
 } from "../services/phashIntelligenceService";
 import { getSubscription } from "../services/subscriptionService";
 import { normalizeTier } from "../lib/planConfig";
+import { isDesignatedReviewer } from "../services/reviewerService";
 
 
 const router: IRouter = Router();
@@ -190,7 +191,7 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
     // Gate full evidence behind Premium — free users see only metadata
     const sub = await getSubscription(userId);
     const tier = normalizeTier(sub.tier ?? "free");
-    const isFree = tier === "free";
+    const isFree = tier === "free" && !(await isDesignatedReviewer(userId));
 
     if (isFree) {
       const signals = parseSignals(threat.detectedSignalsJson);

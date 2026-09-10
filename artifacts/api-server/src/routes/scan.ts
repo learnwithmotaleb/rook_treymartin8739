@@ -1,11 +1,12 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, and, desc, gt } from "drizzle-orm";
+import { eq, and, desc, gt, sql } from "drizzle-orm";
 import { db, scanJobsTable, threatsTable } from "@workspace/db";
 import { startScan } from "../services/scanOrchestrator";
 import { checkAndIncrementQuota, getQuotaState, QuotaTrackingError } from "../services/rateLimitService";
 import { getSubscription } from "../services/subscriptionService";
 import { PLAN_CONFIG, normalizeTier, type Tier } from "../lib/planConfig";
+import { isDesignatedReviewer } from "../services/reviewerService";
 
 const ScanBody = z.object({
   bypassCache: z.boolean().optional().default(false),
@@ -32,6 +33,7 @@ function nextMonthlyReset(now = new Date()): string {
 router.post("/scan", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
+    const designatedReviewer = await isDesignatedReviewer(userId);
 
     // ── Validate input first — before any quota mutations ──────────────────────
     const bodyParsed = ScanBody.safeParse(req.body ?? {});
@@ -67,7 +69,42 @@ router.post("/scan", async (req, res): Promise<void> => {
     // normalizeTier maps "pro" → "premium" (pro is sunset; premium limits apply).
     // This matches what GET /scan/quota-state does — consistency is required so
     // the UI quota display and the actual enforcement agree.
-    const planTier = normalizeTier(sub.tier ?? "free") as Tier;
+    const planTier = designatedReviewer ? "premium" : normalizeTier(sub.tier ?? "free") as Tier;
+
+    // App Review must be deterministic and must never invoke external providers.
+    // Clone only this user's seeded findings into a fresh completed job.
+    if (designatedReviewer) {
+      const quota = await checkAndIncrementQuota(userId, "premium", false);
+      if (!quota.allowed) {
+        res.status(429).json({ error: "scan_limit_reached", reason: quota.reason, tier: "premium" });
+        return;
+      }
+      const [reviewJob] = await db.insert(scanJobsTable).values({
+        userId,
+        status: "completed",
+        progress: 100,
+        currentStep: "complete",
+        startedAt: new Date(),
+        completedAt: new Date(),
+      }).returning();
+      if (!reviewJob) throw new Error("Could not create reviewer scan");
+      const seeded = await db.select().from(threatsTable).where(
+        and(
+          eq(threatsTable.userId, userId),
+          sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
+        ),
+      );
+      if (seeded.length) {
+        await db.insert(threatsTable).values(seeded.map(({ id: _id, createdAt: _createdAt, scanJobId: _oldJob, ...threat }) => ({
+          ...threat,
+          scanJobId: reviewJob.id,
+          createdAt: new Date(),
+        })));
+        await db.update(scanJobsTable).set({ threatsFound: seeded.length }).where(eq(scanJobsTable.id, reviewJob.id));
+      }
+      res.status(201).json({ ...serializeJob({ ...reviewJob, threatsFound: seeded.length }), quota: { tier: "premium", remainingMonth: quota.remainingMonth, remainingDay: quota.remainingDay } });
+      return;
+    }
 
     const isDeepScan =
       !!(process.env["GOOGLE_CSE_API_KEY"] || process.env["GOOGLE_VISION_API_KEY"]);
@@ -137,7 +174,9 @@ router.get("/scan/quota-state", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
     const sub = await getSubscription(userId);
-    const planTier = normalizeTier(sub.tier ?? "free");
+    const planTier = (await isDesignatedReviewer(userId))
+      ? "premium"
+      : normalizeTier(sub.tier ?? "free");
     const state = await getQuotaState(userId);
 
     if (planTier !== "free") {

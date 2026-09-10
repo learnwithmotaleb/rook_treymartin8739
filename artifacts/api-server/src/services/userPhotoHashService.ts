@@ -16,7 +16,7 @@
  *   - Subsequent scans load hashes in a single DB query (<10ms)
  */
 
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, userPhotoHashesTable } from "@workspace/db";
 import { computeDHash } from "./photoHashService";
 import { logger } from "../lib/logger";
@@ -191,9 +191,8 @@ export async function attachEmbeddingToHash(
   await db
     .update(userPhotoHashesTable)
     .set({ embeddingJson })
-    .where(
-      eq(userPhotoHashesTable.userId, userId)
-      // Note: drizzle doesn't support composite WHERE in update without and()
-      // but userId alone is sufficient for safety since platformMediaId is unique per user
-    );
+    .where(and(
+      eq(userPhotoHashesTable.userId, userId),
+      eq(userPhotoHashesTable.platformMediaId, platformMediaId),
+    ));
 }

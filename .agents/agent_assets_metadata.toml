@@ -219,3 +219,31 @@ mtime_ms = 1788839445611
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:6c2161a6-7017-4ec4-988f-83e568e76224/9662f5b5-ae3f-421b-855f-726d7cace28a/ee907285-8390-48ce-9f12-b97382043dff"
 storage_version_token = "1788839470130451"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "rmKncjqlwwH-UtUXChGIX"
+uri = "file://artifacts/mobile/store-assets/iap-promotional/rook-premium-monthly-1024.jpg"
+type = "image"
+title = "Rook Premium Monthly — Promotional Image"
+description = "Apple-compliant 1024×1024 sRGB JPEG: original artwork, no price, no UI screenshot, and large readable text."
+logical_id = "e967ae3a-7590-4c10-b067-ada588fed54c"
+content_hash = "sha256:42b4b533b5ec64121fe5e58eda5bb54d86e599cb69e0eeeb1c290e4b245da5e4"
+size = 80739
+mtime_ms = 1789048976385
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:6c2161a6-7017-4ec4-988f-83e568e76224/e967ae3a-7590-4c10-b067-ada588fed54c/ab477182-5ee5-46e9-916b-d2251ac5a409"
+storage_version_token = "1789049240724417"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "CybKXAJVsglpfJnEe-M6b"
+uri = "file://artifacts/mobile/store-assets/iap-promotional/rook-premium-annual-1024.jpg"
+type = "image"
+title = "Rook Premium Annual — Promotional Image"
+description = "Apple-compliant 1024×1024 sRGB JPEG: distinct annual artwork, no price, no UI screenshot, and large readable text."
+logical_id = "21fc1b6c-deec-4252-ba03-f7844e0d34a0"
+content_hash = "sha256:a50410ac7ad512ce83d72e1d42bf082feaf76ac287447b58d7c02e993ed75f85"
+size = 76326
+mtime_ms = 1789048976381
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:6c2161a6-7017-4ec4-988f-83e568e76224/21fc1b6c-deec-4252-ba03-f7844e0d34a0/a90a05e0-d11b-4e44-b3da-b0f6333ecb68"
+storage_version_token = "1789049241543702"
+content_type = "image/jpeg"

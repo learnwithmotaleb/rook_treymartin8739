@@ -401,13 +401,16 @@ router.delete("/me/photo-consent", async (req, res): Promise<void> => {
           isNull(photoProcessingConsentsTable.withdrawnAt)
         )
       );
-    // Immediately delete all photo-derived data for this user
-    await Promise.all([
-      db.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId)),
-      db.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId)),
-      db.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId)),
-      db.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId)),
-    ]);
+    // Delete every locally stored photo-derived record and the reconstructable
+    // avatar in one transaction. This also removes source URLs held alongside
+    // the dHash rows.
+    await db.transaction(async (tx) => {
+      await tx.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId));
+      await tx.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId));
+      await tx.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId));
+      await tx.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId));
+      await tx.update(usersTable).set({ avatarUrl: null, updatedAt: now }).where(eq(usersTable.id, userId));
+    });
     req.log.info({ userId }, "Photo processing consent withdrawn + photo data deleted");
     res.json({ ok: true, withdrawnAt: now.toISOString() });
   } catch (err) {
@@ -420,14 +423,16 @@ router.delete("/me/photo-consent", async (req, res): Promise<void> => {
 router.delete("/me/photo-data", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
-    await Promise.all([
-      db.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId)),
-      db.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId)),
-      db.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId)),
-      db.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId)),
-    ]);
+    const deletedAt = new Date();
+    await db.transaction(async (tx) => {
+      await tx.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId));
+      await tx.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId));
+      await tx.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId));
+      await tx.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId));
+      await tx.update(usersTable).set({ avatarUrl: null, updatedAt: deletedAt }).where(eq(usersTable.id, userId));
+    });
     req.log.info({ userId }, "Photo-derived data deleted on user request");
-    res.json({ ok: true, deletedAt: new Date().toISOString() });
+    res.json({ ok: true, deletedAt: deletedAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "DELETE /me/photo-data failed");
     res.status(500).json({ error: "Internal server error" });
@@ -466,6 +471,30 @@ router.get("/me/export", async (req, res): Promise<void> => {
       })
       .from(threatsTable)
       .where(eq(threatsTable.userId, userId));
+    const photoHashes = await db
+      .select({
+        platformMediaId: userPhotoHashesTable.platformMediaId,
+        accountId: userPhotoHashesTable.accountId,
+        dHash: userPhotoHashesTable.dHash,
+        embeddingJson: userPhotoHashesTable.embeddingJson,
+        sourceUrl: userPhotoHashesTable.sourceUrl,
+        publishedAt: userPhotoHashesTable.publishedAt,
+      })
+      .from(userPhotoHashesTable)
+      .where(eq(userPhotoHashesTable.userId, userId));
+    const identityEmbeddings = await db
+      .select({
+        imageUrl: identityEmbeddingsTable.imageUrl,
+        embeddingJson: identityEmbeddingsTable.embeddingJson,
+        createdAt: identityEmbeddingsTable.createdAt,
+        updatedAt: identityEmbeddingsTable.updatedAt,
+      })
+      .from(identityEmbeddingsTable)
+      .where(eq(identityEmbeddingsTable.userId, userId));
+    const visualFingerprint = await db
+      .select()
+      .from(visualFingerprintsTable)
+      .where(eq(visualFingerprintsTable.userId, userId));
 
     const exportPayload = {
       exportedAt: new Date().toISOString(),
@@ -483,6 +512,7 @@ router.get("/me/export", async (req, res): Promise<void> => {
         minimumAgeVersion: user.minimumAgeVersion,
         securityScore: user.securityScore,
         scanCount: user.scanCount,
+        avatarUrl: user.avatarUrl,
       },
       connectedAccounts: accounts.map((a) => ({
         platform: a.platform,
@@ -497,6 +527,11 @@ router.get("/me/export", async (req, res): Promise<void> => {
       })),
       scanHistory: scanJobs,
       threats,
+      photoData: {
+        hashes: photoHashes,
+        identityEmbeddings,
+        visualFingerprint: visualFingerprint[0] ?? null,
+      },
     };
 
     res.setHeader("Content-Disposition", 'attachment; filename="rook-data-export.json"');
