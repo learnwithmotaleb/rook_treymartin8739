@@ -113,6 +113,27 @@ async function resolveReviewer(
   return reviewer;
 }
 
+async function seedReviewerFixture(reviewerUserId: string): Promise<void> {
+  const adminKey = process.env["ADMIN_API_KEY"]?.trim();
+  const port = process.env["PORT"]?.trim() || "8080";
+  if (!adminKey) {
+    throw new Error("Reviewer fixture seeding is not configured");
+  }
+
+  const response = await fetch(`http://127.0.0.1:${port}/api/admin/seed-reviewer`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Key": adminKey,
+    },
+    body: JSON.stringify({ clerkId: reviewerUserId, tier: "free" }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Reviewer fixture seeding failed (${response.status})`);
+  }
+}
+
 router.post(
   "/auth/app-review-ticket",
   reviewerAuthLimiter,
@@ -149,6 +170,8 @@ router.post(
         return;
       }
 
+      await seedReviewerFixture(reviewer.id);
+
       const ticketResponse = await fetch("https://api.clerk.com/v1/sign_in_tokens", {
         method: "POST",
         headers: {
@@ -170,7 +193,7 @@ router.post(
       }
 
       logger.info({ reviewerUserId: reviewer.id }, "App Review sign-in ticket issued");
-      res.json({ ticket: ticket.token, reviewerUserId: reviewer.id });
+      res.json({ ticket: ticket.token });
     } catch (error) {
       logger.error({ err: error }, "App Review sign-in ticket failed");
       res.status(502).json({ error: "Could not start App Review access. Please try again." });
