@@ -26,7 +26,10 @@ router.post(
   "/auth/app-review-ticket",
   reviewerAuthLimiter,
   async (req: Request, res: Response): Promise<void> => {
-    const reviewerUserId = process.env["APP_REVIEW_CLERK_USER_ID"]?.trim();
+    const reviewerUserId = (
+      process.env["APP_REVIEW_USER_ID"] ??
+      process.env["APP_REVIEW_CLERK_USER_ID"]
+    )?.trim();
     const reviewAccessCode = process.env["APP_REVIEW_ACCESS_CODE"]?.trim();
     const clerkSecretKey = process.env["CLERK_SECRET_KEY"]?.trim();
     const identifier =

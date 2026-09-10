@@ -7,7 +7,10 @@ import { db, usersTable } from "@workspace/db";
  * reviewer data remains scoped to the normal user id.
  */
 export async function isDesignatedReviewer(userId: string): Promise<boolean> {
-  const configuredClerkId = process.env["APP_REVIEW_CLERK_USER_ID"]?.trim();
+  const configuredClerkId = (
+    process.env["APP_REVIEW_USER_ID"] ??
+    process.env["APP_REVIEW_CLERK_USER_ID"]
+  )?.trim();
   if (!configuredClerkId) return false;
 
   const [user] = await db
