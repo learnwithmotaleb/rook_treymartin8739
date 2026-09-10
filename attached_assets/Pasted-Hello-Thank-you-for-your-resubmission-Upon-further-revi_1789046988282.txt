@@ -1,0 +1,103 @@
+Hello,
+
+Thank you for your resubmission. Upon further review, we identified additional issues that need your attention. See below for more information.
+
+If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+Submission ID: 29c7b2e6-db5e-4fdd-a32e-85cd16541cf6
+Review date: September 10, 2026
+Review Device: iPad Air 11-inch (M3)
+Version reviewed: 1.0 (12)
+
+
+App Version
+Guideline 2.3.2 - Performance - Accurate Metadata
+
+Issue Description
+
+We noticed that your promotional image to be displayed on the App Store does not sufficiently represent the associated promoted In-App Purchase and/or win back offer. Specifically, we found the following issue with your promotional image:
+
+– Your promotional image is a screenshot taken from the app.
+
+– Your promotional image includes text that is small or otherwise hard to read. 
+
+Next Steps
+
+To resolve this issue, please revise your promotional image to ensure it is unique and accurately represents the associated promoted In-App Purchase and/or win back offer. 
+
+Resources
+
+- Learn how to view and edit In-App Purchase information in App Store Connect.
+- Discover more best practices for promoting your In-App Purchases on the App Store.
+Guideline 2.3.2 - Performance - Accurate Metadata
+
+Issue Description
+
+We noticed that the Image for your promoted In-App Purchase product and/or win back offer, "Rook Premium Monthly", includes references to the price of your In-App Purchase, which is not an appropriate part of this metadata item. 
+
+Pricing for promoted In-App Purchases and win back offers is already shown on your product page, and references within the display name or description may not be accurate in all countries or territories.
+
+Next Steps
+
+To resolve this issue, please remove any references to price from your In-App Purchase product's metadata. 
+
+Please note that display names for promoted In-App Purchases can be up to 30 characters long, while descriptions may have up to 45 characters.
+
+Resources
+
+- Learn how to view and edit In-App Purchase information in App Store Connect.
+- See the specifications for promotional images, display names, and descriptions.
+- Discover more best practices for promoting your In-App Purchases on the App Store.
+Guideline 2.1 - Information Needed
+
+We are not able to continue our review because we need access to a demo account with an expired subscription to review the entire purchase flow.
+
+Next Steps
+
+To resolve this issue, provide a user name and password for a demo account with expired subscriptions in the App Review Information section of App Store Connect.
+
+Resources
+
+- Watch a video with tips for preventing common rejections. 
+- To learn more about providing information to App Review in App Store Connect, see App Store Connect Help.
+Guideline 2.1 - Information Needed
+
+We need additional information about how the app uses face data. Face data is sensitive user information that must be handled properly to help protect the user's security and privacy.
+
+Next Steps
+
+Provide complete and detailed responses to the following questions:
+
+- What face data does the app collect?
+- Provide a complete and clear explanation of all planned use, sharing, retention, deletion, and storage practices for the collected face data.
+- Will the face data be shared with any third parties? Where will this information be stored?
+- How long will face data be retained? 
+- Where in the privacy policy is the app's collection, use, disclosure, sharing, and retention of face data explained? Identify the specific sections in the privacy policy where this information is located.
+- Quote the specific text from the privacy policy concerning face data.
+
+Resources 
+
+- Learn more about requirements for data collection and storage in guideline 5.1.1, and Section 3.3.3(C), and Section 3.3.3(K) of the Apple Developer Program License Agreement, which describe expectations around accessing and using face data.
+Guideline 2.3.6 - Performance - Accurate Metadata
+
+Issue Description
+
+The content description selected for the app’s Age Rating indicates that the app includes In-App Controls. However, we were unable to find either Parental Controls or Age Assurance mechanisms in the app.
+
+Next Steps
+
+If the app currently includes these features, reply to this message and let us know how to locate them.
+
+Otherwise, update the Age Rating selections to "None" for "Age Assurance." Age Rating selections can be found on the App Information page after selecting the app in App Store Connect.
+
+Resources
+
+- Learn more about In-App Controls in Age ratings values and definitions.
+- Learn more about age rating requirements in guideline 2.3.6.
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Provide feedback on this message and your review experience by completing a short survey.
+
+Test on the latest betas
