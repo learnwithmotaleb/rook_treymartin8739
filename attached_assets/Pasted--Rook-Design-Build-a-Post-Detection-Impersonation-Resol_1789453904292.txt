@@ -1,0 +1,520 @@
+# Rook — Design & Build a Post-Detection Impersonation Resolution System
+
+You are working on **Rook**, an identity-protection application designed to detect online impersonation and fake accounts using a user's identity, photos, name, usernames, or likeness.
+
+## The Product Problem
+
+Rook currently addresses only approximately half of the impersonation problem:
+
+**Detection.**
+
+Finding an impersonator is valuable, but detection alone does not solve the user's actual problem.
+
+The user's real desired outcome is:
+
+> **The impersonating account is removed as quickly as legitimately possible.**
+
+Today, after Rook detects an impersonator, users can still be left waiting on Instagram, Facebook, TikTok, X, or another platform to review a report and take action.
+
+This creates a major gap:
+
+**Detection → ????? → Platform Removal**
+
+We want Rook to own as much of that middle portion as legitimately possible.
+
+---
+
+# Your Assignment
+
+Design a new major Rook feature/system that helps users move from:
+
+**Potential impersonator detected**
+
+to
+
+**Identity verified → impersonation confirmed → evidence prepared → correct platform process initiated → case followed → escalated when appropriate → account removed/resolved**
+
+as efficiently as possible.
+
+You have **full creative control** over the solution.
+
+Do not assume that our existing ideas are the best implementation.
+
+Approach this as a senior product designer, security engineer, trust & safety specialist, platform-integrations engineer, and startup founder working together.
+
+Research/consider what is technically and operationally possible and design the strongest product Rook can legitimately build.
+
+---
+
+# Primary Objective
+
+We want Rook to become more than an impersonation **detector**.
+
+We want it to become an:
+
+## Impersonation Detection + Resolution Platform
+
+The feature should make a paid Rook subscriber feel:
+
+> "Rook doesn't just tell me someone stole my identity. Rook helps me do something about it and stays on the case until it is resolved."
+
+The system should reduce:
+
+* Time between detection and user action
+* Work required from the victim
+* Incorrect/incomplete platform reports
+* Missing evidence
+* Users forgetting to follow up
+* Users not knowing what reporting method to use
+* Users not knowing whether anything has changed
+* Repeated manual checking
+* Confusion about escalation options
+
+And, where legitimately possible, reduce:
+
+## Time-to-Takedown
+
+---
+
+# Critical Constraint: Stay Within Platform Rules
+
+This feature MUST operate within the rules, APIs, reporting policies, Terms of Service, automation restrictions, and abuse-prevention requirements of the platforms Rook interacts with.
+
+Do NOT implement or recommend:
+
+* Mass reporting
+* Coordinated brigading
+* Fake reports
+* Bot-generated reports pretending to be different people
+* Creating fake complainants
+* Circumventing platform rate limits
+* Unauthorized scraping
+* Manipulating platform moderation systems
+* Automated actions prohibited by a platform
+* Misrepresenting Rook as the victim
+* Fabricating evidence
+* Anything designed to artificially trigger platform enforcement
+
+The goal is **not to game moderation systems.**
+
+The goal is to make legitimate impersonation complaints exceptionally complete, accurate, organized, easy to submit, easy to follow, and properly escalated through authorized channels.
+
+---
+
+# Think Beyond a "Report" Button
+
+Do not solve this by simply adding:
+
+**Report Account**
+
+That is not enough.
+
+Think through the entire lifecycle of an impersonation incident.
+
+For example:
+
+**DETECTED**
+
+↓
+
+**INVESTIGATED**
+
+↓
+
+**CONFIRMED BY USER**
+
+↓
+
+**EVIDENCE PRESERVED**
+
+↓
+
+**VIOLATION CLASSIFIED**
+
+↓
+
+**BEST RESOLUTION PATH IDENTIFIED**
+
+↓
+
+**REQUIRED INFORMATION PREPARED**
+
+↓
+
+**REPORT / REQUEST INITIATED**
+
+↓
+
+**CASE TRACKED**
+
+↓
+
+**FOLLOW-UP / ESCALATION**
+
+↓
+
+**ACCOUNT STATUS MONITORED**
+
+↓
+
+**REMOVED / RESOLVED**
+
+↓
+
+**REAPPEARANCE MONITORING**
+
+These stages are illustrative, not mandatory.
+
+You have permission to redesign this workflow if you identify something better.
+
+---
+
+# Platform-Specific Intelligence
+
+Do not treat every social platform identically.
+
+The system should understand that different platforms can have different:
+
+* Impersonation policies
+* Reporting forms
+* Intellectual-property processes
+* Identity-verification requirements
+* APIs
+* trusted reporting programs
+* business/creator support paths
+* documentation requirements
+* appeal/escalation paths
+* case/reference numbers
+* response processes
+
+Design an architecture where Rook can maintain a **platform-specific resolution playbook**.
+
+When a threat is confirmed, Rook should determine the most appropriate legitimate path available for that particular incident rather than sending every case through a generic workflow.
+
+---
+
+# Evidence
+
+Explore how Rook can turn information it already possesses into a structured, defensible **Impersonation Evidence Package**.
+
+Potential evidence may include information such as:
+
+* Original/authorized profile
+* Suspected impersonating profile
+* Profile URLs
+* Usernames
+* Display names
+* Profile photos
+* Matching images
+* Similarity information
+* Bio similarities
+* Discovery timestamp
+* Screenshots
+* Changes observed over time
+* Connected scam links where legitimately observable
+* User confirmation
+* Proof that the protected account belongs to the Rook user
+* Other relevant evidence
+
+Determine what should and should not be collected.
+
+Evidence must never be fabricated or altered to make a case appear stronger.
+
+Preserve useful evidence because an impersonator may change their username, profile photo, bio, content, or delete the account after discovery.
+
+---
+
+# Case Management
+
+Think about whether every confirmed impersonator should become a persistent **Rook Case**.
+
+The user should potentially be able to understand:
+
+**Case #RK-XXXX**
+
+Platform
+Threat
+Detection date
+Current status
+Evidence
+Actions completed
+Actions required from user
+Platform response
+Case/reference number
+Last checked
+Next recommended action
+Resolution date
+
+Determine the best UX yourself.
+
+The user should never wonder:
+
+> "What happened with that fake account I reported?"
+
+---
+
+# Automation
+
+Find every part of this process that can **legitimately** be automated.
+
+However:
+
+Automation must respect platform policies.
+
+Where Rook cannot legally or technically perform an action automatically, design the next-best experience.
+
+Examples could include:
+
+* Preparing information
+* Deep-linking users to the correct official process
+* Prefilling information where permitted
+* Step-by-step assistance
+* Generating documentation
+* Tracking deadlines
+* Reminding users
+* Monitoring public status changes
+* Detecting removal
+* Preparing follow-up information
+
+Use human confirmation whenever necessary.
+
+Never pretend an action was submitted if Rook cannot verify that it was.
+
+---
+
+# Escalation
+
+A major problem occurs when:
+
+**A legitimate report is submitted → nothing happens.**
+
+Design a compliant escalation system.
+
+Determine what legitimate options could exist when a case remains unresolved.
+
+This could differ depending on:
+
+* Platform
+* Severity
+* Creator/business status
+* Fraud/scam activity
+* Trademark/copyright involvement
+* Account compromise
+* Repeated impersonation
+* Previous reports
+* Available platform programs
+
+Rook should know the difference between:
+
+**WAIT**
+
+**FOLLOW UP**
+
+**PROVIDE ADDITIONAL EVIDENCE**
+
+**USE ANOTHER APPLICABLE OFFICIAL PROCESS**
+
+**ESCALATE THROUGH AN AUTHORIZED CHANNEL**
+
+and
+
+**NO FURTHER ACTION CURRENTLY AVAILABLE**
+
+Never promise removal because final enforcement decisions belong to the platform.
+
+---
+
+# Recurring Impersonators
+
+Think beyond individual accounts.
+
+If one impersonator disappears and another appears three days later using the same photos, Rook should recognize that this may be part of the same ongoing identity-abuse problem.
+
+Explore concepts such as:
+
+**Incident → Case → Campaign/Cluster**
+
+without assuming those exact names or architecture.
+
+Rook should become smarter as legitimate evidence accumulates.
+
+---
+
+# Paid User Value
+
+This feature must materially increase the value of a Rook subscription.
+
+A user should be able to see the work Rook performs for them.
+
+Consider metrics such as:
+
+**Threats detected**
+
+**Confirmed impersonators**
+
+**Active cases**
+
+**Cases resolved**
+
+**Average resolution time**
+
+**Evidence preserved**
+
+**Reappearances detected**
+
+**Protection activity**
+
+Avoid meaningless engagement metrics.
+
+We want engagement caused by **real protection activity**, not artificial gamification.
+
+---
+
+# Business Opportunity
+
+Design the architecture so this system could eventually support:
+
+### Consumer
+
+Individual identity protection.
+
+### Creator
+
+Higher-volume impersonation protection and resolution.
+
+### Family
+
+Multiple protected identities.
+
+### Agency
+
+Manage protection for multiple creators/clients.
+
+### Enterprise
+
+Brand/executive impersonation monitoring and resolution.
+
+### API
+
+Potential future identity-threat detection/resolution infrastructure for third parties.
+
+Do NOT implement all of these now.
+
+Simply avoid architectural decisions that make these future directions unnecessarily difficult.
+
+---
+
+# Platform Partnerships
+
+Also identify areas where Rook's capabilities would improve significantly if we later establish direct relationships with platforms.
+
+Architect the system so future authorized:
+
+* APIs
+* Trust & Safety integrations
+* reporting endpoints
+* case-status APIs
+* trusted-flagger/reporter programs where available
+* partner programs
+* webhooks
+
+could be integrated without rebuilding the entire feature.
+
+Do not assume Rook currently has access to private platform APIs or privileged reporting channels.
+
+Clearly separate:
+
+**What Rook can build today**
+
+from
+
+**What requires future platform partnerships/access.**
+
+---
+
+# UX Direction
+
+Maintain Rook's existing premium identity-security design language.
+
+The experience should feel:
+
+* Protective
+* Serious
+* Fast
+* Trustworthy
+* Premium
+* Calm during stressful incidents
+* Easy enough for a nontechnical user
+
+Avoid overwhelming users with legal or technical information.
+
+Translate complexity into clear actions such as:
+
+**We found it.**
+
+**You confirmed it.**
+
+**We've prepared your case.**
+
+**Action required.**
+
+**Submitted.**
+
+**We're monitoring it.**
+
+**Resolved.**
+
+Those are examples; improve the copy where appropriate.
+
+---
+
+# Before Coding
+
+First inspect the existing Rook codebase, architecture, database schema, authentication, threat detection flow, alert system, UI components, navigation, subscriptions, and existing integrations.
+
+Do not break or unnecessarily rewrite working functionality.
+
+Then create an implementation plan covering:
+
+1. The solution you designed
+2. Why you believe it addresses the detection-to-removal gap
+3. Complete user journey
+4. System architecture
+5. Database changes
+6. Backend services
+7. Frontend screens/components
+8. APIs/integrations required
+9. Platform-specific handling
+10. Evidence architecture
+11. Case/status architecture
+12. Automation opportunities
+13. Human-confirmation requirements
+14. Compliance/security considerations
+15. What can be implemented immediately
+16. What requires platform approval/partnership
+17. Monetization opportunities
+18. Metrics for measuring whether the feature actually reduces time-to-resolution
+
+Then proceed with implementation in safe, incremental stages.
+
+---
+
+# Important Product Principle
+
+Do not optimize for:
+
+**"How many reports can Rook generate?"**
+
+Optimize for:
+
+## "How can Rook help a legitimate victim build the strongest accurate case, reach the correct authorized resolution channel, remove unnecessary friction, follow the case intelligently, and achieve a legitimate resolution as quickly as the platform allows?"
+
+We want to close the gap between:
+
+# DETECTION → RESOLUTION
+
+Rook should not simply tell users that their identity is being stolen.
+
+**Rook should help them reclaim it.**
+
+You have full creative control over the product solution, UX, architecture, workflow, and implementation as long as the solution remains technically realistic, secure, scalable, and compliant with the policies of the platforms involved.
