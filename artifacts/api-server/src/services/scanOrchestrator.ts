@@ -63,6 +63,10 @@ import {
   computeUserThreshold,
 } from "./phashIntelligenceService";
 import { recomputeForUser as recomputeIdentityAnchor } from "./identityAnchorService";
+import {
+  CURRENT_PHOTO_CONSENT_VERSION,
+  deletePhotoDerivedData,
+} from "../routes/users";
 import { sendScanCompleteNotification } from "./notificationService";
 import { linkThreatToActor, findActorByUsername } from "./threatActorService";
 import { deliverEvent } from "./webhookService";
@@ -665,7 +669,8 @@ async function runScanPipeline(
           .where(
             and(
               eq(photoProcessingConsentsTable.userId, userId),
-              isNull(photoProcessingConsentsTable.withdrawnAt)
+              isNull(photoProcessingConsentsTable.withdrawnAt),
+              eq(photoProcessingConsentsTable.consentVersion, CURRENT_PHOTO_CONSENT_VERSION)
             )
           )
           .limit(1),
@@ -757,7 +762,23 @@ async function runScanPipeline(
   // postedAt timestamp — this is threaded into the DB so temporal scoring can
   // compare a suspicious account's post date against the exact matched victim photo.
   let allUserHashes: Awaited<ReturnType<typeof storeUserPhotoHashes>> = [];
-  if (hasPhotoConsent) {
+  const hasCurrentPhotoConsent = async (): Promise<boolean> => {
+    if (!user.clerkId) return true;
+    const [row] = await db
+      .select({ id: photoProcessingConsentsTable.id })
+      .from(photoProcessingConsentsTable)
+      .where(
+        and(
+          eq(photoProcessingConsentsTable.userId, userId),
+          isNull(photoProcessingConsentsTable.withdrawnAt),
+          eq(photoProcessingConsentsTable.consentVersion, CURRENT_PHOTO_CONSENT_VERSION)
+        )
+      )
+      .limit(1);
+    return Boolean(row);
+  };
+
+  if (hasPhotoConsent && await hasCurrentPhotoConsent()) {
     const photoHashInputs: Array<{ platformMediaId: string; url: string; publishedAt?: Date }> = [];
     for (const ingested of ingestedAccounts) {
       if (ingested.profileImageUrl) {
@@ -778,6 +799,10 @@ async function runScanPipeline(
     }
     const limitedPhotoHashInputs = limitImages(photoHashInputs);
     allUserHashes = await storeUserPhotoHashes(userId, limitedPhotoHashInputs);
+    if (!(await hasCurrentPhotoConsent())) {
+      await db.transaction(async (tx) => deletePhotoDerivedData(tx, userId, new Date()));
+      allUserHashes = [];
+    }
     logger.info(
       { userId, available: photoHashInputs.length, analyzed: limitedPhotoHashInputs.length, imagesPerScan },
       "User photo hashes ready"
@@ -787,13 +812,15 @@ async function runScanPipeline(
   // Fire-and-forget: recompute cross-platform identity anchor.
   // Every scan that ingests new photos improves the anchor's confidence and
   // per-platform verification scores — no scan completion needed to wait on this.
-  recomputeIdentityAnchor(userId).catch(() => {});
+  if (await hasCurrentPhotoConsent()) {
+    recomputeIdentityAnchor(userId).catch(() => {});
+  }
 
   // Build AI embedding vectors for user photos (up to 20, profile photos first).
   // These catch cropped/filtered/re-uploaded copies that dHash misses.
   // Requires the same photo-processing consent as hash fingerprinting.
   // Runs in background — errors are non-fatal.
-  if (hasPhotoConsent) {
+  if (hasPhotoConsent && await hasCurrentPhotoConsent()) {
     const profilePhotoUrls = ingestedAccounts
       .map((a) => a.profileImageUrl)
       .filter((u): u is string => Boolean(u));
@@ -805,9 +832,14 @@ async function runScanPipeline(
       ...allIngestedImageUrls.filter((u) => !profilePhotoUrls.includes(u)),
     ]).slice(0, 20);
 
-    buildUserPhotoEmbeddings(userId, embeddingTargetUrls, 20).catch((err) =>
-      logger.warn({ err }, "Background AI embedding generation failed (non-fatal)")
-    );
+    try {
+      await buildUserPhotoEmbeddings(userId, embeddingTargetUrls, 20);
+      if (!(await hasCurrentPhotoConsent())) {
+        await db.transaction(async (tx) => deletePhotoDerivedData(tx, userId, new Date()));
+      }
+    } catch (err) {
+      logger.warn({ err }, "AI embedding generation failed (non-fatal)");
+    }
   }
 
   // Compute per-user Hamming threshold early — needed for both the pre-search
@@ -1608,6 +1640,11 @@ async function runScanPipeline(
 
   if (newThreats.length > 0) {
     for (const threat of newThreats) {
+      const mayPersistPhotoData = await hasCurrentPhotoConsent();
+      if (!mayPersistPhotoData) {
+        threat.evidenceJson = "[]";
+        threat.impersonatorDHash = null;
+      }
       const [inserted] = await db
         .insert(threatsTable)
         .values(threat)

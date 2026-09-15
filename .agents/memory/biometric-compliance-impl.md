@@ -57,6 +57,12 @@ description: BIPA / GDPR Art. 9 / Texas CUBI compliance engineering — what was
 
 ## Non-obvious constraints
 
+**Consent checks must guard writes, not only scan startup.**
+
+**Why:** A user can withdraw consent while a long scan or background embedding task is still running. A startup-only check allows that work to recreate hashes, embeddings, media URLs, identity anchors, or alert evidence after deletion returns.
+
+**How to apply:** Require the current consent version at scan entry and immediately before photo-derived persistence. Re-check after long image operations and remove their output if consent changed. New photo-processing jobs must follow the same rule.
+
 **Why `lib/db/dist` must be rebuilt after schema changes:** The api-server uses TypeScript project references (`tsconfig.json` references `../../lib/db`). The type checker reads compiled `.d.ts` files from `lib/db/dist`, not source. After any schema change, run `cd lib/db && pnpm tsc --build` or zero TS errors will appear misleadingly.
 
 **Why esbuild builds work despite tsc errors:** The API server build uses `esbuild` (via `build.mjs`), not `tsc`. So the server bundles and runs even if `tsc --noEmit` shows errors. Fix tsc errors for code quality but don't rely on them to confirm runtime behavior.

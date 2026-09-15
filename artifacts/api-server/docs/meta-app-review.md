@@ -116,8 +116,11 @@ Use this checklist for the private review environment. Credentials are
 intentionally placeholders and must be supplied through the secure review
 channel, never committed here.
 
-1. **A — Access:** Install the review build and sign in with
-   `<REVIEWER_EMAIL>` / `<REVIEWER_PASSWORD>`.
+1. **A — Access:** Install the review build, open **Sign In**, enter
+   `<REVIEWER_EMAIL>`, select **App Review access**, enter the protected access
+   code from App Store Connect, and tap **Enter App Review**. The access code is
+   exchanged server-side for a one-time Clerk sign-in ticket, so no email OTP is
+   required on a new review device.
 2. **B — Begin:** Complete the age, terms, and biometric-photo consent screens.
 3. **C — Connect:** Open Connections and confirm the pre-seeded Instagram,
    Facebook, and X accounts are visible.

@@ -14,8 +14,8 @@ const PRIVACY_EMAIL = "privacy@getrook.app";
 const BUSINESS_PHONE = "+1 (832) 819-3114";
 const BUSINESS_ADDRESS = "127 N Higgins Ave Suite 307D #2992, Missoula, MT 59802";
 const BUSINESS_NAME = "Rook Identity Labs LLC";
-const LAST_UPDATED = "August 28, 2026";
-const TERMS_VERSION = "2026-08-28-v3";
+const LAST_UPDATED = "September 15, 2026";
+const TERMS_VERSION = "2026-09-15-v4";
 
 const html = (title: string, body: string) => `<!DOCTYPE html>
 <html lang="en">
@@ -89,41 +89,42 @@ function servePrivacy(_req: Request, res: Response) {
       <li><strong>Age confirmation:</strong> A timestamp recording that you declared you are 17 or older at signup. No date of birth is collected.</li>
     </ul>
 
-    <h2>2. Biometric and Image-Derived Data — Written Notice</h2>
+    <h2>2. Face Data, Biometric and Image-Derived Data — Written Notice</h2>
 
     <div class="notice-box">
       <h3>⚠ Required Written Notice (Illinois BIPA / Texas CUBI / GDPR Article 9)</h3>
       <p>This section constitutes the written notice required by the Illinois Biometric Information Privacy Act (740 ILCS 14), the Texas Capture or Use of Biometric Identifier Act (Tex. Bus. &amp; Com. Code § 503.001), and analogous state and international privacy laws before the collection of biometric or biometric-adjacent data.</p>
     </div>
 
-    <h3>What We Collect</h3>
-     <p>When you connect a social account or provide a reference photo, ${APP_NAME} may process profile photos, post images, reel thumbnails, and photos you select in the app. Raw image bytes or source URLs may be sent to Google Cloud Vision and OpenAI for the disclosed comparison and analysis features.</p>
+    <h3>What Face and Photo Data We Collect</h3>
+     <p>${APP_NAME} processes images that may contain a human face, including profile photos, public post images, reel thumbnails, a compressed avatar you select, and reference photos you submit. During a scan, we may process raw image bytes, base64-encoded image content, public image URLs, platform media identifiers, and external-match image URLs. Alert evidence may retain image URLs until the alert is deleted under Section 7.</p>
     <ul>
-       <li><strong>Perceptual hash fingerprints (dHash):</strong> A 64-bit numeric hash computed by resizing your photo to a 9×8 pixel grayscale thumbnail and recording pixel-level brightness differences. This is a compact digital signature of image structure — it is not raw image data and is not a scan of facial geometry.</li>
-       <li><strong>AI-generated feature vectors (embeddings):</strong> Floating-point numerical arrays derived from AI analysis of your photos, used to compare image similarity to potential impersonator accounts. Rook does not perform facial recognition or create a facial-geometry template. These arrays cannot reconstruct the original image.</li>
-       <li><strong>Visual fingerprint metadata:</strong> Aggregate counts and style descriptors summarizing your indexed media. A compressed avatar image selected in the app is stored in your profile; other source images are processed transiently and are not retained as image files.</li>
+       <li><strong>Perceptual image hashes (dHash):</strong> A 64-bit image-structure fingerprint computed from a 9×8 grayscale thumbnail, together with its source URL and media metadata.</li>
+       <li><strong>Image embeddings:</strong> Floating-point vectors describing overall visual similarity, together with similarity scores and visual-fingerprint metadata.</li>
+       <li><strong>What we do not collect:</strong> ${APP_NAME} does not detect or map facial landmarks, measure facial geometry, create a faceprint or facial-recognition template, identify an unknown person from their face, or use a face for authentication. Image hashes and embeddings compare images as a whole and cannot reconstruct the source image.</li>
     </ul>
 
     <h3>Purpose of Collection</h3>
-    <p><strong>Sole purpose:</strong> To detect whether your profile photos or visual identity appear on other social media accounts without your authorization — i.e., to identify potential impersonation or photo theft. This data is never used for advertising, sold to third parties, or used for any purpose other than identity monitoring for your account.</p>
+    <p><strong>Sole purpose:</strong> We use face-containing photos and derived image data to index user-authorized reference images, perform reverse-image and visual-similarity searches, compare potential impersonator accounts, display evidence in security alerts, and maintain the avatar selected by the user. We do not use this data to identify people by their faces, authenticate users, make legal or eligibility decisions, train advertising profiles, sell data, or train third-party AI models.</p>
 
     <h3>Length of Retention</h3>
     <ul>
-       <li><strong>Perceptual hashes, source URLs, and embeddings:</strong> Retained while your account is active and deleted from active systems on account deletion or photo-data deletion. Production backups are purged within 30 days where backups apply.</li>
-       <li><strong>If you withdraw photo-processing consent:</strong> All locally stored photo hashes, source URLs, embeddings, visual fingerprint data, and the stored avatar image are deleted immediately from active systems. You can withdraw consent at any time in <strong>Profile → Settings → Privacy → Manage Photo Data</strong>. Withdrawing consent does not delete your account or scan history.</li>
+       <li><strong>Hashes, source URLs, embeddings, visual fingerprints, avatar, and image URLs in alert evidence:</strong> Retained while needed for active identity monitoring, subject to the maximum below. They are deleted from active systems on account deletion, photo-data deletion, or consent withdrawal. Production backups are purged within 30 days where backups apply.</li>
+       <li><strong>If you withdraw photo-processing consent:</strong> Photo hashes, source URLs, embeddings, visual fingerprints, the stored avatar, image URLs in alert evidence, and threat-level image hashes are deleted from active systems. You can withdraw in <strong>Profile → Settings → Privacy → Withdraw Consent &amp; Delete Photo Data</strong>. Text-only scan history may remain.</li>
       <li><strong>Maximum retention period:</strong> Photo-derived data is not retained for more than 3 years from the date of collection, or 1 year after the purpose is fulfilled (whichever is sooner), consistent with Illinois BIPA Section 15(a) and Texas CUBI requirements.</li>
     </ul>
 
     <h3>Third-Party Services That Receive Photo Data</h3>
     <ul>
-      <li><strong>Google Cloud Vision API:</strong> The URL of your public profile photo is sent to Google's Web Detection API to find where that image appears on the open web. Google does not receive your account credentials. Google's use of this data is governed by the <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a> and Google Cloud Data Processing Addendum. Google does not retain submitted images for model training under the Cloud Vision API terms.</li>
-      <li><strong>OpenAI API:</strong> Public photo content may be sent for AI-powered visual analysis to generate feature vectors. OpenAI's use is governed by the <a href="https://openai.com/policies/privacy-policy" target="_blank">OpenAI Privacy Policy</a>. ${APP_NAME} has API usage configured under OpenAI's zero data retention policy where available.</li>
+      <li><strong>Google Cloud Vision API:</strong> Receives a user-authorized image URL or image bytes to perform Web Detection and locate visually matching public pages. Google does not receive social-account credentials. Google processes this data under its Cloud Data Processing Addendum and does not use Cloud Vision API submissions to train its general models.</li>
+      <li><strong>OpenAI API:</strong> May receive user-authorized image content and limited alert context for visual analysis and security explanations. API data is not used to train OpenAI models by default; zero data retention is used where available.</li>
+      <li><strong>Replit infrastructure:</strong> Hosts our API and managed PostgreSQL database, including stored avatars, hashes, embeddings, visual metadata, source URLs, and alert evidence. Access is limited to the authenticated user and authorized operations personnel.</li>
       <li><strong>Serper / Google Custom Search API:</strong> Your name and username (text only — no images) are used as search queries to find publicly indexed accounts. No image data is transmitted.</li>
     </ul>
 
     <h3>Your Consent and Withdrawal Rights</h3>
     <p>By accepting these Terms and the separate in-app Photo Processing Consent prompt, you provide the written release required under Illinois BIPA Section 15(b) and Texas CUBI, and the explicit consent required under GDPR Article 9(2)(a), for ${APP_NAME} to collect, store, and use the image-derived data described above.</p>
-    <p><strong>You may withdraw this consent at any time</strong> without penalty to your account by going to <strong>Profile → Settings → Privacy → Manage Photo Data → Withdraw Photo Processing Consent</strong>. Upon withdrawal, all photo-derived data is deleted and photo-based scanning is disabled for your account. Text-based and username-based identity monitoring will continue.</p>
+    <p><strong>You may withdraw this consent at any time</strong> without penalty by going to <strong>Profile → Settings → Privacy → Withdraw Consent &amp; Delete Photo Data</strong>. The face and photo data listed in the retention section is deleted from active systems, and photo-based scanning is disabled. Text-based and username-based monitoring continues. Consent records are retained for seven years as evidence of compliance; backups containing deleted data are purged within 30 days where applicable.</p>
 
     <h3>No Sale or Profit from Biometric Data</h3>
     <p>${APP_NAME} does not sell, lease, trade, or otherwise profit from your image-derived data. We do not disclose this data to any party other than the processors listed above, and only for the stated purpose of providing the identity monitoring service.</p>
@@ -157,8 +158,8 @@ function servePrivacy(_req: Request, res: Response) {
     <ul>
       <li><strong>Clerk</strong> — Authentication and session management. Processes your email and device information. <a href="https://clerk.com/privacy" target="_blank">Privacy Policy</a>.</li>
       <li><strong>RevenueCat</strong> — Subscription entitlements. Payments processed by Apple/Google directly. <a href="https://www.revenuecat.com/privacy" target="_blank">Privacy Policy</a>.</li>
-      <li><strong>Google Cloud Vision</strong> — Receives photo URLs for Web Detection. <a href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a>.</li>
-      <li><strong>OpenAI</strong> — Receives photo content for AI analysis and generates threat explanations. <a href="https://openai.com/policies/privacy-policy" target="_blank">Privacy Policy</a>.</li>
+      <li><strong>Google Cloud Vision</strong> — Receives user-authorized image URLs or bytes for Web Detection. <a href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a>.</li>
+      <li><strong>OpenAI</strong> — May receive user-authorized image content and limited alert context for visual analysis and security explanations. <a href="https://openai.com/policies/privacy-policy" target="_blank">Privacy Policy</a>.</li>
       <li><strong>Serper / Google Custom Search</strong> — Receives text search queries (your name, username). No image data.</li>
       <li><strong>Replit</strong> — Cloud infrastructure hosting our API server and database. <a href="https://replit.com/site/privacy" target="_blank">Privacy Policy</a>.</li>
       <li><strong>Law enforcement</strong> — Only when required by valid legal process (subpoena, court order) and we are legally permitted to notify you.</li>
@@ -174,12 +175,12 @@ function servePrivacy(_req: Request, res: Response) {
     <ul>
       <li><strong>Account data:</strong> Retained while your account is active. Deleted from active systems immediately upon account deletion; purged from production backups within 30 days.</li>
       <li><strong>Threat history:</strong> Retained for 30 days for both Free and Premium accounts. Free accounts can see limited previews; Premium unlocks full evidence and reports.</li>
-      <li><strong>Image-derived data (perceptual hashes, embeddings):</strong> Retained while account is active; deleted immediately upon account deletion or consent withdrawal, with backup purge within 30 days. Never retained beyond 3 years from collection.</li>
+       <li><strong>Face and photo data:</strong> Stored avatars, hashes, embeddings, visual fingerprints, source URLs, image URLs in alert evidence, and threat-level image hashes are retained while needed for active monitoring and never beyond 3 years from collection. They are deleted from active systems on account deletion, photo-data deletion, or consent withdrawal; backups are purged within 30 days where applicable.</li>
       <li><strong>OAuth tokens:</strong> Deleted immediately upon account disconnection or deletion.</li>
       <li><strong>Consent records:</strong> Retained for 7 years after account deletion as a legal compliance record (Illinois BIPA Section 15(a) requires retention schedules to be maintained).</li>
       <li><strong>Anonymized usage analytics:</strong> May be retained up to 2 years in aggregated, non-identifiable form.</li>
     </ul>
-    <p>Delete your account anytime under <strong>Profile → Delete Account</strong>. This deletes all your data from active systems immediately; backups are purged within 30 days.</p>
+    <p>Delete your account anytime under <strong>Profile → Delete Account</strong>. Account-associated data is deleted from active systems; legally required consent records are retained for seven years, and backups are purged within 30 days where applicable.</p>
 
     <h2>8. Data Export (Portability)</h2>
      <p>You can download a machine-readable copy of personal data currently accessible for your account from <strong>Profile → Settings → Privacy → Download My Data</strong>. The JSON export includes profile and avatar metadata/value, connected-account metadata (never OAuth secrets), scan history, threat records, consent logs, photo hashes/source URLs, identity embeddings, and related visual-fingerprint data.</p>
@@ -199,7 +200,7 @@ function servePrivacy(_req: Request, res: Response) {
       <li><strong>Restrict Processing (Art. 18):</strong> Request that we limit processing while a dispute is resolved.</li>
       <li><strong>Data Portability (Art. 20):</strong> Download your data in structured JSON format via <strong>Profile → Settings → Privacy → Download My Data</strong>.</li>
       <li><strong>Object (Art. 21):</strong> Object to processing based on legitimate interests, including profiling.</li>
-      <li><strong>Withdraw Consent (Art. 7(3)):</strong> Withdraw photo-processing consent at any time via <strong>Profile → Settings → Privacy → Manage Photo Data</strong>, without affecting the lawfulness of prior processing.</li>
+      <li><strong>Withdraw Consent (Art. 7(3)):</strong> Withdraw photo-processing consent at any time via <strong>Profile → Settings → Privacy → Withdraw Consent &amp; Delete Photo Data</strong>, without affecting the lawfulness of prior processing.</li>
       <li><strong>Human Review (Art. 22):</strong> Request human review of any automated decision that significantly affects you by emailing <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</li>
     </ul>
     <p><strong>Legal bases (Art. 6):</strong> <em>Contract performance</em> — providing the service you signed up for; <em>Legitimate interests</em> — security, fraud prevention; <em>Consent</em> — photo/image processing (Art. 9 explicit consent for biometric-adjacent data).</p>
@@ -269,7 +270,7 @@ function serveTerms(_req: Request, res: Response) {
     <ul>
       <li>Acknowledge that you have received and read the written notice in the <a href="/privacy">Privacy Policy, Section 2</a>, describing what image-derived data is collected, for what specific purpose, and for what length of term;</li>
       <li>Grant ${APP_NAME} a <strong>limited, revocable, non-exclusive</strong> license to derive perceptual hash fingerprints and AI feature vectors from your public profile photos, and to send your photo URLs to Google Cloud Vision API and OpenAI API, solely for the purpose of detecting potential impersonation of your identity on social media;</li>
-      <li>Understand that this license terminates upon withdrawal of your photo-processing consent (available at <strong>Profile → Settings → Privacy → Manage Photo Data</strong>) or upon account deletion, and that ${APP_NAME} will delete all image-derived data within 30 days of termination;</li>
+      <li>Understand that this license terminates upon withdrawal of your photo-processing consent (available at <strong>Profile → Settings → Privacy → Withdraw Consent &amp; Delete Photo Data</strong>) or upon account deletion, and that ${APP_NAME} deletes face and photo data from active systems and purges applicable backups within 30 days;</li>
       <li>Acknowledge that ${APP_NAME} does not sell, lease, trade, or otherwise profit from your image-derived data, and does not disclose it except to the processors described in the Privacy Policy for the stated purpose;</li>
       <li>Confirm you are the owner of, or are authorized to submit, the profile photos you provide.</li>
     </ul>
@@ -350,7 +351,7 @@ function serveSupport(_req: Request, res: Response) {
     <p>${APP_NAME} uses AI to search social platforms and public photo indexes for accounts that visually or textually resemble yours. When a potential match is found, you receive a push notification with the evidence for your review. All results require your verification — Rook does not confirm that any detected account is an actual impersonator.</p>
 
     <h2>What photo data does Rook store?</h2>
-    <p>Rook stores a compact perceptual hash (64-bit numeric fingerprint) and AI feature vector derived from your profile photos. These are <em>not</em> raw images — they cannot reconstruct your photos. Full details are in the <a href="/privacy">Privacy Policy, Section 2</a>. You can delete this data without deleting your account via <strong>Profile → Settings → Privacy → Manage Photo Data</strong>.</p>
+    <p>Rook may process images containing faces and stores image hashes, embeddings, source URLs, alert-evidence image URLs, visual fingerprints, and a user-selected avatar. Rook does not map facial geometry or create a facial-recognition template. Full details are in the <a href="/privacy">Privacy Policy, Section 2</a>. You can delete this data without deleting your account via <strong>Profile → Settings → Privacy</strong>.</p>
 
     <h2>Which platforms are searched?</h2>
     <p>Rook searches public web indexes including Instagram, Facebook, X (Twitter), TikTok, and more using public search APIs. Rook is not affiliated with any of these platforms.</p>
@@ -372,7 +373,7 @@ function serveSupport(_req: Request, res: Response) {
      <p>Go to <strong>Profile → Settings → Privacy → Download My Data</strong>. You'll receive a JSON file with your profile and avatar, account metadata (not OAuth secrets), scan history, threat records, consent logs, and directly related photo data.</p>
 
     <h2>How do I withdraw consent for photo processing?</h2>
-     <p>Go to <strong>Profile → Settings → Privacy → Manage Photo Data → Withdraw Photo Processing Consent</strong>. This immediately deletes locally stored hashes, source URLs, embeddings, visual-fingerprint data, and the stored avatar from active systems, and disables new photo processing. Text-based identity monitoring continues; your account and scan history are preserved.</p>
+     <p>Go to <strong>Profile → Settings → Privacy → Withdraw Consent &amp; Delete Photo Data</strong>. This deletes stored media records, hashes, source URLs, embeddings, visual fingerprints, image URLs in alert evidence, threat-level image hashes, and the avatar from active systems, and disables new photo processing. Text-based identity monitoring continues; text-only scan history may remain.</p>
 
     <div class="card">
       <p><a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp; <a href="/terms">Terms of Service</a></p>

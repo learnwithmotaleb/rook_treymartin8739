@@ -957,7 +957,7 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
             platformHandles,
           },
           termsAcceptedAt: now,
-          termsVersion: "2026-08-10-v2",
+          termsVersion: "2026-09-15-v4",
           ageConfirmedAt: now,
           minimumAgeVersion: "1.0",
           updatedAt: now,
@@ -975,7 +975,7 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
         );
       await tx.insert(photoProcessingConsentsTable).values({
         userId: realUser.id,
-        consentVersion: "1.0",
+        consentVersion: "2026-09-15-v4",
         consentedAt: now,
       });
 

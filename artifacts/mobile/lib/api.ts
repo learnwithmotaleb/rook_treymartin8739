@@ -288,7 +288,8 @@ export async function updateMe(updates: {
 
 // Current terms version — bump whenever Terms / Privacy Policy is materially updated.
 // Users with a stored version older than this see TermsUpdateModal on next launch.
-export const CURRENT_TERMS_VERSION = "2026-08-10-v2";
+export const CURRENT_TERMS_VERSION = "2026-09-15-v4";
+export const CURRENT_PHOTO_CONSENT_VERSION = "2026-09-15-v4";
 
 // Age confirmation version — bump when the age requirement wording changes.
 export const CURRENT_AGE_VERSION = "1.0";
@@ -315,7 +316,7 @@ export async function getPhotoConsent(): Promise<{
   return apiFetch("/me/photo-consent");
 }
 
-export async function recordPhotoConsent(consentVersion = "1.0"): Promise<void> {
+export async function recordPhotoConsent(consentVersion = CURRENT_PHOTO_CONSENT_VERSION): Promise<void> {
   await apiFetch<{ ok: boolean }>("/me/photo-consent", {
     method: "POST",
     body: JSON.stringify({ consentVersion }),

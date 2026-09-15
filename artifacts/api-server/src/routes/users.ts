@@ -6,6 +6,7 @@ import {
   db,
   usersTable,
   connectedAccountsTable,
+  mediaItemsTable,
   scanJobsTable,
   threatsTable,
   photoProcessingConsentsTable,
@@ -13,6 +14,7 @@ import {
   identityEmbeddingsTable,
   visualFingerprintsTable,
   phashFeedbackTable,
+  userIdentityProfilesTable,
 } from "@workspace/db";
 
 import { getFingerprintForUser } from "../services/fingerprintService";
@@ -20,6 +22,86 @@ import { getSubscription } from "../services/subscriptionService";
 import { recalculateScore } from "../services/scoreService";
 
 const router: IRouter = Router();
+
+const PHOTO_EVIDENCE_KEYS = new Set([
+  "avatarUrl",
+  "imageUrl",
+  "profileImageUrl",
+  "suspiciousProfileImageUrl",
+  "stolenPhotoUrl",
+  "yourPhotoUrl",
+]);
+
+function stripPhotoReferences(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripPhotoReferences);
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !PHOTO_EVIDENCE_KEYS.has(key))
+      .map(([key, nested]) => [key, stripPhotoReferences(nested)]),
+  );
+}
+
+export async function deletePhotoDerivedData(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  userId: string,
+  deletedAt: Date,
+): Promise<void> {
+  const threatEvidence = await tx
+    .select({
+      id: threatsTable.id,
+      evidenceJson: threatsTable.evidenceJson,
+      detectedSignalsJson: threatsTable.detectedSignalsJson,
+    })
+    .from(threatsTable)
+    .where(eq(threatsTable.userId, userId));
+
+  for (const threat of threatEvidence) {
+    const scrubJson = (json: string | null): string | null => {
+      if (!json) return json;
+      try {
+        return JSON.stringify(stripPhotoReferences(JSON.parse(json)));
+      } catch {
+        // Invalid legacy JSON cannot be proven free of retained image data.
+        return null;
+      }
+    };
+    await tx
+      .update(threatsTable)
+      .set({
+        evidenceJson: scrubJson(threat.evidenceJson),
+        detectedSignalsJson: scrubJson(threat.detectedSignalsJson),
+        impersonatorDHash: null,
+      })
+      .where(eq(threatsTable.id, threat.id));
+  }
+
+  const connectedAccounts = await tx
+    .select({ id: connectedAccountsTable.id })
+    .from(connectedAccountsTable)
+    .where(eq(connectedAccountsTable.userId, userId));
+  for (const account of connectedAccounts) {
+    await tx.delete(mediaItemsTable).where(eq(mediaItemsTable.accountId, account.id));
+  }
+
+  await tx.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId));
+  await tx.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId));
+  await tx.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId));
+  await tx.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId));
+  await tx
+    .update(userIdentityProfilesTable)
+    .set({
+      canonicalHashClusterJson: "[]",
+      overallConfidence: 0,
+      verifiedPlatformCount: 0,
+      anchorHashCount: 0,
+      confidenceTier: "UNVERIFIED",
+      lastComputedAt: deletedAt,
+    })
+    .where(eq(userIdentityProfilesTable.userId, userId));
+  await tx.update(usersTable).set({ avatarUrl: null, updatedAt: deletedAt }).where(eq(usersTable.id, userId));
+}
 
 router.get("/me", async (req, res): Promise<void> => {
   try {
@@ -321,8 +403,10 @@ router.post("/me/age-confirm", async (req, res): Promise<void> => {
 });
 
 // ─── Photo Processing Consent ────────────────────────────────────────────────
+export const CURRENT_PHOTO_CONSENT_VERSION = "2026-09-15-v4";
+
 const PhotoConsentBody = z.object({
-  consentVersion: z.string().min(1).max(20).default("1.0"),
+  consentVersion: z.literal(CURRENT_PHOTO_CONSENT_VERSION).default(CURRENT_PHOTO_CONSENT_VERSION),
 }).strict();
 
 /** GET /me/photo-consent — returns current consent status */
@@ -335,7 +419,8 @@ router.get("/me/photo-consent", async (req, res): Promise<void> => {
       .where(
         and(
           eq(photoProcessingConsentsTable.userId, userId),
-          isNull(photoProcessingConsentsTable.withdrawnAt)
+          isNull(photoProcessingConsentsTable.withdrawnAt),
+          eq(photoProcessingConsentsTable.consentVersion, CURRENT_PHOTO_CONSENT_VERSION)
         )
       )
       .limit(1);
@@ -405,11 +490,7 @@ router.delete("/me/photo-consent", async (req, res): Promise<void> => {
     // avatar in one transaction. This also removes source URLs held alongside
     // the dHash rows.
     await db.transaction(async (tx) => {
-      await tx.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId));
-      await tx.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId));
-      await tx.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId));
-      await tx.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId));
-      await tx.update(usersTable).set({ avatarUrl: null, updatedAt: now }).where(eq(usersTable.id, userId));
+      await deletePhotoDerivedData(tx, userId, now);
     });
     req.log.info({ userId }, "Photo processing consent withdrawn + photo data deleted");
     res.json({ ok: true, withdrawnAt: now.toISOString() });
@@ -425,11 +506,7 @@ router.delete("/me/photo-data", async (req, res): Promise<void> => {
     const userId = req.userId;
     const deletedAt = new Date();
     await db.transaction(async (tx) => {
-      await tx.delete(userPhotoHashesTable).where(eq(userPhotoHashesTable.userId, userId));
-      await tx.delete(identityEmbeddingsTable).where(eq(identityEmbeddingsTable.userId, userId));
-      await tx.delete(visualFingerprintsTable).where(eq(visualFingerprintsTable.userId, userId));
-      await tx.delete(phashFeedbackTable).where(eq(phashFeedbackTable.userId, userId));
-      await tx.update(usersTable).set({ avatarUrl: null, updatedAt: deletedAt }).where(eq(usersTable.id, userId));
+      await deletePhotoDerivedData(tx, userId, deletedAt);
     });
     req.log.info({ userId }, "Photo-derived data deleted on user request");
     res.json({ ok: true, deletedAt: deletedAt.toISOString() });

@@ -94,7 +94,7 @@ export default function PrivacySettings() {
   const handleDeletePhotoData = useCallback(() => {
     Alert.alert(
       "Delete Photo Data",
-      "This will delete all locally stored photo-derived data, including the stored avatar. Your consent status is preserved, so new photo processing may resume on a later scan.",
+      "This will delete face and photo data from Rook's active systems, including stored media records, hashes, embeddings, image URLs in alert evidence, visual fingerprints, and your avatar. Your consent remains active, so new photo processing may resume on a later scan.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -218,7 +218,7 @@ export default function PrivacySettings() {
                 icon="trash-outline"
                 iconColor="#EF4444"
                 label="Withdraw Consent & Delete Photo Data"
-                 description="Immediately deletes locally stored photo hashes, source URLs, embeddings, visual fingerprints, and avatar. Photo scanning is disabled; text monitoring continues."
+                 description="Deletes photo hashes, image URLs in alert evidence, embeddings, visual fingerprints, and your stored avatar from Rook's active systems. Photo scanning is disabled; text monitoring continues."
                 loading={withdrawing}
                 onPress={handleWithdraw}
                 colors={colors}
@@ -229,7 +229,7 @@ export default function PrivacySettings() {
                 icon="document-outline"
                 iconColor="#F59E0B"
                 label="Delete Photo Data Only"
-                 description="Immediately deletes locally stored photo hashes, source URLs, embeddings, visual fingerprints, and avatar. Consent remains active; new photo processing may resume on a later scan."
+                 description="Deletes photo hashes, image URLs in alert evidence, embeddings, visual fingerprints, and your stored avatar from Rook's active systems. Consent remains active; new photo processing may resume on a later scan."
                 loading={deletingPhoto}
                 onPress={handleDeletePhotoData}
                 colors={colors}
@@ -265,7 +265,7 @@ export default function PrivacySettings() {
           <Text style={[styles.retentionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
             Data retention summary
           </Text>
-          <RetentionRow label="Photo-derived data" value="Hashes, source URLs, embeddings, visual fingerprints, and stored avatar are deleted from active systems when photo data is deleted or consent is withdrawn. Backups are purged within 30 days where backups apply." colors={colors} />
+          <RetentionRow label="Face and photo data" value="Images may contain faces, but Rook does not extract facial geometry or create face templates. Photo hashes, image URLs in alert evidence, embeddings, fingerprints, and the stored avatar are deleted from active systems when requested. Backups are purged within 30 days where applicable." colors={colors} />
           <RetentionRow label="Consent records" value="Retained 7 years as a legal compliance record (BIPA § 15(a))." colors={colors} />
           <RetentionRow label="Scan history &amp; threat alerts" value="30 days for the current Free and Premium plans." colors={colors} />
           <RetentionRow label="Account data" value="Until account deletion. Backups purged within 30 days." colors={colors} last />

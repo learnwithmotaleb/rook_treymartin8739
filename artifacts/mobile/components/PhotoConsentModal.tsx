@@ -106,6 +106,10 @@ export function PhotoConsentModal({ visible, onConsent, onSkip }: Props) {
                 <Text style={styles.bold}>OpenAI</Text> — may receive image bytes for visual
                 similarity analysis across platforms.
               </Item>
+              <Item icon="server-outline" color="#60A5FA" colors={colors}>
+                <Text style={styles.bold}>Replit infrastructure</Text> — hosts Rook's API and
+                database, including stored avatars, hashes, embeddings, image URLs, and alert evidence.
+              </Item>
             </View>
 
             {/* Retention */}
@@ -114,10 +118,10 @@ export function PhotoConsentModal({ visible, onConsent, onSkip }: Props) {
                 How long it is kept
               </Text>
               <Item icon="time-outline" color="#94A3B8" colors={colors}>
-                While your account is active. Photo hashes, source URLs, embeddings, visual
-                fingerprint data, and a stored compressed avatar are deleted from active systems
-                when you withdraw consent or delete photo data. Backups are purged within 30 days
-                where backups apply.
+                While needed for active monitoring, and never beyond three years. Photo hashes,
+                source URLs, embeddings, visual fingerprints, image URLs in alert evidence, and a
+                stored compressed avatar are deleted from active systems when you withdraw consent
+                or delete photo data. Backups are purged within 30 days where applicable.
               </Item>
             </View>
 
@@ -127,8 +131,8 @@ export function PhotoConsentModal({ visible, onConsent, onSkip }: Props) {
                 You can withdraw consent anytime
               </Text>
               <Item icon="trash-outline" color="#EF4444" colors={colors}>
-                Go to <Text style={styles.bold}>Profile → Settings → Privacy → Manage Photo
-                Data</Text> to delete all fingerprint data and disable photo-based scanning —
+                Go to <Text style={styles.bold}>Profile → Settings → Privacy</Text> to delete
+                face and photo data and disable photo-based scanning —
                 without deleting your account.
               </Item>
             </View>

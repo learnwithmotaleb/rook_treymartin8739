@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 
-const LAST_UPDATED = "August 10, 2026";
-const TERMS_VERSION = "2026-08-10-v2";
+const LAST_UPDATED = "September 15, 2026";
+const TERMS_VERSION = "2026-09-15-v4";
 const APP_NAME = "Rook";
 const SUPPORT_EMAIL = "support@tryrook.app";
 const PRIVACY_EMAIL = "privacy@getrook.app";

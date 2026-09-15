@@ -16,6 +16,7 @@ import { logger } from "../lib/logger";
 import { recalculateScore } from "../services/scoreService";
 import { buildSuppressKey, normalizeSuppressUsername } from "../services/scanOrchestrator";
 import { isSafeUrl } from "../lib/ssrf";
+import { CURRENT_PHOTO_CONSENT_VERSION } from "./users";
 
 const router: IRouter = Router();
 
@@ -39,7 +40,8 @@ router.post("/photos/search", async (req, res): Promise<void> => {
     .where(
       and(
         eq(photoProcessingConsentsTable.userId, userId),
-        isNull(photoProcessingConsentsTable.withdrawnAt)
+        isNull(photoProcessingConsentsTable.withdrawnAt),
+        eq(photoProcessingConsentsTable.consentVersion, CURRENT_PHOTO_CONSENT_VERSION)
       )
     )
     .limit(1);
@@ -124,6 +126,21 @@ router.post("/photos/search", async (req, res): Promise<void> => {
 
     for (const match of unsuppressedMatches) {
       try {
+        const [stillConsented] = await db
+          .select({ id: photoProcessingConsentsTable.id })
+          .from(photoProcessingConsentsTable)
+          .where(
+            and(
+              eq(photoProcessingConsentsTable.userId, userId),
+              isNull(photoProcessingConsentsTable.withdrawnAt),
+              eq(photoProcessingConsentsTable.consentVersion, CURRENT_PHOTO_CONSENT_VERSION)
+            )
+          )
+          .limit(1);
+        if (!stillConsented) {
+          logger.info({ userId }, "Photo consent withdrawn during search — discarding remaining results");
+          break;
+        }
         const simPct = Math.round(match.similarity * 100);
         const platformLabel = match.platform.charAt(0).toUpperCase() + match.platform.slice(1);
 

@@ -20,6 +20,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useSignIn, useSignUp, useSSO, useAuth, useClerk } from "@clerk/expo";
+import { useSignInWithApple } from "@clerk/expo/apple";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useColors } from "@/hooks/useColors";
 import {
@@ -112,6 +113,7 @@ export default function Auth() {
   const { signIn, fetchStatus: signInStatus } = useSignIn();
   const { signUp, fetchStatus: signUpStatus } = useSignUp() as any;
   const { startSSOFlow } = useSSO();
+  const { startAppleAuthenticationFlow } = useSignInWithApple();
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [firstName, setFirstName] = useState("");
@@ -127,6 +129,7 @@ export default function Auth() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [needsSigninCode, setNeedsSigninCode] = useState(false);
   const [useReviewAccessCode, setUseReviewAccessCode] = useState(false);
+  const [reviewMode, setReviewMode] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   // Explicit loading flag for Clerk calls that go through clerk.client directly
@@ -256,12 +259,15 @@ export default function Auth() {
     }
   }, [clerk, code]);
 
-  const handleReviewAccessCode = useCallback(async () => {
-    if (!code) { setError("Enter the App Review access code"); return; }
+  const completeReviewAccess = useCallback(async (accessCode: string) => {
+    if (!email.trim() || !accessCode) {
+      setError("Enter the App Review email and access code");
+      return;
+    }
     setError("");
     setAuthLoading(true);
     try {
-      const { ticket } = await requestAppReviewTicket(email.trim(), code);
+      const { ticket } = await requestAppReviewTicket(email.trim(), accessCode);
       const live = liveSignIn();
       const result = await live.create({ strategy: "ticket", ticket });
       if (result.status === "complete") {
@@ -275,7 +281,15 @@ export default function Auth() {
     } finally {
       setAuthLoading(false);
     }
-  }, [clerk, code, email]);
+  }, [clerk, email]);
+
+  const handleReviewAccessCode = useCallback(() => {
+    void completeReviewAccess(code);
+  }, [code, completeReviewAccess]);
+
+  const handleReviewLogin = useCallback(() => {
+    void completeReviewAccess(password);
+  }, [completeReviewAccess, password]);
 
   // Step 1 of sign-up: create the Clerk account only.
   // prepareEmailAddressVerification is triggered by the useEffect above once
@@ -404,11 +418,18 @@ export default function Auth() {
     }
     setError(""); setSsoLoading(true);
     try {
-      const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_apple", redirectUrl: AuthSession.makeRedirectUri() }) as any;
+      const result = await startAppleAuthenticationFlow();
+      const { createdSessionId, setActive } = result;
       if (createdSessionId && setActive) {
-        recordingComplianceRef.current = mode === "register";
+        const createdUserId = result.signUp?.createdUserId;
+        const isNewAppleUser = Boolean(createdUserId);
+        if (isNewAppleUser && mode !== "register") {
+          setError("No existing Apple account was found. Choose Create Account, accept the required terms, then continue with Apple.");
+          return;
+        }
+        recordingComplianceRef.current = isNewAppleUser;
         await setActive({ session: createdSessionId } as any);
-        if (mode === "register") {
+        if (isNewAppleUser) {
           await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
           if (createdUserId) {
             await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
@@ -422,7 +443,7 @@ export default function Auth() {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Apple sign in failed");
     } finally { setSsoLoading(false); }
-  }, [startSSOFlow, mode, termsAccepted, ageConfirmed]);
+  }, [startAppleAuthenticationFlow, mode, termsAccepted, ageConfirmed]);
 
   const handleSubmit = () => {
     if (mode === "login") { handleSignIn(); return; }
@@ -605,7 +626,9 @@ export default function Auth() {
                   {mode === "login" ? "Welcome back" : "Create account"}
                 </Text>
                 <Text style={styles.subheadline}>
-                  {mode === "login"
+                  {reviewMode
+                    ? "Use the protected credentials in App Store Connect"
+                    : mode === "login"
                     ? "Sign in to your identity shield"
                     : "Start protecting your digital identity"}
                 </Text>
@@ -627,13 +650,13 @@ export default function Auth() {
               <View style={styles.segmentedControl}>
                 <TouchableOpacity
                   style={[styles.segment, mode === "login" && styles.segmentActive]}
-                  onPress={() => { setMode("login"); setError(""); setConfirmPassword(""); setFirstName(""); setLastName(""); }}
+                    onPress={() => { setMode("login"); setReviewMode(false); setError(""); setConfirmPassword(""); setFirstName(""); setLastName(""); }}
                 >
                   <Text style={[styles.segmentLabel, mode === "login" && styles.segmentLabelActive]}>Sign In</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.segment, mode === "register" && styles.segmentActive]}
-                  onPress={() => { setMode("register"); setError(""); setPassword(""); setConfirmPassword(""); }}
+                    onPress={() => { setMode("register"); setReviewMode(false); setError(""); setPassword(""); setConfirmPassword(""); }}
                 >
                   <Text style={[styles.segmentLabel, mode === "register" && styles.segmentLabelActive]}>Create Account</Text>
                 </TouchableOpacity>
@@ -739,12 +762,12 @@ export default function Auth() {
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Password</Text>
+                <Text style={styles.fieldLabel}>{reviewMode ? "App Review Access Code" : "Password"}</Text>
                 <View style={[styles.inputRow, { borderColor: inputBorder("password") }]}>
                   <Ionicons name="lock-closed-outline" size={18} color={focusedField === "password" ? "#3B82F6" : "#6B8EAE"} />
                   <TextInput
                     style={styles.textInput}
-                    placeholder="••••••••"
+                    placeholder={reviewMode ? "Enter protected review code" : "••••••••"}
                     placeholderTextColor="#3B4C6B"
                     value={password}
                     onChangeText={setPassword}
@@ -775,7 +798,7 @@ export default function Auth() {
                       secureTextEntry={!showConfirmPassword}
                       autoCapitalize="none"
                       returnKeyType="go"
-                      onSubmitEditing={handleSubmit}
+                      onSubmitEditing={reviewMode ? handleReviewLogin : handleSubmit}
                       onFocus={() => setFocusedField("confirmPassword")}
                       onBlur={() => setFocusedField(null)}
                     />
@@ -792,10 +815,35 @@ export default function Auth() {
               {error !== "" && <ErrorBanner message={error} />}
 
               <GradientButton
-                label={loading ? (mode === "login" ? "Signing in…" : "Creating account…") : (mode === "login" ? "Sign In" : "Create Account")}
-                onPress={handleSubmit}
+                label={loading
+                  ? (mode === "login" ? "Signing in…" : "Creating account…")
+                  : reviewMode
+                    ? "Enter App Review"
+                    : mode === "login"
+                      ? "Sign In"
+                      : "Create Account"}
+                onPress={reviewMode ? handleReviewLogin : handleSubmit}
                 disabled={loading || (mode === "register" && (!termsAccepted || !ageConfirmed))}
               />
+
+              {mode === "login" && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setReviewMode((value) => !value);
+                    setPassword("");
+                    setError("");
+                  }}
+                  disabled={loading}
+                  style={styles.switchRow}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign in with App Review access code"
+                >
+                  <Ionicons name="shield-checkmark-outline" size={15} color="#60A5FA" />
+                  <Text style={styles.switchLink}>
+                    {reviewMode ? " Use normal password instead" : " App Review access"}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <View nativeID="clerk-captcha" />
             </>
