@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  Modal,
   Platform,
   ScrollView,
   Share,
@@ -46,6 +46,9 @@ export default function PrivacySettings() {
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showConsentNotice, setShowConsentNotice] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<"withdraw" | "delete" | null>(null);
+  const [confirmCoolingDown, setConfirmCoolingDown] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const fetchConsent = useCallback(async () => {
     try {
@@ -62,60 +65,61 @@ export default function PrivacySettings() {
   useEffect(() => { fetchConsent(); }, [fetchConsent]);
 
   const handleWithdraw = useCallback(() => {
-    Alert.alert(
-      "Withdraw Photo Processing Consent",
-      "This will delete all photo-derived data and disable photo-based scanning. Text and username monitoring will continue.\n\nThis action cannot be undone — you can re-consent at any time to resume photo scanning.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Withdraw & Delete",
-          style: "destructive",
-          onPress: async () => {
-            setWithdrawing(true);
-            try {
-              await withdrawPhotoConsent();
-              clearIndexedPhotos();
-              await fetchConsent();
-              Alert.alert(
-                "Consent Withdrawn",
-                "All photo-derived data has been deleted. Photo-based scanning is now disabled for your account."
-              );
-            } catch {
-              Alert.alert("Error", "Could not withdraw consent. Please try again.");
-            } finally {
-              setWithdrawing(false);
-            }
-          },
-        },
-      ]
-    );
-  }, [clearIndexedPhotos, fetchConsent]);
+    if (confirmCoolingDown) return;
+    setFeedback(null);
+    setConfirmAction("withdraw");
+  }, [confirmCoolingDown]);
 
   const handleDeletePhotoData = useCallback(() => {
-    Alert.alert(
-      "Delete Photo Data",
-      "This will delete face and photo data from Rook's active systems, including stored media records, hashes, embeddings, image URLs in alert evidence, visual fingerprints, and your avatar. Your consent remains active, so new photo processing may resume on a later scan.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete Data",
-          style: "destructive",
-          onPress: async () => {
-            setDeletingPhoto(true);
-            try {
-              await deletePhotoData();
-              clearIndexedPhotos();
-              Alert.alert("Done", "All photo-derived fingerprint data has been deleted.");
-            } catch {
-              Alert.alert("Error", "Could not delete photo data. Please try again.");
-            } finally {
-              setDeletingPhoto(false);
-            }
-          },
-        },
-      ]
-    );
-  }, [clearIndexedPhotos]);
+    if (confirmCoolingDown) return;
+    setFeedback(null);
+    setConfirmAction("delete");
+  }, [confirmCoolingDown]);
+
+  const dismissConfirmation = useCallback(() => {
+    setConfirmAction(null);
+    setConfirmCoolingDown(true);
+    setTimeout(() => setConfirmCoolingDown(false), 400);
+  }, []);
+
+  const handleConfirmDestructiveAction = useCallback(async () => {
+    const action = confirmAction;
+    if (!action) return;
+    dismissConfirmation();
+    setFeedback(null);
+
+    if (action === "withdraw") {
+      setWithdrawing(true);
+      try {
+        await withdrawPhotoConsent();
+        clearIndexedPhotos();
+        await fetchConsent();
+        setFeedback({
+          kind: "success",
+          text: "Consent withdrawn. Photo-derived data was deleted and photo scanning is disabled.",
+        });
+      } catch {
+        setFeedback({ kind: "error", text: "Could not withdraw consent. Please try again." });
+      } finally {
+        setWithdrawing(false);
+      }
+      return;
+    }
+
+    setDeletingPhoto(true);
+    try {
+      await deletePhotoData();
+      clearIndexedPhotos();
+      setFeedback({
+        kind: "success",
+        text: "Photo-derived data was deleted. Your consent remains active.",
+      });
+    } catch {
+      setFeedback({ kind: "error", text: "Could not delete photo data. Please try again." });
+    } finally {
+      setDeletingPhoto(false);
+    }
+  }, [clearIndexedPhotos, confirmAction, dismissConfirmation, fetchConsent]);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -135,7 +139,7 @@ export default function PrivacySettings() {
         });
       }
     } catch {
-      Alert.alert("Error", "Could not generate your data export. Please try again.");
+      setFeedback({ kind: "error", text: "Could not generate your data export. Please try again." });
     } finally {
       setExporting(false);
     }
@@ -181,6 +185,27 @@ export default function PrivacySettings() {
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
+        {feedback && (
+          <View
+            accessibilityRole="alert"
+            style={[
+              styles.feedback,
+              {
+                backgroundColor: feedback.kind === "success" ? "#064E3B" : "#450A0A",
+                borderColor: feedback.kind === "success" ? "#10B981" : "#EF4444",
+              },
+            ]}
+          >
+            <Ionicons
+              name={feedback.kind === "success" ? "checkmark-circle" : "alert-circle"}
+              size={18}
+              color={feedback.kind === "success" ? "#34D399" : "#F87171"}
+            />
+            <Text style={[styles.feedbackText, { fontFamily: "Inter_500Medium" }]}>
+              {feedback.text}
+            </Text>
+          </View>
+        )}
         {/* Export section */}
         <SectionHeader title="Data Portability" subtitle="GDPR Article 20 — right to receive your personal data in a machine-readable format." colors={colors} />
 
@@ -245,7 +270,10 @@ export default function PrivacySettings() {
                 iconColor="#A78BFA"
                 label="Review Notice & Enable Photo Scanning"
                 description="Review the required disclosure and explicitly opt in. No photos are processed unless consent is successfully recorded."
-                onPress={() => setShowConsentNotice(true)}
+                onPress={() => {
+                  setFeedback(null);
+                  setShowConsentNotice(true);
+                }}
                 colors={colors}
               />
             </>
@@ -275,10 +303,49 @@ export default function PrivacySettings() {
         visible={showConsentNotice}
         onConsent={() => {
           setShowConsentNotice(false);
+          setFeedback(null);
           void fetchConsent();
         }}
         onSkip={() => setShowConsentNotice(false)}
       />
+      <Modal
+        visible={confirmAction !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissConfirmation}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.confirmSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.confirmIcon}>
+              <Ionicons name="warning-outline" size={28} color="#EF4444" />
+            </View>
+            <Text style={[styles.confirmTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              {confirmAction === "withdraw" ? "Withdraw Photo Processing Consent" : "Delete Photo Data"}
+            </Text>
+            <Text style={[styles.confirmBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {confirmAction === "withdraw"
+                ? "This will delete all photo-derived data and disable photo-based scanning. Text and username monitoring will continue. You can re-consent later."
+                : "This deletes stored media records, hashes, embeddings, image URLs in alert evidence, visual fingerprints, and your avatar. Consent remains active, so new photo processing may resume on a later scan."}
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.destructiveButton}
+              onPress={() => void handleConfirmDestructiveAction()}
+            >
+              <Text style={[styles.destructiveButtonText, { fontFamily: "Inter_700Bold" }]}>
+                {confirmAction === "withdraw" ? "Withdraw & Delete" : "Delete Data"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.cancelButton}
+              onPress={dismissConfirmation}
+            >
+              <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -399,4 +466,14 @@ const styles = StyleSheet.create({
   retentionRow: { paddingVertical: 10, gap: 3 },
   retentionLabel: { fontSize: 12 },
   retentionValue: { fontSize: 12, lineHeight: 17 },
+  feedback: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderWidth: 1, borderRadius: 12, padding: 12 },
+  feedbackText: { flex: 1, color: "#E2E8F0", fontSize: 13, lineHeight: 19 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", alignItems: "center", justifyContent: "center", padding: 24 },
+  confirmSheet: { width: "100%", maxWidth: 420, borderRadius: 20, borderWidth: 1, padding: 22, alignItems: "center", gap: 14 },
+  confirmIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: "#EF444422", alignItems: "center", justifyContent: "center" },
+  confirmTitle: { fontSize: 20, textAlign: "center" },
+  confirmBody: { fontSize: 14, lineHeight: 21, textAlign: "center" },
+  destructiveButton: { width: "100%", minHeight: 50, borderRadius: 14, backgroundColor: "#DC2626", alignItems: "center", justifyContent: "center", marginTop: 4 },
+  destructiveButtonText: { color: "#FFFFFF", fontSize: 15 },
+  cancelButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 20 },
 });

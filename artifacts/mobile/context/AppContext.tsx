@@ -191,7 +191,7 @@ interface AppContextType {
   showCancellationSurvey: boolean;
   dismissCancellationSurvey: () => void;
   login: (name: string, email: string, userId?: string) => void;
-  logout: () => Promise<void>;
+  logout: (options?: { skipServerCleanup?: boolean }) => Promise<void>;
   completeOnboarding: () => void;
   startScan: () => void;
   checkScanQuota: () => Promise<void>;
@@ -499,13 +499,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [refreshData]);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (options?: { skipServerCleanup?: boolean }) => {
     // The server also reassigns a token on the next account login, but remove
     // it while this session is valid so a signed-out device gets no alerts.
-    try {
-      await deregisterPushToken();
-    } catch {
-      // Logging out must still succeed when the device is offline.
+    if (!options?.skipServerCleanup) {
+      try {
+        await deregisterPushToken();
+      } catch {
+        // Logging out must still succeed when the device is offline.
+      }
     }
     setIsLoggedIn(false);
     setUser(DEFAULT_USER);

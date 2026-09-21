@@ -309,6 +309,8 @@ router.delete("/me", async (req, res): Promise<void> => {
         });
         if (!resp.ok && resp.status !== 404) {
           req.log.warn({ userId, clerkId: user.clerkId, status: resp.status }, "Clerk user deletion failed (non-fatal)");
+        } else {
+          req.log.info({ userId, clerkId: user.clerkId, status: resp.status }, "Clerk user deleted");
         }
       } catch (err) {
         req.log.warn({ userId, clerkId: user.clerkId, err }, "Clerk user deletion failed (non-fatal)");

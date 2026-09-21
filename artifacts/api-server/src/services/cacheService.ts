@@ -21,12 +21,28 @@ const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours — short enough to re-scan 
  * Sorts alphabetically so order does not matter.
  */
 export function buildScanCacheKey(
-  accounts: Array<{ username: string; platform: string }>
+  accounts: Array<{ username: string; platform: string }>,
+  searchContext?: {
+    usernames?: string[];
+    displayNames?: string[];
+    photoUrls?: string[];
+    captions?: string[];
+    planTier?: string;
+  }
 ): string {
-  const fingerprints = accounts
+  const accountFingerprints = accounts
     .map((a) => `${a.username.toLowerCase()}:${a.platform.toLowerCase()}`)
-    .sort()
-    .join("|");
+    .sort();
+  const normalize = (values: string[] | undefined) =>
+    [...new Set((values ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean))].sort();
+  const fingerprints = JSON.stringify({
+    accounts: accountFingerprints,
+    usernames: normalize(searchContext?.usernames),
+    displayNames: normalize(searchContext?.displayNames),
+    photoUrls: normalize(searchContext?.photoUrls),
+    captions: normalize(searchContext?.captions),
+    planTier: searchContext?.planTier ?? "",
+  });
   return crypto.createHash("sha256").update(fingerprints).digest("hex").slice(0, 48);
 }
 

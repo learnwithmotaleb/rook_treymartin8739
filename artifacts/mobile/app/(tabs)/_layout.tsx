@@ -12,7 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { setApiAuthToken, syncSubscriptionTier } from "@/lib/api";
+import { syncSubscriptionTier } from "@/lib/api";
 import { CancellationSurveyModal } from "@/components/CancellationSurveyModal";
 import { TermsUpdateModal } from "@/components/TermsUpdateModal";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -141,7 +141,7 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const { user: clerkUser } = useUser();
   const { login, logout, hasSeenOnboarding, isInitializing, isOnboardingReady, isLoggedIn, showCancellationSurvey, dismissCancellationSurvey } = useApp();
   const colors = useColors();
@@ -166,12 +166,6 @@ export default function TabLayout() {
     return () => clearTimeout(t);
   }, [isStartupPending]);
 
-  // Keep a stable ref to getToken so the effect below doesn't need it as a
-  // dependency. Clerk sometimes returns a new function reference on every
-  // render, which would cause the effect to re-fire and spam refreshData().
-  const getTokenRef = useRef(getToken);
-  useEffect(() => { getTokenRef.current = getToken; });
-
   useEffect(() => {
     // Wait for both Clerk AND AsyncStorage to finish loading before doing anything.
     if (!isLoaded || isInitializing) return;
@@ -179,14 +173,12 @@ export default function TabLayout() {
       logout();
       return;
     }
-    // Always wire auth token and load data for any signed-in user —
-    // regardless of onboarding state. Returning users (reinstall, re-login)
-    // should never be blocked from reaching the app by the onboarding flag.
-    setApiAuthToken(() => getTokenRef.current());
+    // Load data for any signed-in user regardless of onboarding state.
+    // The root layout owns the API token bridge so non-tab routes and deep
+    // links authenticate before this layout mounts.
     const name = clerkUser?.fullName ?? clerkUser?.firstName ?? "";
     const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
     login(name, email, clerkUser?.id);
-  // getToken intentionally omitted — accessed via ref to keep this effect stable
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser]);
 

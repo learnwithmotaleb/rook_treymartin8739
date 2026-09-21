@@ -22,6 +22,7 @@ import { AnimatedSplash } from "@/components/AnimatedSplash";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { identifyRevenueCatUser, initializeRevenueCat, isRevenueCatConfigured, SubscriptionProvider } from "@/lib/revenuecat";
+import { setApiAuthToken } from "@/lib/api";
 
 try {
   initializeRevenueCat();
@@ -71,6 +72,20 @@ function RevenueCatIdentityBridge() {
       // The purchase flow awaits the same identification as a hard gate.
     });
   }, [isLoaded, isSignedIn, user?.id]);
+
+  return null;
+}
+
+function ApiAuthBridge() {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+
+  useEffect(() => {
+    // Install the Clerk token getter at the root so cold starts and deep links
+    // to onboarding, subscription, privacy, or threat detail authenticate API
+    // calls even when the tabs layout has never mounted.
+    setApiAuthToken(() => getToken());
+  }, [getToken, isLoaded, isSignedIn, user?.id]);
 
   return null;
 }
@@ -234,6 +249,7 @@ export default function RootLayout() {
         >
           <ClerkLoaded>
             <ClerkReadyMarker onReady={markClerkReady} />
+            <ApiAuthBridge />
             <RevenueCatIdentityBridge />
             <QueryClientProvider client={queryClient}>
               <SubscriptionProvider>

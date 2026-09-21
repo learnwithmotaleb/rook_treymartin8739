@@ -30,9 +30,20 @@ export async function getSubscription(userId: string): Promise<SubscriptionInfo>
   const [created] = await db
     .insert(subscriptionsTable)
     .values({ userId, tier: "free", status: "active", billingCycle: "monthly" })
+    .onConflictDoNothing({ target: subscriptionsTable.userId })
     .returning();
 
-  return mapSub(created!);
+  if (created) return mapSub(created);
+
+  // Another concurrent first-load request created the row after our initial
+  // SELECT. Read that winner instead of surfacing a unique-constraint error.
+  const [raced] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, userId));
+
+  if (!raced) throw new Error("Failed to create or find subscription");
+  return mapSub(raced);
 }
 
 export async function trackScanUsage(userId: string): Promise<void> {

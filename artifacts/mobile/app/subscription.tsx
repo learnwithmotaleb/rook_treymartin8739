@@ -147,7 +147,7 @@ function ReportPreview({ colors, threat }: {
     ])).start();
   }, []);
 
-  const sev   = threat?.severity ?? "high";
+  const sev   = threat?.severity ?? "low";
   const sColor = severityColor(sev);
 
   return (
@@ -227,36 +227,34 @@ function ReportPreview({ colors, threat }: {
         </View>
       </Animated.View>
 
-      {/* ── Row 2: Locked / redacted card ── */}
-      <View style={{ position: "relative" }}>
-        <View style={[rp.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={rp.topRow}>
-            <View style={[rp.severityBadge, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B33" }]}>
-              <View style={[rp.severityDot, { backgroundColor: "#F59E0B" }]} />
-              <Text style={[rp.severityText, { color: "#F59E0B", fontFamily: "Inter_700Bold" }]}>MEDIUM SEVERITY</Text>
+      {/* Never imply there are hidden findings when this user has none. */}
+      {threat && (
+        <View style={{ position: "relative" }}>
+          <View style={[rp.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={rp.topRow}>
+              <View style={[rp.severityBadge, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B33" }]}>
+                <View style={[rp.severityDot, { backgroundColor: "#F59E0B" }]} />
+                <Text style={[rp.severityText, { color: "#F59E0B", fontFamily: "Inter_700Bold" }]}>MORE MONITORING</Text>
+              </View>
             </View>
-            <View style={[rp.scoreBadge, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}>
-              <Text style={[rp.scoreNum, { color: "#F59E0B", fontFamily: "Inter_700Bold" }]}>—</Text>
+            <View style={rp.midRow}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <View style={[rp.redactBar, { width: "55%", backgroundColor: colors.mutedForeground + "25" }]} />
+                <View style={[rp.redactBar, { width: "38%", backgroundColor: colors.mutedForeground + "18" }]} />
+                <View style={[rp.redactBar, { width: "66%", backgroundColor: colors.mutedForeground + "15" }]} />
+              </View>
             </View>
           </View>
-          <View style={rp.midRow}>
-            <View style={{ flex: 1, gap: 4 }}>
-              <View style={[rp.redactBar, { width: "55%", backgroundColor: colors.mutedForeground + "25" }]} />
-              <View style={[rp.redactBar, { width: "38%", backgroundColor: colors.mutedForeground + "18" }]} />
-              <View style={[rp.redactBar, { width: "66%", backgroundColor: colors.mutedForeground + "15" }]} />
+          <View style={[rp.lockOverlay, { backgroundColor: colors.background + "D0" }]}>
+            <View style={[rp.lockIcon, { backgroundColor: colors.border, borderColor: colors.border }]}>
+              <Ionicons name="lock-closed" size={16} color={colors.mutedForeground} />
             </View>
+            <Text style={[rp.lockText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+              Premium adds continuous monitoring
+            </Text>
           </View>
         </View>
-        {/* Frosted lock overlay */}
-        <View style={[rp.lockOverlay, { backgroundColor: colors.background + "D0" }]}>
-          <View style={[rp.lockIcon, { backgroundColor: colors.border, borderColor: colors.border }]}>
-            <Ionicons name="lock-closed" size={16} color={colors.mutedForeground} />
-          </View>
-          <Text style={[rp.lockText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-            Unlock to view full report
-          </Text>
-        </View>
-      </View>
+      )}
     </View>
   );
 }
@@ -713,17 +711,29 @@ export default function Subscription() {
   // Premium do not see a stale purchase screen.
   useEffect(() => {
     let cancelled = false;
+    const safetyTimer = setTimeout(() => {
+      if (cancelled) return;
+      setServerTier((tier) => tier ?? "free");
+      setSubscriptionCheckDone(true);
+    }, 9_000);
+
     getSubscription()
       .then((subscription) => {
         if (cancelled) return;
+        clearTimeout(safetyTimer);
         setServerTier(subscription.tier);
         setSubscriptionCheckDone(true);
       })
       .catch(() => {
-        if (!cancelled) setSubscriptionCheckDone(true);
+        if (!cancelled) {
+          clearTimeout(safetyTimer);
+          setServerTier((tier) => tier ?? "free");
+          setSubscriptionCheckDone(true);
+        }
       });
     return () => {
       cancelled = true;
+      clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -731,6 +741,10 @@ export default function Subscription() {
   // We only do this once on mount; failure is silently swallowed — the fallback
   // card shows instead of a fake finding.
   useEffect(() => {
+    if (isFromOnboarding && threatCount === 0) {
+      setTopThreat(null);
+      return;
+    }
     let cancelled = false;
     listThreats({ resolved: false, limit: 5 })
       .then((threats) => {
@@ -745,7 +759,7 @@ export default function Subscription() {
       })
       .catch(() => { /* silently fall back to generic card */ });
     return () => { cancelled = true; };
-  }, []);
+  }, [isFromOnboarding, threatCount]);
 
   const currentTier = (serverTier ?? user.tier ?? "free") as string;
   const alreadySubscribed = currentTier !== "free";
@@ -895,14 +909,16 @@ export default function Subscription() {
           bottomPad={bottomPad}
           topThreat={topThreat}
         />
-        {/* Always show close on intro for users reaching paywall from settings */}
-        {!isFromOnboarding && (
-          <TouchableOpacity style={{ position: "absolute", top: topPad + 16, right: 20, zIndex: 20 }} onPress={handleClose}>
-            <View style={[{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center" }]}>
-              <Ionicons name="close" size={18} color="#fff" />
-            </View>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={isFromOnboarding ? "Continue with free plan" : "Close"}
+          style={{ position: "absolute", top: topPad + 16, right: 20, zIndex: 20 }}
+          onPress={handleClose}
+        >
+          <View style={[{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center" }]}>
+            <Ionicons name="close" size={18} color="#fff" />
+          </View>
+        </TouchableOpacity>
       </>
     );
   }

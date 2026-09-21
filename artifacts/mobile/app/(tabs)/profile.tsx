@@ -90,6 +90,8 @@ export default function ProfileScreen() {
 
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [signOutModalVisible, setSignOutModalVisible] = useState(false);
+  const [signOutLoading, setSignOutLoading] = useState(false);
   const [identityBadge, setIdentityBadge] = useState<IdentityBadge | null>(null);
 
   const loadIdentityBadge = () => {
@@ -118,17 +120,18 @@ export default function ProfileScreen() {
   const isPaid = tier === "pro" || tier === "premium";
 
   const handleLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          await logout();
-          await signOut();
-        },
-      },
-    ]);
+    setSignOutModalVisible(true);
+  };
+
+  const confirmLogout = async () => {
+    setSignOutLoading(true);
+    try {
+      await logout();
+      await signOut();
+    } finally {
+      setSignOutLoading(false);
+      setSignOutModalVisible(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -154,8 +157,12 @@ export default function ProfileScreen() {
       if (!resp.ok && resp.status !== 204) {
         throw new Error("Failed to delete account");
       }
-      await logout();
       await clerkSignOut();
+      // The account endpoint already removes the server-side push token with
+      // the user cascade. Do not make another authenticated API request after
+      // deletion: a still-valid Clerk JWT could otherwise JIT-provision the
+      // just-deleted local account before Clerk revocation propagates.
+      await logout({ skipServerCleanup: true });
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Could not delete account. Please try again.");
     } finally {
@@ -466,6 +473,51 @@ export default function ProfileScreen() {
           Rook v1.0.0 · All data encrypted end-to-end
         </Text>
       </ScrollView>
+
+      <Modal
+        visible={signOutModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !signOutLoading && setSignOutModalVisible(false)}
+      >
+        <View style={styles.deleteOverlay}>
+          <View style={[styles.deleteSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.deleteIconWrap, { backgroundColor: colors.danger + "22" }]}>
+              <Ionicons name="log-out-outline" size={32} color={colors.danger} />
+            </View>
+            <Text style={[styles.deleteTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              Sign Out
+            </Text>
+            <Text style={[styles.deleteBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Are you sure you want to sign out of Rook on this device?
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={[styles.deleteConfirmBtn, { backgroundColor: colors.danger, opacity: signOutLoading ? 0.7 : 1 }]}
+              activeOpacity={0.8}
+              onPress={() => void confirmLogout()}
+              disabled={signOutLoading}
+            >
+              {signOutLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={[styles.deleteConfirmText, { fontFamily: "Inter_700Bold" }]}>Sign Out</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={[styles.deleteCancelBtn, { backgroundColor: colors.secondary }]}
+              activeOpacity={0.8}
+              onPress={() => setSignOutModalVisible(false)}
+              disabled={signOutLoading}
+            >
+              <Text style={[styles.deleteCancelText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Delete Account Confirmation Modal */}
       <Modal

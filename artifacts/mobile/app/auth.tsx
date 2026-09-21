@@ -394,9 +394,10 @@ export default function Auth() {
     try {
       const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_google", redirectUrl: AuthSession.makeRedirectUri() }) as any;
       if (createdSessionId && setActive) {
-        recordingComplianceRef.current = mode === "register";
+        const isNewGoogleUser = Boolean(createdUserId);
+        recordingComplianceRef.current = isNewGoogleUser;
         await setActive({ session: createdSessionId } as any);
-        if (mode === "register") {
+        if (isNewGoogleUser) {
           await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
           if (createdUserId) {
             await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
@@ -404,6 +405,8 @@ export default function Auth() {
         }
         recordingComplianceRef.current = false;
         router.replace("/(tabs)/" as any);
+      } else {
+        setError("Google sign in could not be completed. Please try again.");
       }
     } catch (e: any) {
       const clerkErr = e?.errors?.[0];
@@ -423,10 +426,6 @@ export default function Auth() {
       if (createdSessionId && setActive) {
         const createdUserId = result.signUp?.createdUserId;
         const isNewAppleUser = Boolean(createdUserId);
-        if (isNewAppleUser && mode !== "register") {
-          setError("No existing Apple account was found. Choose Create Account, accept the required terms, then continue with Apple.");
-          return;
-        }
         recordingComplianceRef.current = isNewAppleUser;
         await setActive({ session: createdSessionId } as any);
         if (isNewAppleUser) {
@@ -437,12 +436,17 @@ export default function Auth() {
         }
         recordingComplianceRef.current = false;
         router.replace("/(tabs)/" as any);
+      } else {
+        setError("Apple sign in could not be completed. Please try again.");
       }
     } catch (e: any) {
       if ((e as any).code === "ERR_REQUEST_CANCELED") return;
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Apple sign in failed");
-    } finally { setSsoLoading(false); }
+    } finally {
+      recordingComplianceRef.current = false;
+      setSsoLoading(false);
+    }
   }, [startAppleAuthenticationFlow, mode, termsAccepted, ageConfirmed]);
 
   const handleSubmit = () => {
@@ -696,6 +700,10 @@ export default function Auth() {
                   />
                 )}
               </View>
+              <Text style={styles.ssoLegalNotice}>
+                By continuing with Google or Apple, you agree to the Terms of Service and Privacy Policy
+                and confirm that you are at least 17 years old.
+              </Text>
 
               {/* ── Divider ── */}
               <View style={styles.dividerRow}>
@@ -977,6 +985,14 @@ const styles = StyleSheet.create({
   ssoBtnInner: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   ssoLabel: { fontFamily: "Inter_500Medium", fontSize: 15, color: "#F0F4FF" },
   appleBtn: { height: 54, borderRadius: 14 },
+  ssoLegalNotice: {
+    marginTop: 10,
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#64748B",
+    textAlign: "center",
+  },
 
   // Divider
   dividerRow: { flexDirection: "row", alignItems: "center", gap: 10 },

@@ -1784,7 +1784,7 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
   const scanStartedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
-  const { startScan, isScanning, scanProgress, scanQuotaError } = useApp();
+  const { startScan, isScanning, scanProgress, scanQuotaError, user, indexedPhotos } = useApp();
 
   useEffect(() => {
     Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1500, easing: Easing.linear, useNativeDriver: true })).start();
@@ -1793,6 +1793,12 @@ function ScanSetupScreen({ colors, onDone }: { colors: ReturnType<typeof useColo
       // Brief delay so the transition from step 10 fully settles before the scan fires.
       // This also prevents any residual OAuth-browser-dismissal state from interfering.
       const startDelay = setTimeout(() => {
+        // Do not consume a free scan when onboarding has no connected account
+        // or reference photo. There is nothing user-specific to scan yet.
+        if (user.connectedAccounts.length === 0 && indexedPhotos.length === 0) {
+          onDoneRef.current(0);
+          return;
+        }
         Promise.resolve(startScan()).catch(() => {});
       }, 1200);
       return () => {
@@ -2250,8 +2256,9 @@ export default function Onboarding() {
   const handleMaybeLater = useCallback(async () => {
     const finalAnswers = buildFinalAnswers();
     if (await saveAndFinish(finalAnswers)) {
-      // Same as skip — show the paywall rather than bypassing it entirely.
-      router.replace({ pathname: "/subscription", params: { fromOnboarding: "1", threatCount: "0" } } as any);
+      // This CTA explicitly promises the free plan. Finish onboarding instead
+      // of trapping the user in a paywall with no visible continuation.
+      router.replace("/(tabs)" as any);
     }
   }, [buildFinalAnswers, saveAndFinish]);
 

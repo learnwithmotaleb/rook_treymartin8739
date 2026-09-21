@@ -1033,28 +1033,50 @@ async function runScanPipeline(
       "Web search inputs prepared"
     );
 
-    // ── Cache check: skip expensive APIs if same accounts were scanned within 72h ─
-    const scanCacheKey = buildScanCacheKey(
-      connectedAccounts.map((a) => ({ username: a.username, platform: a.platform }))
-    );
+    // Never search or cache a profile that has no user-provided identity input.
+    // Previously every empty profile shared SHA-256(""), allowing one user's
+    // cached candidates to be attached to unrelated fresh accounts.
+    const hasMeaningfulSearchInput =
+      allConnectedUsernames.length > 0 ||
+      allDisplayNames.length > 0 ||
+      allPhotoUrls.length > 0 ||
+      allCaptions.length > 0;
 
-    let webCandidates: WebSearchCandidate[];
-    const cachedResult = isDemoUser || bypassCache
-      ? null
-      : await getCached<WebSearchCandidate[]>(scanCacheKey);
-
-    if (cachedResult) {
-      webCandidates = cachedResult.data;
+    let webCandidates: WebSearchCandidate[] = [];
+    if (!hasMeaningfulSearchInput) {
       logger.info(
-        {
-          cacheKey: scanCacheKey.slice(0, 16),
-          hitCount: cachedResult.hitCount,
-          candidateCount: webCandidates.length,
-          expiresAt: cachedResult.expiresAt,
-        },
-        "Web search cache HIT — skipping external API calls"
+        { userId },
+        "Skipping web search — no connected handle, display name, photo, or caption"
       );
     } else {
+      // The cache fingerprint includes every input that can change discovery
+      // results, not only connected account handles.
+      const scanCacheKey = buildScanCacheKey(
+        connectedAccounts.map((a) => ({ username: a.username, platform: a.platform })),
+        {
+          usernames: allConnectedUsernames,
+          displayNames: allDisplayNames,
+          photoUrls: allPhotoUrls,
+          captions: allCaptions,
+          planTier,
+        }
+      );
+      const cachedResult = isDemoUser || bypassCache
+        ? null
+        : await getCached<WebSearchCandidate[]>(scanCacheKey);
+
+      if (cachedResult) {
+        webCandidates = cachedResult.data;
+        logger.info(
+          {
+            cacheKey: scanCacheKey.slice(0, 16),
+            hitCount: cachedResult.hitCount,
+            candidateCount: webCandidates.length,
+            expiresAt: cachedResult.expiresAt,
+          },
+          "Web search cache HIT — skipping external API calls"
+        );
+      } else {
       // Run web search for EVERY unique username across all connected accounts.
       // Image search (Vision) and caption search run only on the first pass to
       // avoid duplicating expensive API calls — they're photo/text-based, not
@@ -1110,8 +1132,9 @@ async function runScanPipeline(
 
       // Cache results only when candidates were found — never cache empty results
       // so the next scan can retry the APIs instead of serving a stale zero.
-      if (!isDemoUser && webCandidates.length > 0) {
-        setCache(scanCacheKey, webCandidates).catch(() => {});
+        if (!isDemoUser && webCandidates.length > 0) {
+          setCache(scanCacheKey, webCandidates).catch(() => {});
+        }
       }
     }
 

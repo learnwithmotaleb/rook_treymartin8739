@@ -50,11 +50,31 @@ function getBaseUrl(): string {
 }
 
 const API_TIMEOUT_MS = 15_000;
+const AUTH_TOKEN_TIMEOUT_MS = 8_000;
 
 let _authTokenGetter: (() => Promise<string | null>) | null = null;
 
 export function setApiAuthToken(getter: () => Promise<string | null>) {
   _authTokenGetter = getter;
+}
+
+async function getAuthToken(): Promise<string | null> {
+  if (!_authTokenGetter) return null;
+
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      _authTokenGetter(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Authentication timed out. Please sign in again.")),
+          AUTH_TOKEN_TIMEOUT_MS
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 /**
@@ -64,7 +84,7 @@ export function setApiAuthToken(getter: () => Promise<string | null>) {
  */
 export async function checkIsDemoUser(): Promise<boolean> {
   if (!_authTokenGetter) return true;
-  const token = await _authTokenGetter();
+  const token = await getAuthToken();
   return !token;
 }
 
@@ -100,7 +120,7 @@ async function apiFetch<T>(
   const authHeaders: Record<string, string> = {};
   try {
     if (_authTokenGetter) {
-      const token = await _authTokenGetter();
+      const token = await getAuthToken();
       if (token) authHeaders["Authorization"] = `Bearer ${token}`;
     }
     const response = await fetch(url, {
