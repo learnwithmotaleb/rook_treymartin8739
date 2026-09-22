@@ -247,3 +247,17 @@ mtime_ms = 1789048976381
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:6c2161a6-7017-4ec4-988f-83e568e76224/21fc1b6c-deec-4252-ba03-f7844e0d34a0/a90a05e0-d11b-4e44-b3da-b0f6333ecb68"
 storage_version_token = "1789049241543702"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "t85U26rQ13SKUYYBmmggh"
+uri = "file://docs/FINAL_BUILD_14_RELEASE_TEST_AUDIT.md"
+type = "text"
+title = "Rook Build 14 Final Release Testing Audit"
+description = "Release-blocking checklist covering every current app flow, prior Apple rejection, reviewer access, native-device testing, subscriptions, privacy, Meta review, backend security, and final go/no-go sign-off."
+logical_id = "d7a68682-c551-4a73-a6d8-233198c9bf1a"
+content_hash = "sha256:595997fe07669013795c813bac18a521e04911a15db7a0c1bb3309c6340fecbb"
+size = 34685
+mtime_ms = 1790040502045
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:6c2161a6-7017-4ec4-988f-83e568e76224/d7a68682-c551-4a73-a6d8-233198c9bf1a/c6b4746c-16f9-47fd-b5ed-8d827c699fba"
+storage_version_token = "1790040522540271"
+content_type = "text/markdown"
