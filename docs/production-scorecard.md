@@ -18,7 +18,7 @@
 | Database | 🟡 Amber | FK indexes added; cascade FKs declared; end-to-end deletion not yet verified (#102) |
 | Security | 🟢 Green | Helmet, CORS allowlist, 0 high vulns, log redaction, rate limiting |
 | Performance | 🟡 Amber | Skeletons + dedup guard done; /me chatty (#103); no offline recovery banner (#105) |
-| App Store Assets | 🟡 Amber | Icon/splash/privacy manifest exist; full asset pass still pending (open task). Build 14 does not request the deferred `user_photos` permission. |
+| App Store Assets | 🟡 Amber | Icon/splash/privacy manifest exist; full asset pass still pending (open task). The next review build requires Meta approval for Facebook `user_photos`. |
 
 **Legend:** 🟢 Green = no known blockers · 🟡 Amber = known issues, mitigated or tracked · 🔴 Red = blocks submission
 
@@ -83,12 +83,12 @@ All items that would block App Store submission have been resolved or downgraded
 **Finding:** There are no automated Playwright or Detox tests that exercise the sign-in → scan → view-threat → resolve-threat flow. Regressions are only caught manually.  
 **Status:** Open — tracked as separate task (add live E2E tests).
 
-### M-4 — Deferred Facebook photo permission
+### M-4 — Facebook photo permission awaiting live approval
 
 **Source:** Task #99 audit of `artifacts/mobile/app/connect-account.tsx`  
-**Finding:** The Facebook OAuth scope in build 14 is `public_profile` only. The deferred `user_photos` permission is not requested, not reviewable, and must not be described as live functionality in the build-14 submission. Any future permission request requires a separate implementation, privacy, and Meta review.
-**Status:** Pending Meta App Review submission. Not a launch blocker for App Store submission but blocks the photo-fingerprinting feature for Facebook-connected users.  
-**Fix outline:** Keep `user_photos` out of build 14. Reassess it only in a separately reviewed release with verified data handling.
+**Finding:** The Facebook OAuth flow now requests `public_profile,user_photos`, and the adapter retrieves the user's own uploaded photos for consent-gated reference selection. Production access still depends on Meta granting Advanced Access to the separate Facebook developer app.
+**Status:** Implementation complete; pending a signed TestFlight build, live OAuth verification, and Meta App Review approval.
+**Fix outline:** Record the live permission flow with a role-authorized Facebook test account, submit `user_photos` for Advanced Access, and ship only the exact tested build.
 
 ---
 

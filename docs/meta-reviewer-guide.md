@@ -1,13 +1,9 @@
-# Meta reviewer instructions — superseded
+# Meta reviewer instructions
 
-The former long-form Meta reviewer guide contained stale build numbers,
-fabricated fixture values, obsolete Tools/Photo Monitor paths, and instructions
-for the unavailable `user_photos` permission. It must not be submitted or used
-for testing.
-
-Use the canonical build-14 guide instead:
+Use the canonical current guide:
 
 - [Meta App Review Guide](meta-review-guide.md)
 
-The live build-14 scopes are `instagram_business_basic` for Instagram and
-`public_profile` for Facebook. `user_photos` is not requested by this build.
+The review-build scopes are `instagram_business_basic` for Instagram and
+`public_profile,user_photos` for Facebook. Submit the Instagram and Facebook
+flows against their corresponding Meta developer apps.

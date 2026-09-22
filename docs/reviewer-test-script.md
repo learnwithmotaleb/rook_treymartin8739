@@ -45,7 +45,7 @@ intentionally do not publish exact values that can become stale.
 9. If live OAuth is part of the submission, test the relevant provider using
    the test identity documented in the provider's protected review form.
    Instagram requests `instagram_business_basic`; Facebook requests
-   `public_profile`; X uses its current PKCE scopes. Otherwise verify the
+   `public_profile,user_photos`; X uses its current PKCE scopes. Otherwise verify the
    entry point and cancel safely.
 10. Open **Photo Monitor** and verify its current monitoring state. Test the
     permission explanation, allow/deny/cancel paths, and recovery after a
@@ -68,8 +68,9 @@ intentionally do not publish exact values that can become stale.
 - Rook assists with detection and links to official platform reporting. It
   does not submit reports, guarantee removal, or determine that a person
   committed a crime.
-- Facebook build-14 OAuth requests `public_profile` only. `user_photos` is
-  not a current permission and must not be presented as live functionality.
+- Facebook OAuth requests `public_profile,user_photos`. Verify that the
+  reviewer can display and select their own uploaded Facebook photo after
+  granting Rook's separate photo-processing consent.
 - A supplemental recording may illustrate a flow, but it never replaces live
   reviewer access or live Sign in with Apple testing.
 

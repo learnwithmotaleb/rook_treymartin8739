@@ -42,19 +42,23 @@ _(Attach screencast of the OAuth flow + monitoring dashboard in your App Review 
 
 ---
 
-### Facebook — `public_profile`
+### Facebook — `public_profile` and `user_photos`
 
 | Field | Value |
 |---|---|
-| **Scope** | `public_profile` |
-| **API endpoints used** | `GET /me?fields=id,name,email,picture` |
-| **Data accessed** | Name, user ID, public profile photo |
+| **Scopes** | `public_profile`, `user_photos` |
+| **API endpoints used** | `GET /me?fields=id,name`, `GET /{user-id}/picture`, `GET /me/photos?type=uploaded` |
+| **Data accessed** | Name, user ID, public profile photo, and the user's own uploaded photos |
 | **Data NOT accessed** | Friends list, feed, messages, page data |
-| **Data stored** | Display name + profile photo URL for UI display. |
-| **Data shared** | Never shared with third parties. |
+| **Data stored** | Display name, profile-photo URL, and consented photo-derived records/source URLs for selected reference media. |
+| **Data shared** | Selected photo URLs or bytes may be sent to the disclosed Google Cloud Vision and OpenAI processors only after explicit photo-processing consent. |
 
 **Why this scope is needed:**  
-When a user connects their Facebook account, Rook needs to confirm the account's real identity (name + profile photo) to build the identity anchor used for impersonator detection. `public_profile` is the minimum permission required by the Graph API to read this data.
+`public_profile` confirms which Facebook account was connected. `user_photos`
+lets the user view and select their own uploaded Facebook photos as identity
+references. Rook retrieves these through `/me/photos`; it does not read friends'
+photos, feeds, messages, or Page data. Selected photos are processed only after
+the user separately accepts Rook's photo-processing notice.
 
 ---
 

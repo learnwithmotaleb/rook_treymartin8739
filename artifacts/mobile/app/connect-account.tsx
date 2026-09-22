@@ -90,8 +90,10 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     label: "Facebook",
     color: "#1877F2",
     authUrl: "https://www.facebook.com/v22.0/dialog/oauth",
-    // Build 14 requests only the live, approved basic profile scope.
-    scopes: ["public_profile"],
+    // public_profile identifies the connected account; user_photos lets the
+    // user choose their own uploaded photos as identity-monitoring references.
+    // user_photos requires Meta App Review / Advanced Access.
+    scopes: ["public_profile", "user_photos"],
     clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID",
     callbackPath: "/api/oauth/facebook/callback",
     usernameHint: "your.profile.name",

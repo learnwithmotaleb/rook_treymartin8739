@@ -46,7 +46,8 @@ without inferring its result from the eligibility rule.
   fixture.
 - Do not publish fabricated scores, counts, names, match percentages, or
   unavailable screens.
-- Do not include a Tools tab, AI Scam Analyzer, or `user_photos` flow.
+- Do not include a Tools tab or AI Scam Analyzer. Show `user_photos` only from
+  a signed build whose Facebook Meta app has Advanced Access.
 - Build 14 is portrait iPhone-only (`supportsTablet: false`); verify current
   App Store Connect dimensions at upload time.
 - Use `docs/reviewer-test-script.md` as the only reviewer walkthrough.

@@ -5,11 +5,16 @@
  *
  * PRODUCTION SETUP — each platform requires an approved developer application:
  *
- * Instagram / Facebook:
+ * Instagram:
  *   - Register at: https://developers.facebook.com/
  *   - Required permission: instagram_business_basic (replaces deprecated instagram_basic since Jan 2025)
  *   - OAuth 2.0 flow with user authorization
  *   - Set: INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET
+ *
+ * Facebook:
+ *   - Register a separate Facebook Login app at: https://developers.facebook.com/
+ *   - Required permissions: public_profile, user_photos (Advanced Access)
+ *   - Set: FACEBOOK_APP_ID, FACEBOOK_APP_SECRET
  *
  * X (Twitter):
  *   - Register at: https://developer.twitter.com/
@@ -423,15 +428,21 @@ export class FacebookAdapter implements PlatformAdapter {
       caption: "Profile photo",
     };
 
-    // user_photos permission requires App Review — gracefully fall back to profile pic
+    // user_photos requires Meta App Review / Advanced Access. Keep the public
+    // profile picture as a reference and add the user's own uploaded photos.
     try {
       const response = await metaFetch(
-        `https://graph.facebook.com/v22.0/me/photos?type=uploaded&fields=id,picture,name,created_time&limit=${limit}&access_token=${accessToken}`
+        `https://graph.facebook.com/v22.0/me/photos?type=uploaded&fields=id,images,picture,name,created_time&limit=${limit}&access_token=${accessToken}`
       );
       if (!response.ok) return [profilePicture];
       const data = (await response.json()) as {
         data?: Array<{
           id: string;
+          images?: Array<{
+            source: string;
+            width?: number;
+            height?: number;
+          }>;
           picture?: string;
           name?: string;
           created_time?: string;
@@ -442,13 +453,25 @@ export class FacebookAdapter implements PlatformAdapter {
       if (data.error || !data.data?.length) return [profilePicture];
       return [
         profilePicture,
-        ...(data.data ?? []).map((item) => ({
-          platformMediaId: item.id,
-          type: "image" as const,
-          url: item.picture ?? "",
-          caption: item.name,
-          postedAt: item.created_time ? new Date(item.created_time) : undefined,
-        })),
+        ...(data.data ?? []).map((item) => {
+          const bestImage = item.images?.reduce<(typeof item.images)[number] | undefined>(
+            (best, image) => {
+              if (!best) return image;
+              const bestArea = (best.width ?? 0) * (best.height ?? 0);
+              const imageArea = (image.width ?? 0) * (image.height ?? 0);
+              return imageArea > bestArea ? image : best;
+            },
+            undefined
+          );
+          return {
+            platformMediaId: item.id,
+            type: "image" as const,
+            url: bestImage?.source ?? item.picture ?? "",
+            thumbnailUrl: item.picture,
+            caption: item.name,
+            postedAt: item.created_time ? new Date(item.created_time) : undefined,
+          };
+        }),
       ];
     } catch {
       return [profilePicture];

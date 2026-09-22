@@ -1,22 +1,22 @@
-# Rook — Meta App Review Guide (Build 14)
+# Rook — Meta App Review Guide
 
 **App:** Rook — Identity Protection  
 **Bundle ID:** `com.getrook.app`
 **Live domain:** `https://tryrook.app`
 **Support:** `support@getrook.app`
 
-## Current build permissions
+## Current review-build permissions
 
-Only describe permissions actually requested by build 14:
+Only describe permissions actually requested by the review build:
 
 | Platform | Current scope | Purpose |
 |---|---|---|
 | Instagram | `instagram_business_basic` | Connect an Instagram Business or Creator account and read the profile/basic media metadata needed for identity monitoring. |
 | Facebook | `public_profile` | Display the connected user's public name and profile image and confirm which account was connected. |
+| Facebook | `user_photos` | Let the user select their own uploaded Facebook photos as identity-monitoring references after separate photo-processing consent. |
 
-`user_photos` is **not requested by build 14**. It is not part of this
-submission, should not be granted or demonstrated to reviewers, and must not
-appear in live-flow instructions.
+The Instagram and Facebook permissions belong to separate Meta developer apps.
+The Facebook app must have Advanced Access for `user_photos`.
 
 ## Reviewer test identity
 
@@ -34,13 +34,15 @@ private email addresses, or fabricated fixture counts in this document.
    `instagram_business_basic` and no unapproved scope.
 4. Return to Rook and confirm the connected account displays the returned
    identity.
-5. Repeat with **Facebook**. Confirm the consent request contains
-   `public_profile` only.
+5. Repeat with **Facebook**. Confirm the consent request includes
+   `public_profile` and `user_photos`.
 6. Return to Rook and confirm the Facebook identity displays as connected.
-7. Start a scan and confirm the connected-account context is visible and the
-   result is honest. Do not claim that the current build reads Facebook photo
-   albums.
-8. Disconnect each test account and confirm the app removes the connection and
+7. Open the connected Facebook account's media picker, show multiple uploaded
+   photos returned by `/me/photos`, and select one reference photo after
+   granting Rook's separate photo-processing consent.
+8. Start a scan and confirm the connected-account context is visible and the
+   result is honest.
+9. Disconnect each test account and confirm the app removes the connection and
    handles derived data according to the current Privacy Policy.
 
 ## Production callback configuration
@@ -62,8 +64,8 @@ Rook uses connected-account data for identity monitoring, evidence, and
 account-specific scan results. Explain only data handling confirmed by the
 current Privacy Policy and production implementation. Do not promise that
 original photos are never transmitted, that only 64-bit hashes are retained,
-or that `user_photos` will be added later unless those statements have been
-re-verified against the current implementation and Meta approval status.
+unless those statements have been re-verified against the current
+implementation and Meta approval status.
 
 Current legal pages:
 

@@ -1364,7 +1364,7 @@ const ONBOARDING_OAUTH: Record<string, {
 }> = {
   instagram: { label: "Instagram", color: "#E1306C", callbackPath: "/api/oauth/instagram/callback", scopes: ["instagram_business_basic"], clientIdEnvKey: "EXPO_PUBLIC_INSTAGRAM_CLIENT_ID" },
   x:         { label: "X / Twitter", color: "#1DA1F2", callbackPath: "/api/oauth/x/callback", scopes: ["tweet.read","users.read","offline.access"], clientIdEnvKey: "EXPO_PUBLIC_TWITTER_CLIENT_ID", isX: true },
-  facebook:  { label: "Facebook", color: "#1877F2", callbackPath: "/api/oauth/facebook/callback", scopes: ["public_profile"], clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID" },
+  facebook:  { label: "Facebook", color: "#1877F2", callbackPath: "/api/oauth/facebook/callback", scopes: ["public_profile","user_photos"], clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID" },
   tiktok:    { label: "TikTok", color: "#010101", callbackPath: "/api/oauth/tiktok/callback", scopes: ["user.info.basic"], clientIdEnvKey: "EXPO_PUBLIC_TIKTOK_CLIENT_ID" },
   youtube:   { label: "YouTube", color: "#FF0000", callbackPath: "/api/oauth/youtube/callback", scopes: ["https://www.googleapis.com/auth/youtube.readonly","profile","email"], clientIdEnvKey: "EXPO_PUBLIC_GOOGLE_CLIENT_ID" },
   linkedin:  { label: "LinkedIn", color: "#0A66C2", callbackPath: "/api/oauth/linkedin/callback", scopes: ["r_liteprofile","r_emailaddress"], clientIdEnvKey: "EXPO_PUBLIC_LINKEDIN_CLIENT_ID" },

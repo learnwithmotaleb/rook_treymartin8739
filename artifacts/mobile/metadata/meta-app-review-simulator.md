@@ -95,8 +95,9 @@ and launch check succeeds.
    approve `instagram_business_basic`, and confirm that the browser closes and
    Instagram appears as connected.
 5. Repeat **+ Add Account → Facebook**. Sign in with the supplied Facebook
-   test account, approve `public_profile`, and confirm that Facebook appears
-   as connected.
+   test account, approve `public_profile` and `user_photos`, and confirm that
+   Facebook appears as connected. Open the media picker and verify the
+   reviewer's own uploaded photos appear after photo-processing consent.
 6. Open **Scan** and start a scan. Confirm the progress UI completes without
    a crash.
 7. Open **Alerts**, open a threat, and verify the threat detail and report
@@ -109,10 +110,10 @@ and launch check succeeds.
 The tested bundle requests these live scopes:
 
 - Instagram: `instagram_business_basic`
-- Facebook: `public_profile`
+- Facebook: `public_profile`, `user_photos`
 
-Do not submit or describe any additional Facebook permission for build 14.
-Reviewers should be told only about the scopes present in the tested bundle.
+The Facebook Meta app must have Advanced Access for `user_photos`. Reviewers
+should be told only about the scopes present in the tested bundle.
 
 ## Submission checklist
 

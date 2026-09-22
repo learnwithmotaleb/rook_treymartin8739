@@ -33,6 +33,7 @@ const SCOPE_LABELS: Record<string, string> = {
   "pages_show_list": "Pages",
   "instagram_manage_insights": "Insights",
   "public_profile": "Public Profile",
+  "user_photos": "Uploaded Photos",
 };
 
 function formatExpiry(tokenExpiresAt: string | null): { label: string; warn: boolean } | null {

@@ -59,8 +59,9 @@ reviewer credentials only through App Store Connect's protected review fields.
 Build 14 supports Instagram, Facebook, and X connections; TikTok, LinkedIn,
 YouTube, and Snapchat are non-actionable Coming Soon entries.
 
-Build 14 does not contain a Tools tab or AI Scam Analyzer. Facebook requests
-`public_profile` only; `user_photos` is not a current permission. Rook
+The review build does not contain a Tools tab or AI Scam Analyzer. Facebook
+requests `public_profile` and `user_photos`; uploaded photos are displayed and
+processed only after separate photo-processing consent. Rook
 provides detection, evidence, explanations, and official guidance. It does
 not submit platform reports or guarantee removal.
 
