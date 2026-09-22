@@ -7,13 +7,18 @@ This directory contains store-ready copy for App Store and Google Play.
 **iOS (App Store Connect):**
 Age rating is set in App Store Connect → App Information → Age Rating.
 It CANNOT be configured in `app.json` or `Info.plist` — there is no Expo/EAS
-config key for this. See `SUBMISSIONS.md` Section 2a for the exact questionnaire
-answers. Expected result: **4+ (All Ages)** with "Unrestricted Web Access" flagged.
+config key for this. See `SUBMISSIONS.md` for the questionnaire boundary. The
+result of the content questionnaire must not be confused with
+Rook's account eligibility: the in-app signup, Terms, and Privacy notice
+require users to be at least **17**. Rook does not provide unrestricted web
+access.
 
 **Android (Google Play Console):**
-Content rating is set via the Play Console rating questionnaire.
+Content rating is set via the Play Console rating questionnaire. The result is
+separate from Rook's **17+ minimum account eligibility**.
 It CANNOT be set in the Android manifest or `app.json`. See `SUBMISSIONS.md`
-Section 2b. Expected result: **ESRB: Everyone**, **PEGI: 3**.
+for the questionnaire boundary and record the actual console result after
+completion.
 
 ## Structure
 

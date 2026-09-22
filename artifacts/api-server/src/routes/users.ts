@@ -173,9 +173,9 @@ router.get("/me", async (req, res): Promise<void> => {
 });
 
 const PatchMeBody = z.object({
-  name: z.string().optional(),
-  username: z.string().optional(),
-  email: z.union([z.string(), z.null()]).optional(),
+  name: z.string().trim().min(1).max(120).optional(),
+  username: z.string().trim().min(1).max(120).optional(),
+  email: z.union([z.string().trim().email().max(320), z.null()]).optional(),
 }).strict();
 
 router.patch("/me", async (req, res): Promise<void> => {
@@ -231,14 +231,22 @@ router.patch("/me/avatar", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
 
-    const parsed = z.object({ imageBase64: z.string().min(1) }).safeParse(req.body);
+    const parsed = z.object({
+      // Keep avatar uploads bounded even though the global JSON envelope is
+      // larger for photo-search requests. Sharp performs the image validation.
+      imageBase64: z.string().min(1).max(6_000_000),
+    }).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "imageBase64 is required" });
       return;
     }
     const { imageBase64 } = parsed.data;
 
-    const raw = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const raw = imageBase64.replace(/^data:image\/(?:png|jpe?g|webp);base64,/i, "");
+    if (!/^[A-Za-z0-9+/]+=*$/.test(raw) || raw.length > 5_000_000) {
+      res.status(413).json({ error: "avatar image is invalid or too large" });
+      return;
+    }
     const compressed = await sharp(Buffer.from(raw, "base64"))
       .resize(160, 160, { fit: "cover", position: "centre" })
       .jpeg({ quality: 82 })

@@ -1,5 +1,5 @@
 import { Expo, type ExpoPushMessage } from "expo-server-sdk";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, devicePushTokensTable } from "@workspace/db";
 import { logger } from "../lib/logger.js";
 
@@ -36,10 +36,18 @@ export async function sendPushToUser(
   for (const chunk of expo.chunkPushNotifications(messages)) {
     try {
       const tickets = await expo.sendPushNotificationsAsync(chunk);
-      for (const ticket of tickets) {
+      const invalidTokens: string[] = [];
+      tickets.forEach((ticket, index) => {
         if (ticket.status === "error") {
           logger.warn({ details: ticket.details }, "Expo push ticket error (non-fatal)");
+          if (ticket.details?.error === "DeviceNotRegistered") {
+            const token = chunk[index]?.to;
+            if (typeof token === "string") invalidTokens.push(token);
+          }
         }
+      });
+      if (invalidTokens.length > 0) {
+        await db.delete(devicePushTokensTable).where(inArray(devicePushTokensTable.token, invalidTokens));
       }
     } catch (err) {
       logger.warn({ err }, "Expo push chunk failed (non-fatal)");

@@ -72,6 +72,24 @@ export const photoProcessingConsentsTable = pgTable(
 );
 
 export type PhotoProcessingConsent = typeof photoProcessingConsentsTable.$inferSelect;
+
+/** Durable, single-use OAuth state nonce. Raw state is never persisted. */
+export const oauthStatesTable = pgTable(
+  "oauth_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stateHash: text("state_hash").notNull().unique(),
+    stateType: text("state_type").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("oauth_states_expiry_idx").on(t.expiresAt),
+    index("oauth_states_consumed_idx").on(t.consumedAt),
+  ],
+);
+export type OAuthState = typeof oauthStatesTable.$inferSelect;
 export const selectUserSchema = createSelectSchema(usersTable);
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
@@ -238,9 +256,15 @@ export const threatsTable = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    scanJobId: uuid("scan_job_id").references(() => scanJobsTable.id),
+    // A scan job is private to its owner; deleting an account must not be
+    // blocked by historical threat rows or leave them orphaned.
+    scanJobId: uuid("scan_job_id").references(() => scanJobsTable.id, {
+      onDelete: "cascade",
+    }),
     /** Nullable FK to the shared threat actor record (null until matched). */
-    threatActorId: uuid("threat_actor_id").references(() => threatActorsTable.id),
+    threatActorId: uuid("threat_actor_id").references(() => threatActorsTable.id, {
+      onDelete: "set null",
+    }),
     type: text("type").notNull(),
     severity: text("severity").notNull(),
     platform: text("platform"),

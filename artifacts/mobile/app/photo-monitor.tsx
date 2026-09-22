@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
+  Alert,
   ActivityIndicator,
   Image,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -21,8 +23,10 @@ import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import {
   getAccountMedia,
+  getPhotoConsent,
   type AccountMediaItem,
 } from "@/lib/api";
+import { PhotoConsentModal } from "@/components/PhotoConsentModal";
 
 const FALLBACK_COLORS: [string, string][] = [
   ["#1e3a5f", "#2563eb"],
@@ -185,6 +189,8 @@ export default function PhotoMonitorScreen() {
   const [addingPhotos, setAddingPhotos] = useState(false);
   const [addedFeedback, setAddedFeedback] = useState<string | null>(null);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const [photoConsent, setPhotoConsent] = useState<boolean | null>(null);
+  const [showConsentNotice, setShowConsentNotice] = useState(false);
 
   const connectedAccounts = user.connectedAccounts;
   const accountIdsKey = connectedAccounts.map((a) => a.id).join(",");
@@ -206,8 +212,21 @@ export default function PhotoMonitorScreen() {
       .flatMap((t) => t.evidence.map((e) => e.id.replace(/^ev_/, "")))
   );
 
+  useEffect(() => {
+    getPhotoConsent()
+      .then((status) => setPhotoConsent(status.hasConsent))
+      .catch(() => setPhotoConsent(null));
+  }, []);
+
   // Fetch real media for each connected account on mount
   useEffect(() => {
+    // Account media is photo-derived data too. Do not even call the endpoint
+    // until the server has confirmed active consent (and fail closed while it
+    // is still loading or unavailable).
+    if (photoConsent !== true) {
+      setAccountMedia({});
+      return;
+    }
     if (connectedAccounts.length === 0) return;
 
     for (const account of connectedAccounts) {
@@ -236,14 +255,24 @@ export default function PhotoMonitorScreen() {
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountIdsKey]);
+  }, [accountIdsKey, photoConsent]);
 
   // ── Camera roll: pick photos and add to monitored list ───────────────────
 
-  const handlePickPhotos = useCallback(async () => {
+  const pickPhotos = useCallback(async () => {
     if (addingPhotos) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") return;
+    if (status !== "granted") {
+      Alert.alert(
+        "Photo Access Needed",
+        "Allow photo access in Settings to choose images for identity monitoring.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings() },
+        ],
+      );
+      return;
+    }
 
     setAddingPhotos(true);
     try {
@@ -269,6 +298,14 @@ export default function PhotoMonitorScreen() {
     }
   }, [addingPhotos, addIndexedPhotos]);
 
+  const handlePickPhotos = useCallback(async () => {
+    if (photoConsent !== true) {
+      setShowConsentNotice(true);
+      return;
+    }
+    await pickPhotos();
+  }, [photoConsent, pickPhotos]);
+
   // ── Account photos: select and add to monitored list ─────────────────────
 
   const toggleAccountPost = useCallback((accountId: string, index: number) => {
@@ -287,6 +324,10 @@ export default function PhotoMonitorScreen() {
     (accountId: string, items: AccountMediaItem[]) => {
       const selected = accountSelections[accountId];
       if (!selected || selected.size === 0) return;
+      if (photoConsent !== true) {
+        setShowConsentNotice(true);
+        return;
+      }
 
       const selectedItems = Array.from(selected)
         .map((i) => items[i])
@@ -305,7 +346,7 @@ export default function PhotoMonitorScreen() {
       setAddedFeedback(`${selectedItems.length} photo${selectedItems.length !== 1 ? "s" : ""} added — will be scanned next time you run a scan`);
       setTimeout(() => setAddedFeedback(null), 4000);
     },
-    [accountSelections, addIndexedPhotos]
+    [accountSelections, addIndexedPhotos, photoConsent]
   );
 
   return (
@@ -602,6 +643,14 @@ export default function PhotoMonitorScreen() {
           </View>
         </GlassCard>
       </ScrollView>
+      <PhotoConsentModal
+        visible={showConsentNotice}
+        onSkip={() => setShowConsentNotice(false)}
+        onConsent={() => {
+          setPhotoConsent(true);
+          setShowConsentNotice(false);
+        }}
+      />
     </View>
   );
 }

@@ -538,9 +538,15 @@ export async function registerPushToken(
 }
 
 export async function deregisterPushToken(
-  platform?: "ios" | "android"
+  platform?: "ios" | "android",
+  token?: string
 ): Promise<void> {
-  const query = platform ? `?platform=${platform}` : "";
+  // The API must require token when removing a device registration. A
+  // platform-only delete would sign out every device for this account.
+  const params = new URLSearchParams();
+  if (platform) params.set("platform", platform);
+  if (token) params.set("token", token);
+  const query = params.toString() ? `?${params.toString()}` : "";
   await apiFetch(`/notifications/token${query}`, {
     method: "DELETE",
   });

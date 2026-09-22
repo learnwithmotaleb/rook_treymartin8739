@@ -87,15 +87,30 @@ export function initializeRevenueCat(): void {
  * its signed webhook can map the entitlement back to Rook's server account.
  */
 export async function identifyRevenueCatUser(clerkUserId: string): Promise<void> {
-  if (!isRevenueCatConfigured || identifiedAppUserId === clerkUserId) return;
-  const request = Purchases.logIn(clerkUserId).then(() => {
+  if (!isRevenueCatConfigured) return;
+  const request = (identityRequest ?? Promise.resolve()).then(async () => {
+    if (identifiedAppUserId === clerkUserId) return;
+    if (identifiedAppUserId) await Purchases.logOut();
+    await Purchases.logIn(clerkUserId);
     identifiedAppUserId = clerkUserId;
   });
-  identityRequest = request;
-  try {
-    await request;
-  } finally {
-    if (identityRequest === request) identityRequest = null;
+  const queued = request.catch(() => {});
+  identityRequest = queued;
+  try { await request; } finally {
+    if (identityRequest === queued) identityRequest = null;
+  }
+}
+
+export async function resetRevenueCatIdentity(): Promise<void> {
+  if (!isRevenueCatConfigured) return;
+  const request = (identityRequest ?? Promise.resolve()).then(async () => {
+    if (identifiedAppUserId) await Purchases.logOut();
+    identifiedAppUserId = null;
+  });
+  const queued = request.catch(() => {});
+  identityRequest = queued;
+  try { await request; } finally {
+    if (identityRequest === queued) identityRequest = null;
   }
 }
 
@@ -130,27 +145,43 @@ function useSubscriptionContext(): SubscriptionContextValue {
   const { user } = useUser();
 
   const customerInfoQuery = useQuery({
-    queryKey: ["revenuecat", "customer-info"],
-    queryFn: () => Purchases.getCustomerInfo(),
+    // CustomerInfo is user-scoped. Keeping a global key can briefly show the
+    // previous account's entitlement after sign-out/account switching.
+    queryKey: ["revenuecat", "customer-info", user?.id ?? "signed-out"],
+    queryFn: async () => {
+      if (!user?.id) throw new Error("RevenueCat identity is unavailable.");
+      await identifyRevenueCatUser(user.id);
+      return Purchases.getCustomerInfo();
+    },
     staleTime: 60_000,
-    enabled: isRevenueCatConfigured,
+    enabled: isRevenueCatConfigured && !!user?.id,
   });
 
   const offeringsQuery = useQuery({
-    queryKey: ["revenuecat", "offerings"],
-    queryFn: () => Purchases.getOfferings(),
+    // Offerings can vary by RevenueCat app user (and must never be fetched
+    // while the SDK is still anonymous during Clerk startup).
+    queryKey: ["revenuecat", "offerings", user?.id ?? "signed-out"],
+    queryFn: async () => {
+      if (!user?.id) throw new Error("RevenueCat identity is unavailable.");
+      await identifyRevenueCatUser(user.id);
+      return Purchases.getOfferings();
+    },
     staleTime: 300_000,
-    enabled: isRevenueCatConfigured,
+    enabled: isRevenueCatConfigured && !!user?.id,
   });
 
   const trialEligibilityQuery = useQuery({
-    queryKey: ["revenuecat", "trial-eligibility"],
-    queryFn: () => Purchases.checkTrialOrIntroductoryPriceEligibility([
-      PREMIUM_MONTHLY_PRODUCT_ID,
-      PREMIUM_ANNUAL_PRODUCT_ID,
-    ]),
+    queryKey: ["revenuecat", "trial-eligibility", user?.id ?? "signed-out"],
+    queryFn: async () => {
+      if (!user?.id) throw new Error("RevenueCat identity is unavailable.");
+      await identifyRevenueCatUser(user.id);
+      return Purchases.checkTrialOrIntroductoryPriceEligibility([
+        PREMIUM_MONTHLY_PRODUCT_ID,
+        PREMIUM_ANNUAL_PRODUCT_ID,
+      ]);
+    },
     staleTime: 300_000,
-    enabled: isRevenueCatConfigured,
+    enabled: isRevenueCatConfigured && !!user?.id,
   });
 
   const purchaseMutation = useMutation({
@@ -161,7 +192,7 @@ function useSubscriptionContext(): SubscriptionContextValue {
       return customerInfo;
     },
     onSuccess: (info) => {
-      qc.setQueryData(["revenuecat", "customer-info"], info);
+      qc.setQueryData(["revenuecat", "customer-info", user?.id ?? "signed-out"], info);
       const newTier = getTierFromCustomerInfo(info);
       syncSubscriptionTier(newTier).catch(() => {});
     },
@@ -175,7 +206,7 @@ function useSubscriptionContext(): SubscriptionContextValue {
       return info;
     },
     onSuccess: (info) => {
-      qc.setQueryData(["revenuecat", "customer-info"], info);
+      qc.setQueryData(["revenuecat", "customer-info", user?.id ?? "signed-out"], info);
       const newTier = getTierFromCustomerInfo(info);
       syncSubscriptionTier(newTier).catch(() => {});
     },

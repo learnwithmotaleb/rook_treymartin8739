@@ -18,7 +18,7 @@
 | Database | 🟡 Amber | FK indexes added; cascade FKs declared; end-to-end deletion not yet verified (#102) |
 | Security | 🟢 Green | Helmet, CORS allowlist, 0 high vulns, log redaction, rate limiting |
 | Performance | 🟡 Amber | Skeletons + dedup guard done; /me chatty (#103); no offline recovery banner (#105) |
-| App Store Assets | 🟡 Amber | Icon/splash/privacy manifest exist; full asset pass still pending (open task); `user_photos` (Facebook) pending Meta approval |
+| App Store Assets | 🟡 Amber | Icon/splash/privacy manifest exist; full asset pass still pending (open task). Build 14 does not request the deferred `user_photos` permission. |
 
 **Legend:** 🟢 Green = no known blockers · 🟡 Amber = known issues, mitigated or tracked · 🔴 Red = blocks submission
 
@@ -83,12 +83,12 @@ All items that would block App Store submission have been resolved or downgraded
 **Finding:** There are no automated Playwright or Detox tests that exercise the sign-in → scan → view-threat → resolve-threat flow. Regressions are only caught manually.  
 **Status:** Open — tracked as separate task (add live E2E tests).
 
-### M-4 — Facebook `user_photos` permission pending Meta App Review
+### M-4 — Deferred Facebook photo permission
 
 **Source:** Task #99 audit of `artifacts/mobile/app/connect-account.tsx`  
-**Finding:** The Facebook OAuth scope is currently `public_profile` only (no review required). `user_photos` — the permission required for Facebook photo fingerprinting — has not yet received Meta App Review approval. The Meta reviewer guide (`docs/meta-reviewer-guide.md`) includes the submission copy for this approval, plus a screen recording path for demonstrating the intended flow to Meta reviewers since the live app cannot yet show the `user_photos` consent screen.  
+**Finding:** The Facebook OAuth scope in build 14 is `public_profile` only. The deferred `user_photos` permission is not requested, not reviewable, and must not be described as live functionality in the build-14 submission. Any future permission request requires a separate implementation, privacy, and Meta review.
 **Status:** Pending Meta App Review submission. Not a launch blocker for App Store submission but blocks the photo-fingerprinting feature for Facebook-connected users.  
-**Fix outline:** Once Meta grants `user_photos` approval, add `"user_photos"` to the `scopes` array in `connect-account.tsx` and `onboarding.tsx` Facebook OAuth config.
+**Fix outline:** Keep `user_photos` out of build 14. Reassess it only in a separately reviewed release with verified data handling.
 
 ---
 

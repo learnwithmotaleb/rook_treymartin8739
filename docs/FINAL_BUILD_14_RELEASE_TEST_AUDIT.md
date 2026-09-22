@@ -510,12 +510,12 @@ Run this exact walkthrough after all feature tests pass:
 
 ### Obsolete reviewer-script steps
 
-- [ ] `BLOCKER` Remove the old **Tools tab**, **AI Scam Analyzer**, and related steps from reviewer instructions unless those features are restored in build 14.
-- [ ] `BLOCKER` Remove any exact seeded counts or match percentages that do not match the current fixture.
-- [ ] `BLOCKER` Do not tell Apple to use a demo video instead of testing Sign in with Apple.
-- [ ] `BLOCKER` Do not claim Apple can test only a Cancel path if the metadata promises a working integration.
-- [ ] `BLOCKER` Do not mention `user_photos` as a current Meta permission.
-- [ ] `BLOCKER` Publish one canonical reviewer script; archive or clearly label conflicting older instructions.
+- [x] `PASS — documentation` Removed old **Tools tab**, **AI Scam Analyzer**, and related steps from the canonical reviewer instructions.
+- [x] `PASS — documentation` Removed unverified seeded counts and match percentages from reviewer instructions and screenshot guidance.
+- [x] `PASS — documentation` Reviewer instructions require live Sign in with Apple testing; a video is not a substitute.
+- [x] `PASS — documentation` Reviewer instructions no longer limit Apple to a Cancel path when testing supported integrations.
+- [x] `PASS — documentation` Removed `user_photos` as a current build-14 permission; Facebook is documented as `public_profile` only.
+- [x] `PASS — documentation` Published one canonical build-14 reviewer script and labeled the conflicting legacy guide superseded.
 
 ---
 
@@ -548,9 +548,9 @@ Run this exact walkthrough after all feature tests pass:
 
 ### Age rating
 
-- [ ] `BLOCKER` Remove Age Assurance/In-App Controls selections if the app has no such mechanism.
-- [ ] `BLOCKER` Align App Store age rating, Terms eligibility, Privacy Policy, and in-app age confirmation.
-- [ ] `BLOCKER` Resolve the current conflict among 4+, 13+, 17+, and 18+ references.
+- [x] `PASS — documentation` Release documents now distinguish the Apple/Google content-rating questionnaire from account eligibility and remove contradictory 4+/13+/18+ instructions.
+- [x] `PASS — documentation` Active release documents consistently state the in-app signup, Terms, and Privacy minimum eligibility is 17.
+- [ ] `BLOCKER` Confirm the App Store Connect age-rating questionnaire and any Age Assurance/In-App Controls selections in the console; repository documentation alone is not evidence of the submitted console state.
 
 ### Subscription and promoted IAP
 
@@ -562,14 +562,13 @@ Run this exact walkthrough after all feature tests pass:
 
 ### Metadata consistency
 
-- [ ] `BLOCKER` Choose one subtitle.
-- [ ] `BLOCKER` Choose one secondary category.
-- [ ] `BLOCKER` Correct copyright year.
-- [ ] `BLOCKER` Confirm supported screenshot sizes for the current device family.
-- [ ] `BLOCKER` Confirm Support, Marketing, and Privacy URLs.
-- [ ] `BLOCKER` Confirm app description matches supported platforms and actual functionality.
-- [ ] `BLOCKER` Remove unsupported “track every place,” “instant,” “always,” or guaranteed-protection claims.
-- [ ] `BLOCKER` Confirm Coming Soon platforms are not described as currently functional.
+- [x] `PASS — documentation` Chose one subtitle and one secondary category in the canonical metadata file.
+- [x] `PASS — documentation` Corrected the copyright year in the canonical metadata file.
+- [x] `PASS — documentation` Replaced hard-coded screenshot dimensions with current App Store Connect device-family guidance.
+- [x] `PASS — documentation` Confirmed Support, Marketing, and Privacy URLs are consistently documented.
+- [x] `PASS — documentation` Revised the app description to match supported platforms and current functionality.
+- [x] `PASS — documentation` Removed unsupported “track every place,” “instant,” “always,” and guaranteed-protection claims.
+- [x] `PASS — documentation` Confirmed Coming Soon platforms are not described as currently functional.
 - [ ] `BLOCKER` Confirm privacy nutrition labels match Clerk, RevenueCat, push, photos, Vision/OpenAI/search, and server processing.
 
 ---
@@ -577,7 +576,7 @@ Run this exact walkthrough after all feature tests pass:
 ## 19. Meta review audit
 
 - [ ] `BLOCKER` Request only scopes used by build 14.
-- [ ] `BLOCKER` Do not request or document `user_photos` as live.
+- [x] `PASS — code and documentation` Build 14 requests Facebook `public_profile` only and does not submit or describe `user_photos` as live.
 - [ ] `BLOCKER` Verify Instagram and Facebook reviewer test identities and roles.
 - [ ] `BLOCKER` Verify exact production callback URLs and mobile deep link.
 - [ ] `BLOCKER` Complete live OAuth from the review build.

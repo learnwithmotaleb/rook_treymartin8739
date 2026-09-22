@@ -20,12 +20,10 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "LSApplicationCategoryType": "public.app-category.utilities",
-        "NSCameraUsageDescription": "Rook uses your camera to scan photos for your identity fingerprint.",
-        "NSPhotoLibraryUsageDescription": "Rook accesses your photos to build your identity fingerprint and detect stolen images.",
+        "NSPhotoLibraryUsageDescription": "Rook lets you choose photos to build a perceptual photo fingerprint and detect unauthorized copies.",
         "NSUserNotificationsUsageDescription": "Rook sends real-time alerts when threats to your identity are detected.",
         "NSFaceIDUsageDescription": "Rook uses Face ID to protect access to your identity data.",
         "UIBackgroundModes": [
-          "fetch",
           "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false

@@ -90,9 +90,7 @@ const PLATFORM_CONFIGS: Record<string, PlatformConfig> = {
     label: "Facebook",
     color: "#1877F2",
     authUrl: "https://www.facebook.com/v22.0/dialog/oauth",
-    // user_photos requires Meta App Review — included here so the consent screen
-    // shows the permission in screen recordings submitted with the review.
-    // As the app developer you can grant it; general users cannot until Meta approves.
+    // Build 14 requests only the live, approved basic profile scope.
     scopes: ["public_profile"],
     clientIdEnvKey: "EXPO_PUBLIC_FACEBOOK_CLIENT_ID",
     callbackPath: "/api/oauth/facebook/callback",
@@ -203,8 +201,7 @@ function OAuthButton({
       } else if (platform === "facebook") {
         state = await getOAuthState();
         // auth_type=rerequest forces Facebook to show the permission consent
-        // screen even if the user previously authorized the app. Required so
-        // new permissions (user_photos) are always explicitly presented.
+        // screen even if the user previously authorized the app.
         authUrl = buildAuthUrl(platform, clientId, state, redirectUrl, { auth_type: "rerequest" });
       } else {
         state = await getOAuthState();

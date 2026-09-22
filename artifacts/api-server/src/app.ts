@@ -88,10 +88,14 @@ app.use(
   })
 );
 
-app.use("/api/billing/webhook", express.raw({ type: "application/json" }));
+app.use("/api/billing/webhook", express.raw({ type: "application/json", limit: "256kb" }));
 
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+// Keep ordinary API requests small enough to reject accidental/malicious
+// uploads before they consume memory. Photo/avatar endpoints accept compressed
+// base64 inside this envelope; callers must resize before uploading. The
+// RevenueCat webhook is mounted above with its own raw parser and limit.
+app.use(express.json({ limit: "8mb", strict: true }));
+app.use(express.urlencoded({ extended: false, limit: "64kb", parameterLimit: 50 }));
 
 app.use(
   clerkMiddleware((req) => ({

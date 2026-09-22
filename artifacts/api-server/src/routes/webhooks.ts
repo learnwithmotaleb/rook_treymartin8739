@@ -31,7 +31,11 @@ function handleVerification(req: Request, res: Response): void {
  * Extend here to process real-time events when needed.
  */
 function handleEvent(req: Request, res: Response): void {
-  req.log.info({ body: req.body }, "Meta webhook event received");
+  const body = req.body as { object?: unknown; entry?: unknown };
+  req.log.info({
+    object: body?.object,
+    entryCount: Array.isArray(body?.entry) ? body.entry.length : 0,
+  }, "Meta webhook event received");
   res.status(200).json({ status: "ok" });
 }
 

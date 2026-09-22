@@ -41,14 +41,21 @@ async function isCategoryEnabled(key: "scanComplete" | "newThreats" | "weeklyDig
 
 export async function requestPushPermission(): Promise<boolean> {
   if (Platform.OS === "web") return false;
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  if (existing === "granted") return true;
-  if (existing === "denied") return false;
-  const { status } = await Notifications.requestPermissionsAsync({
-    ios: { allowAlert: true, allowBadge: true, allowSound: true },
-  });
-  await AsyncStorage.setItem(PERMISSION_ASKED_KEY, "true");
-  return status === "granted";
+  try {
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    if (existing === "granted") return true;
+    if (existing === "denied") return false;
+    const { status } = await Notifications.requestPermissionsAsync({
+      ios: { allowAlert: true, allowBadge: true, allowSound: true },
+    });
+    await AsyncStorage.setItem(PERMISSION_ASKED_KEY, "true");
+    return status === "granted";
+  } catch {
+    // Permission APIs can reject in a simulator, restricted device profile,
+    // or while the app is backgrounding. Treat that as denied and let the
+    // settings screen offer a retry/Settings path.
+    return false;
+  }
 }
 
 function showPrePrompt(): Promise<boolean> {
@@ -99,8 +106,16 @@ async function upsertToken(userId?: string): Promise<void> {
 
 async function removeToken(userId?: string): Promise<void> {
   const platform = Platform.OS === "ios" ? "ios" : "android";
-  await deregisterPushToken(platform);
-  await AsyncStorage.removeItem(getPushTokenStorageKey(userId));
+  const storageKey = getPushTokenStorageKey(userId);
+  const token = (await AsyncStorage.getItem(storageKey)) ?? await getExpoPushToken();
+  if (token) await deregisterPushToken(platform, token);
+  await AsyncStorage.removeItem(storageKey);
+}
+
+/** Used by the auth/session owner before Clerk invalidates the API token. */
+export async function deregisterCurrentDevicePushToken(userId?: string): Promise<void> {
+  if (Platform.OS === "web") return;
+  await removeToken(userId);
 }
 
 export async function scheduleScanCompleteNotification(
@@ -265,7 +280,10 @@ export function useNotifications(isLoggedIn: boolean, userId?: string): {
           await upsertToken(userId);
         await scheduleWeeklyReminder();
       }
-    })();
+    })().catch(() => {
+      // Registration is best effort. A transient API or token-service failure
+      // must never leave an unhandled rejection or block the app shell.
+    });
 
   }, [isLoggedIn, userId]);
 

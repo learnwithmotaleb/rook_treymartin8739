@@ -109,9 +109,9 @@ const SCAN_STEPS = [
 export async function startScan(
   userId: string,
   planTier: Tier = "free",
-  options: { bypassCache?: boolean } = {}
+  options: { bypassCache?: boolean; existingJob?: ScanJob } = {}
 ): Promise<ScanJob> {
-  const [job] = await db
+  const [createdJob] = options.existingJob ? [options.existingJob] : await db
     .insert(scanJobsTable)
     .values({
       userId,
@@ -123,6 +123,7 @@ export async function startScan(
     })
     .returning();
 
+  const job = createdJob;
   if (!job) throw new Error("Failed to create scan job");
 
   logger.info({ jobId: job.id, userId, bypassCache: options.bypassCache }, "Scan job created, starting pipeline");
@@ -130,7 +131,12 @@ export async function startScan(
   runScanPipeline(job.id, userId, planTier, options.bypassCache ?? false).catch((err) => {
     logger.error({ err, jobId: job.id }, "Scan pipeline failed");
     db.update(scanJobsTable)
-      .set({ status: "failed", completedAt: new Date() })
+      .set({
+        status: "failed",
+        progress: 100,
+        currentStep: "Scan failed — please retry",
+        completedAt: new Date(),
+      })
       .where(eq(scanJobsTable.id, job.id))
       .catch(() => {});
   });

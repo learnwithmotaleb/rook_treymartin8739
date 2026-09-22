@@ -20,8 +20,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AnimatedSplash } from "@/components/AnimatedSplash";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AppProvider } from "@/context/AppContext";
-import { identifyRevenueCatUser, initializeRevenueCat, isRevenueCatConfigured, SubscriptionProvider } from "@/lib/revenuecat";
+import { AppProvider, useApp } from "@/context/AppContext";
+import { identifyRevenueCatUser, initializeRevenueCat, isRevenueCatConfigured, resetRevenueCatIdentity, SubscriptionProvider } from "@/lib/revenuecat";
 import { setApiAuthToken } from "@/lib/api";
 
 try {
@@ -65,12 +65,18 @@ function ClerkReadyMarker({ onReady }: { onReady: () => void }) {
 function RevenueCatIdentityBridge() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
+  const previousUserId = React.useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user?.id || !isRevenueCatConfigured) return;
-    identifyRevenueCatUser(user.id).catch(() => {
-      // The purchase flow awaits the same identification as a hard gate.
-    });
+    if (!isLoaded || !isRevenueCatConfigured) return;
+    const nextUserId = isSignedIn ? user?.id ?? null : null;
+    if (nextUserId) {
+      identifyRevenueCatUser(nextUserId).catch(() => {});
+    } else if (previousUserId.current) {
+      resetRevenueCatIdentity().catch(() => {});
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] === "revenuecat" });
+    }
+    previousUserId.current = nextUserId;
   }, [isLoaded, isSignedIn, user?.id]);
 
   return null;
@@ -194,37 +200,6 @@ export default function RootLayout() {
     return () => clearTimeout(timeout);
   }, [finishSplash]);
 
-  // Notification deep-link handling (unchanged)
-  useEffect(() => {
-    if (Platform.OS === "web") return;
-
-    function handleNotificationData(data: Record<string, unknown>) {
-      const screen = data?.screen as string | undefined;
-      if (screen === "threat" && data?.threatId) {
-        router.push(`/threat/${data.threatId}` as any);
-      } else if (screen === "alerts") {
-        router.push("/(tabs)/alerts" as any);
-      } else if (screen === "scan") {
-        router.push("/(tabs)/scan" as any);
-      } else if (screen === "dashboard" || screen === "home") {
-        router.push("/(tabs)" as any);
-      }
-    }
-
-    Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response) {
-        const data = response.notification.request.content.data as Record<string, unknown>;
-        handleNotificationData(data);
-      }
-    });
-
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as Record<string, unknown>;
-      handleNotificationData(data);
-    });
-    return () => sub.remove();
-  }, []);
-
   // ── Phase 1: show ONLY the animated splash while fonts load ──────────────
   // Once fonts are ready AND the fade-out animation completes, splashDone
   // flips to true and the full app renders.
@@ -254,6 +229,7 @@ export default function RootLayout() {
             <QueryClientProvider client={queryClient}>
               <SubscriptionProvider>
                 <AppProvider>
+                  <NotificationDeepLinkBridge />
                   <GestureHandlerRootView
                     style={
                       Platform.OS === "web"
@@ -273,4 +249,85 @@ export default function RootLayout() {
       </ErrorBoundary>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * Notification responses can arrive before Clerk has restored a session (most
+ * commonly from a terminated-state launch). Never route a signed-out user
+ * directly to private threat data; wait for Clerk and discard the response
+ * when no authenticated session exists.
+ */
+function NotificationDeepLinkBridge() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { isOnboardingReady, hasSeenOnboarding } = useApp();
+  const pendingResponse = React.useRef<Notifications.NotificationResponse | null>(null);
+  const consumed = React.useRef(false);
+  const authState = React.useRef({ isSignedIn: !!isSignedIn, isOnboardingReady, hasSeenOnboarding });
+  authState.current = { isSignedIn: !!isSignedIn, isOnboardingReady, hasSeenOnboarding };
+
+  useEffect(() => {
+    if (Platform.OS === "web" || !isLoaded || consumed.current) return;
+
+    const route = (data: Record<string, unknown>) => {
+      const screen = typeof data.screen === "string" ? data.screen : undefined;
+      const threatId = typeof data.threatId === "string" ? data.threatId : undefined;
+      if (screen === "threat" && threatId) {
+        router.push(`/threat/${encodeURIComponent(threatId)}` as any);
+      } else if (screen === "alerts") {
+        router.push("/(tabs)/alerts" as any);
+      } else if (screen === "scan") {
+        router.push("/(tabs)/scan" as any);
+      } else if (screen === "dashboard" || screen === "home") {
+        router.push("/(tabs)" as any);
+      }
+    };
+
+    let active = true;
+    consumed.current = true;
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        // Consume immediately. A response left in native storage can
+        // otherwise be replayed after a different Clerk account signs in.
+        Notifications.clearLastNotificationResponseAsync().catch(() => {});
+        if (!active || !response || !authState.current.isSignedIn) return;
+        if (authState.current.isOnboardingReady && authState.current.hasSeenOnboarding) {
+          route(response.notification.request.content.data as Record<string, unknown>);
+        } else {
+          pendingResponse.current = response;
+        }
+      })
+      .catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (!active || !authState.current.isSignedIn) return;
+      if (authState.current.isOnboardingReady && authState.current.hasSeenOnboarding) {
+        route(response.notification.request.content.data as Record<string, unknown>);
+      } else {
+        pendingResponse.current = response;
+      }
+    });
+    return () => {
+      active = false;
+      sub.remove();
+    };
+  }, [isLoaded]);
+
+  useEffect(() => {
+    if (!isSignedIn || !isOnboardingReady || !hasSeenOnboarding) {
+      pendingResponse.current = null;
+      return;
+    }
+    const response = pendingResponse.current;
+    if (response) {
+      pendingResponse.current = null;
+      const data = response.notification.request.content.data as Record<string, unknown>;
+      const screen = typeof data.screen === "string" ? data.screen : undefined;
+      const id = typeof data.threatId === "string" ? data.threatId : undefined;
+      if (screen === "threat" && id) router.push(`/threat/${encodeURIComponent(id)}` as any);
+      else if (screen === "alerts") router.push("/(tabs)/alerts" as any);
+      else if (screen === "scan") router.push("/(tabs)/scan" as any);
+      else if (screen === "dashboard" || screen === "home") router.push("/(tabs)" as any);
+    }
+  }, [isSignedIn, isOnboardingReady, hasSeenOnboarding]);
+
+  return null;
 }

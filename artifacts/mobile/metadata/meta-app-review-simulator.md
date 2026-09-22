@@ -111,11 +111,8 @@ The tested bundle requests these live scopes:
 - Instagram: `instagram_business_basic`
 - Facebook: `public_profile`
 
-`user_photos` is the additional Facebook permission being submitted for
-approval. It is not included in the current live OAuth scope, so reviewers
-should not be told that the tested bundle displays that consent item. The
-app's current behavior and the submission rationale for `user_photos` are
-documented in `docs/meta-reviewer-guide.md`.
+Do not submit or describe any additional Facebook permission for build 14.
+Reviewers should be told only about the scopes present in the tested bundle.
 
 ## Submission checklist
 

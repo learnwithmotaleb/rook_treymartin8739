@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, connectedAccountsTable, usersTable } from "@workspace/db";
+import { eq, and, gt, isNull } from "drizzle-orm";
+import { db, connectedAccountsTable, usersTable, oauthStatesTable } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth";
 import { metaFetch } from "../lib/metaFetch";
 import { logger } from "../lib/logger";
@@ -46,8 +46,6 @@ const STATE_SECRET = _rawSecret;
 // After a state token is successfully consumed, we add it to this set so it
 // cannot be replayed within the 15-minute validity window.
 // Entries are pruned lazily whenever we add a new one.
-const _usedStateTokens = new Map<string, number>(); // token → consumed-at (ms)
-
 // ── Per-IP rate limiter for OAuth callbacks ───────────────────────────────────
 // Prevents brute-force / abuse of the OAuth callback endpoints.
 const _oauthRateLimits = new Map<string, { count: number; windowStart: number }>();
@@ -72,15 +70,10 @@ function checkOAuthRateLimit(ip: string): boolean {
   return true;
 }
 
-function consumeStateToken(token: string): boolean {
-  if (_usedStateTokens.has(token)) return false; // already used
-  _usedStateTokens.set(token, Date.now());
-  // Prune tokens older than 15 minutes
-  const cutoff = Date.now() - 900_000;
-  for (const [k, ts] of _usedStateTokens) {
-    if (ts < cutoff) _usedStateTokens.delete(k);
-  }
-  return true;
+function signaturesEqual(actual: string, expected: string): boolean {
+  const a = Buffer.from(actual);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 function createOAuthState(clerkId: string, notifyUrl?: string): string {
@@ -97,8 +90,31 @@ function createOAuthState(clerkId: string, notifyUrl?: string): string {
   return `${payload}.${sig}`;
 }
 
+async function persistOAuthState(state: string, stateType: "oauth" | "x-pkce"): Promise<void> {
+  await db.insert(oauthStatesTable).values({
+    stateHash: crypto.createHash("sha256").update(state).digest("hex"),
+    stateType,
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+  });
+}
+
 // Returns the parsed state token or null.
-function parseOAuthState(state: string): { id: string; notifyUrl?: string } | null {
+async function consumeDurableState(state: string, stateType: string): Promise<boolean> {
+  const stateHash = crypto.createHash("sha256").update(state).digest("hex");
+  const [consumed] = await db
+    .update(oauthStatesTable)
+    .set({ consumedAt: new Date() })
+    .where(and(
+      eq(oauthStatesTable.stateHash, stateHash),
+      eq(oauthStatesTable.stateType, stateType),
+      isNull(oauthStatesTable.consumedAt),
+      gt(oauthStatesTable.expiresAt, new Date()),
+    ))
+    .returning({ id: oauthStatesTable.id });
+  return Boolean(consumed);
+}
+
+async function parseOAuthState(state: string): Promise<{ id: string; notifyUrl?: string } | null> {
   try {
     const dot = state.lastIndexOf(".");
     if (dot === -1) return null;
@@ -108,7 +124,7 @@ function parseOAuthState(state: string): { id: string; notifyUrl?: string } | nu
       .createHmac("sha256", STATE_SECRET)
       .update(payload)
       .digest("base64url");
-    if (sig !== expected) return null;
+    if (!signaturesEqual(sig, expected)) return null;
     const parsed = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8")
     ) as { clerkId?: string; userId?: string; iat?: number; nu?: string };
@@ -116,8 +132,7 @@ function parseOAuthState(state: string): { id: string; notifyUrl?: string } | nu
     const id = parsed.clerkId ?? parsed.userId;
     if (!id || typeof parsed.iat !== "number") return null;
     if (Date.now() / 1000 - parsed.iat > 900) return null; // 15-min window
-    // One-time use: prevent replay within the validity window
-    if (!consumeStateToken(state)) return null;
+    if (!(await consumeDurableState(state, "oauth"))) return null;
     return { id, notifyUrl: parsed.nu };
   } catch {
     return null;
@@ -146,14 +161,14 @@ function createXPkceState(clerkId: string, redirectUri: string, notifyUrl?: stri
   return { state: `${payload}.${sig}`, codeChallenge };
 }
 
-function parseXPkceState(state: string): { clerkId: string; codeVerifier: string; redirectUri?: string; notifyUrl?: string } | null {
+async function parseXPkceState(state: string): Promise<{ clerkId: string; codeVerifier: string; redirectUri?: string; notifyUrl?: string } | null> {
   try {
     const dot = state.lastIndexOf(".");
     if (dot === -1) return null;
     const payload = state.slice(0, dot);
     const sig = state.slice(dot + 1);
     const expected = crypto.createHmac("sha256", STATE_SECRET).update(payload).digest("base64url");
-    if (sig !== expected) return null;
+    if (!signaturesEqual(sig, expected)) return null;
     const parsed = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8")
     ) as { clerkId?: string; userId?: string; iat?: number; cv?: string; ru?: string; nu?: string };
@@ -161,6 +176,9 @@ function parseXPkceState(state: string): { clerkId: string; codeVerifier: string
     const id = parsed.clerkId ?? parsed.userId;
     if (!id || typeof parsed.iat !== "number" || !parsed.cv) return null;
     if (Date.now() / 1000 - parsed.iat > 900) return null;
+    // PKCE states are bearer credentials containing the verifier. Consume
+    // them exactly once before exchanging the authorization code.
+    if (!(await consumeDurableState(state, "x-pkce"))) return null;
     return { clerkId: id, codeVerifier: parsed.cv, redirectUri: parsed.ru, notifyUrl: parsed.nu };
   } catch {
     return null;
@@ -175,7 +193,7 @@ async function resolveUserFromState(
   if (state) {
     // Primary: HMAC-signed opaque state token (embeds Clerk user ID).
     // Cross-environment safe — Clerk IDs are stable across dev and prod.
-    const parsed = parseOAuthState(state);
+    const parsed = await parseOAuthState(state);
     if (parsed) {
       const { id: clerkOrDbId, notifyUrl } = parsed;
       if (clerkOrDbId.startsWith("user_")) {
@@ -253,8 +271,9 @@ async function sendAccountNotify(
 // without depending on the Clerk JWT expiry window.
 // In development, embeds DEV_NOTIFY_URL so the production callback can mirror
 // the saved account back to the dev server.
-router.post("/oauth/state", requireAuth, (req, res): void => {
+router.post("/oauth/state", requireAuth, async (req, res): Promise<void> => {
   const state = createOAuthState(req.clerkId, _devNotifyBase);
+  await persistOAuthState(state, "oauth");
   res.json({ state });
 });
 
@@ -264,9 +283,10 @@ router.post("/oauth/state", requireAuth, (req, res): void => {
 // (sent to Twitter). The redirect_uri for this server is also embedded in the
 // state so the callback uses the exact same URI regardless of which server
 // (dev vs production) ultimately handles the token exchange.
-router.post("/oauth/x/init", requireAuth, (req, res): void => {
+router.post("/oauth/x/init", requireAuth, async (req, res): Promise<void> => {
   const redirectUri = `https://${DOMAIN}/api/oauth/x/callback`;
   const { state, codeChallenge } = createXPkceState(req.clerkId, redirectUri, _devNotifyBase);
+  await persistOAuthState(state, "x-pkce");
   // Return redirectUri so the mobile app uses the same value in the auth URL.
   res.json({ state, codeChallenge, redirectUri });
 });
@@ -642,7 +662,7 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
   }
 
   // State must be an X PKCE state (contains embedded code_verifier)
-  const pkce = state ? parseXPkceState(state) : null;
+  const pkce = state ? await parseXPkceState(state) : null;
   if (!pkce) {
     sendOAuthError(req, res, "x", "Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your X account again.");
     return;
@@ -829,6 +849,18 @@ router.post("/oauth/account-notify", async (req, res): Promise<void> => {
     res.status(400).json({ error: "missing required fields" });
     return;
   }
+  if (
+    clerkId.length > 320 ||
+    username.length > 320 ||
+    platform.length > 32 ||
+    (platform !== "instagram" && platform !== "facebook" && platform !== "x") ||
+    (platformUserId?.length ?? 0) > 320 ||
+    (displayName?.length ?? 0) > 200 ||
+    (accessToken?.length ?? 0) > 4096
+  ) {
+    res.status(400).json({ error: "invalid account notification" });
+    return;
+  }
 
   // Validate HMAC signature — canonical string matches what sendAccountNotify produces.
   const canonical = `${clerkId}:${platform}:${username}:${platformUserId ?? ""}:${displayName ?? ""}`;
@@ -836,7 +868,9 @@ router.post("/oauth/account-notify", async (req, res): Promise<void> => {
     .createHmac("sha256", STATE_SECRET)
     .update(canonical)
     .digest("base64url");
-  if (sig !== expected) {
+  const sigBytes = Buffer.from(sig);
+  const expectedBytes = Buffer.from(expected);
+  if (sigBytes.length !== expectedBytes.length || !crypto.timingSafeEqual(sigBytes, expectedBytes)) {
     res.status(401).json({ error: "invalid signature" });
     return;
   }

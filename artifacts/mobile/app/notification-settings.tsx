@@ -17,10 +17,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
-import { requestPushPermission, applyNotificationPreferences } from "@/hooks/useNotifications";
-import { registerPushToken, deregisterPushToken } from "@/lib/api";
+import { deregisterCurrentDevicePushToken, requestPushPermission, applyNotificationPreferences } from "@/hooks/useNotifications";
+import { registerPushToken } from "@/lib/api";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
+import { useUser } from "@clerk/expo";
 
 const STORAGE_KEY = "rook:notification_prefs";
 
@@ -164,6 +165,7 @@ export default function NotificationSettings() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useApp();
+  const { user: clerkUser } = useUser();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULTS);
   const isPro = user.tier === "pro" || user.tier === "premium";
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -245,8 +247,7 @@ export default function NotificationSettings() {
             onPress: async () => {
               toggle("pushAlerts", false);
               try {
-                const platform = Platform.OS === "ios" ? "ios" : "android";
-                await deregisterPushToken(platform);
+                await deregisterCurrentDevicePushToken(clerkUser?.id);
               } catch {}
             },
           },

@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { scheduleScanCompleteNotification, scheduleThreatNotification } from "@/hooks/useNotifications";
+import { deregisterCurrentDevicePushToken, scheduleScanCompleteNotification, scheduleThreatNotification } from "@/hooks/useNotifications";
 import {
   getMe,
   getAccounts,
@@ -25,7 +25,7 @@ import {
   updateMe,
   reverseImageSearch,
   refreshAccountTokens,
-  deregisterPushToken,
+  getPhotoConsent,
   type UserProfile,
   type AccountProfile,
   type ThreatSummary,
@@ -504,7 +504,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // it while this session is valid so a signed-out device gets no alerts.
     if (!options?.skipServerCleanup) {
       try {
-        await deregisterPushToken();
+        await deregisterCurrentDevicePushToken(clerkUserIdRef.current ?? undefined);
       } catch {
         // Logging out must still succeed when the device is offline.
       }
@@ -628,9 +628,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Keep client-side reverse-image searches aligned with the plan's image
     // allowance. Server-side scan analysis independently enforces the same
     // cap for account media.
-    const photosSnapshot = user.tier === "free"
-      ? indexedPhotosRef.current.slice(0, 1)
-      : [...indexedPhotosRef.current];
+    // Consent can be withdrawn from Privacy while the Scan tab remains
+    // mounted. Re-check the server flag at scan time so cached local photos
+    // can never trigger photo processing after withdrawal.
+    let photosSnapshot: IndexedPhoto[] = [];
+    let photoConsentActive = true;
+    try {
+      const consent = await getPhotoConsent();
+      photoConsentActive = consent.hasConsent;
+      if (photoConsentActive) {
+        photosSnapshot = user.tier === "free"
+          ? indexedPhotosRef.current.slice(0, 1)
+          : [...indexedPhotosRef.current];
+      }
+    } catch {
+      // Fail closed for photo processing when consent cannot be confirmed.
+      photoConsentActive = false;
+    }
+    if (!photoConsentActive && indexedPhotosRef.current.length > 0) {
+      setScanError("Photo monitoring is paused until you enable consent in Privacy & Data. Account and username monitoring will continue.");
+    }
 
     // Fire Vision searches for all monitored photos in parallel with the backend scan.
     // Each photo is searched independently; failures are non-fatal.

@@ -14,27 +14,38 @@ AI Guard for Your Online Identity
 
 ### Description (4000 chars max)
 ```
-Rook is your AI-powered identity shield — monitoring the open web for impersonators, stolen photos, and identity threats.
+Rook helps you monitor your online identity for impersonators, suspicious
+matches, and unauthorized use of your public profile and photos.
 
 WHAT ROOK DOES
-At launch, Rook connects to Instagram, Facebook, and X (Twitter). TikTok, LinkedIn, YouTube, and Snapchat connections are marked Coming Soon and are not actionable. When a threat is detected, you're alerted with AI analysis, evidence, and actionable next steps.
+At launch, Rook supports connecting Instagram, Facebook, and X. TikTok,
+LinkedIn, YouTube, and Snapchat are marked Coming Soon and are not actionable.
+When Rook identifies a potential threat, the app presents available evidence,
+an explanation, and links to relevant official platform guidance.
 
 KEY FEATURES
 
 🔍 Impersonator Detection
-Our AI scans public web results and supported connected-account signals to find accounts mimicking you — before they can scam your followers, clients, or fans.
+Rook checks public web results and supported connected-account signals for
+accounts that may mimic your identity. Results are potential matches, not
+determinations of criminal conduct or guaranteed platform action.
 
 📸 Stolen Photo Monitoring
-We track every place your photos appear across the web. If someone is using your face without permission, Rook finds it and shows you exactly where.
+Rook can compare supported photo signals and show available evidence when a
+potentially unauthorized use is identified. Coverage depends on the connected
+platforms and sources available to the scan.
 
 🧠 AI Threat Analysis
-Every detected threat includes a complete AI breakdown — risk score, confidence level, detected signals, matched evidence, and a tailored action plan.
+Potential threats include an AI-assisted explanation, risk indicators, detected
+signals, available evidence, and suggested next steps.
 
 📅 Scheduled Automatic Monitoring
-Rook Premium users get daily automated scans. Zero manual effort — your identity is always being watched.
+Rook Premium users receive the scheduled monitoring cadence shown in the app
+and can run supported manual scans.
 
-🔔 Instant Push Alerts
-One centralized alert feed. Review, dismiss, or report threats from your phone with everything you need in one place.
+🔔 Push Alerts
+Review potential threats in one alert feed, resolve items, and open official
+platform reporting guidance from your phone.
 
 🔒 Identity Score
 Your personal security score (0–100) updates in real time as threats are found and resolved, giving you a clear picture of your current exposure.
@@ -42,12 +53,15 @@ Your personal security score (0–100) updates in real time as threats are found
 PLANS
 
 Free — 1 connected account and 1 manual scan per month
-Rook Premium — Unlimited connected accounts, daily monitoring, alerts, full evidence, advanced risk scoring, and reports
+Rook Premium — expanded connected-account limits, scheduled monitoring, alerts,
+evidence, and advanced risk indicators as described in the app
 
 Rook is built for creators, influencers, executives, public figures, and anyone with a meaningful digital presence worth protecting.
 
 ---
-Rook monitors publicly available information only. Rook is not affiliated with any social media platform.
+Rook monitors publicly available information and supported connected-account
+signals only. Rook is not affiliated with any social media platform. Coverage,
+results, and platform enforcement decisions are not guaranteed.
 ```
 
 ### Keywords (100 chars, comma-separated)
@@ -73,7 +87,7 @@ https://tryrook.app/privacy
 
 ### Copyright
 ```
-© 2025 Rook. All rights reserved.
+© 2026 Rook. All rights reserved.
 ```
 
 ### Category
@@ -82,9 +96,10 @@ Primary:   Utilities
 Secondary: Social Networking
 ```
 
-### Age Rating
+### Age / eligibility
 ```
-4+ (no objectionable content)
+Content-rating questionnaire: complete in App Store Connect
+Account eligibility: users must be at least 17
 ```
 
 ### App Version

@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { db, connectedAccountsTable } from "@workspace/db";
+import { db, connectedAccountsTable, photoProcessingConsentsTable } from "@workspace/db";
+import { isNull } from "drizzle-orm";
+import { CURRENT_PHOTO_CONSENT_VERSION } from "./users";
 
 import { getSubscription } from "../services/subscriptionService";
 import { PLAN_CONFIG, normalizeTier } from "../lib/planConfig";
@@ -45,18 +47,18 @@ router.get("/accounts", async (req, res): Promise<void> => {
 });
 
 const PostAccountBody = z.object({
-  platform: z.string(),
-  username: z.string().min(1),
-  accessToken: z.string().optional(),
-  displayName: z.string().optional(),
-});
+  platform: z.string().trim().min(1).max(32),
+  username: z.string().trim().min(1).max(320),
+  accessToken: z.string().max(4096).optional(),
+  displayName: z.string().trim().max(200).optional(),
+}).strict();
 
 const PatchAccountBody = z.object({
-  accessToken: z.string().optional(),
-  displayName: z.string().optional(),
+  accessToken: z.string().max(4096).optional(),
+  displayName: z.string().trim().max(200).optional(),
   followers: z.number().int().nonnegative().optional(),
-  platformUserId: z.string().optional(),
-});
+  platformUserId: z.string().max(320).optional(),
+}).strict();
 
 router.post("/accounts", async (req, res): Promise<void> => {
   try {
@@ -286,6 +288,22 @@ router.get("/accounts/:accountId/media", async (req, res): Promise<void> => {
 
     if (!account) {
       res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    // Media retrieval is photo processing too. Enforce the same current,
+    // non-withdrawn consent gate as scans and reverse-image search.
+    const [consent] = await db
+      .select({ id: photoProcessingConsentsTable.id })
+      .from(photoProcessingConsentsTable)
+      .where(and(
+        eq(photoProcessingConsentsTable.userId, userId),
+        isNull(photoProcessingConsentsTable.withdrawnAt),
+        eq(photoProcessingConsentsTable.consentVersion, CURRENT_PHOTO_CONSENT_VERSION),
+      ))
+      .limit(1);
+    if (!consent) {
+      res.status(403).json({ error: "Active photo-processing consent is required." });
       return;
     }
 

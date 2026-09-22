@@ -30,15 +30,9 @@ router.patch("/notifications/token", async (req, res): Promise<void> => {
       // Serialize token reassignment so one physical device can never receive
       // notifications for two Rook accounts, even if a prior logout failed.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${token}))`);
+      // Reassign only this exact token if it belonged to another account.
+      // Do not remove the user's other iOS/Android devices.
       await tx.delete(devicePushTokensTable).where(eq(devicePushTokensTable.token, token));
-      await tx
-        .delete(devicePushTokensTable)
-        .where(
-          and(
-            eq(devicePushTokensTable.userId, userId),
-            eq(devicePushTokensTable.platform, platform)
-          )
-        );
       await tx.insert(devicePushTokensTable).values({ userId, token, platform });
     });
 
@@ -50,33 +44,24 @@ router.patch("/notifications/token", async (req, res): Promise<void> => {
 });
 
 const DeleteTokenQuery = z.object({
-  platform: z.enum(["ios", "android"]).optional(),
-});
+  token: z.string().min(1).max(512),
+}).strict();
 
 router.delete("/notifications/token", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
     const parsed = DeleteTokenQuery.safeParse(req.query);
     if (!parsed.success) {
-      res.status(400).json({ error: "Invalid platform — must be 'ios' or 'android' if provided", details: parsed.error.flatten() });
+      res.status(400).json({ error: "token query parameter is required", details: parsed.error.flatten() });
       return;
     }
-    const { platform } = parsed.data;
-
-    if (platform) {
-      await db
-        .delete(devicePushTokensTable)
-        .where(
-          and(
-            eq(devicePushTokensTable.userId, userId),
-            eq(devicePushTokensTable.platform, platform)
-          )
-        );
-    } else {
-      await db
-        .delete(devicePushTokensTable)
-        .where(eq(devicePushTokensTable.userId, userId));
-    }
+    const { token } = parsed.data;
+    await db
+      .delete(devicePushTokensTable)
+      .where(and(
+        eq(devicePushTokensTable.userId, userId),
+        eq(devicePushTokensTable.token, token),
+      ));
 
     res.json({ ok: true });
   } catch (err) {

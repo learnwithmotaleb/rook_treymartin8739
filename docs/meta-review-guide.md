@@ -1,174 +1,79 @@
-# Rook — Meta App Review Guide
+# Rook — Meta App Review Guide (Build 14)
 
 **App:** Rook — Identity Protection  
 **Bundle ID:** `com.getrook.app`
-**Permissions under review:** `instagram_business_basic`, `user_photos`  
 **Live domain:** `https://tryrook.app`
+**Support:** `support@getrook.app`
 
----
+## Current build permissions
 
-## Overview
+Only describe permissions actually requested by build 14:
 
-Rook is an AI-powered identity protection app that monitors social platforms for impersonators, stolen photos, and unauthorized use of a user's likeness. The app needs access to the user's own social media data to:
+| Platform | Current scope | Purpose |
+|---|---|---|
+| Instagram | `instagram_business_basic` | Connect an Instagram Business or Creator account and read the profile/basic media metadata needed for identity monitoring. |
+| Facebook | `public_profile` | Display the connected user's public name and profile image and confirm which account was connected. |
 
-1. **Verify identity ownership** of the connecting account
-2. **Build a photo fingerprint** (perceptual hashes of the user's own photos)
-3. **Run impersonation detection** by comparing the fingerprint against suspicious accounts found during monitoring scans
+`user_photos` is **not requested by build 14**. It is not part of this
+submission, should not be granted or demonstrated to reviewers, and must not
+appear in live-flow instructions.
 
----
+## Reviewer test identity
 
-## Required Permissions
+Store Meta test-user credentials only in Meta's protected reviewer form. The
+identity must be assigned the appropriate app role and, for Instagram, be
+linked to an Instagram Business or Creator account. Do not put credentials,
+private email addresses, or fabricated fixture counts in this document.
 
-### `instagram_business_basic`
+## Live test steps
 
-**Why Rook needs it:**  
-Rook requests `instagram_business_basic` to allow users to connect their Instagram Business or Creator account. This permission provides access to the user's own profile and basic media metadata, which Rook uses to:
-- Verify that the connecting user is the legitimate account owner
-- Retrieve the user's profile photo URL to build an identity anchor
-- Access captions from the user's own posts for content fingerprinting
+1. Create or sign into the Rook account using the protected reviewer
+   instructions.
+2. Open **Profile → Connected Accounts → Connect Account → Instagram**.
+3. Complete the Meta authorization. Confirm the consent request contains
+   `instagram_business_basic` and no unapproved scope.
+4. Return to Rook and confirm the connected account displays the returned
+   identity.
+5. Repeat with **Facebook**. Confirm the consent request contains
+   `public_profile` only.
+6. Return to Rook and confirm the Facebook identity displays as connected.
+7. Start a scan and confirm the connected-account context is visible and the
+   result is honest. Do not claim that the current build reads Facebook photo
+   albums.
+8. Disconnect each test account and confirm the app removes the connection and
+   handles derived data according to the current Privacy Policy.
 
-**Copy for Meta review form:**
-> "Rook is an AI-powered identity protection app. We request instagram_business_basic to allow users to connect their Instagram account and verify their identity profile. This enables our system to build a photo fingerprint from the user's own media, which is then used to detect impersonation accounts that have stolen the user's photos or are mimicking their handle. Without this permission, we cannot verify that the connecting user is the legitimate account owner, and cannot build the reference dataset needed for impersonation detection."
+## Production callback configuration
 
----
+These values must match the Meta dashboard and production environment:
 
-### `user_photos` (Facebook)
-
-**Current build status:**
-The tested build requests `public_profile` only. `user_photos` is the additional permission being submitted for approval and will be added to the live Facebook OAuth scope only after Meta approves it.
-
-**Why Rook needs it after approval:**
-Rook will use `user_photos` to access the authenticated user's own Facebook photo library. These photos will be used exclusively to build a perceptual hash (dHash) fingerprint of the user's visual identity. The fingerprint will then be compared against suspicious accounts found during monitoring scans.
-
-**Important:** No photos are stored permanently. Only the computed hash values (64-bit integers) are retained. The original images are never uploaded to Rook's servers.
-
-**Copy for Meta review form:**
-> "We request user_photos to access the authenticated user's own Facebook photo library. These photos are used exclusively to build a perceptual hash (dHash) fingerprint of the user's visual identity. This fingerprint is compared against suspicious accounts found during monitoring scans. No photos are stored permanently — only the computed hash values. Without this permission, Rook cannot perform photo-based impersonation detection for Facebook-connected users."
-
----
-
-## App Domains & OAuth Redirect URIs
-
-Register these in your Facebook App Dashboard → **Settings → Basic → App Domains**:
-
-```
-getrook.app
-```
-
-Register these in **Facebook Login → Settings → Valid OAuth Redirect URIs**:
-
-```
+```text
 https://tryrook.app/api/oauth/instagram/callback
 https://tryrook.app/api/oauth/facebook/callback
+com.getrook.app://oauth
 ```
 
----
+Verify them in the provider console before submission; this document is not
+evidence that the console configuration is correct.
 
-## Setting Up the Meta Review Test Account
+## Data and privacy explanation
 
-### Step 1 — Create a Test User in Meta App Dashboard
+Rook uses connected-account data for identity monitoring, evidence, and
+account-specific scan results. Explain only data handling confirmed by the
+current Privacy Policy and production implementation. Do not promise that
+original photos are never transmitted, that only 64-bit hashes are retained,
+or that `user_photos` will be added later unless those statements have been
+re-verified against the current implementation and Meta approval status.
 
-1. Go to [developers.facebook.com](https://developers.facebook.com)
-2. Select your Rook app
-3. In the left sidebar: **Roles → Test Users**
-4. Click **"Add"** to create a new test user
-5. Set a name (e.g., "Rook Reviewer") and generate a password
-6. Note the email and password — these are the credentials the Meta reviewer will use
+Current legal pages:
 
-> Alternatively: If an existing Facebook account will be used for review, add it under **Roles → Testers** instead.
+- Privacy Policy: `https://tryrook.app/privacy`
+- Terms of Service: `https://tryrook.app/terms`
+- Support: `https://tryrook.app/support`
 
-### Step 2 — Connect a Real Instagram Account to the Test User
+## Out of scope
 
-The test user's Facebook account must have a linked Instagram Business or Creator account. This is required because `instagram_business_basic` only works with Business/Creator accounts.
-
-1. Log into the test user's Facebook account
-2. Go to **Settings → Linked Accounts → Instagram**
-3. Connect an Instagram Business or Creator account
-4. If the Instagram account is Personal, first convert it:
-   - Instagram app → Settings → Account → Switch to Professional Account → Creator
-
-### Step 3 — Upload a Profile Photo to the Test User's Account
-
-For the photo comparison feature to demonstrate value, the test user should have a recognizable profile photo uploaded to both Facebook and Instagram.
-
-1. Log in as the test user on Facebook
-2. Upload a profile photo
-3. Log in on Instagram and upload the same or similar photo as the profile picture
-
-### Step 4 — Provide Credentials in the App Review Submission
-
-In the App Review submission form under **"Instructions for the reviewer"**, include:
-
-```
-Test Account Credentials:
-  Email:    [test user email]
-  Password: [test user password]
-
-Instagram account linked to this Facebook profile:
-  Username: [instagram username]
-
-Steps to test:
-  1. Open Rook and tap "Sign In"
-  2. Create a new account OR sign in with the test credentials
-  3. On the Profile tab, tap "Connected Accounts"
-  4. Tap "+ Connect Account"
-  5. Select "Instagram" → tap "Connect Instagram"
-  6. In the browser, log in with the test account credentials
-  7. Approve "instagram_business_basic" permission → app shows "Connected ✓"
-  8. Repeat for "Facebook" → approve "user_photos" permission
-  9. Return to Dashboard → observe that the account is now being monitored
-```
-
----
-
-## What NOT to Do
-
-- **Do not** pre-seed this Meta review account with reviewer threat data — leave it clean so the OAuth flows run against real data and demonstrate authentic API value
-- **Do not** use a personal Instagram account — it must be Business or Creator type
-- **Do not** submit with a Personal Facebook account that hasn't linked an Instagram — the `instagram_business_basic` flow will fail
-
----
-
-## Demonstrating the Value of Each Permission to the Reviewer
-
-### For `instagram_business_basic`
-After connecting Instagram, the reviewer will see:
-1. Their connected account appears in the Profile → Connected Accounts list ✓
-2. The Scan screen shows "1 Account Monitored" (or more if Facebook also connected)
-3. Running a scan → Rook fetches their profile photo and builds a photo fingerprint
-4. The Photo Monitor tool shows how many photos are now indexed
-
-### For `user_photos` (Facebook)
-After connecting Facebook, the reviewer will see:
-1. Their Facebook account appears as connected ✓
-2. Running a scan → Rook accesses their photo library to build dHash fingerprints
-3. Photo Monitor shows the indexed count increasing
-
----
-
-## Privacy Policy and Data Handling
-
-**Privacy Policy URL:** `https://tryrook.app/privacy`
-**Terms of Service URL:** `https://tryrook.app/terms`
-
-Key data handling facts for Meta review:
-- Photo data is processed in-memory only; original images are never written to disk
-- Only dHash values (64-bit integers) are stored — not the images themselves
-- All stored data is associated with the user's own account and not shared with third parties
-- Users can delete all data at any time via Profile → Delete Account
-
----
-
-## Scopes Summary Table
-
-| Permission | Used For | Data Stored | Required? |
-|---|---|---|---|
-| `instagram_business_basic` | Identity verification, profile photo, caption fingerprinting | dHash of profile photo + caption hashes | Yes |
-| `user_photos` | Build photo fingerprint from user's own library after approval | dHash values only, no images | Pending approval; not requested by this build |
-| `public_profile` (Facebook) | Display name + profile photo in connected accounts list | Display name + avatar URL | Yes |
-
----
-
-## Support Contact
-
-For questions during the review process: **support@getrook.app**
+This guide does not instruct reviewers to test unavailable permissions,
+development builds, screen recordings in place of live access, or obsolete
+Tools/Photo Monitor paths. Any older Meta reviewer guide containing those
+claims is superseded by this document.

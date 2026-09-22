@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
+import { timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 import {
   db,
   usersTable,
@@ -14,6 +16,17 @@ const PREMIUM_PRODUCT_IDS = new Set([
   "premium_monthly_v2",
   "premium_annual_v2",
 ]);
+const RevenueCatEvent = z.object({
+  type: z.string().min(1).max(64),
+  app_user_id: z.string().max(320).optional(),
+  original_app_user_id: z.string().max(320).optional(),
+  expiration_at_ms: z.number().finite().optional(),
+  entitlement_ids: z.array(z.string().max(128)).max(32).optional(),
+  product_id: z.string().max(256).optional(),
+}).passthrough();
+const RevenueCatPayload = z.object({
+  event: RevenueCatEvent,
+}).passthrough();
 
 /**
  * POST /rc-webhook
@@ -45,30 +58,23 @@ router.post("/rc-webhook", async (req, res): Promise<void> => {
 
   const authHeader = req.headers["authorization"] ?? "";
   const incoming = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (incoming !== webhookSecret) {
+  const incomingBytes = Buffer.from(incoming);
+  const secretBytes = Buffer.from(webhookSecret);
+  if (
+    incomingBytes.length !== secretBytes.length ||
+    !timingSafeEqual(incomingBytes, secretBytes)
+  ) {
     logger.warn({ hasHeader: !!authHeader }, "RC webhook: invalid Authorization header");
     res.status(401).json({ error: "unauthorized" });
     return;
   }
 
-  const body = req.body as {
-    api_version?: string;
-    event?: {
-      type?: string;
-      app_user_id?: string;
-      original_app_user_id?: string;
-      expiration_at_ms?: number;
-      purchased_at_ms?: number;
-      entitlement_ids?: string[];
-      product_id?: string;
-    };
-  };
-
-  const event = body.event;
-  if (!event?.type) {
-    res.status(400).json({ error: "missing event.type" });
+  const parsedBody = RevenueCatPayload.safeParse(req.body);
+  if (!parsedBody.success) {
+    res.status(400).json({ error: "invalid webhook payload" });
     return;
   }
+  const event = parsedBody.data.event;
 
   const clerkId = event.app_user_id ?? event.original_app_user_id;
   if (!clerkId) {

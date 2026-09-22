@@ -15,7 +15,7 @@
 import { Router, type Request, type Response, type NextFunction, type IRouter } from "express";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { eq, gte, and, sql, isNull } from "drizzle-orm";
+import { eq, gte, and, or, sql, isNull } from "drizzle-orm";
 import {
   db,
   apiCostLogTable,
@@ -581,7 +581,10 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
   await db.delete(threatsTable).where(
     and(
       eq(threatsTable.userId, userId),
-      sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
+      or(
+        sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
+        sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerFixtureClone":true}'::jsonb`,
+      ),
     ),
   );
   await db.delete(scanJobsTable).where(
@@ -666,7 +669,10 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
     .where(
       and(
         eq(threatsTable.userId, userId),
-        sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`
+        or(
+          sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
+          sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerFixtureClone":true}'::jsonb`,
+        )
       )
     );
 
