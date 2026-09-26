@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireLegalCompliance } from "../middleware/requireLegalCompliance";
 import { scanLimiter, photoSearchLimiter, aiLimiter } from "../middleware/rateLimiters";
 import healthRouter from "./health";
 import usersRouter from "./users";
@@ -37,6 +38,7 @@ router.use(adminRouter); // admin routes use their own X-Admin-Key auth
 router.use(v1Router);
 
 router.use(requireAuth);
+router.use(requireLegalCompliance);
 
 router.use(usersRouter);
 router.use(accountsRouter);

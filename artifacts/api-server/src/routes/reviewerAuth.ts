@@ -45,7 +45,6 @@ async function clerkRequest(
 
 async function resolveReviewer(
   configuredReviewerId: string,
-  identifier: string,
   clerkSecretKey: string,
 ): Promise<ClerkReviewer> {
   const configuredResponse = await clerkRequest(
@@ -55,62 +54,9 @@ async function resolveReviewer(
   if (configuredResponse.ok) {
     return (await configuredResponse.json()) as ClerkReviewer;
   }
-  if (configuredResponse.status !== 404) {
-    throw new Error(`Clerk configured-user lookup failed (${configuredResponse.status})`);
-  }
-
-  const searchResponse = await clerkRequest(
-    `/v1/users?email_address=${encodeURIComponent(identifier)}&limit=2`,
-    clerkSecretKey,
-  );
-  if (!searchResponse.ok) {
-    throw new Error(`Clerk reviewer search failed (${searchResponse.status})`);
-  }
-  const matches = (await searchResponse.json()) as ClerkReviewer[];
-  if (matches.length > 1) {
-    throw new Error("Clerk reviewer search returned multiple users");
-  }
-
-  let reviewer = matches[0];
-  if (!reviewer) {
-    const createResponse = await clerkRequest("/v1/users", clerkSecretKey, {
-      method: "POST",
-      body: JSON.stringify({
-        email_address: [identifier],
-        first_name: "Alex",
-        last_name: "Rivera",
-        skip_password_checks: true,
-        skip_password_requirement: true,
-      }),
-    });
-    if (!createResponse.ok) {
-      throw new Error(`Clerk reviewer creation failed (${createResponse.status})`);
-    }
-    reviewer = (await createResponse.json()) as ClerkReviewer;
-  }
-
-  const privateMetadata = reviewer.private_metadata ?? {};
-  if (privateMetadata["rookAppReviewer"] !== true) {
-    const updateResponse = await clerkRequest(
-      `/v1/users/${encodeURIComponent(reviewer.id)}/metadata`,
-      clerkSecretKey,
-      {
-        method: "PATCH",
-        body: JSON.stringify({
-          private_metadata: {
-            ...privateMetadata,
-            rookAppReviewer: true,
-          },
-        }),
-      },
-    );
-    if (!updateResponse.ok) {
-      throw new Error(`Clerk reviewer metadata update failed (${updateResponse.status})`);
-    }
-    reviewer = (await updateResponse.json()) as ClerkReviewer;
-  }
-
-  return reviewer;
+  // Never use an untrusted request identifier to find, create, or mark a
+  // reviewer. A stale environment-specific Clerk ID must fail closed.
+  throw new Error(`Configured Clerk reviewer lookup failed (${configuredResponse.status})`);
 }
 
 async function seedReviewerFixture(reviewerUserId: string): Promise<void> {
@@ -161,7 +107,7 @@ router.post(
     }
 
     try {
-      const reviewer = await resolveReviewer(reviewerUserId, identifier, clerkSecretKey);
+      const reviewer = await resolveReviewer(reviewerUserId, clerkSecretKey);
       const belongsToReviewer = reviewer.email_addresses?.some(
         (entry) => entry.email_address?.trim().toLowerCase() === identifier,
       );

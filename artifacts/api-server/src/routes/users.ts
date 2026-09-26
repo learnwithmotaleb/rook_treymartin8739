@@ -20,6 +20,7 @@ import {
 import { getFingerprintForUser } from "../services/fingerprintService";
 import { getSubscription } from "../services/subscriptionService";
 import { recalculateScore } from "../services/scoreService";
+import { CURRENT_AGE_VERSION, CURRENT_TERMS_VERSION } from "../middleware/requireLegalCompliance";
 
 const router: IRouter = Router();
 
@@ -165,6 +166,9 @@ router.get("/me", async (req, res): Promise<void> => {
       // user's accepted version matches CURRENT_TERMS_VERSION — without this
       // field the client always fell back to showing the modal on cache miss.
       termsVersion: user.termsVersion ?? null,
+      termsAcceptedAt: user.termsAcceptedAt?.toISOString() ?? null,
+      ageConfirmedAt: user.ageConfirmedAt?.toISOString() ?? null,
+      minimumAgeVersion: user.minimumAgeVersion ?? null,
     });
   } catch (err) {
     req.log.error({ err }, "GET /me failed");
@@ -361,8 +365,10 @@ router.delete("/me", async (req, res): Promise<void> => {
 // ─── POST /me/terms ──────────────────────────────────────────────────────────
 // Records that the authenticated user has explicitly accepted the current
 // Terms of Service and Privacy Policy (version-stamped for audit purposes).
+// These must match the released client and the currently published notices.
+// Never allow a client to assert acceptance of an arbitrary future version.
 const TermsAcceptanceBody = z.object({
-  termsVersion: z.string().min(1).max(32),
+  termsVersion: z.literal(CURRENT_TERMS_VERSION),
 }).strict();
 
 router.post("/me/terms", async (req, res): Promise<void> => {
@@ -388,7 +394,7 @@ router.post("/me/terms", async (req, res): Promise<void> => {
 
 // ─── Age confirmation ────────────────────────────────────────────────────────
 const AgeConfirmBody = z.object({
-  ageVersion: z.string().min(1).max(20),
+  ageVersion: z.literal(CURRENT_AGE_VERSION),
 }).strict();
 
 router.post("/me/age-confirm", async (req, res): Promise<void> => {

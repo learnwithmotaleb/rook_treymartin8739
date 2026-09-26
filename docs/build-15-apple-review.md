@@ -7,6 +7,13 @@ store-distribution build 15 was uploaded to App Store Connect; an upload is
 not proof that Apple finished processing it, that it is attached to the
 rejected version, or that any rejection has been resolved.
 
+**Superseded for the next build:** The current workspace changes the reviewer
+entry, reviewer-ID enforcement, signup placement, and photo-consent ordering.
+Those changes are not present in signed build 15. Do not paste this build-15
+access sequence into notes for a future build. See
+`docs/next-ios-release-audit.md` for the pending-build checklist and reviewer
+instructions; no new signed build has been produced yet.
+
 ## Required checks against the actual submission
 
 - [ ] App Store Connect: build **1.0.0 (15)** has completed processing and is

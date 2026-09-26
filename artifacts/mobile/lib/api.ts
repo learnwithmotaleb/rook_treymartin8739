@@ -151,6 +151,7 @@ async function apiFetch<T>(
       throw new Error(String(body["error"] ?? `HTTP ${response.status}`));
     }
 
+    if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
   } catch (error) {
     if (controller.signal.aborted) {
@@ -179,6 +180,9 @@ export interface UserProfile {
   totalCaptionsIndexed: number;
   /** The terms version the user last accepted, or null if never accepted. */
   termsVersion?: string | null;
+  termsAcceptedAt?: string | null;
+  ageConfirmedAt?: string | null;
+  minimumAgeVersion?: string | null;
   reelsIndexed: number;
   fingerprintUpdated: string;
 }
@@ -293,6 +297,10 @@ export interface ThreatDetail extends ThreatSummary {
 
 export async function getMe(): Promise<UserProfile> {
   return apiFetch<UserProfile>("/me");
+}
+
+export async function deleteMyAccount(): Promise<void> {
+  await apiFetch<void>("/me", { method: "DELETE" });
 }
 
 export async function updateMe(updates: {

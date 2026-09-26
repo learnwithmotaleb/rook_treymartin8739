@@ -17,12 +17,18 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
-import { recordTermsAcceptance, CURRENT_TERMS_VERSION } from "@/lib/api";
+import {
+  recordAgeConfirmation,
+  recordTermsAcceptance,
+  CURRENT_TERMS_VERSION,
+} from "@/lib/api";
 
 interface Props {
   visible: boolean;
-  /** Called after the user successfully re-accepts the updated terms. */
-  onAccepted: () => void;
+  requiresTermsAcceptance: boolean;
+  requiresAgeConfirmation: boolean;
+  /** Called after the requested acknowledgements are persisted and verified. */
+  onAccepted: () => Promise<void>;
   /** Called if user chooses to delete their account instead. Routes to deletion. */
   onDeleteAccount: () => void;
 }
@@ -30,7 +36,13 @@ interface Props {
 const PRIVACY_URL = "https://tryrook.app/privacy";
 const TERMS_URL = "https://tryrook.app/terms";
 
-export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props) {
+export function TermsUpdateModal({
+  visible,
+  requiresTermsAcceptance,
+  requiresAgeConfirmation,
+  onAccepted,
+  onDeleteAccount,
+}: Props) {
   const colors = useColors();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,14 +51,19 @@ export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props
     setLoading(true);
     setError("");
     try {
-      await recordTermsAcceptance();
-      onAccepted();
-    } catch {
-      setError("Could not save your acceptance. Please check your connection and try again.");
+      if (requiresTermsAcceptance) await recordTermsAcceptance();
+      if (requiresAgeConfirmation) await recordAgeConfirmation();
+      await onAccepted();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not save your acknowledgement. Please check your connection and try again.",
+      );
     } finally {
       setLoading(false);
     }
-  }, [onAccepted]);
+  }, [onAccepted, requiresTermsAcceptance, requiresAgeConfirmation]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
@@ -58,14 +75,18 @@ export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props
           </View>
 
           <Text style={[styles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            We've updated our Terms &amp; Privacy Policy
+            {requiresTermsAcceptance
+              ? "Please review and accept our Terms & Privacy Policy"
+              : "Please confirm your age to continue"}
           </Text>
 
           <Text style={[styles.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            We've added detailed disclosures about how Rook processes your photos for identity
-            monitoring — including the specific data derived, third-party services involved,
-            your retention rights, and how to withdraw consent at any time.{"\n\n"}
-            These updates are required to comply with Illinois BIPA, Texas CUBI, and GDPR Article 9.
+            {requiresTermsAcceptance
+              ? "Review the Terms of Service and Privacy Policy before continuing. You can withdraw photo-processing consent at any time."
+              : "Rook is for people who are at least 17 years old. Confirming your age is required before continuing."}
+            {"\n\n"}{requiresTermsAcceptance && requiresAgeConfirmation
+              ? "You must also confirm that you are at least 17 years old."
+              : ""}
           </Text>
 
           {/* Read links */}
@@ -114,7 +135,11 @@ export function TermsUpdateModal({ visible, onAccepted, onDeleteAccount }: Props
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <Text style={[styles.acceptText, { fontFamily: "Inter_600SemiBold" }]}>
-                I Accept — Continue
+                {requiresTermsAcceptance && requiresAgeConfirmation
+                  ? "I Accept and Confirm — Continue"
+                  : requiresTermsAcceptance
+                    ? "I Accept — Continue"
+                    : "I Confirm I’m 17+ — Continue"}
               </Text>
             )}
           </TouchableOpacity>

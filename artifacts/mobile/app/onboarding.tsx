@@ -1403,11 +1403,45 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   const [connectedAccountId, setConnectedAccountId] = useState<string | null>(null);
   const [mediaItems, setMediaItems] = useState<AccountMediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
-  const [mediaHasAccess, setMediaHasAccess] = useState(false);
+  const [mediaFetchError, setMediaFetchError] = useState<string | null>(null);
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [photosConfirmed, setPhotosConfirmed] = useState(false);
   const [consentModalVisible, setConsentModalVisible] = useState(false);
   const postConsentRef = useRef<(() => void) | null>(null);
+
+  const fetchAccountMedia = useCallback(async (accountId: string): Promise<void> => {
+    setMediaLoading(true);
+    setMediaFetchError(null);
+    setMediaItems([]);
+    try {
+      const { items, hasAccess } = await getAccountMedia(accountId, 15);
+      if (!hasAccess) {
+        setMediaFetchError("This account didn't provide access to uploaded photos. You can retry, or continue without them.");
+        return;
+      }
+      setMediaItems(items.filter((item) => item.type === "image"));
+    } catch {
+      setMediaFetchError("We couldn't load photos from this account. Please retry, or continue without them.");
+    } finally {
+      setMediaLoading(false);
+    }
+  }, []);
+
+  const loadMediaAfterConsent = useCallback(async (accountId: string): Promise<void> => {
+    setMediaFetchError(null);
+    try {
+      const status = await getPhotoConsent();
+      if (!status.hasConsent) {
+        postConsentRef.current = () => { void fetchAccountMedia(accountId); };
+        setConsentModalVisible(true);
+        return;
+      }
+    } catch {
+      setMediaFetchError("We couldn't verify photo consent, so no photos were loaded. Please retry.");
+      return;
+    }
+    await fetchAccountMedia(accountId);
+  }, [fetchAccountMedia]);
 
   const showConsentIfNeeded = useCallback(async (after: () => void): Promise<void> => {
     try {
@@ -1490,14 +1524,9 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
           if (isNew && updated) {
             setConnectedAccountId(updated.id);
             onConnected(platform, updated.id);
-            setMediaLoading(true);
-            try {
-              const { items, hasAccess } = await getAccountMedia(updated.id, 15);
-              if (hasAccess && items.length > 0) {
-                setMediaItems(items.filter((m) => m.type === "image"));
-              }
-            } catch { /* graceful — camera roll fallback shown below */ }
-            finally { setMediaLoading(false); }
+            // Connecting the account is independent of photo consent. Only check
+            // consent and fetch uploaded media after OAuth has completed.
+            void loadMediaAfterConsent(updated.id);
             return true;
           }
         }
@@ -1549,7 +1578,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
     } finally {
       setOauthLoading(false);
     }
-  }, [platform, onConnected]);
+  }, [platform, onConnected, loadMediaAfterConsent]);
 
   const togglePhoto = useCallback((url: string) => {
     setSelectedUrls((prev) => {
@@ -1626,6 +1655,24 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
               <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Loading your photos…</Text>
             </View>
           )}
+          {!photosConfirmed && !mediaLoading && mediaFetchError && (
+            <View style={{ gap: 8, paddingHorizontal: 4 }}>
+              <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
+                {mediaFetchError}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 16 }}>
+                <TouchableOpacity
+                  onPress={() => { if (connectedAccountId) void loadMediaAfterConsent(connectedAccountId); }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[{ color: colors.primary, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>Retry</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setPhotosConfirmed(true)} activeOpacity={0.75}>
+                  <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Continue without photos</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           {!photosConfirmed && !mediaLoading && mediaItems.length > 0 && (
             <View style={{ gap: 10 }}>
               <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 13 }]}>
@@ -1639,11 +1686,11 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
                 columnWrapperStyle={{ gap: 8 }}
                 contentContainerStyle={{ gap: 8 }}
                 renderItem={({ item }) => {
-                  const selected = selectedUrls.has(item.thumbnailUrl);
+                  const selected = selectedUrls.has(item.url);
                   return (
                     <TouchableOpacity
                       style={[ph.photoCell, { width: PHOTO_CELL, height: PHOTO_CELL, borderColor: selected ? colors.primary : "transparent", borderWidth: selected ? 2 : 0 }]}
-                      onPress={() => togglePhoto(item.thumbnailUrl)}
+                      onPress={() => togglePhoto(item.url)}
                       activeOpacity={0.8}
                     >
                       <RNImage source={{ uri: item.thumbnailUrl }} style={{ width: "100%", height: "100%", borderRadius: 10 }} resizeMode="cover" />

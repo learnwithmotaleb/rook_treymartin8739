@@ -1,22 +1,21 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Redirect, Tabs, router } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Icon, Label, NativeTabs, Badge } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/expo";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
-import { syncSubscriptionTier } from "@/lib/api";
+import { deleteMyAccount, getMe, syncSubscriptionTier } from "@/lib/api";
 import { CancellationSurveyModal } from "@/components/CancellationSurveyModal";
 import { TermsUpdateModal } from "@/components/TermsUpdateModal";
 import { useNotifications } from "@/hooks/useNotifications";
-import { CURRENT_TERMS_VERSION } from "@/lib/api";
+import { CURRENT_AGE_VERSION, CURRENT_TERMS_VERSION } from "@/lib/api";
 import { useSubscription, ENTITLEMENT_PREMIUM } from "@/lib/revenuecat";
 import Constants from "expo-constants";
 
@@ -141,7 +140,7 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, signOut } = useAuth();
   const { user: clerkUser } = useUser();
   const { login, logout, hasSeenOnboarding, isInitializing, isOnboardingReady, isLoggedIn, showCancellationSurvey, dismissCancellationSurvey } = useApp();
   const colors = useColors();
@@ -151,15 +150,16 @@ export default function TabLayout() {
   // Safety valve: if initialization takes more than 12 seconds, stop waiting
   // and show a recoverable error rather than a permanent blank screen.
   const [initTimedOut, setInitTimedOut] = useState(false);
-  const [showTermsUpdate, setShowTermsUpdate] = useState(false);
-  // Guard: run the terms DB check at most once per unique Clerk user ID.
-  // Storing the user ID (not a boolean) means:
-  //  - isSignedIn briefly going false during Clerk re-initialization does NOT
-  //    reset the guard, because clerkUser?.id doesn't change.
-  //  - A different user signing in on the same device DOES trigger a fresh check
-  //    because clerkUser?.id will be different.
-  const checkedTermsForUserRef = useRef<string | null>(null);
-  const isStartupPending = !isLoaded || isInitializing || (isSignedIn && !isOnboardingReady);
+  const [complianceState, setComplianceState] = useState<
+    | { status: "checking" }
+    | { status: "error"; userId: string; message: string }
+    | { status: "clear"; userId: string }
+    | { status: "required"; userId: string; requiresTermsAcceptance: boolean; requiresAgeConfirmation: boolean }
+  >({ status: "checking" });
+  const [complianceRetry, setComplianceRetry] = useState(0);
+  const isStartupPending =
+    !isLoaded || isInitializing ||
+    (isSignedIn && complianceState.status === "clear" && !isOnboardingReady);
   useEffect(() => {
     if (!isStartupPending) { setInitTimedOut(false); return; }
     const t = setTimeout(() => setInitTimedOut(true), 12_000);
@@ -173,6 +173,10 @@ export default function TabLayout() {
       logout();
       return;
     }
+    // The server denies normal API calls until the acknowledgements are
+    // recorded. Avoid firing profile updates, account loads and token refresh
+    // while the recovery screen is still in progress.
+    if (complianceState.status !== "clear" || complianceState.userId !== clerkUser?.id) return;
     // Load data for any signed-in user regardless of onboarding state.
     // The root layout owns the API token bridge so non-tab routes and deep
     // links authenticate before this layout mounts.
@@ -180,59 +184,43 @@ export default function TabLayout() {
     const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
     login(name, email, clerkUser?.id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser]);
+  }, [isLoaded, isInitializing, isSignedIn, login, logout, clerkUser, complianceState.status]);
 
-  // Reset the terms-check guard only when the Clerk user actually disappears
-  // (real sign-out / account switch). isSignedIn is intentionally excluded —
-  // it can briefly flip false during Clerk re-initialization without a real
-  // sign-out, which was resetting the guard and re-showing the modal.
   useEffect(() => {
     if (!clerkUser?.id) {
-      checkedTermsForUserRef.current = null;
-      setShowTermsUpdate(false);
+      setComplianceState({ status: "checking" });
     }
   }, [clerkUser?.id]);
 
-  // Check whether the user has accepted the current Terms / Privacy Policy version.
-  //
-  // Priority order:
-  //   1. AsyncStorage cache (keyed by user ID + version) — checked first so
-  //      sign-out/sign-in never re-shows the modal if nothing changed.
-  //   2. Server (getMe) — fallback for fresh installs or new devices where
-  //      AsyncStorage is empty; also seeds the cache for future sign-ins.
-  //
-  // The modal only appears when CURRENT_TERMS_VERSION has actually bumped past
-  // what the user last accepted — not on every sign-in cycle.
+  // The server is authoritative. A local cache must never bypass the age or
+  // Terms check (including after another device, account deletion, or logout).
   useEffect(() => {
-    if (!isLoaded || isInitializing || !isSignedIn || !isOnboardingReady) return;
+    if (!isLoaded || isInitializing || !isSignedIn || complianceState.status !== "clear") return;
     const uid = clerkUser?.id;
     if (!uid) return;
-    if (checkedTermsForUserRef.current === uid) return;
-    checkedTermsForUserRef.current = uid;
-
-    const cacheKey = `termsVersion:${uid}`;
-    AsyncStorage.getItem(cacheKey).then((cached) => {
-      if (cached === CURRENT_TERMS_VERSION) {
-        // Already accepted this version on this device — nothing to show.
-        return;
-      }
-      // Cache miss or stale version — fall back to the server.
-      import("@/lib/api").then(({ getMe }) => {
-        getMe()
-          .then((profile) => {
-            const stored = (profile as any).termsVersion as string | null | undefined;
-            if (stored === CURRENT_TERMS_VERSION) {
-              // DB confirms acceptance — seed local cache so we skip this next time.
-              AsyncStorage.setItem(cacheKey, CURRENT_TERMS_VERSION).catch(() => {});
-            } else {
-              setShowTermsUpdate(true);
-            }
-          })
-          .catch(() => {/* non-fatal — don't block the user on a network failure */});
+    let cancelled = false;
+    setComplianceState({ status: "checking" });
+    getMe().then((profile) => {
+      if (cancelled) return;
+      const requiresTermsAcceptance =
+        profile.termsVersion !== CURRENT_TERMS_VERSION || !profile.termsAcceptedAt;
+      const requiresAgeConfirmation =
+        profile.minimumAgeVersion !== CURRENT_AGE_VERSION || !profile.ageConfirmedAt;
+      setComplianceState(
+        requiresTermsAcceptance || requiresAgeConfirmation
+          ? { status: "required", userId: uid, requiresTermsAcceptance, requiresAgeConfirmation }
+          : { status: "clear", userId: uid },
+      );
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      setComplianceState({
+        status: "error",
+        userId: uid,
+        message: error instanceof Error ? error.message : "Could not verify your acknowledgements.",
       });
-    }).catch(() => {/* AsyncStorage read failure — fall through silently */});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isInitializing, isSignedIn, isOnboardingReady, clerkUser?.id]);
+    });
+    return () => { cancelled = true; };
+  }, [isLoaded, isInitializing, isSignedIn, clerkUser?.id, complianceRetry]);
 
   // Sync the RevenueCat tier to the server whenever it changes so the server-
   // side scan-quota system reflects the user's actual subscription.
@@ -260,7 +248,7 @@ export default function TabLayout() {
         [{ text: "OK" }]
       );
     });
-  }, [tier, isLoaded, isInitializing, isSignedIn, customerInfo]);
+  }, [tier, isLoaded, isInitializing, isSignedIn, customerInfo, complianceState.status]);
 
   // Render a blank screen (not null) while loading — returning null from a
   // layout component breaks expo-router's component tree on web and causes
@@ -296,12 +284,101 @@ export default function TabLayout() {
     return <Redirect href="/auth" />;
   }
 
+  if (
+    complianceState.status === "checking" ||
+    complianceState.userId !== clerkUser?.id
+  ) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 14 }}>
+        <ActivityIndicator size="small" color={colors.primary} />
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15 }}>
+          Verifying your required acknowledgements…
+        </Text>
+      </View>
+    );
+  }
+
+  if (complianceState.status === "error") {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 32 }}>
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center" }}>
+          We couldn’t verify your Terms and age confirmation. Rook remains locked until the server can confirm them.
+        </Text>
+        <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center" }}>
+          {complianceState.message}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setComplianceRetry((attempt) => attempt + 1)}
+          style={{ backgroundColor: colors.primary, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>Retry verification</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (complianceState.status === "required") {
+    const confirmDeleteAccount = () => {
+      Alert.alert(
+        "Delete your account?",
+        "Your Rook account and associated server data will be deleted.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete account",
+            style: "destructive",
+            onPress: () => {
+              void (async () => {
+                try {
+                  await deleteMyAccount();
+                  await logout();
+                  await signOut();
+                } catch (error) {
+                  Alert.alert(
+                    "Could not delete account",
+                    error instanceof Error ? error.message : "Please check your connection and try again.",
+                  );
+                }
+              })();
+            },
+          },
+        ],
+      );
+    };
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <TermsUpdateModal
+          visible
+          requiresTermsAcceptance={complianceState.requiresTermsAcceptance}
+          requiresAgeConfirmation={complianceState.requiresAgeConfirmation}
+          onAccepted={async () => {
+            const profile = await getMe();
+            const requiresTermsAcceptance =
+              profile.termsVersion !== CURRENT_TERMS_VERSION || !profile.termsAcceptedAt;
+            const requiresAgeConfirmation =
+              profile.minimumAgeVersion !== CURRENT_AGE_VERSION || !profile.ageConfirmedAt;
+            if (requiresTermsAcceptance || requiresAgeConfirmation) {
+              setComplianceState({
+                status: "required",
+                userId: clerkUser?.id ?? "",
+                requiresTermsAcceptance,
+                requiresAgeConfirmation,
+              });
+              throw new Error("The server has not confirmed all required acknowledgements.");
+            }
+            setComplianceState({ status: "clear", userId: clerkUser?.id ?? "" });
+          }}
+          onDeleteAccount={confirmDeleteAccount}
+        />
+      </View>
+    );
+  }
+
   // hasSeenOnboarding is backed by the server's onboardingCompleted flag
   // (onboardingAnswers persisted in the DB), synced in refreshData(), with the
-  // per-user AsyncStorage value as a fast local cache to avoid flicker. This
-  // is durable across reinstalls and account deletion/recreation, so we no
-  // longer need a Clerk-account-age heuristic (which incorrectly skipped
-  // onboarding for users who abandoned it mid-flow and returned >10 min later).
+  // per-user cache. Compliance is checked before allowing access to onboarding
+  // or the tabs, so new SSO accounts can recover before any protected API use.
   if (!hasSeenOnboarding) {
     return <Redirect href="/onboarding" />;
   }
@@ -312,21 +389,6 @@ export default function TabLayout() {
       <CancellationSurveyModal
         visible={showCancellationSurvey}
         onDismiss={dismissCancellationSurvey}
-      />
-      <TermsUpdateModal
-        visible={showTermsUpdate}
-        onAccepted={() => {
-          setShowTermsUpdate(false);
-          // Seed the local cache so future sign-ins skip the server check.
-          const uid = clerkUser?.id;
-          if (uid) {
-            AsyncStorage.setItem(`termsVersion:${uid}`, CURRENT_TERMS_VERSION).catch(() => {});
-          }
-        }}
-        onDeleteAccount={() => {
-          setShowTermsUpdate(false);
-          router.push("/(tabs)/profile" as any);
-        }}
       />
     </>
   );

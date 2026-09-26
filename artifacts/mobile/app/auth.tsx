@@ -3,6 +3,7 @@ import {
   Animated,
   Easing,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -128,10 +129,14 @@ export default function Auth() {
   const [ssoLoading, setSsoLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [needsSigninCode, setNeedsSigninCode] = useState(false);
-  const [useReviewAccessCode, setUseReviewAccessCode] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [pendingSocialSignIn, setPendingSocialSignIn] = useState<{
+    sessionId: string;
+    activate: (options: { session: string }) => Promise<unknown>;
+    newUserId: string;
+  } | null>(null);
   // Explicit loading flag for Clerk calls that go through clerk.client directly
   // (not via the hook signals) — those calls don't update signInStatus/signUpStatus.
   const [authLoading, setAuthLoading] = useState(false);
@@ -224,7 +229,6 @@ export default function Auth() {
         // New-device / MFA verification — prepare an email OTP then show code UI.
         await live.prepareSecondFactor({ strategy: "email_code" });
         setCode("");
-        setUseReviewAccessCode(false);
         setNeedsSigninCode(true);
       } else {
         setError("Sign in requires additional steps. Please contact support.");
@@ -282,10 +286,6 @@ export default function Auth() {
       setAuthLoading(false);
     }
   }, [clerk, email]);
-
-  const handleReviewAccessCode = useCallback(() => {
-    void completeReviewAccess(code);
-  }, [code, completeReviewAccess]);
 
   const handleReviewLogin = useCallback(() => {
     void completeReviewAccess(password);
@@ -385,6 +385,36 @@ export default function Auth() {
     }
   }, [clerk, signUp, code, firstName, lastName, password]);
 
+  const finishSocialSignIn = useCallback(async (
+    sessionId: string,
+    activate: (options: { session: string }) => Promise<unknown>,
+    newUserId?: string,
+  ) => {
+    recordingComplianceRef.current = Boolean(newUserId);
+    try {
+      await activate({ session: sessionId });
+      if (newUserId) {
+        await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
+        await AsyncStorage.setItem(`termsVersion:${newUserId}`, CURRENT_TERMS_VERSION);
+      }
+      recordingComplianceRef.current = false;
+      setPendingSocialSignIn(null);
+      router.replace("/(tabs)/" as any);
+    } catch (e: any) {
+      if (newUserId) {
+        try {
+          await clerk.signOut();
+          recordingComplianceRef.current = false;
+        } catch {
+          // Do not allow this screen's signed-in redirect if sign-out fails.
+          setError("We couldn't finish account setup. Please close and reopen Rook before trying again.");
+          return;
+        }
+      }
+      setError(e?.message ?? "Account setup could not be completed. Please try again.");
+    }
+  }, [clerk]);
+
   const handleGoogleSSO = useCallback(async () => {
     if (mode === "register" && (!termsAccepted || !ageConfirmed)) {
       setError("Please accept the Terms of Service and Privacy Policy and confirm you are 17 or older to continue.");
@@ -394,17 +424,11 @@ export default function Auth() {
     try {
       const { createdSessionId, setActive, createdUserId } = await startSSOFlow({ strategy: "oauth_google", redirectUrl: AuthSession.makeRedirectUri() }) as any;
       if (createdSessionId && setActive) {
-        const isNewGoogleUser = Boolean(createdUserId);
-        recordingComplianceRef.current = isNewGoogleUser;
-        await setActive({ session: createdSessionId } as any);
-        if (isNewGoogleUser) {
-          await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
-          if (createdUserId) {
-            await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
-          }
+        if (createdUserId && (!termsAccepted || !ageConfirmed)) {
+          setPendingSocialSignIn({ sessionId: createdSessionId, activate: setActive, newUserId: createdUserId });
+          return;
         }
-        recordingComplianceRef.current = false;
-        router.replace("/(tabs)/" as any);
+        await finishSocialSignIn(createdSessionId, setActive, createdUserId ?? undefined);
       } else {
         setError("Google sign in could not be completed. Please try again.");
       }
@@ -412,7 +436,7 @@ export default function Auth() {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Google sign in failed");
     } finally { setSsoLoading(false); }
-  }, [startSSOFlow, mode, termsAccepted, ageConfirmed]);
+  }, [startSSOFlow, mode, termsAccepted, ageConfirmed, finishSocialSignIn]);
 
   const handleAppleSSO = useCallback(async () => {
     if (mode === "register" && (!termsAccepted || !ageConfirmed)) {
@@ -425,17 +449,11 @@ export default function Auth() {
       const { createdSessionId, setActive } = result;
       if (createdSessionId && setActive) {
         const createdUserId = result.signUp?.createdUserId;
-        const isNewAppleUser = Boolean(createdUserId);
-        recordingComplianceRef.current = isNewAppleUser;
-        await setActive({ session: createdSessionId } as any);
-        if (isNewAppleUser) {
-          await Promise.all([recordTermsAcceptance(), recordAgeConfirmation()]);
-          if (createdUserId) {
-            await AsyncStorage.setItem(`termsVersion:${createdUserId}`, CURRENT_TERMS_VERSION);
-          }
+        if (createdUserId && (!termsAccepted || !ageConfirmed)) {
+          setPendingSocialSignIn({ sessionId: createdSessionId, activate: setActive, newUserId: createdUserId });
+          return;
         }
-        recordingComplianceRef.current = false;
-        router.replace("/(tabs)/" as any);
+        await finishSocialSignIn(createdSessionId, setActive, createdUserId ?? undefined);
       } else {
         setError("Apple sign in could not be completed. Please try again.");
       }
@@ -444,10 +462,9 @@ export default function Auth() {
       const clerkErr = e?.errors?.[0];
       setError(clerkErr?.longMessage ?? clerkErr?.message ?? e?.message ?? "Apple sign in failed");
     } finally {
-      recordingComplianceRef.current = false;
       setSsoLoading(false);
     }
-  }, [startAppleAuthenticationFlow, mode, termsAccepted, ageConfirmed]);
+  }, [startAppleAuthenticationFlow, mode, termsAccepted, ageConfirmed, finishSocialSignIn]);
 
   const handleSubmit = () => {
     if (mode === "login") { handleSignIn(); return; }
@@ -487,9 +504,20 @@ export default function Auth() {
         <View style={styles.heroSection}>
           <View style={styles.logoGlowContainer}>
             <GlowRings />
-            <View style={styles.logoBadge}>
+            <TouchableOpacity
+              style={styles.logoBadge}
+              activeOpacity={0.9}
+              delayLongPress={800}
+              accessibilityLabel="Rook logo"
+              onLongPress={() => {
+                setMode("login");
+                setReviewMode(true);
+                setPassword("");
+                setError("");
+              }}
+            >
               <Image source={require("../assets/images/logo-mark.png")} style={styles.logoImage} resizeMode="contain" />
-            </View>
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.brandName}>ROOK</Text>
@@ -508,24 +536,21 @@ export default function Auth() {
               <View style={styles.cardHeader}>
                 <Text style={styles.headline}>Verify it's you</Text>
                 <Text style={styles.subheadline}>
-                  {useReviewAccessCode
-                    ? "Enter the temporary access code provided in App Store Connect."
-                    : <>We sent a 6-digit code to{"\n"}<Text style={styles.emailHighlight}>{email}</Text></>}
+                  We sent a 6-digit code to{"\n"}<Text style={styles.emailHighlight}>{email}</Text>
                 </Text>
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>{useReviewAccessCode ? "App Review Access Code" : "Verification Code"}</Text>
+                <Text style={styles.fieldLabel}>Verification Code</Text>
                 <View style={[styles.inputRow, { borderColor: inputBorder("code") }]}>
                   <Ionicons name="key-outline" size={18} color={focusedField === "code" ? "#3B82F6" : "#6B8EAE"} />
                   <TextInput
                     style={styles.textInput}
-                    placeholder={useReviewAccessCode ? "Enter review access code" : "• • • • • •"}
+                    placeholder="• • • • • •"
                     placeholderTextColor="#3B4C6B"
                     value={code}
                     onChangeText={setCode}
-                    keyboardType={useReviewAccessCode ? "default" : "number-pad"}
-                    secureTextEntry={useReviewAccessCode}
+                    keyboardType="number-pad"
                     autoCapitalize="none"
                     onFocus={() => setFocusedField("code")}
                     onBlur={() => setFocusedField(null)}
@@ -536,30 +561,18 @@ export default function Auth() {
               {error !== "" && <ErrorBanner message={error} />}
 
               <GradientButton
-                label={loading ? "Verifying…" : (useReviewAccessCode ? "Continue App Review" : "Verify")}
-                onPress={useReviewAccessCode ? handleReviewAccessCode : handleVerifySignInCode}
+                label={loading ? "Verifying…" : "Verify"}
+                onPress={handleVerifySignInCode}
                 disabled={loading}
               />
 
-              {!useReviewAccessCode && (
-                <TouchableOpacity onPress={() => liveSignIn()?.prepareSecondFactor({ strategy: "email_code" })} style={styles.switchRow}>
-                  <Text style={styles.switchText}>Didn't get it? </Text>
-                  <Text style={styles.switchLink}>Resend code</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                onPress={() => {
-                  setUseReviewAccessCode((value) => !value);
-                  setCode("");
-                  setError("");
-                }}
-                style={styles.switchRow}
-              >
-                <Text style={styles.switchLink}>
-                  {useReviewAccessCode ? "Use email verification instead" : "Use App Review access code"}
-                </Text>
+              <TouchableOpacity onPress={() => liveSignIn()?.prepareSecondFactor({ strategy: "email_code" })} style={styles.switchRow}>
+                <Text style={styles.switchText}>Didn't get it? </Text>
+                <Text style={styles.switchLink}>Resend code</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setNeedsSigninCode(false); setUseReviewAccessCode(false); setCode(""); setError(""); }} style={styles.switchRow}>
+              <TouchableOpacity
+                onPress={() => { setNeedsSigninCode(false); setCode(""); setError(""); }}
+                style={styles.switchRow}>
                 <Text style={styles.switchLink}>Start over</Text>
               </TouchableOpacity>
             </>
@@ -664,52 +677,6 @@ export default function Auth() {
                 >
                   <Text style={[styles.segmentLabel, mode === "register" && styles.segmentLabelActive]}>Create Account</Text>
                 </TouchableOpacity>
-              </View>
-
-              {/* Legal acknowledgements belong to account creation only. Returning
-                  users retain their recorded acceptance and sign in without friction. */}
-              {mode === "register" && (
-                <View style={styles.ssoConsent}>
-                  <TermsCheckbox accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
-                  <AgeCheckbox confirmed={ageConfirmed} onToggle={() => setAgeConfirmed((v) => !v)} />
-                </View>
-              )}
-
-              {/* ── SSO Buttons ── */}
-              <View style={styles.ssoGroup}>
-                <TouchableOpacity
-                  style={[styles.ssoBtn, { opacity: loading ? 0.6 : 1 }]}
-                  activeOpacity={0.75}
-                  onPress={handleGoogleSSO}
-                  disabled={loading}
-                >
-                  <View style={styles.ssoBtnInner}>
-                    <Ionicons name="logo-google" size={19} color="#F0F4FF" />
-                    <Text style={styles.ssoLabel}>Continue with Google</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={15} color="#3B4C6B" />
-                </TouchableOpacity>
-
-                {Platform.OS === "ios" && (
-                  <AppleAuthentication.AppleAuthenticationButton
-                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                    cornerRadius={14}
-                    style={[styles.appleBtn, { opacity: loading ? 0.6 : 1 }]}
-                    onPress={handleAppleSSO}
-                  />
-                )}
-              </View>
-              <Text style={styles.ssoLegalNotice}>
-                By continuing with Google or Apple, you agree to the Terms of Service and Privacy Policy
-                and confirm that you are at least 17 years old.
-              </Text>
-
-              {/* ── Divider ── */}
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or continue with email</Text>
-                <View style={styles.dividerLine} />
               </View>
 
               {/* ── Fields ── */}
@@ -822,6 +789,15 @@ export default function Auth() {
 
               {error !== "" && <ErrorBanner message={error} />}
 
+              {/* Keep the account-creation acknowledgements beside the action,
+                  rather than above the form. They also gate first-time SSO. */}
+              {mode === "register" && (
+                <View style={styles.ssoConsent}>
+                  <TermsCheckbox accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
+                  <AgeCheckbox confirmed={ageConfirmed} onToggle={() => setAgeConfirmed((v) => !v)} />
+                </View>
+              )}
+
               <GradientButton
                 label={loading
                   ? (mode === "login" ? "Signing in…" : "Creating account…")
@@ -834,22 +810,41 @@ export default function Auth() {
                 disabled={loading || (mode === "register" && (!termsAccepted || !ageConfirmed))}
               />
 
-              {mode === "login" && (
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or continue with</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              <View style={styles.ssoGroup}>
                 <TouchableOpacity
-                  onPress={() => {
-                    setReviewMode((value) => !value);
-                    setPassword("");
-                    setError("");
-                  }}
+                  style={[styles.ssoBtn, { opacity: loading ? 0.6 : 1 }]}
+                  activeOpacity={0.75}
+                  onPress={handleGoogleSSO}
                   disabled={loading}
-                  style={styles.switchRow}
-                  accessibilityRole="button"
-                  accessibilityLabel="Sign in with App Review access code"
                 >
-                  <Ionicons name="shield-checkmark-outline" size={15} color="#60A5FA" />
-                  <Text style={styles.switchLink}>
-                    {reviewMode ? " Use normal password instead" : " App Review access"}
-                  </Text>
+                  <View style={styles.ssoBtnInner}>
+                    <Ionicons name="logo-google" size={19} color="#F0F4FF" />
+                    <Text style={styles.ssoLabel}>Continue with Google</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={15} color="#3B4C6B" />
+                </TouchableOpacity>
+                {Platform.OS === "ios" && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={14}
+                    style={[styles.appleBtn, { opacity: loading ? 0.6 : 1 }]}
+                    onPress={handleAppleSSO}
+                  />
+                )}
+              </View>
+
+              {reviewMode && (
+                <TouchableOpacity
+                  onPress={() => { setReviewMode(false); setPassword(""); setError(""); }}
+                  style={styles.switchRow}
+                >
+                  <Text style={styles.switchLink}>Use normal sign in</Text>
                 </TouchableOpacity>
               )}
 
@@ -865,6 +860,51 @@ export default function Auth() {
         </View>
 
       </KeyboardAwareScrollViewCompat>
+      <Modal
+        visible={pendingSocialSignIn !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setPendingSocialSignIn(null);
+          setTermsAccepted(false);
+          setAgeConfirmed(false);
+        }}
+      >
+        <View style={{ flex: 1, justifyContent: "center", padding: 20, backgroundColor: "#081120DD" }}>
+          <View style={{ backgroundColor: "#101C34", borderRadius: 20, padding: 22, gap: 14 }}>
+            <Text style={styles.headline}>Before creating your account</Text>
+            <Text style={styles.subheadline}>
+              Review and accept these requirements to finish signing up with Apple or Google.
+            </Text>
+            <TermsCheckbox accepted={termsAccepted} onToggle={() => setTermsAccepted((v) => !v)} />
+            <AgeCheckbox confirmed={ageConfirmed} onToggle={() => setAgeConfirmed((v) => !v)} />
+            {error !== "" && <ErrorBanner message={error} />}
+            <GradientButton
+              label={ssoLoading ? "Finishing…" : "Agree and Create Account"}
+              disabled={ssoLoading || !termsAccepted || !ageConfirmed}
+              onPress={() => {
+                if (!pendingSocialSignIn) return;
+                setSsoLoading(true);
+                void finishSocialSignIn(
+                  pendingSocialSignIn.sessionId,
+                  pendingSocialSignIn.activate,
+                  pendingSocialSignIn.newUserId,
+                ).finally(() => setSsoLoading(false));
+              }}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                setPendingSocialSignIn(null);
+                setTermsAccepted(false);
+                setAgeConfirmed(false);
+              }}
+              style={styles.switchRow}
+            >
+              <Text style={styles.switchLink}>Not now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
