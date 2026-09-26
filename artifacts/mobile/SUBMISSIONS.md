@@ -1,6 +1,6 @@
-# Rook — Build 14 submission guide
+# Rook — build 15 submission guide
 
-This is the repository's canonical operational guide for the iOS build-14
+This is the repository's operational guide for the iOS build-15
 submission. Console state is not proven by this file; each unchecked console
 item needs evidence in the final audit.
 
@@ -43,25 +43,25 @@ invent a resulting rating in repository documentation.
 
 ## Build and device checks
 
-- [ ] Build 14 is attached to the intended App Store version.
+- [ ] Build 15 is processed and attached to the intended App Store version.
 - [ ] Clean physical iPhone install and launch pass.
 - [ ] First-time and returning Apple/Google/email authentication pass.
 - [ ] OAuth cancellation and supported-provider callbacks pass.
 - [ ] Photo permission, notification, subscription, restore, deletion, and
   deep-link flows pass on the signed build.
-- [ ] The complete checklist in `docs/FINAL_BUILD_14_RELEASE_TEST_AUDIT.md`
-  has passing evidence.
+- [ ] Every blocker in `docs/build-15-apple-review.md` has recorded evidence.
 
 ## Review notes
 
-Use the canonical walkthrough in `docs/reviewer-test-script.md`. Supply
+Use the build-15 reviewer notes in `docs/build-15-apple-review.md`. Supply
 reviewer credentials only through App Store Connect's protected review fields.
-Build 14 supports Instagram, Facebook, and X connections; TikTok, LinkedIn,
+Build 15 supports Instagram, Facebook, and X connections; TikTok, LinkedIn,
 YouTube, and Snapchat are non-actionable Coming Soon entries.
 
 The review build does not contain a Tools tab or AI Scam Analyzer. Facebook
-requests `public_profile` and `user_photos`; uploaded photos are displayed and
-processed only after separate photo-processing consent. Rook
+requests `public_profile` and `user_photos`; uploaded-photo retrieval is
+consent-gated on the server and still needs a live TestFlight verification.
+Rook
 provides detection, evidence, explanations, and official guidance. It does
 not submit platform reports or guarantee removal.
 

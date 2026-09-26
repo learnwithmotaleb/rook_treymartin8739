@@ -1,8 +1,8 @@
-# Rook — Build 14 App Review Instructions
+# Rook — iOS 1.0.0 (15) App Review Instructions
 
 **App:** Rook — Identity Protection  
-**Platform:** iOS, build 14
-**Canonical source:** This is the only reviewer walkthrough to provide to Apple.
+**Platform:** iOS, build 15, submitted to App Store Connect for TestFlight processing. Attach this exact build to the version under review before using these notes.
+**Canonical source:** Use the concise reviewer-facing text in `docs/build-15-apple-review.md` for App Store Connect. This longer walkthrough is for internal verification.
 **Support:** `support@getrook.app`
 **Privacy:** `https://tryrook.app/privacy`
 **Terms:** `https://tryrook.app/terms`
@@ -25,7 +25,7 @@ intentionally do not publish exact values that can become stale.
 
 ## Review walkthrough
 
-1. Install build 14 on a clean supported iPhone and launch Rook.
+1. Install the exact build 15 on a clean supported iPhone and launch Rook. If App Store Connect offers it on iPad, also test on iPad before resubmission.
 2. Use only the credentials/access code in App Store Connect.
 3. Confirm authentication reaches **Dashboard** without private inbox access.
 4. Confirm Dashboard loads and shows the review fixture's current score,
@@ -42,10 +42,11 @@ intentionally do not publish exact values that can become stale.
 8. Open **Connect Account**. Verify Instagram, Facebook, and X are supported;
    verify TikTok, LinkedIn, YouTube, and Snapchat are visibly unavailable or
    marked Coming Soon. Cancel the picker.
-9. If live OAuth is part of the submission, test the relevant provider using
-   the test identity documented in the provider's protected review form.
+9. If testing live OAuth, use an eligible provider-controlled account with any
+   roles required by that provider's app-review configuration. The seeded
+   review fixture is not evidence of a live provider connection.
    Instagram requests `instagram_business_basic`; Facebook requests
-   `public_profile,user_photos`; X uses its current PKCE scopes. Otherwise verify the
+    `public_profile,user_photos`; X uses its current PKCE scopes. Otherwise verify the
    entry point and cancel safely.
 10. Open **Photo Monitor** and verify its current monitoring state. Test the
     permission explanation, allow/deny/cancel paths, and recovery after a
@@ -63,14 +64,14 @@ intentionally do not publish exact values that can become stale.
 
 ## Important scope notes
 
-- Build 14 has no Tools tab or AI Scam Analyzer. Do not look for or mention
+- Build 15 has no Tools tab or AI Scam Analyzer. Do not look for or mention
   either feature.
 - Rook assists with detection and links to official platform reporting. It
   does not submit reports, guarantee removal, or determine that a person
   committed a crime.
-- Facebook OAuth requests `public_profile,user_photos`. Verify that the
-  reviewer can display and select their own uploaded Facebook photo after
-  granting Rook's separate photo-processing consent.
+- Facebook OAuth requests `public_profile,user_photos`. Uploaded-photo access
+  requires authorization and Meta approval; do not describe the seeded
+  review fixture as a successful live Facebook media test.
 - A supplemental recording may illustrate a flow, but it never replaces live
   reviewer access or live Sign in with Apple testing.
 

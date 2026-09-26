@@ -38,3 +38,4 @@
 - [App Store subscription image replacement](app-store-subscription-image-replacement.md) — submitted subscription images require removing review items, completing the old submission, then rebuilding a new draft.
 - [Native social sign-in account creation](native-social-signin-account-creation.md) — first-time Apple/Google identities must complete account creation in the same flow, not be rejected after provider success.
 - [Meta app separation](meta-app-separation.md) — keep Instagram Login and Facebook `user_photos` in separate Meta apps with separate reviews.
+- [App review production parity](app-review-production-parity.md) — a signed mobile build does not prove its production API or live privacy policy matches workspace source.
