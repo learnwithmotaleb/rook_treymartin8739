@@ -504,20 +504,9 @@ export default function Auth() {
         <View style={styles.heroSection}>
           <View style={styles.logoGlowContainer}>
             <GlowRings />
-            <TouchableOpacity
-              style={styles.logoBadge}
-              activeOpacity={0.9}
-              delayLongPress={800}
-              accessibilityLabel="Rook logo"
-              onLongPress={() => {
-                setMode("login");
-                setReviewMode(true);
-                setPassword("");
-                setError("");
-              }}
-            >
+            <View style={styles.logoBadge}>
               <Image source={require("../assets/images/logo-mark.png")} style={styles.logoImage} resizeMode="contain" />
-            </TouchableOpacity>
+            </View>
           </View>
 
           <Text style={styles.brandName}>ROOK</Text>
@@ -640,11 +629,11 @@ export default function Auth() {
             <>
               <View style={styles.cardHeader}>
                 <Text style={styles.headline}>
-                  {mode === "login" ? "Welcome back" : "Create account"}
+                  {reviewMode ? "App Review access" : mode === "login" ? "Welcome back" : "Create account"}
                 </Text>
                 <Text style={styles.subheadline}>
                   {reviewMode
-                    ? "Use the protected credentials in App Store Connect"
+                    ? "Enter the reviewer email and access code from the review instructions"
                     : mode === "login"
                     ? "Sign in to your identity shield"
                     : "Start protecting your digital identity"}
@@ -664,7 +653,7 @@ export default function Auth() {
               )}
 
               {/* ── Mode toggle ── */}
-              <View style={styles.segmentedControl}>
+              {!reviewMode && <View style={styles.segmentedControl}>
                 <TouchableOpacity
                   style={[styles.segment, mode === "login" && styles.segmentActive]}
                     onPress={() => { setMode("login"); setReviewMode(false); setError(""); setConfirmPassword(""); setFirstName(""); setLastName(""); }}
@@ -677,7 +666,7 @@ export default function Auth() {
                 >
                   <Text style={[styles.segmentLabel, mode === "register" && styles.segmentLabelActive]}>Create Account</Text>
                 </TouchableOpacity>
-              </View>
+              </View>}
 
               {/* ── Fields ── */}
               {mode === "register" && (
@@ -749,7 +738,7 @@ export default function Auth() {
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     returnKeyType={mode === "register" ? "next" : "go"}
-                    onSubmitEditing={mode === "register" ? undefined : handleSubmit}
+                    onSubmitEditing={mode === "register" ? undefined : reviewMode ? handleReviewLogin : handleSubmit}
                     onFocus={() => setFocusedField("password")}
                     onBlur={() => setFocusedField(null)}
                   />
@@ -810,12 +799,28 @@ export default function Auth() {
                 disabled={loading || (mode === "register" && (!termsAccepted || !ageConfirmed))}
               />
 
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or continue with</Text>
-                <View style={styles.dividerLine} />
-              </View>
-              <View style={styles.ssoGroup}>
+              {!reviewMode && mode === "login" && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="App Review access"
+                  onPress={() => {
+                    setReviewMode(true);
+                    setPassword("");
+                    setError("");
+                  }}
+                  style={styles.switchRow}
+                >
+                  <Text style={styles.switchLink}>App Review access</Text>
+                </TouchableOpacity>
+              )}
+
+              {!reviewMode && <>
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or continue with</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+                <View style={styles.ssoGroup}>
                 <TouchableOpacity
                   style={[styles.ssoBtn, { opacity: loading ? 0.6 : 1 }]}
                   activeOpacity={0.75}
@@ -837,10 +842,12 @@ export default function Auth() {
                     onPress={handleAppleSSO}
                   />
                 )}
-              </View>
+                </View>
+              </>}
 
               {reviewMode && (
                 <TouchableOpacity
+                  accessibilityRole="button"
                   onPress={() => { setReviewMode(false); setPassword(""); setError(""); }}
                   style={styles.switchRow}
                 >

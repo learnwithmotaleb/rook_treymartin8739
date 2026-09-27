@@ -9,7 +9,7 @@ Do not submit or reply to Apple on the basis of source inspection alone.
 
 | Flow | Checked / completed in workspace | Still needs work or evidence |
 |---|---|---|
-| Reviewer sign-in security | The public review toggle and second-factor bypass were removed. Holding the logo for 800 ms opens the review form. The API now looks up only the configured Clerk user ID; it no longer creates or marks an identity from a supplied email. | Confirm that **production** has the correct reviewer ID in its production Clerk tenant and that the protected code is active for the review window. Use a clean signed install and the exact protected App Store Connect fields. Do not let an old development ID cause a 502. Rotate/revoke the access code and review account after approval; remove the code from production to disable this endpoint. Review requests for later updates require re-enabling it with valid credentials. |
+| Reviewer sign-in security | A visible **App Review access** link below the Sign In button opens a separate email/access-code form; normal social sign-in options are hidden while it is open. The API looks up only the configured Clerk user ID; it does not create or mark an identity from a supplied email. | Confirm that **production** has the correct reviewer ID in its production Clerk tenant and that the protected code is active for the review window. Use a clean signed install and the exact protected App Store Connect fields. Do not let an old development ID cause a 502. Revoke the code and reviewer designation after approval; removing the visible link requires a subsequent app update. Review requests for later updates require restoring valid access. |
 | Signup agreements | Terms/privacy and separate 17+ acknowledgment now appear at the end of the form, directly above **Create Account**; SSO actions follow below. Registration requires both boxes. | Verify small-screen/keyboard/VoiceOver layout and a complete fresh signup in the new signed build. A checkbox is an account eligibility declaration, **not** Apple Age Assurance. |
 | Apple/Google SSO | A new provider-created identity is asked for explicit Terms and 17+ acknowledgment before its session is activated. The API blocks normal authenticated requests without current, timestamped acknowledgments; the tabs show a recovery screen for cancelled or failed attempts and returning users with missing records. | Verify sign-out failure/recovery and first-time/returning Apple IDs on clean iPhone **and iPad if installable**. The new server gate and app must ship together: publishing it alone would lock older clients out of normal API calls. No native pass is recorded. |
 | Facebook/Instagram photos | Onboarding now requests separate photo consent before fetching account media, handles a failed fetch with Retry/Continue, and submits full image URLs while showing thumbnails. | Live provider approval, actual production API parity, permissions, full-photo readability by reverse-image search, and new-build native test. A consented but empty media response must be described honestly. |
@@ -21,23 +21,23 @@ Do not submit or reply to Apple on the basis of source inspection alone.
 
 ## Reviewer-access lifecycle
 
-The review entry is not shown on the ordinary sign-in screen, but its code is
-necessarily present in the submitted binary so Apple can use it. A long press
-on the Rook logo opens the protected review form. Knowledge of this gesture
-is **not security**; the server must also require the exact configured Clerk
-identity and the access code, and rate-limit attempts. Keep it enabled for
-Apple's review and any appeal; afterward, rotate/remove the protected access
-code in the production environment and remove the account's reviewer
-designation when no further review is expected. Verify the API returns
-unavailable afterward. Any future Apple update may need reviewer access
-restored for that review; never break access mid-review.
+The reviewer entry is deliberately visible on the Sign In screen so Apple can
+find it without a hidden gesture. Visibility is **not authorization**: the
+server must still require the exact configured Clerk identity and access
+code and rate-limit attempts. Keep it enabled through review and any appeal;
+afterward, rotate/remove the protected code in production and remove the
+account's reviewer designation when no further review is expected. Verify
+that the API refuses new review tickets afterward. The visible entry remains
+in that signed binary until a later app update removes it; it should then
+show an unavailable response, not grant access. A future review may need
+access restored; never disable it mid-review.
 
 ## Draft for the next build's protected App Review notes — not yet paste-ready
 
 > Please install the **new build attached to this version**. At the sign-in
-> screen, press and hold the Rook logo for about one second. The App Review
-> access form will appear. Enter the exact reviewer identifier from the
-> protected App Review Information username field in Email, and the access
+> screen, tap **App Review access** beneath the Sign In button. Enter the
+> reviewer identifier from the protected App Review Information username
+> field in Email, and the access
 > code from its password field in App Review Access Code. Tap Enter App
 > Review. If asked to accept the current Terms and confirm you are 17 or
 > older, complete that in-app step before entering the dashboard. This does
