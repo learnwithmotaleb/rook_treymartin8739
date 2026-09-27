@@ -7,7 +7,7 @@ Do not submit or reply to Apple on the basis of source inspection alone.
 
 ## Checklist (checked means verified in the stated environment)
 
-The two most recent failed iOS Launch attempts built Rook `com.getrook.app` for App Store Connect app 6804614269 with build numbers 10 and 11; Apple rejected both because build 15 was already uploaded. Both failures happened before the production iOS build was pinned to 16 in `app.json` with local EAS versioning and no automatic increment. No post-fix signed build has been observed yet. Confirm the next signed IPA actually reports build 16 before treating the upload as fixed. Bump `ios.buildNumber` manually before every later production upload.
+**iOS upload blocker:** App Store Connect already has build 15. Replit's Expo Launch produced builds 10, 11, and 12 for Rook `com.getrook.app` / App Store Connect app 6804614269; Apple rejected each as lower than build 15. The source now declares build 16 in `app.json` with local versioning and no auto-increment in `eas.json`, but the latest managed Launch still generated build 12. Do not claim that the source setting alone fixes this or ask for repeated launches that increment the remote counter by one. The managed Launch workflow's effective remote iOS build-number counter must be synchronized above 15 (or its version source corrected by the build service) before another upload. After that, verify the signed IPA reports at least build 16 and completes upload before submitting for App Review. If local versioning actually takes effect in a future workflow, bump `ios.buildNumber` manually before every later production upload.
 
 | Flow | Checked / completed in workspace | Still needs work or evidence |
 |---|---|---|
