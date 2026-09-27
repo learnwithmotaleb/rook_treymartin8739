@@ -7,7 +7,7 @@ Do not submit or reply to Apple on the basis of source inspection alone.
 
 ## Checklist (checked means verified in the stated environment)
 
-The last iOS Launch built Rook `com.getrook.app` for App Store Connect app 6804614269, but Apple rejected build 10 because build 15 was already uploaded. The production iOS build is now pinned to 16 in `app.json` with local EAS versioning and no automatic increment. Confirm the next signed IPA actually reports build 16 before treating the upload as fixed. Bump `ios.buildNumber` manually before every later production upload.
+The two most recent failed iOS Launch attempts built Rook `com.getrook.app` for App Store Connect app 6804614269 with build numbers 10 and 11; Apple rejected both because build 15 was already uploaded. Both failures happened before the production iOS build was pinned to 16 in `app.json` with local EAS versioning and no automatic increment. No post-fix signed build has been observed yet. Confirm the next signed IPA actually reports build 16 before treating the upload as fixed. Bump `ios.buildNumber` manually before every later production upload.
 
 | Flow | Checked / completed in workspace | Still needs work or evidence |
 |---|---|---|
