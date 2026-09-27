@@ -7,6 +7,8 @@ Do not submit or reply to Apple on the basis of source inspection alone.
 
 ## Checklist (checked means verified in the stated environment)
 
+The last iOS Launch built Rook `com.getrook.app` for App Store Connect app 6804614269, but Apple rejected build 10 because build 15 was already uploaded. The production iOS build is now pinned to 16 in `app.json` with local EAS versioning and no automatic increment. Confirm the next signed IPA actually reports build 16 before treating the upload as fixed. Bump `ios.buildNumber` manually before every later production upload.
+
 | Flow | Checked / completed in workspace | Still needs work or evidence |
 |---|---|---|
 | Reviewer sign-in security | The ordinary **Sign In** form also accepts a protected App Review username in the format `review:<reviewer email>` and an access code in Password. There is no reviewer-only link, gesture, or public form. Ordinary email addresses still use Clerk password sign-in, including new-device email verification. When `APP_REVIEW_EMAIL` is configured, the API requires an exact email and access-code match, then reuses or provisions only that email in the active Clerk tenant; the older exact-ID setting remains a fallback when email is absent. | Set `APP_REVIEW_EMAIL` for the intended production reviewer and keep the protected code active for the review window. Publish the updated API, then use a **new signed mobile build** (old TestFlight builds still use the old sign-in UI) with the exact protected App Store Connect fields. Verify ticket issuance and sign-in on that build. Revoke the code and reviewer designation after approval. This special credential path does not disable Clerk's new-device verification for ordinary logins. |

@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.getrook.app",
-      "buildNumber": "2",
+      "buildNumber": "16",
       "usesAppleSignIn": true,
       "infoPlist": {
         "LSApplicationCategoryType": "public.app-category.utilities",

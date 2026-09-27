@@ -18,6 +18,7 @@
 - [Dependency security overrides](dep-security-overrides.md) — verify patched transitive pins actually move the lockfile; root package overrides may be required when workspace overrides are shadowed.
 - [Expo iOS modular headers](expo-ios-modular-headers.md) — Clerk App Check’s Swift pods need global modular headers injected by an Expo config plugin into each generated EAS Podfile.
 - [Expo Launch lockfile consistency](expo-launch-lockfile.md) — Expo Launch installs the full pnpm workspace with a frozen lockfile; do not duplicate catalog-managed Expo/React dependencies as direct runtime dependencies.
+- [iOS build-number drift](ios-build-number-drift.md) — Expo's remote counter can lag Apple; an upload may fail even after a successful signed build.
 - [Platform probe strategies](platform-probe-strategies.md) — TikTok oEmbed works from DC IPs (200=exists, 400=not found); Instagram web profile JSON 429s on bulk DC probing; CSE 403 = GCP "Custom Search JSON API" not enabled; all handled gracefully.
 - [OAuth security hardening](oauth-security-hardening.md) — state tokens are one-time use (in-memory Map); FB token exchange uses POST body; metaFetch redacts secrets from all log calls; X refresh_token+tokenExpiresAt stored; FB upgraded to long-lived on connect.
 - [Onboarding manual continue pattern](onboarding-flow-manual-continue.md) — don't auto-advance onboarding steps on useFocusEffect return from a sub-flow; require explicit continue; verify replace() callers pass params conditional back-handlers expect.
