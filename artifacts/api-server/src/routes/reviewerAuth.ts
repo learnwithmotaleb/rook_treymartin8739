@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { rateLimit } from "express-rate-limit";
 import { logger } from "../lib/logger";
@@ -25,7 +25,6 @@ function secureStringEqual(provided: string, expected: string): boolean {
 type ClerkReviewer = {
   id: string;
   email_addresses?: Array<{ email_address?: string }>;
-  private_metadata?: Record<string, unknown>;
 };
 
 async function clerkRequest(
@@ -59,6 +58,56 @@ async function resolveReviewer(
   throw new Error(`Configured Clerk reviewer lookup failed (${configuredResponse.status})`);
 }
 
+function hasReviewerEmail(user: ClerkReviewer, email: string): boolean {
+  return user.email_addresses?.some(
+    (entry) => entry.email_address?.trim().toLowerCase() === email,
+  ) ?? false;
+}
+
+async function findReviewerByEmail(email: string, clerkSecretKey: string): Promise<ClerkReviewer | null> {
+  // The search term comes only from server configuration, never the submitted identifier.
+  const query = new URLSearchParams();
+  query.append("email_address", email);
+  query.set("limit", "2");
+  const response = await clerkRequest(`/v1/users?${query.toString()}`, clerkSecretKey);
+  if (!response.ok) {
+    throw new Error(`Configured Clerk reviewer email lookup failed (${response.status})`);
+  }
+  const users = (await response.json()) as ClerkReviewer[];
+  const matches = users.filter((user) => hasReviewerEmail(user, email));
+  if (matches.length > 1) {
+    throw new Error("Configured Clerk reviewer email matched multiple users");
+  }
+  return matches[0] ?? null;
+}
+
+async function resolveOrCreateReviewer(email: string, clerkSecretKey: string): Promise<ClerkReviewer> {
+  const existing = await findReviewerByEmail(email, clerkSecretKey);
+  if (existing) return existing;
+
+  // A dedicated account can be created only for the server-configured email
+  // after both protected credentials match. Its random password is never shared:
+  // reviewers authenticate via short-lived Clerk sign-in tickets.
+  const response = await clerkRequest("/v1/users", clerkSecretKey, {
+    method: "POST",
+    body: JSON.stringify({
+      email_address: [email],
+      password: `${randomBytes(40).toString("hex")}Aa!9`,
+    }),
+  });
+  if (response.ok) {
+    const created = (await response.json()) as ClerkReviewer;
+    if (hasReviewerEmail(created, email)) return created;
+    throw new Error("Created Clerk reviewer did not have the configured email");
+  }
+  // Another instance may have created the same identity concurrently.
+  if (response.status === 422) {
+    const concurrent = await findReviewerByEmail(email, clerkSecretKey);
+    if (concurrent) return concurrent;
+  }
+  throw new Error(`Configured Clerk reviewer creation failed (${response.status})`);
+}
+
 async function seedReviewerFixture(reviewerUserId: string): Promise<void> {
   const adminKey = process.env["ADMIN_API_KEY"]?.trim();
   const port = process.env["PORT"]?.trim() || "8080";
@@ -88,6 +137,7 @@ router.post(
       process.env["APP_REVIEW_USER_ID"] ??
       process.env["APP_REVIEW_CLERK_USER_ID"]
     )?.trim();
+    const reviewerEmail = process.env["APP_REVIEW_EMAIL"]?.trim().toLowerCase();
     const reviewAccessCode = process.env["APP_REVIEW_ACCESS_CODE"]?.trim();
     const clerkSecretKey = process.env["CLERK_SECRET_KEY"]?.trim();
     const identifier =
@@ -95,7 +145,12 @@ router.post(
     const accessCode =
       typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
 
-    if (!reviewerUserId || !reviewAccessCode || !clerkSecretKey) {
+    if (
+      (!reviewerEmail && !reviewerUserId) ||
+      (reviewerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reviewerEmail)) ||
+      !reviewAccessCode ||
+      !clerkSecretKey
+    ) {
       logger.error("App Review authentication is not configured");
       res.status(503).json({ error: "App Review access is temporarily unavailable." });
       return;
@@ -105,13 +160,16 @@ router.post(
       res.status(401).json({ error: "Invalid App Review credentials." });
       return;
     }
+    if (reviewerEmail && identifier !== reviewerEmail) {
+      res.status(401).json({ error: "Invalid App Review credentials." });
+      return;
+    }
 
     try {
-      const reviewer = await resolveReviewer(reviewerUserId, clerkSecretKey);
-      const belongsToReviewer = reviewer.email_addresses?.some(
-        (entry) => entry.email_address?.trim().toLowerCase() === identifier,
-      );
-      if (!belongsToReviewer) {
+      const reviewer = reviewerEmail
+        ? await resolveOrCreateReviewer(reviewerEmail, clerkSecretKey)
+        : await resolveReviewer(reviewerUserId!, clerkSecretKey);
+      if (!hasReviewerEmail(reviewer, identifier)) {
         res.status(401).json({ error: "Invalid App Review credentials." });
         return;
       }
