@@ -195,7 +195,7 @@ export default function TabLayout() {
   // The server is authoritative. A local cache must never bypass the age or
   // Terms check (including after another device, account deletion, or logout).
   useEffect(() => {
-    if (!isLoaded || isInitializing || !isSignedIn || complianceState.status !== "clear") return;
+    if (!isLoaded || isInitializing || !isSignedIn) return;
     const uid = clerkUser?.id;
     if (!uid) return;
     let cancelled = false;
@@ -231,6 +231,7 @@ export default function TabLayout() {
   //      In Expo Go, use the paywall's dev-mode bypass to test tier changes.
   useEffect(() => {
     if (!isLoaded || isInitializing || !isSignedIn) return;
+    if (complianceState.status !== "clear" || complianceState.userId !== clerkUser?.id) return;
     if (!customerInfo) return;
     if (Constants.executionEnvironment === "storeClient") return;
     // Detect if the user is currently in a free-trial period from RC.
