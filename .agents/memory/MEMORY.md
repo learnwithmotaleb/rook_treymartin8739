@@ -34,7 +34,6 @@
 - [Reviewer subscription hydration](reviewer-subscription-hydration.md) — server-granted Premium accounts must hydrate their server tier on the paywall before purchase UI is chosen.
 - [Onboarding paywall effect separation](onboarding-paywall-effects.md) — plan hydration must always run; zero-threat suppression belongs only in the threat-preview effect.
 - [EAS simulator builds](eas-simulator-builds.md) — cloud simulator artifacts need an Expo PAT; Linux can validate the bundle but cannot launch Apple’s Simulator.
-- [EAS App Store submission](eas-app-store-submission.md) — non-interactive TestFlight uploads require a remote ASC API key or a complete local Expo project with all config plugins.
 - [App Store subscription image replacement](app-store-subscription-image-replacement.md) — submitted subscription images require removing review items, completing the old submission, then rebuilding a new draft.
 - [Native social sign-in account creation](native-social-signin-account-creation.md) — first-time Apple/Google identities must complete account creation in the same flow, not be rejected after provider success.
 - [Meta app separation](meta-app-separation.md) — keep Instagram Login and Facebook `user_photos` in separate Meta apps with separate reviews.
