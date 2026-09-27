@@ -230,6 +230,8 @@ export interface ScanJob {
 
 export interface ThreatSummary {
   id: string;
+  /** True when this threat is a seeded reviewer/example fixture, not a live finding. */
+  isSample: boolean;
   scanJobId: string | null;
   type: string;
   severity: "high" | "medium" | "low";

@@ -1,10 +1,10 @@
 ---
 name: Reviewer subscription hydration
-description: How server-granted Premium access should bypass the mobile purchase flow for review and test accounts.
+description: Keep App Review purchase access truthful while preserving real entitlements across repeat sign-in.
 ---
 
-Server-granted reviewer subscriptions must be read directly from the authenticated subscription endpoint when the paywall opens. Do not rely only on the mobile subscription context or RevenueCat customer info to decide whether to show purchase UI.
+The designated App Review account should start Free with an expired subscription so Apple can inspect purchases. Provision this state once, not on every sign-in. If the reviewer purchases or restores a real sandbox entitlement, a later sign-in must not downgrade it. Read authenticated server subscription state before choosing paywall UI; do not rely only on the mobile context or RevenueCat customer info.
 
-**Why:** A reviewer account can have a valid Premium record on the server while the app context still contains its initial free-tier value during the onboarding-to-paywall transition. RevenueCat also cannot represent a manually granted reviewer entitlement before store purchasing is available.
+**Why:** Apple explicitly requested an expired-subscription account to inspect purchasing. A repeated login that rewrites billing to Free would invalidate a purchase/restore walkthrough. Separately, the app context can briefly contain an initial Free value even when the server has a valid Premium record.
 
-**How to apply:** Keep RevenueCat authoritative for ordinary customer purchases, but let an authenticated active Premium server record immediately bypass the purchase flow. Wait for that server check before rendering a free-user paywall.
+**How to apply:** Keep RevenueCat authoritative for ordinary customer purchases and the server authoritative for quota. Initial reviewer provisioning must not replace an existing entitlement; prepare an expired account deliberately before handing credentials to Apple. Let an authenticated active Premium server record bypass the purchase flow, and wait for that check before rendering a free-user paywall.

@@ -101,9 +101,8 @@ function AccountCard({
   // flag may be stale from a previous failure that was later auto-recovered by the
   // proactive refresh loop. Suppress the strip until we confirm expiry.
   const tokenIsActuallyExpired =
-    !status?.tokenExpiresAt ||
-    new Date(status.tokenExpiresAt) < new Date();
-  const needsReconnect = account.needsReconnect && tokenIsActuallyExpired;
+    !!status?.tokenExpiresAt && new Date(status.tokenExpiresAt) < new Date();
+  const needsReconnect = account.verified && account.needsReconnect && tokenIsActuallyExpired;
 
   const handleDelete = () => {
     Alert.alert(
@@ -167,7 +166,7 @@ function AccountCard({
             {PLATFORM_LABELS[account.platform ?? ""] ?? account.platform}
           </Text>
           <Text style={[styles.syncLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {formatSync(account.lastSynced)}
+            {account.verified ? formatSync(account.lastSynced) : "Manual entry · public web-search monitoring"}
           </Text>
         </View>
         {deleting ? (
@@ -188,7 +187,7 @@ function AccountCard({
         <View style={styles.stat}>
           <Ionicons name="camera" size={13} color={colors.primary} />
           <Text style={[styles.statValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            {account.photosIndexed}
+            {account.verified ? account.photosIndexed : "—"}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             photos
@@ -198,7 +197,7 @@ function AccountCard({
         <View style={styles.stat}>
           <Ionicons name="document-text" size={13} color={colors.primary} />
           <Text style={[styles.statValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            {account.captionsIndexed}
+            {account.verified ? account.captionsIndexed : "—"}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             captions
@@ -377,7 +376,7 @@ export default function ManageAccounts() {
           <Ionicons name="arrow-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-          Connected Accounts
+          Your Accounts
         </Text>
         <TouchableOpacity
           style={[styles.addBtn, { backgroundColor: colors.primary }]}
@@ -407,7 +406,7 @@ export default function ManageAccounts() {
               {accounts.length}
             </Text>
             <Text style={[styles.summaryLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Connected
+              Accounts
             </Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
@@ -422,10 +421,10 @@ export default function ManageAccounts() {
           <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNum, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              {accounts.reduce((s, a) => s + a.photosIndexed, 0)}
+              {accounts.reduce((s, a) => s + (a.verified ? a.photosIndexed : 0), 0)}
             </Text>
             <Text style={[styles.summaryLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Photos
+              Synced Photos
             </Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
@@ -446,10 +445,10 @@ export default function ManageAccounts() {
               <Ionicons name="person-add" size={36} color={colors.mutedForeground} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              No accounts connected
+              No accounts added
             </Text>
             <Text style={[styles.emptyDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Connect your social accounts so Rook can monitor them for impersonators and threats.
+              Add a username for public web-search monitoring, or sign in where available to verify ownership and enable supported account access.
             </Text>
             <TouchableOpacity
               style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
@@ -457,7 +456,7 @@ export default function ManageAccounts() {
               activeOpacity={0.8}
             >
               <Text style={[styles.emptyBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                Connect First Account
+                Add First Account
               </Text>
             </TouchableOpacity>
           </GlassCard>
@@ -503,7 +502,7 @@ export default function ManageAccounts() {
               Why connect accounts?
             </Text>
             <Text style={[styles.infoDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Connected accounts let Rook monitor your photos and public content — the foundation of impersonation detection. Authenticated accounts get real-time sync.
+              A manual username lets Rook search publicly visible profiles and content; it does not connect your account or provide access to its media. Signing in verifies ownership and may enable selected account media where supported. Camera-roll photos can also be monitored separately.
             </Text>
           </View>
         </GlassCard>

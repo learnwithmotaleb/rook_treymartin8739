@@ -6,7 +6,6 @@ import { startScan } from "../services/scanOrchestrator";
 import { checkAndIncrementQuota, getQuotaState, QuotaTrackingError } from "../services/rateLimitService";
 import { getSubscription } from "../services/subscriptionService";
 import { PLAN_CONFIG, normalizeTier, type Tier } from "../lib/planConfig";
-import { isDesignatedReviewer } from "../services/reviewerService";
 
 const ScanBody = z.object({
   bypassCache: z.boolean().optional().default(false),
@@ -23,7 +22,18 @@ function serializeJob(job: typeof scanJobsTable.$inferSelect) {
     threatsFound: job.threatsFound,
     startedAt: job.startedAt?.toISOString() ?? null,
     completedAt: job.completedAt?.toISOString() ?? null,
+    isSample: isReviewerSample(job.metadataJson),
   };
+}
+
+function isReviewerSample(raw: string | null): boolean {
+  if (!raw) return false;
+  try {
+    const signals = JSON.parse(raw) as Record<string, unknown>;
+    return signals.isReviewerSeed === true || signals.isReviewerFixtureClone === true;
+  } catch {
+    return false;
+  }
 }
 
 function nextMonthlyReset(now = new Date()): string {
@@ -33,8 +43,6 @@ function nextMonthlyReset(now = new Date()): string {
 router.post("/scan", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
-    const designatedReviewer = await isDesignatedReviewer(userId);
-
     // ── Validate input first — before any quota mutations ──────────────────────
     const bodyParsed = ScanBody.safeParse(req.body ?? {});
     if (!bodyParsed.success) {
@@ -53,7 +61,7 @@ router.post("/scan", async (req, res): Promise<void> => {
     // normalizeTier maps "pro" → "premium" (pro is sunset; premium limits apply).
     // This matches what GET /scan/quota-state does — consistency is required so
     // the UI quota display and the actual enforcement agree.
-    const planTier = designatedReviewer ? "premium" : normalizeTier(sub.tier ?? "free") as Tier;
+    const planTier = normalizeTier(sub.tier ?? "free") as Tier;
 
     const isDeepScan =
       !!(process.env["GOOGLE_CSE_API_KEY"] || process.env["GOOGLE_VISION_API_KEY"]);
@@ -67,9 +75,7 @@ router.post("/scan", async (req, res): Promise<void> => {
         eq(scanJobsTable.userId, userId),
         inArray(
           scanJobsTable.status,
-          designatedReviewer
-            ? ["queued", "running", "completed"]
-            : ["queued", "running"],
+          ["queued", "running"],
         ),
         gt(scanJobsTable.startedAt, eightMinsAgo),
       ));
@@ -110,85 +116,6 @@ router.post("/scan", async (req, res): Promise<void> => {
         threatsFound: 0, startedAt: new Date(),
       }).returning();
       if (!created) throw new QuotaTrackingError();
-      if (designatedReviewer) {
-        // Seed provenance lives on the immutable seed scan job. A threat-level
-        // marker alone is not sufficient because older generated clones kept
-        // isReviewerSeed=true. Only threats attached to a seed job are valid
-        // sources; all other marked rows are legacy/generated output.
-        const markedRows = await tx.select({
-          threat: threatsTable,
-          jobMetadata: scanJobsTable.metadataJson,
-        }).from(threatsTable).leftJoin(
-          scanJobsTable,
-          eq(threatsTable.scanJobId, scanJobsTable.id),
-        ).where(and(
-          eq(threatsTable.userId, userId),
-          sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
-        ));
-        const seeded = markedRows
-          .filter((row) => {
-            try {
-              const metadata = JSON.parse(row.jobMetadata ?? "{}") as Record<string, unknown>;
-              return metadata.isReviewerSeed === true;
-            } catch {
-              return false;
-            }
-          })
-          .map((row) => row.threat);
-        const generatedIds = markedRows
-          .filter((row) => !seeded.some((seed) => seed.id === row.threat.id))
-          .map((row) => row.threat.id);
-        // Reviewer fixture output is a stable snapshot, not an append-only
-        // history. Replace prior generated clones so repeated legitimate
-        // scans never grow the reviewer's alert count.
-        await tx.delete(threatsTable).where(and(
-          eq(threatsTable.userId, userId),
-          sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerFixtureClone":true}'::jsonb`,
-        ));
-        if (generatedIds.length > 0) {
-          await tx.delete(threatsTable).where(inArray(threatsTable.id, generatedIds));
-        }
-        // Keep immutable seed rows as durable provenance but remove them from
-        // user-facing feeds once the first reviewer result is materialized.
-        // The source rows remain queryable above on every later replacement.
-        if (seeded.length > 0) {
-          await tx.update(threatsTable)
-            .set({ hiddenUntilScan: true })
-            .where(inArray(threatsTable.id, seeded.map((seed) => seed.id)));
-        }
-        if (seeded.length) {
-          await tx.insert(threatsTable).values(seeded.map(({ id: _id, createdAt: _createdAt, scanJobId: _oldJob, ...threat }) => {
-            let detectedSignalsJson = threat.detectedSignalsJson;
-            try {
-              const signals = JSON.parse(detectedSignalsJson ?? "{}") as Record<string, unknown>;
-              delete signals.isReviewerSeed;
-              signals.isReviewerFixtureClone = true;
-              detectedSignalsJson = JSON.stringify(signals);
-            } catch {
-              detectedSignalsJson = JSON.stringify({ isReviewerFixtureClone: true });
-            }
-            return {
-              ...threat,
-              detectedSignalsJson,
-              hiddenUntilScan: false,
-              scanJobId: created.id,
-              createdAt: new Date(),
-            };
-          }));
-        }
-        const [reviewJob] = await tx.update(scanJobsTable).set({
-          status: "completed", progress: 100, currentStep: "complete",
-          completedAt: new Date(), threatsFound: seeded.length,
-        }).where(eq(scanJobsTable.id, created.id)).returning();
-        return {
-          reviewer: reviewJob,
-          quota: {
-            allowed: true as const,
-            remainingMonth: monthlyLimit === -1 ? undefined : Math.max(0, monthlyLimit - newScans),
-            remainingDay: dailyLimit === -1 ? undefined : Math.max(0, dailyLimit - newDeep),
-          },
-        };
-      }
       return {
         created,
         quota: {
@@ -218,14 +145,6 @@ router.post("/scan", async (req, res): Promise<void> => {
       });
       return;
     }
-    if ("reviewer" in reservation && reservation.reviewer) {
-      res.status(201).json({
-        ...serializeJob(reservation.reviewer),
-        quota: { tier: "premium", remainingMonth: quota.remainingMonth, remainingDay: quota.remainingDay },
-      });
-      return;
-    }
-
     const job = await startScan(userId, planTier, { bypassCache, existingJob: reservation.created });
     res.status(201).json({
       ...serializeJob(job),
@@ -272,9 +191,7 @@ router.get("/scan/quota-state", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
     const sub = await getSubscription(userId);
-    const planTier = (await isDesignatedReviewer(userId))
-      ? "premium"
-      : normalizeTier(sub.tier ?? "free");
+    const planTier = normalizeTier(sub.tier ?? "free");
     const state = await getQuotaState(userId);
 
     if (planTier !== "free") {
@@ -325,7 +242,11 @@ router.get("/scan/:jobId/results", async (req, res): Promise<void> => {
     }
 
     const [job] = await db
-      .select({ id: scanJobsTable.id, status: scanJobsTable.status })
+      .select({
+        id: scanJobsTable.id,
+        status: scanJobsTable.status,
+        metadataJson: scanJobsTable.metadataJson,
+      })
       .from(scanJobsTable)
       .where(and(eq(scanJobsTable.id, jobId), eq(scanJobsTable.userId, userId)));
     if (!job) {
@@ -343,6 +264,7 @@ router.get("/scan/:jobId/results", async (req, res): Promise<void> => {
       .where(and(eq(threatsTable.scanJobId, jobId), eq(threatsTable.userId, userId)))
       .orderBy(desc(threatsTable.createdAt));
 
+    const jobIsSample = isReviewerSample(job.metadataJson);
     res.json(findings.map((threat) => {
       let evidenceCount = 0;
       try {
@@ -354,6 +276,7 @@ router.get("/scan/:jobId/results", async (req, res): Promise<void> => {
       return {
         id: threat.id,
         scanJobId: threat.scanJobId,
+        isSample: jobIsSample || isReviewerSample(threat.detectedSignalsJson),
         type: threat.type,
         severity: threat.severity,
         platform: threat.platform,

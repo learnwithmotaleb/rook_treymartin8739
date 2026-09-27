@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, isNull, and, desc } from "drizzle-orm";
+import { eq, isNull, and, desc, ne, sql } from "drizzle-orm";
 import sharp from "sharp";
 import {
   db,
@@ -128,7 +128,11 @@ router.get("/me", async (req, res): Promise<void> => {
     const [lastScanJob] = await db
       .select({ completedAt: scanJobsTable.completedAt })
       .from(scanJobsTable)
-      .where(eq(scanJobsTable.userId, userId))
+      .where(and(
+        eq(scanJobsTable.userId, userId),
+        sql`NOT COALESCE(${scanJobsTable.metadataJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb, false)`,
+        sql`NOT COALESCE(${scanJobsTable.metadataJson}::jsonb @> '{"isReviewerFixtureClone":true}'::jsonb, false)`,
+      ))
       .orderBy(desc(scanJobsTable.startedAt))
       .limit(1);
 
@@ -182,7 +186,15 @@ const PatchMeBody = z.object({
   email: z.union([z.string().trim().email().max(320), z.null()]).optional(),
 }).strict();
 
+function isUniqueConstraintViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; cause?: unknown };
+  if (candidate.code === "23505") return true;
+  return candidate.cause !== error && isUniqueConstraintViolation(candidate.cause);
+}
+
 router.patch("/me", async (req, res): Promise<void> => {
+  let emailWasSupplied = false;
   try {
     const userId = req.userId;
 
@@ -192,6 +204,22 @@ router.patch("/me", async (req, res): Promise<void> => {
       return;
     }
     const { name, username, email } = parsed.data;
+    emailWasSupplied = email !== undefined && email !== null;
+
+    if (email !== undefined && email !== null) {
+      const normalizedEmail = email.trim();
+      const [emailOwner] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(and(eq(usersTable.email, normalizedEmail), ne(usersTable.id, userId)))
+        .limit(1);
+      if (emailOwner) {
+        // Do not disclose whether the email belongs to another account or
+        // return any details about that account.
+        res.status(409).json({ error: "Email address is already in use." });
+        return;
+      }
+    }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -226,7 +254,13 @@ router.patch("/me", async (req, res): Promise<void> => {
 
     res.json(updated);
   } catch (err) {
-    req.log.error({ err }, "PATCH /me failed");
+    // A concurrent email update can win after the ownership check. Treat the
+    // database uniqueness constraint as the same non-disclosing conflict.
+    if (emailWasSupplied && isUniqueConstraintViolation(err)) {
+      res.status(409).json({ error: "Email address is already in use." });
+      return;
+    }
+    req.log.error("PATCH /me failed");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -493,19 +527,18 @@ router.delete("/me/photo-consent", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
     const now = new Date();
-    await db
-      .update(photoProcessingConsentsTable)
-      .set({ withdrawnAt: now })
-      .where(
-        and(
-          eq(photoProcessingConsentsTable.userId, userId),
-          isNull(photoProcessingConsentsTable.withdrawnAt)
-        )
-      );
-    // Delete every locally stored photo-derived record and the reconstructable
-    // avatar in one transaction. This also removes source URLs held alongside
-    // the dHash rows.
+    // Consent withdrawal and all photo-derived data deletion must commit
+    // together: a failed cleanup must not leave consent withdrawn.
     await db.transaction(async (tx) => {
+      await tx
+        .update(photoProcessingConsentsTable)
+        .set({ withdrawnAt: now })
+        .where(
+          and(
+            eq(photoProcessingConsentsTable.userId, userId),
+            isNull(photoProcessingConsentsTable.withdrawnAt)
+          )
+        );
       await deletePhotoDerivedData(tx, userId, now);
     });
     req.log.info({ userId }, "Photo processing consent withdrawn + photo data deleted");

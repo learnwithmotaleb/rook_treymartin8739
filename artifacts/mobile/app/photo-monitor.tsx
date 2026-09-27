@@ -194,6 +194,7 @@ export default function PhotoMonitorScreen() {
 
   const connectedAccounts = user.connectedAccounts;
   const accountIdsKey = connectedAccounts.map((a) => a.id).join(",");
+  const accountAccessKey = connectedAccounts.map((a) => `${a.id}:${a.verified}`).join(",");
 
   const totalSelected = Object.values(accountSelections).reduce(
     (sum, s) => sum + s.size,
@@ -218,7 +219,8 @@ export default function PhotoMonitorScreen() {
       .catch(() => setPhotoConsent(null));
   }, []);
 
-  // Fetch real media for each connected account on mount
+  // Request account media only for ownership-verified accounts; manual usernames
+  // support public web searches but grant no account-media access.
   useEffect(() => {
     // Account media is photo-derived data too. Do not even call the endpoint
     // until the server has confirmed active consent (and fail closed while it
@@ -230,6 +232,7 @@ export default function PhotoMonitorScreen() {
     if (connectedAccounts.length === 0) return;
 
     for (const account of connectedAccounts) {
+      if (!account.verified) continue;
       setAccountMedia((prev) => {
         if (prev[account.id]) return prev;
         return { ...prev, [account.id]: { loading: true, items: [], hasAccess: false } };
@@ -255,7 +258,7 @@ export default function PhotoMonitorScreen() {
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountIdsKey, photoConsent]);
+  }, [accountIdsKey, accountAccessKey, photoConsent]);
 
   // ── Camera roll: pick photos and add to monitored list ───────────────────
 
@@ -375,7 +378,7 @@ export default function PhotoMonitorScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 40 }]}
       >
         <Text style={[styles.sectionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Choose which photos you want protected. Selected photos are searched simultaneously when you run a scan from the Scan tab.
+          Choose photos for image matching across publicly available web pages when you run a scan. Manual usernames are checked through public web search; account media is only available after sign-in where the platform supports it.
         </Text>
 
         {/* Welcome banner: shown after OAuth connect */}
@@ -498,7 +501,7 @@ export default function PhotoMonitorScreen() {
               )}
             </View>
             <Text style={[styles.importDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Select photos from your connected accounts to include in your next scan.
+              Select media from signed-in accounts where the platform allows access. Manually added usernames do not provide account or photo access; those are checked through public web search instead.
             </Text>
 
             {connectedAccounts.map((account) => {
@@ -529,11 +532,13 @@ export default function PhotoMonitorScreen() {
                       </Text>
                       <Text style={[styles.accountPlatform, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                         {account.platform}
-                        {mediaState.items.length > 0
+                        {account.verified && mediaState.items.length > 0
                           ? ` · ${mediaState.items.length} photos`
-                          : account.photosIndexed > 0
+                          : account.verified && account.photosIndexed > 0
                           ? ` · ${account.photosIndexed} indexed`
-                          : ""}
+                          : account.verified
+                          ? ""
+                          : " · Manual entry"}
                       </Text>
                     </View>
                     {mediaState.loading && (
@@ -542,7 +547,14 @@ export default function PhotoMonitorScreen() {
                   </View>
 
                   {/* Media content */}
-                  {mediaState.loading ? (
+                  {!account.verified ? (
+                    <View style={styles.noAccessRow}>
+                      <Ionicons name="search-outline" size={15} color={colors.primary} />
+                      <Text style={[styles.noAccessText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                        This username is monitored through public web searches. Rook is not connected to the account and cannot import its photos or posts.
+                      </Text>
+                    </View>
+                  ) : mediaState.loading ? (
                     <View style={styles.postGrid}>
                       {Array.from({ length: 6 }).map((_, i) => (
                         <SkeletonCell key={i} index={i} />
@@ -559,7 +571,7 @@ export default function PhotoMonitorScreen() {
                     <View style={styles.noAccessRow}>
                       <Ionicons name="lock-closed-outline" size={15} color={colors.mutedForeground} />
                       <Text style={[styles.noAccessText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        Connect via OAuth to import photos from this account.
+                        Account media is not available for this connection. You can add photos from your camera roll or continue with public web-search monitoring.
                       </Text>
                     </View>
                   ) : mediaState.items.length === 0 ? (
@@ -632,7 +644,7 @@ export default function PhotoMonitorScreen() {
           <View style={styles.infoRow}>
             <Ionicons name="scan-outline" size={18} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              All monitored photos are searched across the web when you run a scan — Rook looks for unauthorized copies and visually similar images wherever they appear publicly.
+              Photos you add are searched across publicly available web pages when you run a scan. A manually entered username is checked through public web search only; it does not grant account or media access.
             </Text>
           </View>
           <View style={[styles.infoRow, { marginTop: 10 }]}>

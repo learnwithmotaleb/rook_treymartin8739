@@ -7,15 +7,15 @@
  * GET    /api/admin/consumers              — top API consumers this month
  * POST   /api/admin/unflag/:userId         — clear abuse flag for a user
  * GET    /api/admin/user/:userId/costs     — per-user API cost breakdown
- * POST   /api/admin/seed-reviewer          — seed an account with full demo data for review
+ * POST   /api/admin/seed-reviewer          — seed an account with sample alert history for review
  * DELETE /api/admin/seed-reviewer/:clerkId — remove all seeded reviewer data for an account
- * POST   /api/admin/prepare-real-reviewer   — enable a real account and remove an obsolete demo
+ * POST   /api/admin/prepare-real-reviewer   — keep a reviewer account Free and expired
  */
 
 import { Router, type Request, type Response, type NextFunction, type IRouter } from "express";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { eq, gte, and, or, sql, isNull } from "drizzle-orm";
+import { eq, gte, and, or, sql } from "drizzle-orm";
 import {
   db,
   apiCostLogTable,
@@ -28,7 +28,6 @@ import {
   visualFingerprintsTable,
   userIdentityProfilesTable,
   subscriptionsTable,
-  photoProcessingConsentsTable,
 } from "@workspace/db";
 import {
   getSystemMonthlyStats,
@@ -531,259 +530,145 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
   try {
   const SeedBody = z.object({
     clerkId: z.string().min(1),
-    tier: z.enum(["free", "pro", "premium"]).default("premium"),
+    tier: z.literal("free").optional(),
   });
   const bodyParsed = SeedBody.safeParse(req.body);
   if (!bodyParsed.success) {
     res.status(400).json({ error: "Invalid request body", details: bodyParsed.error.flatten() });
     return;
   }
-  const { clerkId, tier } = bodyParsed.data;
+  const { clerkId } = bodyParsed.data;
 
-  const now = new Date();
-  const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-  const fourDaysFromNow = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
-  const expiredAt = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+  const result = await db.transaction(async (tx) => {
+    // Serialize seed requests for the same Clerk identity. Keeping creation,
+    // fixture cleanup, history insertion and entitlement update in one
+    // transaction prevents concurrent duplicates and partial fixtures.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${clerkId}))`);
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const expiredAt = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  // ── Step 1: Upsert users row (insert on first call, update on repeat) ─────────
-  const [dbUser] = await db
-    .insert(usersTable)
-    .values({
-      clerkId,
-      name: "Alex Rivera",
-      username: "alexrivera",
-      avatarInitials: "AR",
-      securityScore: 64,
-      scanCount: 3,
-      avatarUrl: REVIEWER_PHOTO,
-      nextScanDue: tier === "pro" || tier === "premium" ? fourDaysFromNow : null,
-    })
-    .onConflictDoUpdate({
-      target: usersTable.clerkId,
-      set: {
+    // Create the sample profile only on first provision. Repeat sign-ins must
+    // never rewrite a person's existing profile or history.
+    const [insertedUser] = await tx
+      .insert(usersTable)
+      .values({
+        clerkId,
         name: "Alex Rivera",
         username: "alexrivera",
         avatarInitials: "AR",
         securityScore: 64,
-        scanCount: 3,
+        scanCount: 0,
         avatarUrl: REVIEWER_PHOTO,
-        nextScanDue: tier === "pro" || tier === "premium" ? fourDaysFromNow : null,
-        updatedAt: now,
-      },
-    })
-    .returning({ id: usersTable.id });
+        nextScanDue: null,
+      })
+      .onConflictDoNothing({ target: usersTable.clerkId })
+      .returning({ id: usersTable.id });
 
-  const userId = dbUser.id;
+    const dbUser = insertedUser ?? (await tx
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.clerkId, clerkId))
+      .limit(1))[0];
+    if (!dbUser) throw new Error("Failed to create or find reviewer account");
+    const userId = dbUser.id;
 
-  // Remove the previous deterministic completed review job before rebuilding
-  // it. Threats are removed first because scan_job_id is intentionally nullable.
-  await db.delete(threatsTable).where(
-    and(
-      eq(threatsTable.userId, userId),
-      or(
-        sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
-        sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerFixtureClone":true}'::jsonb`,
-      ),
-    ),
-  );
-  await db.delete(scanJobsTable).where(
-    and(
-      eq(scanJobsTable.userId, userId),
-      sql`${scanJobsTable.metadataJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
-    ),
-  );
-
-  // ── Step 2: Remove any previously seeded connected accounts ──────────────────
-  await db
-    .delete(connectedAccountsTable)
-    .where(
-      and(
+    // Remove only legacy fixture-owned OAuth rows and sentinel profiles. The
+    // exact synthetic prefix/value checks deliberately exclude real content.
+    await tx
+      .delete(connectedAccountsTable)
+      .where(and(
         eq(connectedAccountsTable.userId, userId),
-        sql`${connectedAccountsTable.platformUserId} LIKE 'review_seed_%'`
-      )
-    );
+        sql`left(${connectedAccountsTable.platformUserId}, 12) = 'review_seed_'`,
+      ));
+    await tx
+      .delete(visualFingerprintsTable)
+      .where(and(
+        eq(visualFingerprintsTable.userId, userId),
+        eq(visualFingerprintsTable.styleEmbeddingJson, '"reviewer_seed"'),
+      ));
+    await tx
+      .delete(userIdentityProfilesTable)
+      .where(and(
+        eq(userIdentityProfilesTable.userId, userId),
+        eq(userIdentityProfilesTable.canonicalHashClusterJson, '"reviewer_seed"'),
+      ));
 
-  // ── Step 3: Insert fresh connected accounts ───────────────────────────────────
-  const accountsSeeded = await db
-    .insert(connectedAccountsTable)
-    .values([
-      {
-        userId,
-        platform: "instagram",
-        platformUserId: "review_seed_ig_001",
-        username: "alexrivera",
-        displayName: "Alex Rivera",
-        followers: 4820,
-        verified: false,
-        photosIndexed: 47,
-        captionsIndexed: 183,
-        reelsIndexed: 12,
-        lastSynced: twoDaysAgo,
-      },
-      {
-        userId,
-        platform: "facebook",
-        platformUserId: "review_seed_fb_001",
-        username: "alexrivera",
-        displayName: "Alex Rivera",
-        followers: 1240,
-        verified: false,
-        photosIndexed: 31,
-        captionsIndexed: 94,
-        reelsIndexed: 0,
-        lastSynced: twoDaysAgo,
-      },
-      {
-        userId,
-        platform: "x",
-        platformUserId: "review_seed_x_001",
-        username: "alexrivera_x",
-        displayName: "Alex Rivera",
-        followers: 892,
-        verified: false,
-        photosIndexed: 18,
-        captionsIndexed: 412,
-        reelsIndexed: 0,
-        lastSynced: twoDaysAgo,
-      },
-      {
-        userId,
-        platform: "youtube",
-        platformUserId: "review_seed_yt_pending",
-        username: "",
-        displayName: "Alex Rivera",
-        followers: 0,
-        verified: false,
-        photosIndexed: 0,
-        captionsIndexed: 0,
-        reelsIndexed: 0,
-        lastSynced: null,
-      },
-    ])
-    .returning({ id: connectedAccountsTable.id });
-
-  // ── Step 4: Remove any previously seeded threats ─────────────────────────────
-  await db
-    .delete(threatsTable)
-    .where(
-      and(
+    // Preserve marked sample history and any user actions on it. Never rebuild
+    // legacy clones or real threat history on a repeat sign-in.
+    const [existingSample] = await tx
+      .select({ id: threatsTable.id })
+      .from(threatsTable)
+      .where(and(
         eq(threatsTable.userId, userId),
         or(
           sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
           sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerFixtureClone":true}'::jsonb`,
-        )
-      )
-    );
+        ),
+      ))
+      .limit(1);
 
-  // ── Step 5: Insert fresh threats ──────────────────────────────────────────────
-  const [reviewScanJob] = await db.insert(scanJobsTable).values({
-    userId,
-    status: "completed",
-    progress: 100,
-    currentStep: "complete",
-    threatsFound: 4,
-    metadataJson: JSON.stringify({ isReviewerSeed: true }),
-    startedAt: threeDaysAgo,
-    completedAt: threeDaysAgo,
-  }).returning();
-  if (!reviewScanJob) throw new Error("Failed to create reviewer scan job");
-  const threats = buildReviewerThreats(userId).map((threat) => ({
-    ...threat,
-    scanJobId: reviewScanJob.id,
-  }));
-  const threatsInserted = await db
-    .insert(threatsTable)
-    .values(
-      threats.map((t) => ({
-        ...t,
-        createdAt: threeDaysAgo,
-      }))
-    )
-    .returning({ id: threatsTable.id });
+    let reviewScanJobId: string | null = null;
+    let threatsSeeded = 0;
+    if (!existingSample) {
+      const [reviewScanJob] = await tx.insert(scanJobsTable).values({
+        userId,
+        status: "completed",
+        progress: 100,
+        currentStep: "complete",
+        threatsFound: 4,
+        metadataJson: JSON.stringify({ isReviewerSeed: true }),
+        startedAt: threeDaysAgo,
+        completedAt: threeDaysAgo,
+      }).returning();
+      if (!reviewScanJob) throw new Error("Failed to create reviewer sample history");
+      const threatsInserted = await tx
+        .insert(threatsTable)
+        .values(buildReviewerThreats(userId).map((threat) => ({
+          ...threat,
+          scanJobId: reviewScanJob.id,
+          createdAt: threeDaysAgo,
+        })))
+        .returning({ id: threatsTable.id });
+      reviewScanJobId = reviewScanJob.id;
+      threatsSeeded = threatsInserted.length;
+    }
 
-  // ── Step 6: Upsert visual fingerprints ───────────────────────────────────────
-  await db
-    .insert(visualFingerprintsTable)
-    .values({
-      userId,
-      totalPhotosIndexed: 47,
-      totalCaptionsIndexed: 183,
-      reelsIndexed: 12,
-      styleEmbeddingJson: '"reviewer_seed"',
-      lastUpdated: twoDaysAgo,
-    })
-    .onConflictDoUpdate({
-      target: visualFingerprintsTable.userId,
-      set: {
-        totalPhotosIndexed: 47,
-        totalCaptionsIndexed: 183,
-        reelsIndexed: 12,
-        styleEmbeddingJson: '"reviewer_seed"',
-        lastUpdated: twoDaysAgo,
-      },
-    });
-
-  // ── Step 7: Upsert user identity profile ─────────────────────────────────────
-  await db
-    .insert(userIdentityProfilesTable)
-    .values({
-      userId,
-      canonicalHashClusterJson: '"reviewer_seed"',
-      overallConfidence: 88,
-      verifiedPlatformCount: 3,
-      anchorHashCount: 47,
-      confidenceTier: "HIGH",
-      lastComputedAt: twoDaysAgo,
-    })
-    .onConflictDoUpdate({
-      target: userIdentityProfilesTable.userId,
-      set: {
-        canonicalHashClusterJson: '"reviewer_seed"',
-        overallConfidence: 88,
-        verifiedPlatformCount: 3,
-        anchorHashCount: 47,
-        confidenceTier: "HIGH",
-        lastComputedAt: twoDaysAgo,
-      },
-    });
-
-  // ── Step 8: Grant subscription tier (so paywalled screens actually unlock) ───
-  await db
-    .insert(subscriptionsTable)
-    .values({
-      userId,
-      tier: "free",
-      status: "canceled",
-      billingCycle: "yearly",
-      currentPeriodEnd: expiredAt,
-      cancelAtPeriodEnd: true,
-      trialEndsAt: null,
-    })
-    .onConflictDoUpdate({
-      target: subscriptionsTable.userId,
-      set: {
+    // Provision an expired Free subscription only once. A later StoreKit
+    // purchase/restore (or its webhook) must not be undone by the next sign-in.
+    await tx
+      .insert(subscriptionsTable)
+      .values({
+        userId,
         tier: "free",
         status: "canceled",
         billingCycle: "yearly",
         currentPeriodEnd: expiredAt,
         cancelAtPeriodEnd: true,
         trialEndsAt: null,
-        updatedAt: now,
-      },
-    });
+      })
+      .onConflictDoNothing({ target: subscriptionsTable.userId });
 
-  logger.info({ userId }, "Admin: reviewer account seeded");
+    return {
+      userId,
+      reviewScanJobId,
+      threatsSeeded,
+      sampleHistoryPreserved: Boolean(existingSample),
+    };
+  });
+
+  logger.info({ userId: result.userId }, "Admin: reviewer account seeded");
 
   res.json({
     ok: true,
     clerkId,
-    userId,
+    userId: result.userId,
     tier: "free",
-    scanJobId: reviewScanJob.id,
-    threatsSeeded: threatsInserted.length,
-    accountsSeeded: accountsSeeded.length,
-    note: "All seeded rows tagged isReviewerSeed:true — use DELETE /api/admin/seed-reviewer/:clerkId to clean up.",
+    scanJobId: result.reviewScanJobId,
+    threatsSeeded: result.threatsSeeded,
+    sampleHistoryPreserved: result.sampleHistoryPreserved,
+    accountsSeeded: 0,
+    note: "Sample alerts are marked isReviewerSeed:true; repeat sign-ins preserve history and user actions.",
   });
   } catch (err) {
     logger.error({ err }, "POST /admin/seed-reviewer failed");
@@ -822,7 +707,10 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
         .where(
           and(
             eq(threatsTable.userId, userId),
-            sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`
+            or(
+              sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
+              sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerFixtureClone":true}'::jsonb`,
+            ),
           )
         )
         .returning({ id: threatsTable.id }),
@@ -832,7 +720,7 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
         .where(
           and(
             eq(connectedAccountsTable.userId, userId),
-            sql`${connectedAccountsTable.platformUserId} LIKE 'review_seed_%'`
+            sql`left(${connectedAccountsTable.platformUserId}, 12) = 'review_seed_'`
           )
         )
         .returning({ id: connectedAccountsTable.id }),
@@ -866,13 +754,6 @@ router.delete("/admin/seed-reviewer/:clerkId", async (req, res): Promise<void> =
         )
         .returning({ id: scanJobsTable.id }),
     ]);
-
-  // Reset the granted subscription back to free so the account doesn't keep
-  // paid entitlements after its seeded review data is removed.
-  await db
-    .update(subscriptionsTable)
-    .set({ tier: "free", status: "active", cancelAtPeriodEnd: false, updatedAt: new Date() })
-    .where(eq(subscriptionsTable.userId, userId));
 
   const rowsDeleted =
     deletedThreats.length +
@@ -908,10 +789,8 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
   try {
     const PrepareBody = z.object({
       clerkId: z.string().startsWith("user_"),
-      email: z.string().email(),
-      obsoleteClerkId: z.string().startsWith("user_"),
-    }).refine((value) => value.clerkId !== value.obsoleteClerkId, {
-      message: "The real and obsolete Clerk IDs must be different",
+      email: z.string().email().optional(),
+      obsoleteClerkId: z.string().startsWith("user_").optional(),
     });
     const parsed = PrepareBody.safeParse(req.body);
     if (!parsed.success) {
@@ -919,13 +798,16 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
       return;
     }
 
-    const { clerkId, email, obsoleteClerkId } = parsed.data;
+    const { clerkId } = parsed.data;
     const now = new Date();
     const expiredAt = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const result = await db.transaction(async (tx) => {
       const [realUser] = await tx
-        .select({ id: usersTable.id })
+        .select({
+          id: usersTable.id,
+          onboardingAnswers: usersTable.onboardingAnswers,
+        })
         .from(usersTable)
         .where(eq(usersTable.clerkId, clerkId))
         .limit(1);
@@ -938,52 +820,6 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
         })
         .from(connectedAccountsTable)
         .where(eq(connectedAccountsTable.userId, realUser.id));
-
-      const activePlatforms = [...new Set(realAccounts.map((account) => account.platform))];
-      const platformHandles = Object.fromEntries(
-        realAccounts
-          .filter((account) => account.username)
-          .map((account) => [account.platform, account.username]),
-      );
-
-      await tx
-        .update(usersTable)
-        .set({
-          email: email.trim().toLowerCase(),
-          onboardingAnswers: {
-            primaryConcern: "impersonation",
-            goalFollowUp: null,
-            userType: "individual",
-            typeFollowUp: null,
-            followerRange: null,
-            activePlatforms,
-            attribution: "app-review",
-            perceivedRisk: 5,
-            identityInput: null,
-            platformHandles,
-          },
-          termsAcceptedAt: now,
-          termsVersion: "2026-09-15-v4",
-          ageConfirmedAt: now,
-          minimumAgeVersion: "1.0",
-          updatedAt: now,
-        })
-        .where(eq(usersTable.id, realUser.id));
-
-      await tx
-        .update(photoProcessingConsentsTable)
-        .set({ withdrawnAt: now })
-        .where(
-          and(
-            eq(photoProcessingConsentsTable.userId, realUser.id),
-            isNull(photoProcessingConsentsTable.withdrawnAt),
-          ),
-        );
-      await tx.insert(photoProcessingConsentsTable).values({
-        userId: realUser.id,
-        consentVersion: "2026-09-15-v4",
-        consentedAt: now,
-      });
 
       await tx
         .insert(subscriptionsTable)
@@ -1009,46 +845,25 @@ router.post("/admin/prepare-real-reviewer", async (req, res): Promise<void> => {
           },
         });
 
-      const deletedDemoUsers = await tx
-        .delete(usersTable)
-        .where(eq(usersTable.clerkId, obsoleteClerkId))
-        .returning({ id: usersTable.id });
-
       return {
         userId: realUser.id,
         connectedAccountsPreserved: realAccounts.length,
-        deletedDemoUsers: deletedDemoUsers.length,
+        onboardingCompleted: realUser.onboardingAnswers !== null,
       };
     });
 
-    if (process.env.CLERK_SECRET_KEY) {
-      const clerkResponse = await fetch(
-        `https://api.clerk.com/v1/users/${encodeURIComponent(obsoleteClerkId)}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-        },
-      );
-      if (!clerkResponse.ok && clerkResponse.status !== 404) {
-        logger.warn(
-          { obsoleteClerkId, status: clerkResponse.status },
-          "Obsolete reviewer Clerk deletion failed",
-        );
-      }
-    }
-
     logger.info(
-      { clerkId, obsoleteClerkId, userId: result.userId },
-      "Admin: real reviewer prepared and obsolete demo removed",
+      { clerkId, userId: result.userId },
+      "Admin: reviewer kept Free and expired",
     );
     res.json({
       ok: true,
       clerkId,
       userId: result.userId,
       tier: "free",
-      onboardingCompleted: true,
+      onboardingCompleted: result.onboardingCompleted,
       connectedAccountsPreserved: result.connectedAccountsPreserved,
-      deletedDemoUsers: result.deletedDemoUsers,
+      deletedDemoUsers: 0,
       subscriptionStatus: "canceled",
     });
   } catch (err) {

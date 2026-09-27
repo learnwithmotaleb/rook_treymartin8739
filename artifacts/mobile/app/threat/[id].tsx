@@ -439,7 +439,7 @@ function ScoreBar({ label, value, max, color }: { label: string; value: number; 
 }
 
 function EvidencePhotoBox({
-  side, photoUrl, fallbackUrl, caption, simColor, onTap,
+  side, photoUrl, fallbackUrl, caption, simColor, onTap, isSample,
 }: {
   side: "yours" | "stolen";
   photoUrl?: string;
@@ -448,6 +448,7 @@ function EvidencePhotoBox({
   caption?: string;
   simColor: string;
   onTap?: () => void;
+  isSample?: boolean;
 }) {
   const colors = useColors();
   // "primary" → try photoUrl; "fallback" → primary failed, try fallbackUrl; "failed" → show placeholder
@@ -505,7 +506,7 @@ function EvidencePhotoBox({
         </View>
       </BoxWrapper>
       <Text style={[styles.evidencePhotoLabel, { color: side === "yours" ? colors.success : simColor, fontFamily: "Inter_600SemiBold" }]}>
-        {side === "yours" ? "Your Photo" : "Suspected Match"}
+        {side === "yours" ? "Your Photo" : isSample ? "Example Image" : "Suspected Match"}
       </Text>
       {caption && (
         <Text style={[styles.evidenceCaption, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>
@@ -516,7 +517,7 @@ function EvidencePhotoBox({
   );
 }
 
-function EvidenceCard({ item }: { item: MatchedEvidence }) {
+function EvidenceCard({ item, isSample = false }: { item: MatchedEvidence; isSample?: boolean }) {
   const colors = useColors();
   const { user } = useApp();
   const isHighSimilarity = item.similarity >= 85;
@@ -557,8 +558,11 @@ function EvidenceCard({ item }: { item: MatchedEvidence }) {
           photoUrl={item.stolenPhotoUrl}
           caption={item.stolenCaption}
           simColor={simColor}
+          isSample={isSample}
           onTap={
-            (item.stolenPageUrl ?? item.stolenPhotoUrl)
+            isSample
+              ? undefined
+              : (item.stolenPageUrl ?? item.stolenPhotoUrl)
               ? () => Linking.openURL((item.stolenPageUrl ?? item.stolenPhotoUrl)!).catch(() => {})
               : undefined
           }
@@ -600,6 +604,7 @@ export default function ThreatDetail() {
   }, [id]);
 
   const threat = detail ?? summary;
+  const isSample = detail?.isSample === true || summary?.isSample === true;
 
   // Show full-screen skeleton only when there is truly no data at all —
   // not even a summary from the threat list. When summary exists (the normal
@@ -849,14 +854,14 @@ export default function ThreatDetail() {
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
           {platform ? <PlatformIcon platform={platform as any} size={22} /> : null}
-          <TouchableOpacity
+          {!isSample && <TouchableOpacity
             onPress={handleShareCard}
             disabled={isSharing}
             hitSlop={10}
             style={{ opacity: isSharing ? 0.4 : 1 }}
           >
             <Ionicons name={isSharing ? "hourglass-outline" : "share-social-outline"} size={22} color={colors.foreground} />
-          </TouchableOpacity>
+          </TouchableOpacity>}
         </View>
       </View>
 
@@ -935,6 +940,25 @@ export default function ThreatDetail() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 32 }]}>
 
+        {isSample && (
+          <View
+            style={[styles.sampleNotice, { backgroundColor: colors.warning + "14", borderColor: colors.warning + "55" }]}
+            accessible
+            accessibilityRole="summary"
+            accessibilityLabel="Sample alert. This is an example, not a live detected account. Account details, scores, and source evidence are illustrative and have not been validated as live reports. Do not report or block an account based on this sample."
+          >
+            <Ionicons name="information-circle" size={20} color={colors.warning} />
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={[styles.sampleNoticeTitle, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
+                Sample alert · not a live detection
+              </Text>
+              <Text style={[styles.sampleNoticeText, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}>
+                Account details, scores, and source evidence are illustrative examples, not validated live reports. Do not report or block an account based on this sample.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Hero identity card ───────────────────────────────────────────── */}
         <View style={[styles.heroCard, { borderColor: sc + "44", backgroundColor: colors.card }]}>
           <LinearGradient
@@ -970,7 +994,7 @@ export default function ThreatDetail() {
           {/* Account stat chips + Open Profile.
               When accountMeta is available: show follower/post/age chips + Open Profile.
               When no accountMeta: show Copy + Open Profile (existing fallback). */}
-          <View style={[styles.quickActionsRow, { borderTopColor: sc + "22" }]}>
+          {!isSample && <View style={[styles.quickActionsRow, { borderTopColor: sc + "22" }]}>
             {accountMeta ? (
               <>
                 <View style={[styles.statChip, { backgroundColor: colors.border + "88" }]}>
@@ -1017,7 +1041,7 @@ export default function ThreatDetail() {
                 ) : null}
               </>
             )}
-          </View>
+          </View>}
         </View>
 
         {/* ── Visual Evidence ──────────────────────────────────────────────── */}
@@ -1026,25 +1050,27 @@ export default function ThreatDetail() {
             <View style={styles.sectionHeader}>
               <MaterialCommunityIcons name="image-search" size={18} color={colors.danger} />
               <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Visual Evidence
+                {isSample ? "Example Evidence" : "Visual Evidence"}
               </Text>
               <View style={[styles.evidenceCountBadge, { backgroundColor: colors.danger + "22" }]}>
                 <Text style={[styles.evidenceCountText, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
-                  {threat.matchedMediaCount} matched
+                  {isSample ? `${threat.matchedMediaCount} examples` : `${threat.matchedMediaCount} matched`}
                 </Text>
               </View>
             </View>
             <Text style={[styles.evidenceSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Tap "Suspected Match" to view the flagged post
+              {isSample
+                ? "Illustrative content only. Source links are disabled because this is not a validated live report."
+                : 'Tap "Suspected Match" to view the flagged post'}
             </Text>
             {evidence.map((item) => (
-              <EvidenceCard key={item.id} item={item} />
+              <EvidenceCard key={item.id} item={item} isSample={isSample} />
             ))}
           </View>
         )}
 
         {/* ── What to do now ───────────────────────────────────────────────── */}
-        <GlassCard style={[styles.actNowCard, { borderColor: colors.danger + "33" }]}>
+        {!isSample ? <GlassCard style={[styles.actNowCard, { borderColor: colors.danger + "33" }]}>
           <View style={styles.actNowHeader}>
             <View style={[styles.actNowIconBg, { backgroundColor: colors.danger + "22" }]}>
               <Ionicons name="flash" size={18} color={colors.danger} />
@@ -1080,10 +1106,22 @@ export default function ThreatDetail() {
               ) : null}
             </View>
           ))}
-        </GlassCard>
+        </GlassCard> : (
+          <GlassCard style={[styles.actNowCard, { borderColor: colors.warning + "44" }]}>
+            <View style={styles.actNowHeader}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+              <Text style={[styles.actNowTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                Example only
+              </Text>
+            </View>
+            <Text style={[styles.sampleNoticeText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              This sample demonstrates how an alert may appear. No real account was verified; no reporting or response action is available for this example.
+            </Text>
+          </GlassCard>
+        )}
 
         {/* ── Why Rook flagged this (collapsible) ──────────────────────────── */}
-        {aiExplanation ? (
+        {aiExplanation && !isSample ? (
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => { setShowAiAnalysis((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
@@ -1124,7 +1162,7 @@ export default function ThreatDetail() {
         ) : null}
 
         {/* ── Evidence Details — Detected Signals (collapsible) ────────────── */}
-        {detectedSignals.length > 0 && (
+        {detectedSignals.length > 0 && !isSample && (
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => { setShowSignals((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
@@ -1167,7 +1205,7 @@ export default function ThreatDetail() {
         )}
 
         {/* ── Score Breakdown (collapsible) ────────────────────────────────── */}
-        <TouchableOpacity
+        {!isSample && <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => { setShowBreakdown((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
         >
@@ -1199,10 +1237,10 @@ export default function ThreatDetail() {
               </>
             )}
           </GlassCard>
-        </TouchableOpacity>
+        </TouchableOpacity>}
 
         {/* ── Actions ──────────────────────────────────────────────────────── */}
-        <View style={styles.actionsSection}>
+        {!isSample && <View style={styles.actionsSection}>
           {/* Primary: Report */}
           <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.danger }]} activeOpacity={0.82} onPress={handleReport}>
             <Ionicons name="flag" size={18} color="#FFFFFF" />
@@ -1252,12 +1290,12 @@ export default function ThreatDetail() {
               {resolving ? "Resolving…" : "Mark as Resolved"}
             </Text>
           </TouchableOpacity>
-        </View>
+        </View>}
 
       </ScrollView>
 
       {/* Off-screen ShareCard snapshot */}
-      <View style={{ position: "absolute", top: -10000, left: 0 }} pointerEvents="none">
+      {!isSample && <View style={{ position: "absolute", top: -10000, left: 0 }} pointerEvents="none">
         <View ref={cardRef} collapsable={false}>
           <ShareCard
             userDisplayName={user?.name ?? "Rook User"}
@@ -1269,7 +1307,7 @@ export default function ThreatDetail() {
             reportUrl={`https://tryrook.app/report?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(cleanHandle)}`}
           />
         </View>
-      </View>
+      </View>}
     </View>
   );
 }
@@ -1293,6 +1331,16 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 12, marginTop: 1 },
 
   content: { padding: 16, gap: 12 },
+  sampleNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 13,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  sampleNoticeTitle: { fontSize: 14 },
+  sampleNoticeText: { fontSize: 13, lineHeight: 19 },
 
   // Hero
   heroCard: {

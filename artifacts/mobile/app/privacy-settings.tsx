@@ -90,16 +90,23 @@ export default function PrivacySettings() {
 
     if (action === "withdraw") {
       setWithdrawing(true);
+      let serverWithdrawalSucceeded = false;
       try {
         await withdrawPhotoConsent();
-        clearIndexedPhotos();
+        serverWithdrawalSucceeded = true;
+        await clearIndexedPhotos();
         await fetchConsent();
         setFeedback({
           kind: "success",
           text: "Consent withdrawn. Photo-derived data was deleted and photo scanning is disabled.",
         });
       } catch {
-        setFeedback({ kind: "error", text: "Could not withdraw consent. Please try again." });
+        setFeedback({
+          kind: "error",
+          text: serverWithdrawalSucceeded
+            ? "Consent was withdrawn and server photo data was deleted, but local photo cleanup could not be confirmed. Please try again."
+            : "Could not withdraw consent. Please try again.",
+        });
       } finally {
         setWithdrawing(false);
       }
@@ -107,15 +114,22 @@ export default function PrivacySettings() {
     }
 
     setDeletingPhoto(true);
+    let serverDeletionSucceeded = false;
     try {
       await deletePhotoData();
-      clearIndexedPhotos();
+      serverDeletionSucceeded = true;
+      await clearIndexedPhotos();
       setFeedback({
         kind: "success",
         text: "Photo-derived data was deleted. Your consent remains active.",
       });
     } catch {
-      setFeedback({ kind: "error", text: "Could not delete photo data. Please try again." });
+      setFeedback({
+        kind: "error",
+        text: serverDeletionSucceeded
+          ? "Server photo data was deleted, but local photo cleanup could not be confirmed. Please try again."
+          : "Could not delete photo data. Please try again.",
+      });
     } finally {
       setDeletingPhoto(false);
     }

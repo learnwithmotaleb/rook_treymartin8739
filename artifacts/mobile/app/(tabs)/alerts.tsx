@@ -89,7 +89,17 @@ function ResolvedThreatRow({ threat, colors }: { threat: Threat; colors: ReturnT
               </View>
             )}
           </View>
-          <ResolutionBadge action={threat.resolveAction} colors={colors} />
+          {threat.isSample ? (
+            <View
+              style={[resolvedStyles.sampleBadge, { backgroundColor: colors.warning + "18", borderColor: colors.warning + "44" }]}
+              accessible
+              accessibilityLabel="Sample example. This is not a live detected account."
+            >
+              <Text style={[resolvedStyles.sampleBadgeText, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
+                SAMPLE · NOT LIVE
+              </Text>
+            </View>
+          ) : <ResolutionBadge action={threat.resolveAction} colors={colors} />}
         </View>
 
         <Text style={[resolvedStyles.title, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]} numberOfLines={1}>
@@ -557,6 +567,8 @@ const resolvedStyles = StyleSheet.create({
   severityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, borderWidth: 1 },
   severityText: { fontSize: 10, letterSpacing: 0.6 },
   platformText: { fontSize: 11 },
+  sampleBadge: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3 },
+  sampleBadgeText: { fontSize: 9, letterSpacing: 0.4 },
   title: { fontSize: 14, lineHeight: 20 },
   bottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   username: { fontSize: 12 },

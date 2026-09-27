@@ -10,7 +10,6 @@ import {
 } from "../services/phashIntelligenceService";
 import { getSubscription } from "../services/subscriptionService";
 import { normalizeTier } from "../lib/planConfig";
-import { isDesignatedReviewer } from "../services/reviewerService";
 
 
 const router: IRouter = Router();
@@ -43,6 +42,16 @@ function parseSignals(raw: string | null): StructuredSignals {
     return { flags: [] };
   } catch {
     return { flags: [] };
+  }
+}
+
+function isSampleThreat(raw: string | null): boolean {
+  if (!raw) return false;
+  try {
+    const signals = JSON.parse(raw) as Record<string, unknown>;
+    return signals.isReviewerSeed === true || signals.isReviewerFixtureClone === true;
+  } catch {
+    return false;
   }
 }
 
@@ -84,6 +93,7 @@ function parseThreat(t: typeof threatsTable.$inferSelect) {
     /** Impersonator account quality data (followers, posts, age) stored at scan time. */
     accountMeta,
     detectedSignals: signals.flags,
+    isSample: isSampleThreat(t.detectedSignalsJson),
     confirmedVictims: signals.confirmedVictims ?? null,
     crossUserEscalation: signals.crossUserEscalation ?? false,
     postDatingDays: signals.postDatingDays ?? null,
@@ -115,6 +125,7 @@ function parseThreatSummary(t: typeof threatsTable.$inferSelect) {
     resolveAction: t.resolveAction ?? null,
     resolvedAt: t.resolvedAt?.toISOString() ?? null,
     highConfidence,
+    isSample: isSampleThreat(t.detectedSignalsJson),
     createdAt: t.createdAt.toISOString(),
   };
 }
@@ -191,7 +202,9 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
     // Gate full evidence behind Premium — free users see only metadata
     const sub = await getSubscription(userId);
     const tier = normalizeTier(sub.tier ?? "free");
-    const isFree = tier === "free" && !(await isDesignatedReviewer(userId));
+    // Free reviewers may inspect marked examples, not unrelated live evidence.
+    // A reviewer designation must not silently grant paid access to real alerts.
+    const isFree = tier === "free" && !isSampleThreat(threat.detectedSignalsJson);
 
     if (isFree) {
       const signals = parseSignals(threat.detectedSignalsJson);
@@ -216,6 +229,7 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
           : "Review the affected account and secure it if you do not recognize the activity.",
         scoreBreakdown: {},
         detectedSignals: signals.flags,
+        isSample: isSampleThreat(threat.detectedSignalsJson),
         confirmedVictims: signals.confirmedVictims ?? null,
         crossUserEscalation: signals.crossUserEscalation ?? false,
         postDatingDays: signals.postDatingDays ?? null,

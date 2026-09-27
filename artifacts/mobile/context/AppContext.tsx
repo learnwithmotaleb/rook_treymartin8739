@@ -86,6 +86,7 @@ export interface MatchedEvidence {
 
 export interface Threat {
   id: string;
+  isSample: boolean;
   scanJobId: string | null;
   type: ThreatType;
   severity: Severity;
@@ -202,7 +203,7 @@ interface AppContextType {
   updateAccount: (id: string, updates: { accessToken?: string; displayName?: string; followers?: number; platformUserId?: string }) => Promise<ConnectedAccount>;
   addIndexedPhotos: (photos: Array<{uri: string; base64?: string}>, source?: "camera_roll" | "account", accountId?: string) => void;
   removeIndexedPhoto: (id: string) => void;
-  clearIndexedPhotos: () => void;
+  clearIndexedPhotos: () => Promise<void>;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -224,6 +225,7 @@ function formatRelativeTime(isoString: string): string {
 function mapSummaryToThreat(t: ThreatSummary): Threat {
   return {
     id: t.id,
+    isSample: t.isSample,
     scanJobId: t.scanJobId,
     type: t.type as ThreatType,
     severity: t.severity,
@@ -333,6 +335,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { indexedPhotosRef.current = indexedPhotos; }, [indexedPhotos]);
   useEffect(() => { localPhotoThreatsRef.current = localPhotoThreats; }, [localPhotoThreats]);
 
+  const clearIndexedPhotos = useCallback(async () => {
+    setIndexedPhotos([]);
+    indexedPhotosRef.current = [];
+    setLocalPhotoThreats([]);
+    localPhotoThreatsRef.current = [];
+    await AsyncStorage.multiRemove(["indexedPhotos", "localPhotoThreats"]);
+  }, []);
+
   useEffect(() => {
     Promise.all([
       AsyncStorage.getItem("isLoggedIn"),
@@ -352,8 +362,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (storedLocalThreats) {
         try {
           const parsed: Threat[] = JSON.parse(storedLocalThreats);
-          setLocalPhotoThreats(parsed);
-          localPhotoThreatsRef.current = parsed;
+          const restoredThreats = parsed.map((threat) => ({
+            ...threat,
+            isSample: threat.isSample === true,
+          }));
+          setLocalPhotoThreats(restoredThreats);
+          localPhotoThreatsRef.current = restoredThreats;
         } catch { /* ignore corrupt storage */ }
       }
       setIsInitializing(false);
@@ -376,6 +390,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const attempt = async (): Promise<boolean> => {
         try {
+          // Keep consent reconciliation independent of the rest of the
+          // dashboard requests, so an unrelated API failure cannot skip the
+          // local photo cleanup after the server confirms consent is inactive.
+          const photoConsent = await getPhotoConsent().catch(() => null);
+          if (photoConsent && !photoConsent.hasConsent) {
+            await clearIndexedPhotos();
+          }
+
           const [profile, accounts, summaries, quotaState, sub] = await Promise.all([
             getMe(),
             getAccounts(),
@@ -432,7 +454,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isRefreshingRef.current = false;
     }
-  }, []);
+  }, [clearIndexedPhotos]);
 
   // NOTE: Do NOT trigger refreshData() from the isLoggedIn useEffect.
   // The AsyncStorage restore of isLoggedIn happens before setApiAuthToken() is called
@@ -481,12 +503,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // If the caller passes a real name/email (from Clerk's useUser()), patch the
-    // DB record so the user sees their actual name instead of "Shield User".
+    // Sync Clerk profile claims only when the server profile is stale. In
+    // particular, don't PATCH an email on every sign-in: email is unique across
+    // local profiles and a conflict must never prevent authentication.
     const load = (name || email)
-      ? updateMe({ name: name || undefined, email: email || undefined })
-          .then(() => refreshData())
-          .catch(() => refreshData())
+      ? (async () => {
+          try {
+            const profile = await getMe();
+            const updates: { name?: string; email?: string } = {};
+            const normalizedName = name.trim();
+            const normalizedEmail = email.trim();
+            const currentEmail =
+              typeof profile.email === "string" ? profile.email.trim().toLowerCase() : "";
+
+            if (normalizedName && normalizedName !== profile.name) {
+              updates.name = normalizedName;
+            }
+            if (
+              normalizedEmail &&
+              normalizedEmail.toLowerCase() !== currentEmail
+            ) {
+              updates.email = normalizedEmail;
+            }
+            if (Object.keys(updates).length > 0) {
+              await updateMe(updates);
+            }
+          } catch {
+            // Profile synchronization is best-effort. Sign-in remains valid;
+            // refreshData below loads the authenticated server profile.
+          }
+          await refreshData();
+        })()
       : refreshData();
     // Always unblock the layout after the network call completes.
     // For returning users this is a no-op (already true). For new users whose
@@ -568,14 +615,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localPhotoThreatsRef.current = next;
       return next;
     });
-  }, []);
-
-  const clearIndexedPhotos = useCallback(() => {
-    setIndexedPhotos([]);
-    indexedPhotosRef.current = [];
-    setLocalPhotoThreats([]);
-    localPhotoThreatsRef.current = [];
-    AsyncStorage.multiRemove(["indexedPhotos", "localPhotoThreats"]).catch(() => {});
   }, []);
 
   const [scanQuotaError, setScanQuotaError] = useState<{ message: string; upgradeTo: string } | null>(null);

@@ -428,7 +428,7 @@ export default function ConnectAccount() {
         const succeedAndGoBack = () => {
           Alert.alert(
             "Account Added",
-            `${config?.label} account @${trimmed} added for monitoring. Tap "Sign in with ${config?.label}" to verify ownership.`,
+            `${config?.label} username @${trimmed} added for public web-search monitoring. Rook can look for publicly visible profiles and content using this handle, but this does not connect your account or give Rook access to its posts or photos. Sign in with ${config?.label} where available to verify ownership and request supported account access.`,
             [{ text: "Done", onPress: () => router.back() }]
           );
         };
@@ -489,7 +489,7 @@ export default function ConnectAccount() {
                 Which platform do you want to protect?
               </Text>
               <Text style={[styles.pickSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Rook will monitor this account for impersonators and threats.
+                Add a username for public web-search monitoring, or sign in where supported to verify ownership and enable account access.
               </Text>
 
               <View style={styles.platformGrid}>
@@ -568,7 +568,7 @@ export default function ConnectAccount() {
                 <Text style={[styles.platformHeroSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                   {isExistingAccount
                     ? "Authenticate to prove account ownership and unlock verified monitoring."
-                    : "Sign in to verify ownership, or add your username manually for basic monitoring."}
+                    : "Sign in to verify ownership and enable account access where supported, or add a username for public web-search monitoring."}
                 </Text>
               </View>
 
@@ -584,7 +584,7 @@ export default function ConnectAccount() {
                         Sign in with {config.label}
                       </Text>
                       <Text style={[styles.authHeaderSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        Verified accounts get automated sync and full monitoring. Rook will only read your public profile and posts — we will never post, like, or message on your behalf.
+                        Signing in verifies ownership and may enable access to selected account media where the platform permits it. Rook never posts, likes, or messages on your behalf. A manual username entry only supports public web-search monitoring; it does not connect your account or provide media access.
                       </Text>
                     </View>
                   </View>
@@ -630,7 +630,7 @@ export default function ConnectAccount() {
                       <View style={[styles.noCredCard, { backgroundColor: colors.success + "0C", borderColor: colors.success + "33" }]}>
                         <Ionicons name="shield-checkmark" size={16} color={colors.success} />
                         <Text style={[styles.noCredText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                          This account is already being monitored. OAuth sign-in isn't configured for {config.label} yet, so ownership verification is unavailable — but basic monitoring is active.
+                          This username is already included in public web-search monitoring. Sign-in isn't configured for {config.label}, so ownership verification and account-media access aren't available.
                         </Text>
                       </View>
                       <TouchableOpacity
@@ -640,7 +640,7 @@ export default function ConnectAccount() {
                       >
                         <Ionicons name="checkmark-circle" size={20} color={colors.success} />
                         <Text style={[styles.oauthBtnText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                          Continue with basic monitoring
+                          Continue with public web search
                         </Text>
                       </TouchableOpacity>
                     </View>

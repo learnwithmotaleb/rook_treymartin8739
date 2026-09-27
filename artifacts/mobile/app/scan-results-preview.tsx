@@ -29,8 +29,10 @@ import { analytics } from "@/lib/analytics";
 function FreeThreatCard({
   colors,
   threat,
+  isSample,
 }: {
   colors: ReturnType<typeof useColors>;
+  isSample: boolean;
   threat: {
     title: string;
     platform: string | null;
@@ -60,11 +62,21 @@ function FreeThreatCard({
         <Text style={[blurStyles.threatTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]} numberOfLines={1}>
           {threat.title}
         </Text>
+        {isSample && (
+          <Text
+            style={[blurStyles.sampleLabel, { color: colors.warning, fontFamily: "Inter_700Bold" }]}
+            accessibilityLabel="Sample example. Not a live detected account."
+          >
+            SAMPLE · EXAMPLE, NOT LIVE
+          </Text>
+        )}
         <Text style={[blurStyles.threatMeta, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          {threat.threatScore}% confidence · {evidenceCount} evidence signal{evidenceCount === 1 ? "" : "s"}
+          {isSample
+            ? `Example score ${threat.threatScore} · ${evidenceCount} example signal${evidenceCount === 1 ? "" : "s"}`
+            : `${threat.threatScore}% confidence · ${evidenceCount} evidence signal${evidenceCount === 1 ? "" : "s"}`}
         </Text>
         <Text style={[blurStyles.threatAction, { color, fontFamily: "Inter_500Medium" }]}>
-          Next: review and report or block this account
+          {isSample ? "Example only — no live account was detected" : "Next: review and report or block this account"}
         </Text>
       </View>
       <View style={blurStyles.lockWrap}>
@@ -96,6 +108,7 @@ const blurStyles = StyleSheet.create({
   threatTitle: { fontSize: 13 },
   threatMeta: { fontSize: 11 },
   threatAction: { fontSize: 11 },
+  sampleLabel: { fontSize: 10, letterSpacing: 0.3 },
   lockWrap: { padding: 14, justifyContent: "center" },
 });
 
@@ -116,10 +129,12 @@ export default function ScanResultsPreview() {
   // alerts remain available in Alerts and must not influence this scan's
   // severity breakdown or preview cards.
   const activeThreats = lastScanThreats.filter((t) => !t.resolved);
-  const highCount = activeThreats.filter((t) => t.severity === "high").length;
-  const medCount = activeThreats.filter((t) => t.severity === "medium").length;
-  const lowCount = activeThreats.filter((t) => t.severity === "low").length;
-  const totalCount = activeThreats.length;
+  const liveThreats = activeThreats.filter((threat) => !threat.isSample);
+  const sampleThreats = activeThreats.filter((threat) => threat.isSample);
+  const highCount = liveThreats.filter((t) => t.severity === "high").length;
+  const medCount = liveThreats.filter((t) => t.severity === "medium").length;
+  const lowCount = liveThreats.filter((t) => t.severity === "low").length;
+  const totalCount = liveThreats.length;
 
   useEffect(() => {
     analytics.previewViewed({ threat_count: totalCount, high: highCount });
@@ -141,7 +156,7 @@ export default function ScanResultsPreview() {
     ? "No potential threats found"
     : highCount > 0 ? "High-priority threats found" : medCount > 0 ? "Medium-risk threats found" : "Potential threats found";
 
-  const previewThreats = activeThreats.slice(0, 3);
+  const previewThreats = [...liveThreats, ...sampleThreats].slice(0, 3);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -178,6 +193,19 @@ export default function ScanResultsPreview() {
               {urgencyLabel}
             </Text>
           </View>
+          {sampleThreats.length > 0 && (
+            <View
+              style={[styles.sampleNotice, { backgroundColor: colors.warning + "14", borderColor: colors.warning + "44" }]}
+              accessible
+              accessibilityRole="summary"
+              accessibilityLabel={`${sampleThreats.length} sample example${sampleThreats.length === 1 ? "" : "s"} shown separately from live scan results. These are not live detected accounts.`}
+            >
+              <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+              <Text style={[styles.sampleNoticeText, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                {sampleThreats.length} sample example{sampleThreats.length !== 1 ? "s" : ""} shown below. These are not live detections and are excluded from scan totals.
+              </Text>
+            </View>
+          )}
 
           {/* Score + stats hero */}
           <GlassCard style={styles.heroCard}>
@@ -266,7 +294,7 @@ export default function ScanResultsPreview() {
           <View style={styles.previewSection}>
             <View style={styles.previewHeader}>
               <Text style={[styles.previewTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                {totalCount === 0 ? "Your result" : "Potential threats"}
+                {totalCount === 0 && sampleThreats.length > 0 ? "Sample examples" : totalCount === 0 ? "Your result" : "Potential threats"}
               </Text>
               <View style={[styles.lockBadge, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                 <Ionicons name="lock-closed" size={11} color={colors.mutedForeground} />
@@ -277,14 +305,14 @@ export default function ScanResultsPreview() {
             </View>
 
             <View style={styles.cardsStack}>
-              {totalCount === 0 ? (
+              {totalCount === 0 && sampleThreats.length === 0 ? (
                 <View style={[styles.cleanResult, { backgroundColor: colors.success + "12", borderColor: colors.success + "44" }]}>
                   <Ionicons name="shield-checkmark" size={22} color={colors.success} />
                   <Text style={[styles.cleanResultTitle, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>No potential threats found</Text>
                   <Text style={[styles.cleanResultText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>We found no potential threats in this scan. Keep an eye on your accounts and scan again when your monthly allowance resets.</Text>
                 </View>
               ) : previewThreats.map((threat) => (
-                <FreeThreatCard key={threat.id} threat={threat} colors={colors} />
+                <FreeThreatCard key={threat.id} threat={threat} colors={colors} isSample={threat.isSample} />
               ))}
               {totalCount > 3 && (
                 <View style={[styles.moreCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -376,6 +404,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   urgencyText: { fontSize: 14, flex: 1 },
+  sampleNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  sampleNoticeText: { flex: 1, fontSize: 13, lineHeight: 18 },
 
   heroCard: {
     alignItems: "center",

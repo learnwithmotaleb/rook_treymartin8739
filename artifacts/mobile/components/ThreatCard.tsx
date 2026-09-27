@@ -28,6 +28,8 @@ interface ThreatCardProps {
 
 export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
   const colors = useColors();
+  const isSample = threat.isSample;
+  const shouldLock = isLocked && !isSample;
   const sc = severityColor(threat.severity, colors);
   const icon = threatIcon(threat.type);
 
@@ -41,7 +43,7 @@ export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
   const severityLabel =
     threat.severity === "high" ? "HIGH" : threat.severity === "medium" ? "MED" : "LOW";
 
-  if (isLocked) {
+  if (shouldLock) {
     return (
       <TouchableOpacity
         activeOpacity={0.85}
@@ -70,7 +72,9 @@ export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
             </View>
             <View style={lockedStyles.skeletonGroup}>
               <Text style={[lockedStyles.threatHint, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-                {threat.type === "impersonator" || threat.type === "fake_account"
+                {isSample
+                  ? "Sample example — not a live detection"
+                  : threat.type === "impersonator" || threat.type === "fake_account"
                   ? "Potential impersonation"
                   : threat.type === "stolen_photo"
                   ? "Possible photo match"
@@ -120,7 +124,7 @@ export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
               {threat.title}
             </Text>
             <View style={styles.headerRight}>
-              {threat.highConfidence && (
+              {threat.highConfidence && !isSample && (
                 <View style={[styles.verifiedBadge, { backgroundColor: colors.success + "22" }]}>
                   <MaterialCommunityIcons name="shield-check" size={10} color={colors.success} />
                   <Text style={[styles.verifiedText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
@@ -135,6 +139,18 @@ export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
               </View>
             </View>
           </View>
+          {isSample && (
+            <View
+              style={[styles.sampleBadge, { backgroundColor: colors.warning + "18", borderColor: colors.warning + "44" }]}
+              accessible
+              accessibilityLabel="Sample example. This is not a live detected account."
+            >
+              <Ionicons name="information-circle-outline" size={11} color={colors.warning} />
+              <Text style={[styles.sampleBadgeText, { color: colors.warning, fontFamily: "Inter_600SemiBold" }]}>
+                SAMPLE · NOT LIVE
+              </Text>
+            </View>
+          )}
           <Text
             style={[styles.desc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
             numberOfLines={compact ? 1 : 2}
@@ -246,6 +262,17 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   aiDisclaimerText: { fontSize: 9 },
+  sampleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  sampleBadgeText: { fontSize: 9, letterSpacing: 0.3 },
 });
 
 const lockedStyles = StyleSheet.create({

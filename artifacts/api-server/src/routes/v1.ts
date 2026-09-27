@@ -64,6 +64,16 @@ function generateSigningSecret(): string {
   return crypto.randomBytes(24).toString("hex");
 }
 
+function isSampleThreat(raw: string | null): boolean {
+  if (!raw) return false;
+  try {
+    const signals = JSON.parse(raw) as Record<string, unknown>;
+    return signals.isReviewerSeed === true || signals.isReviewerFixtureClone === true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Management routes (Clerk session auth) ───────────────────────────────────
 
 /** Create a new API key. Returns the raw key once — store it now. */
@@ -363,6 +373,7 @@ router.get("/v1/threats", ...apiKeyMiddleware, async (req, res): Promise<void> =
         resolved: threatsTable.resolved,
         threatActorId: threatsTable.threatActorId,
         createdAt: threatsTable.createdAt,
+        detectedSignalsJson: threatsTable.detectedSignalsJson,
       })
       .from(threatsTable)
       .where(and(...conditions))
@@ -370,9 +381,10 @@ router.get("/v1/threats", ...apiKeyMiddleware, async (req, res): Promise<void> =
       .limit(limit)
       .offset(offset);
 
-    res.json(rows.map((t) => ({
-      ...t,
-      createdAt: t.createdAt.toISOString(),
+    res.json(rows.map(({ detectedSignalsJson, ...threat }) => ({
+      ...threat,
+      isSample: isSampleThreat(detectedSignalsJson),
+      createdAt: threat.createdAt.toISOString(),
     })));
   } catch (err) {
     logger.error({ err }, "GET /v1/threats failed");
@@ -428,6 +440,7 @@ router.get("/v1/threats/:threatId", ...apiKeyMiddleware, async (req, res): Promi
       resolved: threat.resolved,
       resolvedAt: threat.resolvedAt?.toISOString() ?? null,
       createdAt: threat.createdAt.toISOString(),
+      isSample: isSampleThreat(threat.detectedSignalsJson),
       threatActor,
     });
   } catch (err) {

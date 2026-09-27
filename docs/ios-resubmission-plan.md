@@ -6,6 +6,24 @@ predates the current reviewer sign-in and acknowledgment fixes. Do not attach
 an older build, send the conditional reply in `docs/build-15-apple-review.md`,
 or resubmit until the gates below pass on one *new* signed build (>15).
 
+## Current verification notes (September 26, 2026)
+
+- Local reviewer-path fixes now keep sample alerts marked as examples across
+  alert cards and details, remove fixture-only fake OAuth/media records, use the
+  ordinary Free scan quota instead of copying sample alerts into new scans, and
+  avoid resetting a subsequent purchase on repeat reviewer sign-in. They have
+  passed TypeScript checks, **not** a production or signed-device walkthrough.
+- The published site is publicly reachable, but its `/privacy` page still serves
+  version **2026-08-28-v3**; the current workspace privacy policy is
+  **2026-09-15-v4**. This is a release blocker. Publish and recheck the
+  intended landing/API versions together before quoting policy language to
+  Apple. A successful deployment build does not establish that the latest
+  workspace changes are live.
+- The App Store Connect product/promotion and age-rating answers, production
+  reviewer Clerk account and billing state, RevenueCat offerings and webhook,
+  and signed iPhone/iPad purchase, restore, and Apple sign-in have not been
+  checked. Do not mark those gates as passed based on local code.
+
 ## Scope and decision
 
 Freeze new features and cosmetic improvements. Fix rejection blockers and
