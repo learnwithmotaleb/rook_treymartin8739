@@ -41,6 +41,10 @@ const FEATURES = [
   { icon: "notifications", label: "Live Alerts" },
 ] as const;
 
+// Not a valid email address, so this cannot intercept a regular user's login.
+// App Review Information uses review:<reviewer email> as its protected username.
+const REVIEW_USERNAME_PREFIX = "review:";
+
 // Separate component for the animated glow so hook rules are respected
 function GlowRings() {
   const pulse = useRef(new Animated.Value(0)).current;
@@ -129,7 +133,6 @@ export default function Auth() {
   const [ssoLoading, setSsoLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [needsSigninCode, setNeedsSigninCode] = useState(false);
-  const [reviewMode, setReviewMode] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [pendingSocialSignIn, setPendingSocialSignIn] = useState<{
@@ -263,15 +266,15 @@ export default function Auth() {
     }
   }, [clerk, code]);
 
-  const completeReviewAccess = useCallback(async (accessCode: string) => {
-    if (!email.trim() || !accessCode) {
-      setError("Enter the App Review email and access code");
+  const completeReviewAccess = useCallback(async (reviewerEmail: string, accessCode: string) => {
+    if (!reviewerEmail.trim() || !accessCode) {
+      setError("Enter the reviewer username and access code");
       return;
     }
     setError("");
     setAuthLoading(true);
     try {
-      const { ticket } = await requestAppReviewTicket(email.trim(), accessCode);
+      const { ticket } = await requestAppReviewTicket(reviewerEmail.trim(), accessCode);
       const live = liveSignIn();
       const result = await live.create({ strategy: "ticket", ticket });
       if (result.status === "complete") {
@@ -285,11 +288,7 @@ export default function Auth() {
     } finally {
       setAuthLoading(false);
     }
-  }, [clerk, email]);
-
-  const handleReviewLogin = useCallback(() => {
-    void completeReviewAccess(password);
-  }, [completeReviewAccess, password]);
+  }, [clerk]);
 
   // Step 1 of sign-up: create the Clerk account only.
   // prepareEmailAddressVerification is triggered by the useEffect above once
@@ -467,7 +466,15 @@ export default function Auth() {
   }, [startAppleAuthenticationFlow, mode, termsAccepted, ageConfirmed, finishSocialSignIn]);
 
   const handleSubmit = () => {
-    if (mode === "login") { handleSignIn(); return; }
+    if (mode === "login") {
+      const identifier = email.trim();
+      if (identifier.toLowerCase().startsWith(REVIEW_USERNAME_PREFIX)) {
+        void completeReviewAccess(identifier.slice(REVIEW_USERNAME_PREFIX.length), password);
+      } else {
+        void handleSignIn();
+      }
+      return;
+    }
     if (!termsAccepted) { setError("Please accept the Terms of Service and Privacy Policy to continue"); return; }
     if (!ageConfirmed) { setError("Please confirm you are 17 or older to continue"); return; }
     if (password !== confirmPassword) { setError("Passwords do not match"); return; }
@@ -629,12 +636,10 @@ export default function Auth() {
             <>
               <View style={styles.cardHeader}>
                 <Text style={styles.headline}>
-                  {reviewMode ? "App Review access" : mode === "login" ? "Welcome back" : "Create account"}
+                  {mode === "login" ? "Welcome back" : "Create account"}
                 </Text>
                 <Text style={styles.subheadline}>
-                  {reviewMode
-                    ? "Enter the reviewer email and access code from the review instructions"
-                    : mode === "login"
+                  {mode === "login"
                     ? "Sign in to your identity shield"
                     : "Start protecting your digital identity"}
                 </Text>
@@ -653,20 +658,20 @@ export default function Auth() {
               )}
 
               {/* ── Mode toggle ── */}
-              {!reviewMode && <View style={styles.segmentedControl}>
+              <View style={styles.segmentedControl}>
                 <TouchableOpacity
                   style={[styles.segment, mode === "login" && styles.segmentActive]}
-                    onPress={() => { setMode("login"); setReviewMode(false); setError(""); setConfirmPassword(""); setFirstName(""); setLastName(""); }}
+                  onPress={() => { setMode("login"); setError(""); setConfirmPassword(""); setFirstName(""); setLastName(""); }}
                 >
                   <Text style={[styles.segmentLabel, mode === "login" && styles.segmentLabelActive]}>Sign In</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.segment, mode === "register" && styles.segmentActive]}
-                    onPress={() => { setMode("register"); setReviewMode(false); setError(""); setPassword(""); setConfirmPassword(""); }}
+                  onPress={() => { setMode("register"); setError(""); setPassword(""); setConfirmPassword(""); }}
                 >
                   <Text style={[styles.segmentLabel, mode === "register" && styles.segmentLabelActive]}>Create Account</Text>
                 </TouchableOpacity>
-              </View>}
+              </View>
 
               {/* ── Fields ── */}
               {mode === "register" && (
@@ -726,19 +731,19 @@ export default function Auth() {
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>{reviewMode ? "App Review Access Code" : "Password"}</Text>
+                <Text style={styles.fieldLabel}>Password</Text>
                 <View style={[styles.inputRow, { borderColor: inputBorder("password") }]}>
                   <Ionicons name="lock-closed-outline" size={18} color={focusedField === "password" ? "#3B82F6" : "#6B8EAE"} />
                   <TextInput
                     style={styles.textInput}
-                    placeholder={reviewMode ? "Enter protected review code" : "••••••••"}
+                    placeholder="••••••••"
                     placeholderTextColor="#3B4C6B"
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     returnKeyType={mode === "register" ? "next" : "go"}
-                    onSubmitEditing={mode === "register" ? undefined : reviewMode ? handleReviewLogin : handleSubmit}
+                    onSubmitEditing={mode === "register" ? undefined : handleSubmit}
                     onFocus={() => setFocusedField("password")}
                     onBlur={() => setFocusedField(null)}
                   />
@@ -762,7 +767,7 @@ export default function Auth() {
                       secureTextEntry={!showConfirmPassword}
                       autoCapitalize="none"
                       returnKeyType="go"
-                      onSubmitEditing={reviewMode ? handleReviewLogin : handleSubmit}
+                      onSubmitEditing={handleSubmit}
                       onFocus={() => setFocusedField("confirmPassword")}
                       onBlur={() => setFocusedField(null)}
                     />
@@ -790,37 +795,19 @@ export default function Auth() {
               <GradientButton
                 label={loading
                   ? (mode === "login" ? "Signing in…" : "Creating account…")
-                  : reviewMode
-                    ? "Enter App Review"
-                    : mode === "login"
-                      ? "Sign In"
-                      : "Create Account"}
-                onPress={reviewMode ? handleReviewLogin : handleSubmit}
+                  : mode === "login"
+                    ? "Sign In"
+                    : "Create Account"}
+                onPress={handleSubmit}
                 disabled={loading || (mode === "register" && (!termsAccepted || !ageConfirmed))}
               />
 
-              {!reviewMode && mode === "login" && (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel="App Review access"
-                  onPress={() => {
-                    setReviewMode(true);
-                    setPassword("");
-                    setError("");
-                  }}
-                  style={styles.switchRow}
-                >
-                  <Text style={styles.switchLink}>App Review access</Text>
-                </TouchableOpacity>
-              )}
-
-              {!reviewMode && <>
-                <View style={styles.dividerRow}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or continue with</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-                <View style={styles.ssoGroup}>
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or continue with</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              <View style={styles.ssoGroup}>
                 <TouchableOpacity
                   style={[styles.ssoBtn, { opacity: loading ? 0.6 : 1 }]}
                   activeOpacity={0.75}
@@ -842,18 +829,7 @@ export default function Auth() {
                     onPress={handleAppleSSO}
                   />
                 )}
-                </View>
-              </>}
-
-              {reviewMode && (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  onPress={() => { setReviewMode(false); setPassword(""); setError(""); }}
-                  style={styles.switchRow}
-                >
-                  <Text style={styles.switchLink}>Use normal sign in</Text>
-                </TouchableOpacity>
-              )}
+              </View>
 
               <View nativeID="clerk-captcha" />
             </>
