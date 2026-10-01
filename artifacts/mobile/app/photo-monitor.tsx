@@ -52,13 +52,20 @@ interface AccountMediaState {
 function PhotoCell({
   photo,
   hasMatch,
+  isReviewExample = false,
   onRemove,
 }: {
   photo: { id: string; localUri: string };
   hasMatch: boolean;
+  isReviewExample?: boolean;
   onRemove: () => void;
 }) {
   const colors = useColors();
+  const statusColor = isReviewExample
+    ? colors.warning
+    : hasMatch
+    ? colors.danger
+    : colors.primary;
   return (
     <View style={styles.photoCell}>
       <View style={[styles.photoCellInner, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
@@ -70,6 +77,7 @@ function PhotoCell({
         <TouchableOpacity
           style={styles.removeBtn}
           onPress={onRemove}
+          accessibilityLabel={isReviewExample ? "Dismiss review example" : "Remove monitored photo"}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <View style={[styles.removeBtnInner, { backgroundColor: colors.background + "CC" }]}>
@@ -81,14 +89,14 @@ function PhotoCell({
         style={[
           styles.statusBadge,
           {
-            backgroundColor: hasMatch ? colors.danger + "22" : colors.primary + "22",
-            borderColor: hasMatch ? colors.danger + "44" : colors.primary + "44",
+            backgroundColor: statusColor + "22",
+            borderColor: statusColor + "44",
           },
         ]}
       >
-        <View style={[styles.statusDot, { backgroundColor: hasMatch ? colors.danger : colors.primary }]} />
-        <Text style={[styles.statusText, { color: hasMatch ? colors.danger : colors.primary, fontFamily: "Inter_400Regular" }]}>
-          {hasMatch ? "Match" : "Monitored"}
+        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+        <Text style={[styles.statusText, { color: statusColor, fontFamily: "Inter_400Regular" }]}>
+          {isReviewExample ? "Review Example" : hasMatch ? "Match" : "Monitored"}
         </Text>
       </View>
     </View>
@@ -177,7 +185,15 @@ function SkeletonCell({ index }: { index: number }) {
 export default function PhotoMonitorScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { indexedPhotos, addIndexedPhotos, removeIndexedPhoto, threats, user } = useApp();
+  const {
+    indexedPhotos,
+    reviewerSamplePhoto,
+    dismissReviewerSamplePhoto,
+    addIndexedPhotos,
+    removeIndexedPhoto,
+    threats,
+    user,
+  } = useApp();
   const params = useLocalSearchParams<{ justConnected?: string; platform?: string; accountId?: string }>();
   const justConnected = params.justConnected === "1";
   const connectedAccountId = params.accountId ?? "";
@@ -212,6 +228,9 @@ export default function PhotoMonitorScreen() {
       .filter((t) => t.type === "stolen_photo" && !t.resolved)
       .flatMap((t) => t.evidence.map((e) => e.id.replace(/^ev_/, "")))
   );
+  const displayedPhotos = reviewerSamplePhoto
+    ? [...indexedPhotos, reviewerSamplePhoto]
+    : indexedPhotos;
 
   useEffect(() => {
     getPhotoConsent()
@@ -427,7 +446,7 @@ export default function PhotoMonitorScreen() {
           )}
         </View>
 
-        {indexedPhotos.length === 0 ? (
+        {displayedPhotos.length === 0 ? (
           <GlassCard style={styles.emptyCard}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.primary + "18" }]}>
               <MaterialCommunityIcons name="image-plus" size={32} color={colors.primary} />
@@ -442,15 +461,40 @@ export default function PhotoMonitorScreen() {
         ) : (
           <GlassCard style={styles.photoGridCard}>
             <View style={styles.photoGrid}>
-              {indexedPhotos.map((photo) => (
-                <PhotoCell
-                  key={photo.id}
-                  photo={photo}
-                  hasMatch={matchedPhotoIds.has(photo.id)}
-                  onRemove={() => removeIndexedPhoto(photo.id)}
-                />
-              ))}
+              {displayedPhotos.map((photo) => {
+                const isReviewExample = photo.source === "review_example";
+                return (
+                  <PhotoCell
+                    key={photo.id}
+                    photo={photo}
+                    hasMatch={!isReviewExample && matchedPhotoIds.has(photo.id)}
+                    isReviewExample={isReviewExample}
+                    onRemove={() => {
+                      if (isReviewExample) {
+                        void dismissReviewerSamplePhoto().then((saved) => {
+                          if (!saved) {
+                            Alert.alert(
+                              "Dismissal Not Saved",
+                              "The Review Example is hidden for this session, but we couldn't save your dismissal. It may appear again next time."
+                            );
+                          }
+                        });
+                      } else {
+                        removeIndexedPhoto(photo.id);
+                      }
+                    }}
+                  />
+                );
+              })}
             </View>
+            {reviewerSamplePhoto && (
+              <View style={styles.reviewExampleNote}>
+                <Ionicons name="information-circle-outline" size={15} color={colors.warning} />
+                <Text style={[styles.reviewExampleNoteText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Review Example is for review only; it is not monitored or analyzed.
+                </Text>
+              </View>
+            )}
           </GlassCard>
         )}
 
@@ -714,6 +758,8 @@ const styles = StyleSheet.create({
 
   photoGridCard: { paddingBottom: 8 },
   photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  reviewExampleNote: { flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 10 },
+  reviewExampleNoteText: { flex: 1, fontSize: 12, lineHeight: 16 },
   photoCell: { gap: 4 },
   photoCellInner: {
     width: CELL_SIZE,

@@ -22,6 +22,7 @@ import {
   addAccount as apiAddAccount,
   removeAccount as apiRemoveAccount,
   updateAccount as apiUpdateAccount,
+  getThreat,
   updateMe,
   reverseImageSearch,
   refreshAccountTokens,
@@ -38,7 +39,7 @@ export interface IndexedPhoto {
   localUri: string;
   base64?: string;
   addedAt: string;
-  source: "camera_roll" | "account";
+  source: "camera_roll" | "account" | "review_example";
   accountId?: string;
 }
 
@@ -163,6 +164,7 @@ interface AppContextType {
   user: User;
   threats: Threat[];
   indexedPhotos: IndexedPhoto[];
+  reviewerSamplePhoto: IndexedPhoto | null;
   isLoggedIn: boolean;
   hasSeenOnboarding: boolean;
   /** true while AsyncStorage is being read on first mount — gates all route redirects */
@@ -203,6 +205,7 @@ interface AppContextType {
   updateAccount: (id: string, updates: { accessToken?: string; displayName?: string; followers?: number; platformUserId?: string }) => Promise<ConnectedAccount>;
   addIndexedPhotos: (photos: Array<{uri: string; base64?: string}>, source?: "camera_roll" | "account", accountId?: string) => void;
   removeIndexedPhoto: (id: string) => void;
+  dismissReviewerSamplePhoto: () => Promise<boolean>;
   clearIndexedPhotos: () => Promise<void>;
 }
 
@@ -295,6 +298,7 @@ function mapProfileToUser(
 }
 
 const SURVEY_SHOWN_KEY = "rook:cancellation_survey_shown";
+const REVIEWER_SAMPLE_DISMISSED_KEY = "rook:reviewer_sample_dismissed:";
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -325,6 +329,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const hasRefreshedTokensRef = useRef(false);
   const [indexedPhotos, setIndexedPhotos] = useState<IndexedPhoto[]>([]);
   const indexedPhotosRef = useRef<IndexedPhoto[]>([]);
+  const [reviewerSample, setReviewerSample] = useState<{
+    userId: string;
+    photo: IndexedPhoto;
+  } | null>(null);
+  const reviewerSampleRequestRef = useRef(0);
+  const reviewerSampleDismissedRef = useRef(new Set<string>());
   const [localPhotoThreats, setLocalPhotoThreats] = useState<Threat[]>([]);
   const localPhotoThreatsRef = useRef<Threat[]>([]);
   // hasSeenOnboarding is scoped per Clerk user id (see onboardingKey below) so
@@ -381,6 +391,100 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return mapped;
   }, []);
 
+  const loadReviewerSample = useCallback(async (
+    summaries: ThreatSummary[],
+    userId: string | null
+  ) => {
+    const requestId = ++reviewerSampleRequestRef.current;
+    if (!userId) {
+      setReviewerSample(null);
+      return;
+    }
+
+    let sampleEvidence: { url: string; addedAt: string } | null = null;
+    for (const summary of summaries) {
+      if (!summary.isSample) continue;
+      try {
+        const detail = await getThreat(summary.id);
+        if (!detail.isSample) continue;
+        const evidence = detail.evidence.find(
+          (item) =>
+            typeof item.yourPhotoUrl === "string" &&
+            /^https:\/\//i.test(item.yourPhotoUrl)
+        );
+        if (evidence?.yourPhotoUrl) {
+          sampleEvidence = {
+            url: evidence.yourPhotoUrl,
+            addedAt: detail.createdAt,
+          };
+          break;
+        }
+      } catch {
+        // A missing/locked sample detail must never be treated as a real photo.
+      }
+    }
+
+    if (
+      requestId !== reviewerSampleRequestRef.current ||
+      clerkUserIdRef.current !== userId
+    ) {
+      return;
+    }
+    if (!sampleEvidence) {
+      setReviewerSample(null);
+      return;
+    }
+
+    const dismissalKey = `${REVIEWER_SAMPLE_DISMISSED_KEY}${userId}`;
+    let dismissed = reviewerSampleDismissedRef.current.has(userId);
+    if (!dismissed) {
+      try {
+        dismissed = (await AsyncStorage.getItem(dismissalKey)) === "true";
+      } catch {
+        return;
+      }
+    }
+    if (
+      requestId !== reviewerSampleRequestRef.current ||
+      clerkUserIdRef.current !== userId
+    ) {
+      return;
+    }
+    if (dismissed) {
+      reviewerSampleDismissedRef.current.add(userId);
+      setReviewerSample(null);
+      return;
+    }
+
+    setReviewerSample({
+      userId,
+      photo: {
+        id: `reviewer_sample_${userId}`,
+        localUri: sampleEvidence.url,
+        addedAt: sampleEvidence.addedAt,
+        source: "review_example",
+      },
+    });
+  }, []);
+
+  const dismissReviewerSamplePhoto = useCallback(async (): Promise<boolean> => {
+    const userId = clerkUserIdRef.current;
+    if (!userId) return false;
+    reviewerSampleDismissedRef.current.add(userId);
+    setReviewerSample((current) =>
+      current?.userId === userId ? null : current
+    );
+    try {
+      await AsyncStorage.setItem(
+        `${REVIEWER_SAMPLE_DISMISSED_KEY}${userId}`,
+        "true"
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const refreshData = useCallback(async () => {
     // Dedup guard: if a refresh is already in flight, skip this call entirely.
     // This prevents duplicate API bursts when multiple screens call refreshData
@@ -390,6 +494,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const attempt = async (): Promise<boolean> => {
         try {
+          const userId = clerkUserIdRef.current;
           // Keep consent reconciliation independent of the rest of the
           // dashboard requests, so an unrelated API failure cannot skip the
           // local photo cleanup after the server confirms consent is inactive.
@@ -407,6 +512,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ]);
           setUser(mapProfileToUser(profile, accounts));
           setThreats(summaries.map(mapSummaryToThreat));
+          void loadReviewerSample(summaries, userId);
           // Proactively show quota error banner if the free monthly scan is already used.
           // This surfaces immediately on app open rather than requiring a failed scan attempt.
           if (quotaState && !quotaState.canScan && quotaState.message) {
@@ -454,7 +560,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isRefreshingRef.current = false;
     }
-  }, [clearIndexedPhotos]);
+  }, [clearIndexedPhotos, loadReviewerSample]);
 
   // NOTE: Do NOT trigger refreshData() from the isLoggedIn useEffect.
   // The AsyncStorage restore of isLoggedIn happens before setApiAuthToken() is called
@@ -466,6 +572,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem("isLoggedIn", "true");
     setIsLoading(true);
     clerkUserIdRef.current = userId ?? null;
+    reviewerSampleRequestRef.current += 1;
+    setReviewerSample(null);
     setIsOnboardingReady(false);
     // hasSeenOnboarding is scoped per Clerk user id so switching accounts on
     // the same device never inherits another account's onboarding state.
@@ -563,6 +671,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLastScanThreatsFound(null);
     setIndexedPhotos([]);
     indexedPhotosRef.current = [];
+    reviewerSampleRequestRef.current += 1;
+    setReviewerSample(null);
     setLocalPhotoThreats([]);
     localPhotoThreatsRef.current = [];
     setHasSeenOnboarding(false);
@@ -891,6 +1001,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         user,
         threats: mergedThreats,
         indexedPhotos,
+        reviewerSamplePhoto:
+          reviewerSample?.userId === clerkUserIdRef.current
+            ? reviewerSample.photo
+            : null,
         isLoggedIn,
         hasSeenOnboarding,
         isInitializing,
@@ -924,6 +1038,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateAccount,
         addIndexedPhotos,
         removeIndexedPhoto,
+        dismissReviewerSamplePhoto,
         clearIndexedPhotos,
       }}
     >

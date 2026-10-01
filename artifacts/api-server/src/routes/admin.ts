@@ -37,6 +37,7 @@ import {
 } from "../services/costTracker";
 import { clearAbuseFlag } from "../services/rateLimitService";
 import { logger } from "../lib/logger";
+import { refreshReviewerPhotoEvidence } from "../services/reviewerPhotoFixture";
 
 const router: IRouter = Router();
 
@@ -251,9 +252,8 @@ router.get("/admin/user/:userId/costs", async (req, res): Promise<void> => {
 
 // ─── Reviewer Seeding ─────────────────────────────────────────────────────────
 //
-// Image URLs use stable randomuser.me portrait CDN.
-// "Reviewer's own" photo appears as yourPhotoUrl in evidence comparisons.
-// "Impersonator" photo appears as stolenPhotoUrl.
+// The supplied review image is a static example asset served by the landing
+// artifact. Both comparison sides use it; this is not a real discovery.
 // No images are stored in the DB — only URL strings.
 //
 // All seeded rows are tagged so the DELETE endpoint can clean them precisely:
@@ -262,8 +262,8 @@ router.get("/admin/user/:userId/costs", async (req, res): Promise<void> => {
 //   - visual_fingerprints: styleEmbeddingJson = '"reviewer_seed"'
 //   - user_identity_profiles: canonicalHashClusterJson = '"reviewer_seed"'
 
-const REVIEWER_PHOTO = "https://tryrook.app/reviewer-sample-photo.jpg";
-const IMPERSONATOR_PHOTO_ALIKE = "https://randomuser.me/api/portraits/women/46.jpg";
+const REVIEWER_PHOTO = "https://tryrook.app/landing/reviewer-sample-photo.jpg?v=1de1d25649bd";
+const IMPERSONATOR_PHOTO_ALIKE = REVIEWER_PHOTO;
 const STRANGER_PHOTO = "https://randomuser.me/api/portraits/women/50.jpg";
 
 function buildReviewerThreats(userId: string) {
@@ -596,8 +596,12 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
 
     // Preserve marked sample history and any user actions on it. Never rebuild
     // legacy clones or real threat history on a repeat sign-in.
-    const [existingSample] = await tx
-      .select({ id: threatsTable.id })
+    const existingSamples = await tx
+      .select({
+        id: threatsTable.id,
+        evidenceJson: threatsTable.evidenceJson,
+        detectedSignalsJson: threatsTable.detectedSignalsJson,
+      })
       .from(threatsTable)
       .where(and(
         eq(threatsTable.userId, userId),
@@ -605,8 +609,27 @@ router.post("/admin/seed-reviewer", async (req, res): Promise<void> => {
           sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerSeed":true}'::jsonb`,
           sql`${threatsTable.detectedSignalsJson}::jsonb @> '{"isReviewerFixtureClone":true}'::jsonb`,
         ),
-      ))
-      .limit(1);
+      ));
+
+    // Existing examples must pick up a replacement photo, but preserve every
+    // resolution, score, caption, and user action. Real findings are excluded
+    // both by the query and by the helper's explicit sample-marker check.
+    for (const sample of existingSamples) {
+      const refreshed = refreshReviewerPhotoEvidence(
+        sample.evidenceJson,
+        sample.detectedSignalsJson,
+        REVIEWER_PHOTO,
+      );
+      if (refreshed) {
+        await tx.update(threatsTable)
+          .set(refreshed)
+          .where(and(
+            eq(threatsTable.id, sample.id),
+            eq(threatsTable.userId, userId),
+          ));
+      }
+    }
+    const existingSample = existingSamples[0];
 
     let reviewScanJobId: string | null = null;
     let threatsSeeded = 0;

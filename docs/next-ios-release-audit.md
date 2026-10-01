@@ -1,61 +1,49 @@
-# Rook — next signed iOS release audit
+# Rook — iOS 1.0.1 App Review release audit
 
-**Release decision: NO-GO.** Workspace code has changed since signed build 15.
-The next distribution build must use a number greater than 15, finish
-processing, and be tested before these instructions replace build-15 notes.
-Do not submit or reply to Apple on the basis of source inspection alone.
+**Status: upload reported successful; review readiness is not yet independently verified.** The user reports that version 1.0.1 was successfully uploaded. This workspace does not establish the exact signed build number, whether processing is complete, or which build is attached to the version in App Store Connect. Do not infer those facts from source configuration. There is no build-16 minimum requirement for reviewing version 1.0.1. The build-15 rejection notes in `docs/build-15-apple-review.md` are historical.
 
-## Checklist (checked means verified in the stated environment)
+## Current source and remaining evidence
 
-**iOS upload blocker:** App Store Connect already has build 15. Replit's Expo Launch produced builds 10, 11, and 12 for Rook `com.getrook.app` / App Store Connect app 6804614269; Apple rejected each as lower than build 15. The user confirmed build 15 and the failed Launch appear under the same Expo account/project. The app version, bundle ID, Apple app ID, Expo source identity, and production API URL have not changed since the build-15 release record; only build-number/version-source settings were changed afterward. The source now declares build 16 in `app.json` with local versioning and no auto-increment in `eas.json`, but the latest managed Launch still generated build 12. Do not switch Expo projects, change the bundle ID, claim that the source setting alone fixes this, or ask for repeated launches that increment the remote counter by one. The managed Launch workflow's effective remote iOS build-number counter must be synchronized with Apple's last accepted build 15 (so the next is 16), or its version source corrected by the build service, before another upload. After that, verify the signed IPA reports at least build 16 and completes upload before submitting for App Review. If local versioning actually takes effect in a future workflow, bump `ios.buildNumber` manually before every later production upload.
-
-| Flow | Checked / completed in workspace | Still needs work or evidence |
+| Area | What current source establishes | Still requires external verification |
 |---|---|---|
-| Reviewer sign-in security | The ordinary **Sign In** form also accepts a protected App Review username in the format `review:<reviewer email>` and an access code in Password. There is no reviewer-only link, gesture, or public form. Ordinary email addresses still use Clerk password sign-in, including new-device email verification. When `APP_REVIEW_EMAIL` is configured, the API requires an exact email and access-code match, then reuses or provisions only that email in the active Clerk tenant; the older exact-ID setting remains a fallback when email is absent. | Set `APP_REVIEW_EMAIL` for the intended production reviewer and keep the protected code active for the review window. Publish the updated API, then use a **new signed mobile build** (old TestFlight builds still use the old sign-in UI) with the exact protected App Store Connect fields. Verify ticket issuance and sign-in on that build. Revoke the code and reviewer designation after approval. This special credential path does not disable Clerk's new-device verification for ordinary logins. |
-| Signup agreements | Terms/privacy and separate 17+ acknowledgment now appear at the end of the form, directly above **Create Account**; SSO actions follow below. Registration requires both boxes. | Verify small-screen/keyboard/VoiceOver layout and a complete fresh signup in the new signed build. A checkbox is an account eligibility declaration, **not** Apple Age Assurance. |
-| Apple/Google SSO | A new provider-created identity is asked for explicit Terms and 17+ acknowledgment before its session is activated. The API blocks normal authenticated requests without current, timestamped acknowledgments; the tabs show a recovery screen for cancelled or failed attempts and returning users with missing records. | Verify sign-out failure/recovery and first-time/returning Apple IDs on clean iPhone **and iPad if installable**. The new server gate and app must ship together: publishing it alone would lock older clients out of normal API calls. No native pass is recorded. |
-| Facebook/Instagram photos | Onboarding now requests separate photo consent before fetching account media, handles a failed fetch with Retry/Continue, and submits full image URLs while showing thumbnails. | Live provider approval, actual production API parity, permissions, full-photo readability by reverse-image search, and new-build native test. A consented but empty media response must be described honestly. |
-| Photo consent, deletion, export | Code exposes consent withdrawal and data export. | Verify active-system deletion and backup/processor retention against the **live** policy. Prior audits found possible orphan photo data and unverified 24-hour cleanup; do not claim those passed. Verify Meta deauthorization/data-deletion callback cleanup independently. |
-| Scans, alerts, reports, push | App has these entry points in code and a seeded reviewer fixture. | Signed-build walkthrough: honest scan progress/results, own-user evidence, resolve/share/report links, background notification/deep-link safety. A seeded fixture is not a live OAuth or discovery pass. |
-| Subscription and restore | Reviewer fixture code seeds free/canceled/expired state, and paywall includes StoreKit/restore logic. | Confirm RevenueCat offerings, actual StoreKit purchase/restore/expired flow, prices, disclosure, production entitlement sync, and reviewer access on the signed build. |
-| Store metadata | Proposed reviewer wording below avoids hard-coded fixture counts and unverified live Meta claims. | App Store Connect: attach new processed build; remove/replace the promoted IAP image (unique, legible, no icon/screenshot/price); set Age Assurance to None unless truly present; confirm product/localization images, privacy label and screenshots. |
-| Live legal pages and production | `https://tryrook.app/privacy`, `/terms`, and `/support` returned HTTP 200 during the previous audit. | Live privacy wording differed from current server source; publish and verify the intended server/policy version before quoting it to Apple. Validate stored-face-data/deletion wording against implementation. |
+| Version identity | `artifacts/mobile/app.json` declares version `1.0.1`, iOS build number `16`, and bundle ID `com.getrook.app`; `eas.json` selects local app-version sourcing. These are workspace values, not proof of the uploaded binary's identity. | Confirm the processed 1.0.1 build actually attached in App Store Connect and record its displayed build number from the console or signed artifact. Do not impose a minimum build number of 16 for this 1.0.1 review. |
+| Reviewer sign-in | The ordinary `Sign In` screen branches on the `review:` username prefix. Enter `review:<reviewer email>` in **Email**, the protected access code in **Password**, then tap **Sign In**. The API checks the configured email and access code, limits attempts, and issues a short-lived Clerk sign-in ticket; it seeds reviewer sample history. This is not ordinary Clerk password sign-in and requires no reviewer mailbox OTP in the intended ticket flow. | Confirm the current protected username and actual access code are configured identically in the production API and App Store Connect's protected **App Review Information** fields. The code's value is provided through `APP_REVIEW_ACCESS_CODE`; it is not in source and has not been independently verified here. Never copy it into repository docs. Test ticket issuance and sign-in against production using the exact attached build. Ordinary non-review sign-in can still require Clerk's new-device email verification. |
+| Terms and age confirmation | Registration requires agreement to the Terms/Privacy and confirmation of age 17+. The tab layout checks server-recorded acknowledgments and presents a recovery step when they are missing. | On the exact uploaded build, verify fresh signup, returning account, interrupted social sign-in/recovery, and reviewer-account paths on a native device. Verify the production API enforces the same current legal versions. The API and mobile client must remain coordinated; do not mark legal compliance complete from source alone. |
+| Main navigation | The actual tab labels are **Dashboard**, **Alerts**, **Scan**, and **Profile**. The Scan tab screen heading is **Identity Scan**. | Confirm the labels and routes on the uploaded native build. No native-device walkthrough is recorded here. |
+| Investigation example | Reviewer seeding creates marked sample alert history, and the app labels seeded alerts `SAMPLE · NOT LIVE`; sample detail screens explain that account details and evidence are illustrative and disable reporting/response actions. Workspace fixture evidence points both comparison sides to the same supplied illustrative image. In sample detail, captions are **Your Photo** and **Example Image**, not a real suspected match. | Walk through **Alerts** → a sample alert → its detail screen on the exact build. The production API's corrected image URL is not yet verified. Do not present the example as live discovery, a verified impersonator, or a reportable target. Do not ask the reviewer to treat a sample caption as a real accusation. |
+| Reviewer fixture and image URL | `POST /api/admin/seed-reviewer` seeds sample alert/scan history and a Free/canceled subscription when one is not already present. The fixture reports `accountsSeeded: 0`; it does not seed a connected social account or a 1.0.1 Photo Monitor list. Workspace seed code points marked comparison photos to `https://tryrook.app/landing/reviewer-sample-photo.jpg?v=1de1d25649bd`; its refresh helper updates only explicitly marked sample evidence on reviewer re-sign-in and preserves history/actions. | The production root path `/reviewer-sample-photo.jpg` was found to return 404; `/landing/reviewer-sample-photo.jpg` returned 200 with `image/jpeg`. Do not imply the workspace API change is deployed or that the live API now serves the corrected URL. Verify production after deployment. The sample remains illustrative, not live OAuth or production discovery. |
+| Photo Monitor | On the **Profile** tab, scroll to the **Settings** section and choose **Photo Monitor**. In uploaded 1.0.1, the monitored-photo list is local to the mobile app; it has consent controls, **Monitored Photos**, **Add from Camera Roll**, and, when accounts exist, **Import from Accounts**. Current workspace mobile source also derives a clearly marked, display-only **Review Example** from marked server sample evidence. | That native Review Example is not in the already-uploaded 1.0.1 build and requires a newer signed build than that upload; another build of version 1.0.1 can include it. Its exact build number is unknown. It is excluded from real scans and has dismissal/account-boundary handling in source; verify those behaviors on the newer signed build. For the uploaded 1.0.1 build, verify consent/permission and production data behavior without claiming a Review Example is present. |
+| Profile destinations | The Profile **Settings** section contains **Edit Profile**, **Subscription**, **Photo Monitor**, **Notifications**, **Security**, **Help & Support**, **Privacy & Data**, and **Legal & Privacy**. It is a section on the Profile page that users scroll to, not a separate Settings screen. **Manage** opens account management. | Verify reachability and relevant actions on the exact native build, including export and consent withdrawal; do not claim device tests that have not been performed. |
+| Production/legal parity | Current mobile source links to the production legal/API domain configured for release. | Verify the live production API, current Privacy Policy and Terms pages, consent and deletion behavior, and exact reviewer ticket flow. A successful iOS upload does not prove API or legal-page parity. |
+| Other review flows | Source contains scans, alerts, account management, photo monitoring, support, legal/privacy controls, subscription, and restore entry points. | Verify scan progress/results, OAuth cancellation and callbacks, StoreKit purchase/restore, notifications/deep links, and deletion on the signed native build. A seeded fixture or workspace source is not evidence of a live scan, provider authorization, or store purchase. |
 
-## Reviewer-access lifecycle
+### Source discrepancy to track
 
-The reviewer uses the same Email and Password fields as everyone else, with
-the username `review:<reviewer email>` and the protected access code as the
-password. The prefix is not a valid ordinary email address, so other users
-retain their normal Clerk login flow. The prefix is **not authorization**:
-the server must still require the exact configured Clerk identity, matching
-email and access code, and rate-limit attempts. Keep access enabled through
-review and any appeal; afterward, rotate/remove the protected code in
-production and remove the account's reviewer designation when no further
-review is expected. Verify that the API refuses new review tickets afterward.
-The Sign In UI needs no reviewer-only control or follow-up update to hide one.
-Future reviews need valid access restored before submission.
+The Profile footer in `artifacts/mobile/app/(tabs)/profile.tsx` still hard-codes `Rook v1.0.0`, while `app.json` now declares `1.0.1`; the Legal screen reads the Expo config version dynamically. This is a visible source-level version-label mismatch. It does not reveal which binary was uploaded. The discrepancy is recorded here, not changed in app/API code as part of this documentation task.
 
-## Draft for the next build's protected App Review notes — not yet paste-ready
+## Reviewer walkthrough for version 1.0.1
 
-> Please install the **new build attached to this version**. On the normal
-> Sign In screen, enter the exact username from the protected App Review
-> Information username field (including its `review:` prefix) in Email and
-> the access code from the protected password field in Password. Tap Sign In.
-> No reviewer-only link, mailbox access, or email OTP is needed for these
-> credentials. If asked to accept the current Terms and confirm you are 17 or
-> older, complete that in-app step before entering the dashboard.
-> The account is in a free/expired state for reviewing Premium subscriptions
-> and Restore Purchases under Profile → Subscription.
->
-> Dashboard, Alerts → threat detail, Scan, Profile → Settings → Photo Monitor,
-> Profile → Settings → Privacy & Data, and Profile → Settings → Legal &
-> Privacy contain the other review flows. The seeded examples demonstrate
-> the interface; they do not represent a live Facebook, Instagram, or X
-> authorization. Separate photo-processing consent is required for photo
-> monitoring. Privacy: https://tryrook.app/privacy.
+Use the exact username and password in App Store Connect's protected App Review fields. On the normal **Sign In** screen:
 
-Before pasting, replace “new build” with the **actual processed version and
-build number**, then confirm every navigation step on that exact build. Keep
-credentials only in protected App Store Connect fields. The Apple rejection
-reply in `docs/build-15-apple-review.md` is conditional and must likewise be
-rewritten with verified outcomes from the new build and live policy.
+1. In **Email**, enter `review:<reviewer email>` exactly as shown in the protected username field.
+2. In **Password**, enter the current protected access code exactly as shown in the protected password field.
+3. Tap **Sign In**. Do not use the reviewer email alone, an ordinary Clerk password, or a separate reviewer button.
+4. If the app asks for current Terms acceptance or confirmation that the reviewer is at least 17, complete the in-app step before proceeding.
+
+The actual access-code value is not available from workspace source and has not been confirmed in this audit. Confirm it in the protected production configuration and App Store Connect fields without placing it in source control or these docs.
+
+From the four tabs, use **Alerts** → open a seeded example for the illustrative investigation flow. Workspace fixture evidence points both comparison sides to the same supplied review-sample image; in sample detail, their captions are **Your Photo** and **Example Image**. The production API update is unverified, so do not promise that the corrected image currently renders in 1.0.1. The sample account, findings, match details, and image are illustrative; they do not establish an actual impersonation or live discovery. Do not report or block an account based on this sample.
+
+For version 1.0.1's photo flow, use the **Profile** tab, scroll to its **Settings** section, and choose **Photo Monitor**. The seeded reviewer fixture does not include a verified connected account or monitored-photo list; the current list is local to the mobile app. Photo upload/import requires the relevant photo consent; only test with an authorized review image. The separate native **Review Example** is present in workspace source but not in the already-uploaded 1.0.1 build; it requires a newer signed build than that upload, which can still be another build of version 1.0.1. Its exact build number is unknown; do not claim it is available in the uploaded build. The workspace backend now targets the corrected hosted sample-image URL and refreshes only marked sample evidence on reviewer re-sign-in, preserving history and actions. The live production API has not been confirmed updated: its root image URL returned 404, while the `/landing/` asset returned 200 `image/jpeg`. Do not promise that 1.0.1 currently renders the corrected image. For privacy controls, use **Profile** → scroll to **Settings** → **Privacy & Data**; policies are under **Legal & Privacy**, and subscription is under **Subscription** in that same section.
+
+## Outstanding release gates
+
+- [ ] Replace and verify the promoted in-app-purchase image in App Store Connect.
+- [ ] Set Apple **Age Assurance** to **None** unless a genuine age-assurance mechanism is implemented. Rook's minimum account age of 17 is not itself age assurance.
+- [ ] Test Meta provider authorization/access and eligible-account media import, plus photo permission and explicit consent, on the exact native build with production configuration. Do not claim these flows work without evidence.
+- [ ] Compare the live Privacy Policy and Terms, privacy disclosures, production API behavior, and mobile consent, retention, export, withdrawal, and deletion flows for parity.
+- [ ] Deploy and externally verify the reviewer sample-image URL repair before claiming the live API returns the corrected asset.
+
+## Release gate
+
+Before claiming App Review access or release compliance is verified, record evidence for the exact processed/attached build, native-device sign-in, current production reviewer credentials/ticket issuance, server/mobile Terms and age-gate parity, live legal pages, and the relevant data and store flows. Keep these checks open until externally verified. Do not claim native login testing, a particular signed-build number, live discovery, or production parity based on workspace source alone.
