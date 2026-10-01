@@ -21,7 +21,9 @@ import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { Skeleton } from "@/components/Skeleton";
-import { getIdentityBadge, type IdentityBadge } from "@/lib/api";
+import { deleteMyAccount, getIdentityBadge, type IdentityBadge } from "@/lib/api";
+import { formatAppReleaseFooter } from "@/lib/appReleaseDisplay";
+import { getAppReleaseInfo } from "@/lib/appRelease";
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free Plan",
@@ -83,7 +85,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, logout, isLoading } = useApp();
-  const { signOut, getToken } = useAuth();
+  const { signOut } = useAuth();
   const { signOut: clerkSignOut } = useClerk();
   const navigation = useNavigation();
   const hasMounted = useRef(false);
@@ -147,16 +149,7 @@ export default function ProfileScreen() {
         // RC not configured or already logged out — proceed.
       }
 
-      const token = await getToken();
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      const base = domain ? `https://${domain}/api` : "/api";
-      const resp = await fetch(`${base}/me`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!resp.ok && resp.status !== 204) {
-        throw new Error("Failed to delete account");
-      }
+      await deleteMyAccount();
       await clerkSignOut();
       // The account endpoint already removes the server-side push token with
       // the user cascade. Do not make another authenticated API request after
@@ -470,7 +463,7 @@ export default function ProfileScreen() {
         </GlassCard>
 
         <Text style={[styles.version, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Rook v1.0.0 · All data encrypted end-to-end
+          Rook · {formatAppReleaseFooter(getAppReleaseInfo())}
         </Text>
       </ScrollView>
 

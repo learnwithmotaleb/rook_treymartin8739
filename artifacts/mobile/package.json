@@ -9,6 +9,7 @@
     "build:meta-review": "eas build --platform ios --profile meta-review",
     "download:meta-review": "node scripts/downloadMetaReviewBuild.js",
     "serve": "node server/serve.js",
+    "test:release": "node --experimental-strip-types --test lib/release.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "android": "expo run:android",
     "ios": "expo run:ios"

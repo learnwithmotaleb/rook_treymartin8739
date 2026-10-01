@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Alert,
   Linking,
   Platform,
   ScrollView,
@@ -11,35 +12,29 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import Constants from "expo-constants";
 import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
-
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL
-  ?? "https://tryrook.app";
+import { getApiUrl } from "@/lib/api";
+import { getAppReleaseInfo } from "@/lib/appRelease";
+import { getAppReleaseRows } from "@/lib/appReleaseDisplay";
 
 const LEGAL_LINKS = [
   {
     title: "Privacy Policy",
     subtitle: "How we collect, use, and protect your data",
     icon: "lock-closed" as const,
-    url: `${BASE_URL}/api/legal/privacy`,
+    path: "/legal/privacy",
   },
   {
     title: "Terms of Service",
     subtitle: "Rules and conditions for using Rook",
     icon: "document-text" as const,
-    url: `${BASE_URL}/api/legal/terms`,
+    path: "/legal/terms",
   },
 ];
 
-const APP_VERSION = Constants.expoConfig?.version ?? "1.0.0";
-const APP_BUILD =
-  String(Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? "1");
-
 const INFO_ROWS = [
-  { label: "App Version", value: APP_VERSION },
-  { label: "Build", value: APP_BUILD },
+  ...getAppReleaseRows(getAppReleaseInfo()),
   { label: "Support", value: "support@getrook.app" },
   { label: "Privacy", value: "support@getrook.app" },
 ];
@@ -50,8 +45,23 @@ export default function Legal() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const open = (url: string) => {
-    Linking.openURL(url).catch(() => {});
+  const open = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Unable to open link", "Please check your connection and try again.");
+    }
+  };
+
+  const openLegal = (path: string) => {
+    try {
+      void open(getApiUrl(path));
+    } catch (error) {
+      Alert.alert(
+        "Legal link unavailable",
+        error instanceof Error ? error.message : "The app could not resolve the legal link."
+      );
+    }
   };
 
   return (
@@ -72,11 +82,11 @@ export default function Legal() {
       >
         <GlassCard style={styles.card}>
           {LEGAL_LINKS.map((item, i) => (
-            <React.Fragment key={item.url}>
+            <React.Fragment key={item.path}>
               <TouchableOpacity
                 style={styles.row}
                 activeOpacity={0.7}
-                onPress={() => open(item.url)}
+                onPress={() => openLegal(item.path)}
               >
                 <View style={[styles.iconWrap, { backgroundColor: colors.primary + "18" }]}>
                   <Ionicons name={item.icon} size={18} color={colors.primary} />

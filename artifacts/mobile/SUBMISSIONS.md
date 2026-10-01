@@ -1,6 +1,6 @@
 # Rook — iOS 1.0.1 submission guide
 
-This is the repository's operational guide for the reported iOS 1.0.1 upload. The user reports that the version bump was successfully uploaded. This file does not prove App Store Connect processing or attachment state, the exact signed build number, production API parity, or native-device test results; retain those checks until externally evidenced.
+Read-only App Store Connect build GETs on 2026-10-01 found the latest valid, nonexpired iOS version 1.0.1 build 13, uploaded 2026-09-30 at 20:28:43 PDT (2026-10-01 at 03:28:43Z); older version 1.0.0 build 15 remains. Build 13 predates current Photo Monitor changes. App Store versions API returned 403, so exact installed build and build attached to the App Store version remain unverified; no mutations were made. The historical successful managed iOS [Launch workflow](https://expo.dev/workflows/01a0f579-19f5-764a-8fcb-0e4739f102d1) remains prior evidence; latest `getExpoLaunchLogs` returned no current session, which does not negate that historical evidence. This does not prove current attachment, signed-build identity, production parity, or native-device test results.
 
 ## Canonical store metadata
 
@@ -31,33 +31,37 @@ Record the questionnaire result separately after console completion; do not inve
 
 ## Version and build evidence
 
-- [ ] Confirm version 1.0.1 has finished processing and the intended build is attached to the App Store version under review.
-- [ ] Record the actual signed build number from App Store Connect or the signed artifact. `artifacts/mobile/app.json` currently declares version `1.0.1` and iOS build number `16`; that is source configuration, not evidence of the uploaded build number.
+- [ ] Confirm whether build 13 is attached to the App Store version and verify the exact installed build. The versions API returned 403; build 13 is the latest valid, nonexpired 1.0.1 build found, but attachment and installed identity are unknown.
+- [ ] Record the actual signed build number from App Store Connect or the signed artifact. `artifacts/mobile/app.json` declares version `1.0.1` and desired iOS build `16`; managed App Store Launch numbers builds independently, so this is not evidence of a published build number.
 - [ ] Do not require build number 16 or higher as a condition for the 1.0.1 review.
-- [ ] Note the source-visible version discrepancy: the Profile footer in `app/(tabs)/profile.tsx` still says `Rook v1.0.0`, while the app config says `1.0.1` and the Legal screen reads its version from config.
+- [ ] Current Profile and Legal source use dynamic version/build identity distinguishing Expo Go/browser from native. An older installed binary can still show old labels; verify only on the new signed build.
 
 ## Reviewer access and walkthrough
 
 Use the normal **Sign In** screen. Put `review:<reviewer email>` in the **Email** field and the current protected access code in **Password**. The app sends those values to the App Review ticket flow; it is not a separate reviewer login UI or ordinary Clerk password sign-in. The code value is configured outside source through `APP_REVIEW_ACCESS_CODE`; it has not been verified in this repository. An authorized operator must confirm the production configuration and App Store Connect protected password field match. Never put credentials in this file.
 
-The reviewer seeder creates illustrative, explicitly marked sample alert/scan history and requests a Free/canceled subscription only when no subscription already exists. It does not seed verified connected social accounts or a 1.0.1 monitored-photo list. The investigation and authorized review-sample image are demonstrations only—not a real impersonation, copied-photo finding, provider authorization, or live discovery. Workspace fixture evidence points both sample comparison sides to the same supplied illustrative image; captions in the marked detail are **Your Photo** and **Example Image**. The production API update is unverified, so do not promise that the corrected image currently renders in 1.0.1.
+The reviewer seeder creates illustrative, explicitly marked sample alert/scan history and requests a Free/canceled subscription only when no subscription already exists. It does not seed verified connected social accounts or a monitored-photo list. The investigation and authorized review-sample image are demonstrations only—not a real impersonation, copied-photo finding, provider authorization, or live discovery. Workspace fixture evidence points both sample comparison sides to the same supplied illustrative image; captions in the marked detail are **Your Photo** and **Example Image**. The hosted sample JPEG's SHA matches the supplied processed image. A read-only production query found six existing marked evidence rows with broken root-photo URLs before the current source detail-response normalization patch. Publish and verify that patch before claiming corrected sample display in production.
 
-Workspace backend source now targets `https://tryrook.app/landing/reviewer-sample-photo.jpg?v=1de1d25649bd` and refreshes image URLs only in explicitly marked sample rows on reviewer re-sign-in, preserving history and user actions. The production root path `/reviewer-sample-photo.jpg` was found to return 404; `/landing/reviewer-sample-photo.jpg` returned 200 with `image/jpeg`. Do not imply this workspace API change is deployed or that the current live API serves the corrected URL. After deployment, verify production behavior before claiming the existing signed investigation displays the updated image.
+The current web/API service is deployed at `https://tryrook.app`; its hosted `https://tryrook.app/landing/reviewer-sample-photo.jpg?v=1de1d25649bd` image matches the supplied processed image by SHA. Current source normalizes detail-response photo URLs only for trusted marked samples. After publishing this source change, existing marked evidence will not require sign-out/re-seed; this source fix is not yet confirmed live. Do not imply it has been published or that production behavior is verified until checked after publication.
 
-Workspace mobile source now adds a clearly marked, display-only **Review Example** derived from marked server sample evidence. It is excluded from real scans and has dismissal/account-boundary handling, but it is not in the already-uploaded 1.0.1 build and requires a newer signed build than that upload. Another build of version 1.0.1 can include it; its exact build number is unknown. Verify the sample marking, scan exclusion, dismissal, and account-boundary behavior on that newer signed build.
+Build 13 predates the current Photo Monitor changes. Workspace mobile source adds a clearly marked, display-only **Review Example** derived from marked server sample evidence. It is excluded from real scans and has dismissal/account-boundary handling, but requires a newer signed build; another build of version 1.0.1 can include it. Managed App Store Launch assigns build numbers independently, so its exact build number is unknown. Verify the sample marking, scan exclusion, dismissal, and account-boundary behavior on the new signed build; do not claim it is in build 13 or the currently attached build.
 
 Use `../../docs/reviewer-test-script.md` for current version 1.0.1 navigation and the internal device walkthrough. `../../docs/build-15-apple-review.md` records build 15 historically and is not the current submission guide.
 
 ## Native and production verification
 
+- [ ] Publish the current web/API source, including detail-response normalization for trusted sample-photo evidence. Production nonsecret `EXPO_PUBLIC_API_URL=https://tryrook.app` and `EXPO_PUBLIC_APP_ENV=production` values are set, but runtime publication remains required and does not prove the signed binary contains those values.
+- [ ] Start a new managed App Store Launch from current source. Version 1.0.1 can be reused; managed launch assigns build numbers independently of the desired `app.json` build 16.
+- [ ] Install the newly processed build through TestFlight and verify its exact identity and required flows on a native device.
 - [ ] Test normal reviewer sign-in and the required Terms/age recovery path on the exact attached native build.
 - [ ] Walk through Dashboard, Alerts/sample detail, Scan, and Profile on a clean supported iPhone. From Profile, scroll to its **Settings** section for Subscription, Photo Monitor, and other settings destinations; Settings is not a separate screen.
+- [ ] Verify current source release-parity changes on the signed build: dynamic Profile/Legal version-build identity that distinguishes Expo Go/browser from native, Profile deletion through the shared authenticated API, and OAuth fallbacks/legal URLs using the common validated origin.
 - [ ] Test photo consent, photo permission, and only authorized photo upload/import paths; separately verify production data behavior.
 - [ ] Test OAuth cancellation/callbacks, notifications/deep links, StoreKit offerings/purchase/restore, and subscription sync as applicable.
 - [ ] Verify production API, live Privacy Policy and Terms, current legal-version enforcement, consent withdrawal, photo-data deletion, export, and account deletion. Coordinate server legal gates with clients that can recover from a required acknowledgment.
 - [ ] Keep App Store Connect age-rating, privacy-label, subscription, screenshots, and review metadata unconfirmed until checked in the console.
 
-A seeded sample, successful upload report, clean source inspection, or workspace API source is not evidence that these device and production checks passed.
+A seeded sample, App Store Connect build record, historical successful workflow, clean source inspection, or workspace API source is not evidence that these device and production checks passed. Do not claim live sign-in, StoreKit, or device behavior without verification.
 
 ## Outstanding release gates
 
@@ -65,7 +69,7 @@ A seeded sample, successful upload report, clean source inspection, or workspace
 - [ ] Set Apple **Age Assurance** to **None** unless a genuine age-assurance mechanism is implemented. A minimum account age of 17 is not itself age assurance.
 - [ ] Test Meta provider authorization/access and eligible-account media import, plus photo permission and explicit consent, on the exact native build with production configuration.
 - [ ] Verify live Privacy Policy and Terms, production API behavior, and mobile/legal privacy parity, including consent, retention, export, withdrawal, and deletion.
-- [ ] Deploy and externally verify the reviewer sample-image URL repair before claiming the live API returns the corrected asset.
+- [ ] Publish and externally verify trusted-sample detail-response URL normalization before claiming the live API returns corrected sample images; the hosted JPEG itself has been SHA-verified.
 
 ## Legal and privacy URLs
 

@@ -24,7 +24,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { saveOnboardingAnswers, addAccount, listThreats, getOAuthState, getXOAuthInit, getOAuthRedirectUris, getAccounts, getAccountMedia, uploadAvatar, getPhotoConsent, type AccountMediaItem } from "@/lib/api";
+import { saveOnboardingAnswers, addAccount, listThreats, getAppUrl, getOAuthState, getXOAuthInit, getOAuthRedirectUris, getAccounts, getAccountMedia, uploadAvatar, getPhotoConsent, type AccountMediaItem } from "@/lib/api";
 import { INSTAGRAM_APP_ID, FACEBOOK_APP_ID, OAUTH_APP_SCHEME } from "@/constants/oauthConfig";
 import * as WebBrowser from "expo-web-browser";
 import { useColors } from "@/hooks/useColors";
@@ -1474,7 +1474,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
       const prevLastSynced = existing?.lastSynced ?? null;
 
       const redirectUriMap = await getOAuthRedirectUris().catch(() => ({} as Record<string,string>));
-      const redirectUrl = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${cfg.callbackPath}`;
+      const redirectUrl = redirectUriMap[platform] ?? getAppUrl(cfg.callbackPath);
 
       // For X, TWITTER_CLIENT_ID is server-only — use the server-supplied x_client_id
       const effectiveClientId = platform === "x"

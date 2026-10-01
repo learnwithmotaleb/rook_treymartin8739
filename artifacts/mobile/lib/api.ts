@@ -7,46 +7,48 @@
  */
 
 import { Platform } from "react-native";
+import { resolveApiBaseUrl, resolveAppOrigin, validateAppPath } from "./urls";
 
-function absoluteHttpsUrl(value: string | undefined): string | null {
-  if (!value) return null;
-
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) {
-      return null;
-    }
-    return url.toString().replace(/\/+$/, "");
-  } catch {
-    return null;
-  }
+function getUrlOptions() {
+  return {
+    apiUrl: process.env.EXPO_PUBLIC_API_URL,
+    domain: process.env.EXPO_PUBLIC_DOMAIN,
+    platform: Platform.OS === "web" ? "web" as const : "native" as const,
+    browserOrigin:
+      Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : undefined,
+    nativeProduction:
+      Platform.OS !== "web" && process.env.EXPO_PUBLIC_APP_ENV === "production",
+  };
 }
 
-function getBaseUrl(): string {
-  const configuredApiUrl = absoluteHttpsUrl(process.env.EXPO_PUBLIC_API_URL);
-  if (configuredApiUrl) return `${configuredApiUrl}/api`;
-
-  const isNativeProduction =
-    Platform.OS !== "web" && process.env.EXPO_PUBLIC_APP_ENV === "production";
-  if (isNativeProduction) {
+export function getAppOrigin(): string {
+  const origin = resolveAppOrigin(getUrlOptions());
+  if (origin) return origin;
+  if (Platform.OS !== "web" && process.env.EXPO_PUBLIC_APP_ENV === "production") {
     throw new Error(
       "Production API is not configured. Set EXPO_PUBLIC_API_URL to an absolute HTTPS URL."
     );
   }
-
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  const domainUrl = domain
-    ? absoluteHttpsUrl(domain.startsWith("http") ? domain : `https://${domain}`)
-    : null;
-  if (domainUrl) return `${domainUrl}/api`;
-
   if (Platform.OS !== "web") {
     throw new Error(
-      "Native API is not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_DOMAIN to an absolute HTTPS URL."
+      "Native app origin is not configured. Set EXPO_PUBLIC_API_URL or EXPO_PUBLIC_DOMAIN to an absolute HTTPS URL."
     );
   }
+  throw new Error("App origin is unavailable in this browser environment.");
+}
 
-  return "/api";
+export function getApiBaseUrl(): string {
+  return resolveApiBaseUrl(getUrlOptions());
+}
+
+export function getApiUrl(path: string): string {
+  const route = validateAppPath(path);
+  return `${getApiBaseUrl()}${route}`;
+}
+
+export function getAppUrl(path: string): string {
+  const route = validateAppPath(path);
+  return `${getAppOrigin()}${route}`;
 }
 
 const API_TIMEOUT_MS = 15_000;
@@ -108,7 +110,7 @@ async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${getBaseUrl()}${path}`;
+  const url = getApiUrl(path);
   const controller = new AbortController();
   const abortForCaller = () => controller.abort();
   if (options.signal?.aborted) {

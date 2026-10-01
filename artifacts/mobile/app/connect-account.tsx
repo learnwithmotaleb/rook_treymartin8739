@@ -22,7 +22,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { getAccounts, getOAuthRedirectUris, getOAuthState, getXOAuthInit } from "@/lib/api";
+import { getAccounts, getAppUrl, getOAuthRedirectUris, getOAuthState, getXOAuthInit } from "@/lib/api";
 import { INSTAGRAM_APP_ID, FACEBOOK_APP_ID, OAUTH_APP_SCHEME } from "@/constants/oauthConfig";
 
 interface PlatformConfig {
@@ -182,7 +182,7 @@ function OAuthButton({
       // state) and returns the code_challenge to add to the auth URL.
       // All other platforms use a plain HMAC state token.
       const redirectUriMap = await getOAuthRedirectUris().catch(() => ({} as Record<string, string>));
-      const redirectUrl = redirectUriMap[platform] ?? `https://${process.env.EXPO_PUBLIC_DOMAIN ?? ""}${config.callbackPath}`;
+      const redirectUrl = redirectUriMap[platform] ?? getAppUrl(config.callbackPath);
 
       let state: string;
       let authUrl: string;

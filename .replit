@@ -69,6 +69,8 @@ APP_REVIEW_CLERK_USER_ID = "user_3J8ijRg9Clczq2OCMJE2mCkyXki"
 [userenv.production]
 APP_REVIEW_CLERK_USER_ID = "user_3IfqGLKBm2g1Pa5rvfbDuGNemUI"
 APP_REVIEW_EMAIL = "rooktestuser@gmail.com"
+EXPO_PUBLIC_API_URL = "https://tryrook.app"
+EXPO_PUBLIC_APP_ENV = "production"
 
 [nix]
 channel = "stable-25_05"
