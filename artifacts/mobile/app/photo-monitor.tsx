@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -191,6 +191,7 @@ export default function PhotoMonitorScreen() {
     dismissReviewerSamplePhoto,
     addIndexedPhotos,
     removeIndexedPhoto,
+    refreshData,
     threats,
     user,
   } = useApp();
@@ -231,6 +232,12 @@ export default function PhotoMonitorScreen() {
   const displayedPhotos = reviewerSamplePhoto
     ? [...indexedPhotos, reviewerSamplePhoto]
     : indexedPhotos;
+
+  useFocusEffect(useCallback(() => {
+    // Reviewer images can change on the server while this account stays signed
+    // in. Refresh on entry rather than relying exclusively on login hydration.
+    void refreshData();
+  }, [refreshData]));
 
   useEffect(() => {
     getPhotoConsent()

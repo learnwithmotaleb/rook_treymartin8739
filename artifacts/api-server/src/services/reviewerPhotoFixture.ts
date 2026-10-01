@@ -2,6 +2,9 @@
  * Refresh only photo fields in explicitly marked review examples.
  * Never reconstruct history or reset resolution, scores, captions, or actions.
  */
+export const REVIEWER_PHOTO_URL =
+  "https://tryrook.app/landing/reviewer-sample-photo.jpg?v=1de1d25649bd";
+
 const PHOTO_KEYS = new Set([
   "yourPhotoUrl",
   "stolenPhotoUrl",
@@ -56,4 +59,23 @@ export function refreshReviewerPhotoEvidence(
     return null;
   }
   return { evidenceJson: updatedEvidence, detectedSignalsJson: updatedSignals };
+}
+
+/**
+ * Build the read-only view of reviewer photo evidence. Malformed historical
+ * JSON is left for the detail serializer's safe parser to handle.
+ */
+export function reviewerPhotoEvidenceForResponse(
+  evidenceJson: string | null,
+  detectedSignalsJson: string | null,
+): { evidenceJson: string | null; detectedSignalsJson: string | null } {
+  try {
+    return refreshReviewerPhotoEvidence(
+      evidenceJson,
+      detectedSignalsJson,
+      REVIEWER_PHOTO_URL,
+    ) ?? { evidenceJson, detectedSignalsJson };
+  } catch {
+    return { evidenceJson, detectedSignalsJson };
+  }
 }

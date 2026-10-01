@@ -10,6 +10,7 @@ import {
 } from "../services/phashIntelligenceService";
 import { getSubscription } from "../services/subscriptionService";
 import { normalizeTier } from "../lib/planConfig";
+import { reviewerPhotoEvidenceForResponse } from "../services/reviewerPhotoFixture";
 
 
 const router: IRouter = Router();
@@ -199,6 +200,16 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
       return;
     }
 
+    // Normalize explicitly marked reviewer examples in the response only.
+    // The persisted row and all history remain untouched on GET.
+    const detailThreat = {
+      ...threat,
+      ...reviewerPhotoEvidenceForResponse(
+        threat.evidenceJson,
+        threat.detectedSignalsJson,
+      ),
+    };
+
     // Gate full evidence behind Premium — free users see only metadata
     const sub = await getSubscription(userId);
     const tier = normalizeTier(sub.tier ?? "free");
@@ -261,7 +272,7 @@ router.get("/threats/:threatId", async (req, res): Promise<void> => {
       }
     }
 
-    res.json({ ...parseThreat(threat), isLocked: false, ...(threatActor !== undefined ? { threatActor } : {}) });
+    res.json({ ...parseThreat(detailThreat), isLocked: false, ...(threatActor !== undefined ? { threatActor } : {}) });
   } catch (err) {
     req.log.error({ err }, "GET /threats/:threatId failed");
     res.status(500).json({ error: "Internal server error" });

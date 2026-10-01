@@ -37,7 +37,10 @@ import {
 } from "../services/costTracker";
 import { clearAbuseFlag } from "../services/rateLimitService";
 import { logger } from "../lib/logger";
-import { refreshReviewerPhotoEvidence } from "../services/reviewerPhotoFixture";
+import {
+  refreshReviewerPhotoEvidence,
+  REVIEWER_PHOTO_URL,
+} from "../services/reviewerPhotoFixture";
 
 const router: IRouter = Router();
 
@@ -262,7 +265,7 @@ router.get("/admin/user/:userId/costs", async (req, res): Promise<void> => {
 //   - visual_fingerprints: styleEmbeddingJson = '"reviewer_seed"'
 //   - user_identity_profiles: canonicalHashClusterJson = '"reviewer_seed"'
 
-const REVIEWER_PHOTO = "https://tryrook.app/landing/reviewer-sample-photo.jpg?v=1de1d25649bd";
+const REVIEWER_PHOTO = REVIEWER_PHOTO_URL;
 const IMPERSONATOR_PHOTO_ALIKE = REVIEWER_PHOTO;
 const STRANGER_PHOTO = "https://randomuser.me/api/portraits/women/50.jpg";
 

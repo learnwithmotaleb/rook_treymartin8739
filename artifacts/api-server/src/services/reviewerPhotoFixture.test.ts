@@ -1,12 +1,22 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { refreshReviewerPhotoEvidence } from "./reviewerPhotoFixture";
+import {
+  refreshReviewerPhotoEvidence,
+  reviewerPhotoEvidenceForResponse,
+  REVIEWER_PHOTO_URL,
+} from "./reviewerPhotoFixture";
 
-const photo = "https://example.test/landing/review-photo.jpg?v=new";
+const photo = REVIEWER_PHOTO_URL;
 
-test("updates both comparison sides only for marked review examples", () => {
+test("detail response refreshes stale marked sample photo evidence on both sides", () => {
   const evidence = [
-    { id: "photo", type: "profile_photo", similarity: 61, yourPhotoUrl: "old", stolenPhotoUrl: "other" },
+    {
+      id: "photo",
+      type: "profile_photo",
+      similarity: 61,
+      yourPhotoUrl: "https://tryrook.app/reviewer-sample-photo.jpg",
+      stolenPhotoUrl: "https://tryrook.app/reviewer-sample-photo.jpg",
+    },
     { id: "caption", type: "caption", yourCaption: "Original", stolenCaption: "Example" },
   ];
   const signals = {
@@ -16,8 +26,12 @@ test("updates both comparison sides only for marked review examples", () => {
     flags: ["firstScanHighConfidence"],
     evidence: [{ type: "profile_photo_match", yourPhotoUrl: "old", stolenPhotoUrl: "other" }],
   };
-  const updated = refreshReviewerPhotoEvidence(JSON.stringify(evidence), JSON.stringify(signals), photo);
-  assert.ok(updated);
+  const updated = reviewerPhotoEvidenceForResponse(
+    JSON.stringify(evidence),
+    JSON.stringify(signals),
+  );
+  assert.ok(updated.evidenceJson);
+  assert.ok(updated.detectedSignalsJson);
   const parsed = JSON.parse(updated.evidenceJson);
   assert.equal(parsed[0].yourPhotoUrl, photo);
   assert.equal(parsed[0].stolenPhotoUrl, photo);
@@ -30,8 +44,22 @@ test("updates both comparison sides only for marked review examples", () => {
 });
 
 test("never changes unmarked live findings", () => {
-  assert.equal(refreshReviewerPhotoEvidence("[]", '{"yourPhotoUrl":"old"}', photo), null);
+  const liveEvidence = '[{"type":"profile_photo","yourPhotoUrl":"live","stolenPhotoUrl":"live"}]';
+  const liveSignals = '{"yourPhotoUrl":"live"}';
+  assert.deepEqual(
+    reviewerPhotoEvidenceForResponse(liveEvidence, liveSignals),
+    { evidenceJson: liveEvidence, detectedSignalsJson: liveSignals },
+  );
   assert.equal(refreshReviewerPhotoEvidence("[]", '{"isReviewerSeed":false}', photo), null);
+});
+
+test("malformed old sample JSON is left intact for safe detail serialization", () => {
+  const malformedEvidence = "[";
+  const signals = '{"isReviewerSeed":true}';
+  assert.deepEqual(
+    reviewerPhotoEvidenceForResponse(malformedEvidence, signals),
+    { evidenceJson: malformedEvidence, detectedSignalsJson: signals },
+  );
 });
 
 test("is idempotent and also updates marked legacy examples", () => {
