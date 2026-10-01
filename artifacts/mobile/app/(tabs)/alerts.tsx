@@ -20,6 +20,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, Severity, type Threat } from "@/context/AppContext";
 import { ThreatCard } from "@/components/ThreatCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 
 type Tab = "active" | "resolved";
 type Filter = "all" | Severity;
@@ -197,7 +198,7 @@ function PaywallBanner({ threats, colors }: { threats: Threat[]; colors: ReturnT
 export default function AlertsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { threats, refreshData, user, resolveThreat } = useApp();
+  const { threats, refreshData, user, resolveThreat, isReviewerDemo } = useApp();
   const params = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<Tab>(params.tab === "resolved" ? "resolved" : "active");
   const [filter, setFilter] = useState<Filter>("all");
@@ -232,7 +233,7 @@ export default function AlertsScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const isFree = user.tier === "free";
+  const isFree = user.tier === "free" && !isReviewerDemo;
 
   const activeFiltered = threats.filter((t) => {
     if (t.resolved) return false;
@@ -350,6 +351,8 @@ export default function AlertsScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {isReviewerDemo && <ReviewerDemoBanner />}
 
       {/* Tab switcher: Active | Resolved */}
       <View style={[styles.tabRow, { borderBottomColor: colors.border }]}>

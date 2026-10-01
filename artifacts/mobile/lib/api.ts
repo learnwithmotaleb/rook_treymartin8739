@@ -8,6 +8,41 @@
 
 import { Platform } from "react-native";
 import { resolveApiBaseUrl, resolveAppOrigin, validateAppPath } from "./urls";
+import {
+  buildPinnedPushTokenCleanupRequest,
+  createPinnedPushTokenCleanup,
+  type CapturedDevicePushToken,
+  type PinnedPushTokenCleanup,
+} from "./logoutCleanup";
+import { normalizeNullProfileEmail } from "./profileBootstrap";
+import {
+  addReviewerDemoAccount,
+  bulkResolveReviewerDemoThreats,
+  clearReviewerDemoMedia,
+  getReviewerDemoMedia,
+  getReviewerDemoProfilePatch,
+  getReviewerDemoQuota,
+  getReviewerDemoScanResults,
+  getReviewerDemoScanStatus,
+  getReviewerDemoSnapshot,
+  getReviewerDemoThreat,
+  invalidateReviewerAuthorizationForOwnerChange,
+  isReviewerDemoActive,
+  getReviewerDemoAuthorizationState,
+  isReviewerDemoAuthorizationRevisionCurrent,
+  isReviewerDemoNetworkRequestAllowed,
+  setReviewerDemoAuthorizationStatus,
+  removeReviewerDemoAccount,
+  resolveReviewerDemoThreat,
+  classifyReviewerDemoAuthorizationResult,
+  saveReviewerDemoOnboardingAnswers,
+  type ReviewerDemoAuthorizationDecision,
+  startReviewerDemoScan,
+  updateReviewerDemoAccount,
+  updateReviewerDemoConsent,
+  updateReviewerDemoProfile,
+  resetReviewerDemoSession,
+} from "./reviewerDemo";
 
 function getUrlOptions() {
   return {
@@ -55,9 +90,110 @@ const API_TIMEOUT_MS = 15_000;
 const AUTH_TOKEN_TIMEOUT_MS = 8_000;
 
 let _authTokenGetter: (() => Promise<string | null>) | null = null;
+let _authTokenGetterRevision = 0;
+let _authTokenOwnerId: string | null = null;
+const issuedLogoutCleanupPlans = new WeakSet<object>();
 
-export function setApiAuthToken(getter: () => Promise<string | null>) {
+export function setApiAuthToken(
+  getter: () => Promise<string | null>,
+  ownerId: string | null,
+) {
+  if (invalidateReviewerAuthorizationForOwnerChange(_authTokenOwnerId, ownerId)) {
+    _authTokenGetterRevision += 1;
+  }
+  // A Clerk token getter is frequently recreated while the same account stays
+  // signed in. Refresh the callable without invalidating that account's
+  // reviewer authorization or any in-flight account-scoped work.
   _authTokenGetter = getter;
+  _authTokenOwnerId = ownerId;
+}
+
+export function getApiAuthTokenRevision(): number {
+  return _authTokenGetterRevision;
+}
+
+/** Drop the live getter only if it still belongs to the account being logged out. */
+export function invalidateApiAuthToken(ownerId: string | null): boolean {
+  if (_authTokenOwnerId !== ownerId) return false;
+  _authTokenGetterRevision += 1;
+  _authTokenGetter = null;
+  _authTokenOwnerId = null;
+  return true;
+}
+
+/** Capture a bearer only while its Clerk owner and live authorization still match. */
+export async function capturePinnedPushTokenCleanup(
+  ownerId: string,
+  device: CapturedDevicePushToken,
+): Promise<PinnedPushTokenCleanup | null> {
+  const scope = getReviewerDemoAuthorizationState();
+  const tokenGetterRevision = _authTokenGetterRevision;
+  if (
+    !ownerId ||
+    device.ownerId !== ownerId ||
+    _authTokenOwnerId !== ownerId ||
+    scope.accountKey !== ownerId ||
+    scope.status !== "live" ||
+    !_authTokenGetter
+  ) return null;
+
+  let token: string | null;
+  try {
+    token = await getAuthToken();
+  } catch {
+    return null;
+  }
+
+  const currentScope = getReviewerDemoAuthorizationState();
+  if (
+    !token ||
+    _authTokenOwnerId !== ownerId ||
+    _authTokenGetterRevision !== tokenGetterRevision ||
+    currentScope.accountKey !== ownerId ||
+    currentScope.status !== "live" ||
+    currentScope.revision !== scope.revision
+  ) return null;
+
+  const plan = createPinnedPushTokenCleanup(
+    { ownerId, bearerToken: token },
+    device,
+    ownerId,
+  );
+  if (plan) issuedLogoutCleanupPlans.add(plan);
+  return plan;
+}
+
+/**
+ * Executes logout cleanup with the captured old credential, never the global
+ * token getter. The exact device token and owner are part of the pinned plan.
+ */
+export async function executePinnedPushTokenCleanup(
+  cleanup: PinnedPushTokenCleanup,
+): Promise<void> {
+  if (!issuedLogoutCleanupPlans.has(cleanup)) {
+    throw new Error("Push-token cleanup authorization was not captured for this session.");
+  }
+  const request = buildPinnedPushTokenCleanupRequest(cleanup);
+  const route = validateAppPath(request.path);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${getApiBaseUrl()}${route}`, {
+      method: request.method,
+      headers: request.headers,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Push-token cleanup failed (HTTP ${response.status}).`);
+    }
+  } catch {
+    if (controller.signal.aborted) {
+      throw new Error("Push-token cleanup timed out.");
+    }
+    throw new Error("Push-token cleanup could not be completed.");
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -65,7 +201,7 @@ async function getAuthToken(): Promise<string | null> {
 
   let timeout: ReturnType<typeof setTimeout> | null = null;
   try {
-    return await Promise.race([
+    const token = await Promise.race([
       _authTokenGetter(),
       new Promise<never>((_, reject) => {
         timeout = setTimeout(
@@ -74,6 +210,12 @@ async function getAuthToken(): Promise<string | null> {
         );
       }),
     ]);
+    if (!token && isReviewerDemoActive()) {
+      const scope = getReviewerDemoAuthorizationState();
+      resetReviewerDemoSession();
+      setReviewerDemoAuthorizationStatus(scope.accountKey, "pending");
+    }
+    return token;
   } finally {
     if (timeout) clearTimeout(timeout);
   }
@@ -106,11 +248,40 @@ export class ScanQuotaError extends Error {
   }
 }
 
+class ApiResponseError extends Error {
+  constructor(
+    readonly statusCode: number,
+    readonly errorCode: string | null,
+  ) {
+    super(errorCode ?? `HTTP ${statusCode}`);
+    this.name = "ApiResponseError";
+  }
+}
+
+class ApiAuthorizationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApiAuthorizationError";
+  }
+}
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = getApiUrl(path);
+  const route = validateAppPath(path);
+  const scope = getReviewerDemoAuthorizationState();
+  const method = (options.method ?? "GET").toUpperCase();
+  if (!isReviewerDemoNetworkRequestAllowed(scope.status, route, method)) {
+    throw new ApiAuthorizationError(
+      scope.status === "unavailable"
+        ? "Account mode could not be verified. Retry authorization before continuing."
+        : scope.status === "pending"
+          ? "Account authorization is still pending."
+          : "This operation is unavailable in reviewer preview."
+    );
+  }
+  const url = `${getApiBaseUrl()}${route}`;
   const controller = new AbortController();
   const abortForCaller = () => controller.abort();
   if (options.signal?.aborted) {
@@ -121,10 +292,15 @@ async function apiFetch<T>(
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   const authHeaders: Record<string, string> = {};
   try {
-    if (_authTokenGetter) {
-      const token = await getAuthToken();
-      if (token) authHeaders["Authorization"] = `Bearer ${token}`;
+    const isPublicTicket = route.split("?", 1)[0] === "/auth/app-review-ticket";
+    const token = await getAuthToken();
+    if (!isReviewerDemoAuthorizationRevisionCurrent(scope.revision)) {
+      throw new ApiAuthorizationError("Account changed while authorizing this request.");
     }
+    if (!token && !isPublicTicket) {
+      throw new ApiAuthorizationError("Authentication is required for this request.");
+    }
+    if (token) authHeaders["Authorization"] = `Bearer ${token}`;
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
@@ -134,11 +310,17 @@ async function apiFetch<T>(
         ...(options.headers ?? {}),
       },
     });
+    if (!isReviewerDemoAuthorizationRevisionCurrent(scope.revision)) {
+      throw new ApiAuthorizationError("Account changed while this request was in progress.");
+    }
 
     if (!response.ok) {
       const body = await response
         .json()
         .catch(() => ({ error: "Request failed" })) as Record<string, unknown>;
+      if (!isReviewerDemoAuthorizationRevisionCurrent(scope.revision)) {
+        throw new ApiAuthorizationError("Account changed while this request was in progress.");
+      }
 
       // Surface structured quota errors so the UI can show the upgrade prompt
       if (response.status === 429 && body["error"] === "scan_limit_reached") {
@@ -150,12 +332,24 @@ async function apiFetch<T>(
         });
       }
 
-      throw new Error(String(body["error"] ?? `HTTP ${response.status}`));
+      throw new ApiResponseError(
+        response.status,
+        typeof body["error"] === "string"
+          ? body["error"]
+          : typeof body["code"] === "string"
+            ? body["code"]
+            : null,
+      );
     }
 
     if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
+    const payload = await response.json() as T;
+    if (!isReviewerDemoAuthorizationRevisionCurrent(scope.revision)) {
+      throw new ApiAuthorizationError("Account changed while this request was in progress.");
+    }
+    return payload;
   } catch (error) {
+    if (error instanceof ApiAuthorizationError || error instanceof ApiResponseError) throw error;
     if (controller.signal.aborted) {
       throw new Error("Request timed out. Check your connection and try again.");
     }
@@ -163,6 +357,23 @@ async function apiFetch<T>(
   } finally {
     clearTimeout(timeout);
     options.signal?.removeEventListener("abort", abortForCaller);
+  }
+}
+
+/** Classifies the authenticated reviewer endpoint without treating failures as live mode. */
+export async function authorizeReviewerDemo(): Promise<ReviewerDemoAuthorizationDecision> {
+  try {
+    const payload = await apiFetch<unknown>("/reviewer/demo");
+    return classifyReviewerDemoAuthorizationResult({ kind: "payload", payload });
+  } catch (error) {
+    if (error instanceof ApiResponseError) {
+      return classifyReviewerDemoAuthorizationResult({
+        kind: "http",
+        statusCode: error.statusCode,
+        errorCode: error.errorCode,
+      });
+    }
+    return classifyReviewerDemoAuthorizationResult({ kind: "network" });
   }
 }
 
@@ -187,6 +398,7 @@ export interface UserProfile {
   minimumAgeVersion?: string | null;
   reelsIndexed: number;
   fingerprintUpdated: string;
+  avatarUrl?: string | null;
 }
 
 export async function requestAppReviewTicket(
@@ -211,6 +423,8 @@ export interface AccountProfile {
   captionsIndexed: number;
   reelsIndexed: number;
   lastSynced: string | null;
+  connectionType?: "demo";
+  isSample?: boolean;
 }
 
 export interface AccountStatus {
@@ -300,10 +514,31 @@ export interface ThreatDetail extends ThreatSummary {
 }
 
 export async function getMe(): Promise<UserProfile> {
-  return apiFetch<UserProfile>("/me");
+  const profile = normalizeNullProfileEmail(
+    await apiFetch<unknown>("/me"),
+  ) as UserProfile;
+  if (!isReviewerDemoActive()) return profile;
+  const demo = getReviewerDemoSnapshot();
+  if (!demo) return profile;
+  return {
+    ...profile,
+    ...getReviewerDemoProfilePatch(),
+    id: profile.id,
+    tier: profile.tier,
+    onboardingCompleted: profile.onboardingCompleted,
+    securityScore: demo.profileSummary.securityScore,
+    scoreTrend: demo.profileSummary.scoreTrend,
+    monitored: demo.profileSummary.monitored,
+    lastScan: demo.profileSummary.lastScan,
+    totalPhotosIndexed: demo.profileSummary.totalPhotosIndexed,
+    totalCaptionsIndexed: demo.profileSummary.totalCaptionsIndexed,
+    reelsIndexed: demo.profileSummary.reelsIndexed,
+    fingerprintUpdated: demo.profileSummary.fingerprintUpdated,
+  };
 }
 
 export async function deleteMyAccount(): Promise<void> {
+  if (isReviewerDemoActive()) return;
   await apiFetch<void>("/me", { method: "DELETE" });
 }
 
@@ -312,6 +547,10 @@ export async function updateMe(updates: {
   username?: string;
   email?: string;
 }): Promise<UserProfile> {
+  if (isReviewerDemoActive()) {
+    updateReviewerDemoProfile(updates);
+    return getMe();
+  }
   return apiFetch<UserProfile>("/me", {
     method: "PATCH",
     body: JSON.stringify(updates),
@@ -345,10 +584,18 @@ export async function getPhotoConsent(): Promise<{
   consentedAt: string | null;
   consentVersion: string | null;
 }> {
+  if (isReviewerDemoActive()) {
+    const demo = getReviewerDemoSnapshot();
+    if (demo) return { ...demo.consent };
+  }
   return apiFetch("/me/photo-consent");
 }
 
 export async function recordPhotoConsent(consentVersion = CURRENT_PHOTO_CONSENT_VERSION): Promise<void> {
+  if (isReviewerDemoActive()) {
+    updateReviewerDemoConsent(true);
+    return;
+  }
   await apiFetch<{ ok: boolean }>("/me/photo-consent", {
     method: "POST",
     body: JSON.stringify({ consentVersion }),
@@ -356,18 +603,39 @@ export async function recordPhotoConsent(consentVersion = CURRENT_PHOTO_CONSENT_
 }
 
 export async function withdrawPhotoConsent(): Promise<void> {
+  if (isReviewerDemoActive()) {
+    updateReviewerDemoConsent(false);
+    return;
+  }
   await apiFetch<{ ok: boolean }>("/me/photo-consent", { method: "DELETE" });
 }
 
 export async function deletePhotoData(): Promise<void> {
+  if (isReviewerDemoActive()) {
+    clearReviewerDemoMedia();
+    return;
+  }
   await apiFetch<{ ok: boolean }>("/me/photo-data", { method: "DELETE" });
 }
 
 export async function downloadMyData(): Promise<object> {
+  if (isReviewerDemoActive()) {
+    return {
+      isSample: true,
+      mode: "reviewer_demo",
+      message: "This preview contains fictional sample data only.",
+      data: getReviewerDemoSnapshot(),
+    };
+  }
   return apiFetch<object>("/me/export");
 }
 
 export async function saveOnboardingAnswers(answers: Record<string, unknown>): Promise<void> {
+  const authorization = getReviewerDemoAuthorizationState();
+  if (authorization.status === "demo") {
+    saveReviewerDemoOnboardingAnswers(answers);
+    return;
+  }
   await apiFetch<{ ok: boolean }>("/me/onboarding", {
     method: "POST",
     body: JSON.stringify({ answers }),
@@ -375,27 +643,53 @@ export async function saveOnboardingAnswers(answers: Record<string, unknown>): P
 }
 
 export async function uploadAvatar(imageBase64: string): Promise<{ avatarUrl: string }> {
+  if (isReviewerDemoActive()) {
+    const avatarUrl = `data:image/jpeg;base64,${imageBase64}`;
+    updateReviewerDemoProfile({ avatarUrl });
+    return { avatarUrl };
+  }
   return apiFetch<{ avatarUrl: string }>("/me/avatar", {
     method: "PATCH",
     body: JSON.stringify({ imageBase64 }),
   });
 }
 
+export function previewReviewerDemoAvatar(avatarUrl: string): { avatarUrl: string } {
+  if (!isReviewerDemoActive()) {
+    throw new Error("Reviewer preview is not active.");
+  }
+  if (!/^https?:\/\//i.test(avatarUrl) && !avatarUrl.startsWith("data:image/")) {
+    throw new Error("Choose an image from the reviewer-demo fixture.");
+  }
+  updateReviewerDemoProfile({ avatarUrl });
+  return { avatarUrl };
+}
+
 export async function getAccounts(opts?: { bustCache?: boolean }): Promise<AccountProfile[]> {
+  if (isReviewerDemoActive()) {
+    return (getReviewerDemoSnapshot()?.accounts ?? []) as AccountProfile[];
+  }
   const path = opts?.bustCache ? `/accounts?_t=${Date.now()}` : "/accounts";
   return apiFetch<AccountProfile[]>(path);
 }
 
 export async function getOAuthState(): Promise<string> {
+  if (isReviewerDemoActive()) {
+    throw new Error("Social account connections are disabled in reviewer preview.");
+  }
   const result = await apiFetch<{ state: string }>("/oauth/state", { method: "POST" });
   return result.state;
 }
 
 export async function getXOAuthInit(): Promise<{ state: string; codeChallenge: string; redirectUri?: string }> {
+  if (isReviewerDemoActive()) {
+    throw new Error("Social account connections are disabled in reviewer preview.");
+  }
   return apiFetch<{ state: string; codeChallenge: string; redirectUri?: string }>("/oauth/x/init", { method: "POST" });
 }
 
 export async function startScan(options: { bypassCache?: boolean } = {}): Promise<ScanJob> {
+  if (isReviewerDemoActive()) return startReviewerDemoScan() as ScanJob;
   return apiFetch<ScanJob>("/scan", {
     method: "POST",
     body: JSON.stringify({ bypassCache: options.bypassCache ?? false }),
@@ -403,14 +697,44 @@ export async function startScan(options: { bypassCache?: boolean } = {}): Promis
 }
 
 export async function getScanStatus(jobId: string): Promise<ScanJob> {
+  if (isReviewerDemoActive()) {
+    const status = getReviewerDemoScanStatus(jobId);
+    if (status) return status as ScanJob;
+    throw new Error("Sample scan is no longer available.");
+  }
   return apiFetch<ScanJob>(`/scan/${jobId}`);
 }
 
 export async function getScanResults(jobId: string): Promise<ThreatSummary[]> {
+  if (isReviewerDemoActive()) {
+    return getReviewerDemoScanResults().map((threat) => ({
+      id: threat.id,
+      isSample: true,
+      scanJobId: jobId,
+      type: threat.type,
+      severity: threat.severity,
+      platform: threat.platform,
+      title: threat.title,
+      description: threat.description,
+      threatScore: threat.threatScore,
+      matchedMediaCount: threat.matchedMediaCount,
+      evidenceCount: threat.evidence.length,
+      suspiciousUsername: threat.suspiciousUsername,
+      resolved: threat.resolved,
+      resolveAction: threat.resolveAction,
+      resolvedAt: threat.resolvedAt,
+      createdAt: threat.createdAt,
+    }));
+  }
   return apiFetch<ThreatSummary[]>(`/scan/${jobId}/results`);
 }
 
 export async function getLatestScan(): Promise<ScanJob> {
+  if (isReviewerDemoActive()) {
+    const demo = getReviewerDemoSnapshot();
+    if (demo?.latestScan) return demo.latestScan as unknown as ScanJob;
+    throw new Error("No sample scan is available.");
+  }
   return apiFetch<ScanJob>("/scan/latest");
 }
 
@@ -428,6 +752,16 @@ export interface ScanQuotaState {
 }
 
 export async function getScanQuotaState(): Promise<ScanQuotaState> {
+  if (isReviewerDemoActive()) {
+    const quota = getReviewerDemoQuota();
+    if (quota) {
+      return {
+        ...quota,
+        canScan: true,
+        message: "Preview scans run locally on fictional sample data.",
+      } as ScanQuotaState;
+    }
+  }
   return apiFetch<ScanQuotaState>("/scan/quota-state");
 }
 
@@ -436,6 +770,14 @@ export async function listThreats(params?: {
   resolved?: boolean;
   limit?: number;
 }): Promise<ThreatSummary[]> {
+  if (isReviewerDemoActive()) {
+    const demo = getReviewerDemoSnapshot();
+    const filtered = (demo?.threats ?? []).filter((threat) =>
+      (!params?.severity || threat.severity === params.severity) &&
+      (params?.resolved === undefined || threat.resolved === params.resolved)
+    );
+    return filtered.slice(0, params?.limit ?? 200) as ThreatSummary[];
+  }
   const qs = new URLSearchParams();
   if (params?.severity) qs.set("severity", params.severity);
   if (params?.resolved !== undefined)
@@ -446,10 +788,19 @@ export async function listThreats(params?: {
 }
 
 export async function getThreat(id: string): Promise<ThreatDetail> {
+  if (isReviewerDemoActive()) {
+    const threat = getReviewerDemoThreat(id);
+    if (!threat) throw new Error("Sample threat was not found.");
+    return threat as unknown as ThreatDetail;
+  }
   return apiFetch<ThreatDetail>(`/threats/${id}`);
 }
 
 export async function resolveThreat(id: string, resolveAction?: string): Promise<void> {
+  if (isReviewerDemoActive()) {
+    resolveReviewerDemoThreat(id, resolveAction);
+    return;
+  }
   await apiFetch(`/threats/${id}/resolve`, {
     method: "PATCH",
     body: JSON.stringify(resolveAction ? { resolveAction } : {}),
@@ -457,6 +808,10 @@ export async function resolveThreat(id: string, resolveAction?: string): Promise
 }
 
 export async function bulkResolveThreats(ids: string[]): Promise<void> {
+  if (isReviewerDemoActive()) {
+    bulkResolveReviewerDemoThreats(ids);
+    return;
+  }
   await apiFetch("/threats/bulk-resolve", {
     method: "PATCH",
     body: JSON.stringify({ ids }),
@@ -469,6 +824,9 @@ export async function addAccount(
   accessToken?: string,
   displayName?: string
 ): Promise<AccountProfile> {
+  if (isReviewerDemoActive()) {
+    return addReviewerDemoAccount(platform, username, displayName) as AccountProfile;
+  }
   return apiFetch<AccountProfile>("/accounts", {
     method: "POST",
     body: JSON.stringify({ platform, username, accessToken, displayName }),
@@ -476,6 +834,10 @@ export async function addAccount(
 }
 
 export async function removeAccount(id: string): Promise<void> {
+  if (isReviewerDemoActive()) {
+    removeReviewerDemoAccount(id);
+    return;
+  }
   await apiFetch(`/accounts/${id}`, { method: "DELETE" });
 }
 
@@ -488,6 +850,9 @@ export async function updateAccount(
     platformUserId?: string;
   }
 ): Promise<AccountProfile> {
+  if (isReviewerDemoActive()) {
+    return updateReviewerDemoAccount(id, updates) as AccountProfile;
+  }
   return apiFetch<AccountProfile>(`/accounts/${id}`, {
     method: "PATCH",
     body: JSON.stringify(updates),
@@ -495,6 +860,11 @@ export async function updateAccount(
 }
 
 export async function getAccountStatus(accountId: string): Promise<AccountStatus> {
+  if (isReviewerDemoActive()) {
+    const account = getReviewerDemoSnapshot()?.accounts.find((item) => item.id === accountId);
+    if (!account) throw new Error("Sample account was not found.");
+    return { verified: false, tokenExpiresAt: null, needsReconnect: account.needsReconnect, scopesGranted: [] };
+  }
   return apiFetch<AccountStatus>(`/accounts/${accountId}/status`);
 }
 
@@ -505,6 +875,9 @@ export async function getAccountStatus(accountId: string): Promise<AccountStatus
  * Returns the updated list of accounts.
  */
 export async function refreshAccountTokens(): Promise<AccountProfile[]> {
+  if (isReviewerDemoActive()) {
+    return (getReviewerDemoSnapshot()?.accounts ?? []) as AccountProfile[];
+  }
   return apiFetch<AccountProfile[]>("/accounts/refresh", { method: "POST" });
 }
 
@@ -543,6 +916,7 @@ export async function registerPushToken(
   token: string,
   platform: "ios" | "android"
 ): Promise<void> {
+  if (isReviewerDemoActive()) return;
   await apiFetch("/notifications/token", {
     method: "PATCH",
     body: JSON.stringify({ token, platform }),
@@ -550,21 +924,24 @@ export async function registerPushToken(
 }
 
 export async function deregisterPushToken(
-  platform?: "ios" | "android",
-  token?: string
+  _platform: "ios" | "android",
+  token: string
 ): Promise<void> {
+  if (isReviewerDemoActive()) return;
   // The API must require token when removing a device registration. A
   // platform-only delete would sign out every device for this account.
-  const params = new URLSearchParams();
-  if (platform) params.set("platform", platform);
-  if (token) params.set("token", token);
-  const query = params.toString() ? `?${params.toString()}` : "";
+  if (!token.trim()) {
+    throw new Error("A device token is required to deregister push notifications.");
+  }
+  const params = new URLSearchParams({ token });
+  const query = `?${params.toString()}`;
   await apiFetch(`/notifications/token${query}`, {
     method: "DELETE",
   });
 }
 
 export async function postCancellationSurvey(reason: string): Promise<void> {
+  if (isReviewerDemoActive()) return;
   await apiFetch("/billing/cancellation-survey", {
     method: "POST",
     body: JSON.stringify({ reason }),
@@ -572,6 +949,7 @@ export async function postCancellationSurvey(reason: string): Promise<void> {
 }
 
 export async function getOAuthRedirectUris(): Promise<Record<string, string>> {
+  if (isReviewerDemoActive()) return {};
   return apiFetch<Record<string, string>>("/oauth/redirect-uris");
 }
 
@@ -588,12 +966,18 @@ export interface AccountMediaResponse {
   items: AccountMediaItem[];
   hasAccess: boolean;
   reason?: string;
+  isSample?: boolean;
 }
 
 export async function getAccountMedia(
   accountId: string,
   limit = 30
 ): Promise<AccountMediaResponse> {
+  if (isReviewerDemoActive()) {
+    const media = getReviewerDemoMedia(accountId);
+    if (media) return media as AccountMediaResponse;
+    throw new Error("Sample account media was not found.");
+  }
   return apiFetch<AccountMediaResponse>(
     `/accounts/${accountId}/media?limit=${limit}`
   );
@@ -625,6 +1009,9 @@ export async function reverseImageSearch(input: {
   imageBase64?: string;
   localUri?: string;
 }): Promise<PhotoSearchResponse> {
+  if (isReviewerDemoActive()) {
+    return { matches: [], threatsCreated: 0, configured: false };
+  }
   return apiFetch<PhotoSearchResponse>("/photos/search", {
     method: "POST",
     body: JSON.stringify(input),
@@ -647,9 +1034,14 @@ export interface IdentityBadge {
   verifiedPlatformCount: number;
   verifiedPlatforms: string[];
   badge: { tier: string; label: string; description: string; color: string };
+  isSample?: boolean;
 }
 
 export async function getIdentityBadge(): Promise<IdentityBadge | null> {
+  if (isReviewerDemoActive()) {
+    const demo = getReviewerDemoSnapshot();
+    return demo ? demo.identityBadge as unknown as IdentityBadge : null;
+  }
   try {
     return await apiFetch<IdentityBadge>("/identity/badge");
   } catch {

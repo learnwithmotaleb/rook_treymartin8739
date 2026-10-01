@@ -40,3 +40,4 @@
 - [Meta app separation](meta-app-separation.md) — keep Instagram Login and Facebook `user_photos` in separate Meta apps with separate reviews.
 - [App review production parity](app-review-production-parity.md) — a signed mobile build does not prove its production API or live privacy policy matches workspace source.
 - [Legal compliance release coupling](legal-compliance-release-coupling.md) — strict server-side Terms/age gates must ship with a client that can recover missing acknowledgments, or older clients lose API access.
+- [Reviewer demo boundaries](reviewer-demo-boundaries.md) — real screens with isolated sample actions; no invented capabilities, fake OAuth, or mocked StoreKit entitlements.

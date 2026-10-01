@@ -40,6 +40,7 @@ import type { PurchasesPackage } from "react-native-purchases";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 import {
   getValidatedPremiumOffering,
   identifyRevenueCatUser,
@@ -132,12 +133,24 @@ function severityColor(s: string): string {
   return s === "high" ? "#EF4444" : s === "medium" ? "#F59E0B" : "#22C55E";
 }
 
+function ReviewerBillingPreviewNotice({ colors }: { colors: ReturnType<typeof useColors> }) {
+  return (
+    <View style={{ gap: 6 }}>
+      <ReviewerDemoBanner message="Demo product data · StoreKit billing stays live." />
+      <Text style={{ color: colors.warning, fontFamily: "Inter_500Medium", fontSize: 11, lineHeight: 16, textAlign: "center" }}>
+        Store prices, purchase, and Restore use actual StoreKit sandbox behavior. Review billing in TestFlight; demo data does not grant Premium.
+      </Text>
+    </View>
+  );
+}
+
 // ─── Real investigation report preview (Screen 0 hero) ────────────────────────
 // Shows the user's actual top threat when available; falls back to a generic
 // "identity monitoring active" card — never fabricates specific findings.
-function ReportPreview({ colors, threat }: {
+function ReportPreview({ colors, threat, isReviewerDemo }: {
   colors: ReturnType<typeof useColors>;
   threat: ThreatSummary | null;
+  isReviewerDemo: boolean;
 }) {
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -159,7 +172,7 @@ function ReportPreview({ colors, threat }: {
             <View style={[rp.severityBadge, { backgroundColor: sColor + "18", borderColor: sColor + "40" }]}>
               <View style={[rp.severityDot, { backgroundColor: sColor }]} />
               <Text style={[rp.severityText, { color: sColor, fontFamily: "Inter_700Bold" }]}>
-                {sev.toUpperCase()} SEVERITY
+                {threat ? `${sev.toUpperCase()} SEVERITY` : isReviewerDemo ? "DEMO PREVIEW" : "PROTECTION PREVIEW"}
               </Text>
             </View>
             {threat && (
@@ -206,10 +219,10 @@ function ReportPreview({ colors, threat }: {
               <View style={rp.midRow}>
                 <View style={{ flex: 1, gap: 3 }}>
                   <Text style={[rp.username, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                    Identity Monitoring Active
+                     {isReviewerDemo ? "Sample Monitoring Preview" : "Identity Monitoring Active"}
                   </Text>
                   <Text style={[rp.findingText, { color: sColor, fontFamily: "Inter_600SemiBold" }]}>
-                    Periodic scan across connected platforms
+                    {isReviewerDemo ? "No live scan results or discoveries" : "Periodic scan across connected platforms"}
                   </Text>
                 </View>
                 <View style={[rp.shieldIcon, { backgroundColor: sColor + "18", borderColor: sColor + "30" }]}>
@@ -219,7 +232,7 @@ function ReportPreview({ colors, threat }: {
               <View style={rp.matchRow}>
                 <Ionicons name="eye-outline" size={12} color={colors.mutedForeground} />
                 <Text style={[rp.matchText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Searches X, Instagram, TikTok, Facebook & more
+                  {isReviewerDemo ? "Preview only · no social accounts queried" : "Searches X, Instagram, TikTok, Facebook & more"}
                 </Text>
               </View>
             </>
@@ -282,7 +295,7 @@ const rp = StyleSheet.create({
 });
 
 // ─── Screen 0: Intro ──────────────────────────────────────────────────────────
-function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad, bottomPad, topThreat }: {
+function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad, bottomPad, topThreat, isReviewerDemo }: {
   colors: ReturnType<typeof useColors>;
   onContinue: () => void;
   threatCount: number;
@@ -290,6 +303,7 @@ function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad
   topPad: number;
   bottomPad: number;
   topThreat: ThreatSummary | null;
+  isReviewerDemo: boolean;
 }) {
   const shieldAnim = useRef(new Animated.Value(0)).current;
   const glowAnim   = useRef(new Animated.Value(0.4)).current;
@@ -314,6 +328,7 @@ function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad
 
       {/* Top content */}
       <View style={[s0.top, { paddingTop: topPad + 20 }]}>
+        {isReviewerDemo && <ReviewerBillingPreviewNotice colors={colors} />}
         {hasThreats && (
           <View style={[s0.badge, { backgroundColor: "#EF444414", borderColor: "#EF444440" }]}>
             <View style={[s0.badgeDot, { backgroundColor: "#EF4444" }]} />
@@ -332,7 +347,7 @@ function IntroScreen({ colors, onContinue, threatCount, isFromOnboarding, topPad
       {/* Center visual — real investigation report preview */}
       <View style={s0.center}>
         <Animated.View style={{ width: "100%", paddingHorizontal: 20, opacity: shieldAnim }}>
-          <ReportPreview colors={colors} threat={topThreat} />
+          <ReportPreview colors={colors} threat={topThreat} isReviewerDemo={isReviewerDemo} />
         </Animated.View>
       </View>
 
@@ -362,13 +377,14 @@ const s0 = StyleSheet.create({
 });
 
 // ─── Screen 1: Trial Reminder ─────────────────────────────────────────────────
-function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad, isTrialEligible }: {
+function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad, isTrialEligible, isReviewerDemo }: {
   colors: ReturnType<typeof useColors>;
   onBack: () => void;
   onContinue: () => void;
   topPad: number;
   bottomPad: number;
   isTrialEligible: boolean;
+  isReviewerDemo: boolean;
 }) {
   const bellAnim  = useRef(new Animated.Value(0)).current;
   const badgeAnim = useRef(new Animated.Value(0)).current;
@@ -393,6 +409,7 @@ function ReminderScreen({ colors, onBack, onContinue, topPad, bottomPad, isTrial
 
       {/* Text — pinned to top of screen */}
       <View style={[s1.topText, { paddingTop: topPad + 72 }]}>
+        {isReviewerDemo && <ReviewerBillingPreviewNotice colors={colors} />}
         <Text style={[s1.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           {isTrialEligible ? "Your app store confirms\ntrial eligibility" : "Review your plan\nbefore purchase"}
         </Text>
@@ -450,7 +467,7 @@ const s1 = StyleSheet.create({
 });
 
 // ─── Screen 2: Plan Select ────────────────────────────────────────────────────
-function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBillingCycle, isPurchasing, isRestoring, onRestore, getAnnualTotal, getMonthlyPrice, topPad, bottomPad, restoreMsg, isOfferingAvailable, isTrialEligible, isLoadingOffering }: {
+function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBillingCycle, isPurchasing, isRestoring, onRestore, getAnnualTotal, getMonthlyPrice, topPad, bottomPad, restoreMsg, isOfferingAvailable, isTrialEligible, isLoadingOffering, isReviewerDemo }: {
   colors: ReturnType<typeof useColors>;
   onBack: () => void;
   onContinue: () => void;
@@ -467,6 +484,7 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
   isOfferingAvailable: boolean;
   isTrialEligible: boolean;
   isLoadingOffering: boolean;
+  isReviewerDemo: boolean;
 }) {
   const annualTotal = getAnnualTotal();
   const monthlyPrice = getMonthlyPrice();
@@ -498,6 +516,9 @@ function PlanSelectScreen({ colors, onBack, onContinue, billingCycle, setBilling
 
       {/* Main content scrolls up from below the hero */}
       <View style={[s2.body, { paddingBottom: bottomPad + 24 }]}>
+        {isReviewerDemo && (
+          <ReviewerBillingPreviewNotice colors={colors} />
+        )}
         <Text style={[s2.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
           Start your Rook Premium{"\n"}protection plan
         </Text>
@@ -620,11 +641,12 @@ const s2 = StyleSheet.create({
 });
 
 // ─── Already Subscribed ───────────────────────────────────────────────────────
-function ManageScreen({ colors, tier, onClose, topPad }: {
+function ManageScreen({ colors, tier, onClose, topPad, isReviewerDemo }: {
   colors: ReturnType<typeof useColors>;
   tier: string;
   onClose: () => void;
   topPad: number;
+  isReviewerDemo: boolean;
 }) {
   const handleManage = () => {
     Alert.alert(
@@ -655,6 +677,14 @@ function ManageScreen({ colors, tier, onClose, topPad }: {
         <Text style={[{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 24, textAlign: "center" }]}>
           {displayTier(tier)} — Active
         </Text>
+        {isReviewerDemo && (
+          <>
+            <ReviewerDemoBanner message="Demo product data · this shows your actual store entitlement." />
+            <Text style={[{ color: colors.primary, fontFamily: "Inter_500Medium", fontSize: 13, textAlign: "center", lineHeight: 19 }]}>
+              Use TestFlight to review real StoreKit sandbox purchase and Restore flows. The demo does not alter your actual entitlement.
+            </Text>
+          </>
+        )}
         <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center", lineHeight: 23 }]}>
           Rook periodically scans for potential misuse of your identity across connected platforms.
         </Text>
@@ -676,14 +706,14 @@ export default function Subscription() {
   const { user: clerkUser } = useUser();
   const colors      = useColors();
   const insets      = useSafeAreaInsets();
-  const { user, completeOnboarding, refreshData } = useApp();
+  const { user, completeOnboarding, refreshData, isReviewerDemo } = useApp();
   const { fromOnboarding, threatCount: rawThreatCount } = useLocalSearchParams<{
     fromOnboarding?: string;
     threatCount?: string;
   }>();
 
   const isFromOnboarding = fromOnboarding === "1";
-  const threatCount      = parseInt(rawThreatCount ?? "0", 10) || 0;
+  const threatCount      = isReviewerDemo ? 0 : parseInt(rawThreatCount ?? "0", 10) || 0;
   const topPad           = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad        = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -741,6 +771,10 @@ export default function Subscription() {
   // We only do this once on mount; failure is silently swallowed — the fallback
   // card shows instead of a fake finding.
   useEffect(() => {
+    if (isReviewerDemo) {
+      setTopThreat(null);
+      return;
+    }
     if (isFromOnboarding && threatCount === 0) {
       setTopThreat(null);
       return;
@@ -759,7 +793,7 @@ export default function Subscription() {
       })
       .catch(() => { /* silently fall back to generic card */ });
     return () => { cancelled = true; };
-  }, [isFromOnboarding, threatCount]);
+  }, [isFromOnboarding, threatCount, isReviewerDemo]);
 
   const currentTier = (serverTier ?? user.tier ?? "free") as string;
   const alreadySubscribed = currentTier !== "free";
@@ -804,9 +838,11 @@ export default function Subscription() {
   const handleStep1Continue = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Request notification permission (fires native prompt, no-op if already granted/denied)
-    try { await Notifications.requestPermissionsAsync(); } catch { /* graceful */ }
+    if (!isReviewerDemo) {
+      try { await Notifications.requestPermissionsAsync(); } catch { /* graceful */ }
+    }
     setPaywallStep(2);
-  }, []);
+  }, [isReviewerDemo]);
 
   const handleStep2Continue = useCallback(() => {
     const pkg = getPremiumPackage(billingCycle);
@@ -876,7 +912,7 @@ export default function Subscription() {
 
   // ── Already subscribed ────────────────────────────────────────────────────
   if (alreadySubscribed) {
-    return <ManageScreen colors={colors} tier={currentTier} onClose={handleClose} topPad={topPad} />;
+    return <ManageScreen colors={colors} tier={currentTier} onClose={handleClose} topPad={topPad} isReviewerDemo={isReviewerDemo} />;
   }
 
   // Release builds fail explicitly if the billing SDK is unavailable.
@@ -908,6 +944,7 @@ export default function Subscription() {
           topPad={topPad}
           bottomPad={bottomPad}
           topThreat={topThreat}
+          isReviewerDemo={isReviewerDemo}
         />
         <TouchableOpacity
           accessibilityRole="button"
@@ -932,6 +969,7 @@ export default function Subscription() {
         topPad={topPad}
         bottomPad={bottomPad}
         isTrialEligible={isTrialEligible}
+        isReviewerDemo={isReviewerDemo}
       />
     );
   }
@@ -955,6 +993,7 @@ export default function Subscription() {
         isOfferingAvailable={!!validatedOffering}
         isTrialEligible={isSelectedPlanTrialEligible}
         isLoadingOffering={rcIsLoading}
+        isReviewerDemo={isReviewerDemo}
       />
       <ConfirmModal
         visible={!!confirmPkg}

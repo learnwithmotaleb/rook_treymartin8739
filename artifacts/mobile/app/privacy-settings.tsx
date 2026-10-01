@@ -28,6 +28,7 @@ import {
 } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
 import { PhotoConsentModal } from "@/components/PhotoConsentModal";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 
 type ConsentStatus = {
   hasConsent: boolean;
@@ -38,7 +39,7 @@ type ConsentStatus = {
 export default function PrivacySettings() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { clearIndexedPhotos } = useApp();
+  const { clearIndexedPhotos, isReviewerDemo } = useApp();
 
   const [consent, setConsent] = useState<ConsentStatus | null>(null);
   const [consentLoading, setConsentLoading] = useState(true);
@@ -94,16 +95,24 @@ export default function PrivacySettings() {
       try {
         await withdrawPhotoConsent();
         serverWithdrawalSucceeded = true;
-        await clearIndexedPhotos();
+        if (isReviewerDemo) {
+          await deletePhotoData();
+        } else {
+          await clearIndexedPhotos();
+        }
         await fetchConsent();
         setFeedback({
           kind: "success",
-          text: "Consent withdrawn. Photo-derived data was deleted and photo scanning is disabled.",
+          text: isReviewerDemo
+            ? "Demo preview only: the demo consent state was updated. No real account data or photo records were deleted."
+            : "Consent withdrawn. Photo-derived data was deleted and photo scanning is disabled.",
         });
       } catch {
         setFeedback({
           kind: "error",
-          text: serverWithdrawalSucceeded
+          text: isReviewerDemo
+            ? "Could not update the demo consent preview. No real account data was changed."
+            : serverWithdrawalSucceeded
             ? "Consent was withdrawn and server photo data was deleted, but local photo cleanup could not be confirmed. Please try again."
             : "Could not withdraw consent. Please try again.",
         });
@@ -118,22 +127,26 @@ export default function PrivacySettings() {
     try {
       await deletePhotoData();
       serverDeletionSucceeded = true;
-      await clearIndexedPhotos();
+      if (!isReviewerDemo) await clearIndexedPhotos();
       setFeedback({
         kind: "success",
-        text: "Photo-derived data was deleted. Your consent remains active.",
+        text: isReviewerDemo
+          ? "Demo preview only: the demo photo-data state was updated. No real account data or photo records were deleted."
+          : "Photo-derived data was deleted. Your consent remains active.",
       });
     } catch {
       setFeedback({
         kind: "error",
-        text: serverDeletionSucceeded
+        text: isReviewerDemo
+          ? "Could not update the demo photo-data preview. No real account data was changed."
+          : serverDeletionSucceeded
           ? "Server photo data was deleted, but local photo cleanup could not be confirmed. Please try again."
           : "Could not delete photo data. Please try again.",
       });
     } finally {
       setDeletingPhoto(false);
     }
-  }, [clearIndexedPhotos, confirmAction, dismissConfirmation, fetchConsent]);
+  }, [clearIndexedPhotos, confirmAction, dismissConfirmation, fetchConsent, isReviewerDemo]);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -144,20 +157,23 @@ export default function PrivacySettings() {
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url; a.download = "rook-data-export.json"; a.click();
+        a.href = url; a.download = isReviewerDemo ? "rook-demo-data-export.json" : "rook-data-export.json"; a.click();
         URL.revokeObjectURL(url);
       } else {
         await Share.share({
-          title: "Rook Data Export",
+          title: isReviewerDemo ? "Rook Demo Data Export" : "Rook Data Export",
           message: json,
         });
+      }
+      if (isReviewerDemo) {
+        setFeedback({ kind: "success", text: "Demo export prepared. It contains demo payload only; no account data is exported." });
       }
     } catch {
       setFeedback({ kind: "error", text: "Could not generate your data export. Please try again." });
     } finally {
       setExporting(false);
     }
-  }, []);
+  }, [isReviewerDemo]);
 
   const renderConsentBadge = () => {
     if (consentLoading) return <ActivityIndicator size="small" color="#64748B" />;
@@ -167,7 +183,9 @@ export default function PrivacySettings() {
         <View style={[styles.badge, { backgroundColor: "#064E3B" }]}>
           <Ionicons name="checkmark-circle" size={13} color="#34D399" />
           <Text style={[styles.badgeText, { color: "#34D399", fontFamily: "Inter_500Medium" }]}>
-            Active — consented {formatDate(consent.consentedAt)}
+            {isReviewerDemo
+              ? "Demo state — consent preview active"
+              : `Active — consented ${formatDate(consent.consentedAt)}`}
           </Text>
         </View>
       );
@@ -176,7 +194,7 @@ export default function PrivacySettings() {
       <View style={[styles.badge, { backgroundColor: "#431407" }]}>
         <Ionicons name="close-circle" size={13} color="#F87171" />
         <Text style={[styles.badgeText, { color: "#F87171", fontFamily: "Inter_500Medium" }]}>
-          Not consented — photo scanning disabled
+          {isReviewerDemo ? "Demo state — consent preview off" : "Not consented — photo scanning disabled"}
         </Text>
       </View>
     );
@@ -199,6 +217,10 @@ export default function PrivacySettings() {
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
       >
+        {isReviewerDemo && (
+          <ReviewerDemoBanner message="Demo export only · consent/photo controls never change account data." />
+        )}
+
         {feedback && (
           <View
             accessibilityRole="alert"
@@ -221,14 +243,22 @@ export default function PrivacySettings() {
           </View>
         )}
         {/* Export section */}
-        <SectionHeader title="Data Portability" subtitle="GDPR Article 20 — right to receive your personal data in a machine-readable format." colors={colors} />
+        <SectionHeader
+          title={isReviewerDemo ? "Demo Data Portability" : "Data Portability"}
+          subtitle={isReviewerDemo
+            ? "Preview download is labeled as demo data and contains only the reviewer-demo payload."
+            : "GDPR Article 20 — right to receive your personal data in a machine-readable format."}
+          colors={colors}
+        />
 
         <Card colors={colors}>
           <ActionRow
             icon="download-outline"
             iconColor="#60A5FA"
-            label="Download My Data"
-            description="Includes your profile and avatar, account metadata (never OAuth secrets), scan history, consent logs, and photo-derived records as JSON."
+            label={isReviewerDemo ? "Download Demo Data" : "Download My Data"}
+            description={isReviewerDemo
+              ? "Creates a clearly labeled JSON export from the reviewer-demo payload only; no real account data is included."
+              : "Includes your profile and avatar, account metadata (never OAuth secrets), scan history, consent logs, and photo-derived records as JSON."}
             loading={exporting}
             onPress={handleExport}
             colors={colors}
@@ -237,15 +267,17 @@ export default function PrivacySettings() {
 
         {/* Photo consent section */}
         <SectionHeader
-          title="Photo Processing Consent"
-          subtitle="Rook uses AI to analyze your profile photos for identity monitoring. This processing requires your explicit consent under Illinois BIPA, Texas CUBI, and GDPR Article 9."
+          title={isReviewerDemo ? "Demo Photo Processing Consent" : "Photo Processing Consent"}
+          subtitle={isReviewerDemo
+            ? "Consent controls preview the authorized demo state only. This does not grant or withdraw consent for a real account."
+            : "Rook uses AI to analyze your profile photos for identity monitoring. This processing requires your explicit consent under Illinois BIPA, Texas CUBI, and GDPR Article 9."}
           colors={colors}
         />
 
         <Card colors={colors}>
           <View style={styles.consentStatus}>
             <Text style={[styles.consentLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-              Current status
+              {isReviewerDemo ? "Demo consent status" : "Current status"}
             </Text>
             {renderConsentBadge()}
           </View>
@@ -257,7 +289,9 @@ export default function PrivacySettings() {
                 icon="trash-outline"
                 iconColor="#EF4444"
                 label="Withdraw Consent & Delete Photo Data"
-                 description="Deletes photo hashes, image URLs in alert evidence, embeddings, visual fingerprints, and your stored avatar from Rook's active systems. Photo scanning is disabled; text monitoring continues."
+                description={isReviewerDemo
+                  ? "Previews withdrawing consent in demo state only. No real photos, account data, or consent records are deleted."
+                  : "Deletes photo hashes, image URLs in alert evidence, embeddings, visual fingerprints, and your stored avatar from Rook's active systems. Photo scanning is disabled; text monitoring continues."}
                 loading={withdrawing}
                 onPress={handleWithdraw}
                 colors={colors}
@@ -268,7 +302,9 @@ export default function PrivacySettings() {
                 icon="document-outline"
                 iconColor="#F59E0B"
                 label="Delete Photo Data Only"
-                 description="Deletes photo hashes, image URLs in alert evidence, embeddings, visual fingerprints, and your stored avatar from Rook's active systems. Consent remains active; new photo processing may resume on a later scan."
+                description={isReviewerDemo
+                  ? "Previews removing demo photo data only. No real photos or account data are deleted."
+                  : "Deletes photo hashes, image URLs in alert evidence, embeddings, visual fingerprints, and your stored avatar from Rook's active systems. Consent remains active; new photo processing may resume on a later scan."}
                 loading={deletingPhoto}
                 onPress={handleDeletePhotoData}
                 colors={colors}
@@ -283,7 +319,9 @@ export default function PrivacySettings() {
                 icon="shield-checkmark-outline"
                 iconColor="#A78BFA"
                 label="Review Notice & Enable Photo Scanning"
-                description="Review the required disclosure and explicitly opt in. No photos are processed unless consent is successfully recorded."
+                description={isReviewerDemo
+                  ? "Review the actual legal notice; the consent toggle updates demo state only and does not record real-account consent."
+                  : "Review the required disclosure and explicitly opt in. No photos are processed unless consent is successfully recorded."}
                 onPress={() => {
                   setFeedback(null);
                   setShowConsentNotice(true);
@@ -334,12 +372,18 @@ export default function PrivacySettings() {
               <Ionicons name="warning-outline" size={28} color="#EF4444" />
             </View>
             <Text style={[styles.confirmTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              {confirmAction === "withdraw" ? "Withdraw Photo Processing Consent" : "Delete Photo Data"}
+              {isReviewerDemo
+                ? confirmAction === "withdraw" ? "Preview Consent Change" : "Preview Photo Data Change"
+                : confirmAction === "withdraw" ? "Withdraw Photo Processing Consent" : "Delete Photo Data"}
             </Text>
             <Text style={[styles.confirmBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
               {confirmAction === "withdraw"
-                ? "This will delete all photo-derived data and disable photo-based scanning. Text and username monitoring will continue. You can re-consent later."
-                : "This deletes stored media records, hashes, embeddings, image URLs in alert evidence, visual fingerprints, and your avatar. Consent remains active, so new photo processing may resume on a later scan."}
+                ? isReviewerDemo
+                  ? "Reviewer demo preview only. The demo consent state may change; no actual account consent, photos, or photo-derived records will be deleted."
+                  : "This will delete all photo-derived data and disable photo-based scanning. Text and username monitoring will continue. You can re-consent later."
+                : isReviewerDemo
+                  ? "Reviewer demo preview only. The demo photo-data state may change; no actual account photos or photo-derived records will be deleted."
+                  : "This deletes stored media records, hashes, embeddings, image URLs in alert evidence, visual fingerprints, and your avatar. Consent remains active, so new photo processing may resume on a later scan."}
             </Text>
             <TouchableOpacity
               accessibilityRole="button"
@@ -347,7 +391,9 @@ export default function PrivacySettings() {
               onPress={() => void handleConfirmDestructiveAction()}
             >
               <Text style={[styles.destructiveButtonText, { fontFamily: "Inter_700Bold" }]}>
-                {confirmAction === "withdraw" ? "Withdraw & Delete" : "Delete Data"}
+                {isReviewerDemo
+                  ? confirmAction === "withdraw" ? "Preview Consent Change" : "Preview Data Change"
+                  : confirmAction === "withdraw" ? "Withdraw & Delete" : "Delete Data"}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity

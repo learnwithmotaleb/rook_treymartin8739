@@ -22,6 +22,7 @@ import { ThreatCard } from "@/components/ThreatCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { GlassCard } from "@/components/GlassCard";
 import { Skeleton } from "@/components/Skeleton";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 
 function StatCard({
   label,
@@ -187,6 +188,7 @@ export default function Dashboard() {
     hasSeenOnboarding,
     isInitializing,
     completeOnboarding,
+    isReviewerDemo,
   } = useApp();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -255,6 +257,7 @@ export default function Dashboard() {
           />
         }
       >
+        {isReviewerDemo && <ReviewerDemoBanner />}
         {/* Trial countdown banner — shown when trial is within 2 days of expiry */}
         <TrialCountdownBanner />
 
@@ -413,7 +416,7 @@ export default function Dashboard() {
         <Animated.View entering={FadeInDown.delay(160).springify()}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              Verified Accounts
+              Accounts
             </Text>
             <TouchableOpacity onPress={() => router.push("/manage-accounts" as any)}>
               <Text style={[styles.seeAll, { color: colors.primary, fontFamily: "Inter_500Medium" }]}>
@@ -438,12 +441,38 @@ export default function Dashboard() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.accountsRow}>
                   {user.connectedAccounts.map((acc) => (
-                    <View key={acc.platform} style={styles.accountItem}>
+                    <View
+                      key={acc.platform}
+                      style={[
+                        styles.accountItem,
+                        { backgroundColor: colors.secondary, borderColor: colors.border },
+                      ]}
+                    >
                       <View style={styles.accountIconWrap}>
                         <PlatformIcon platform={acc.platform!} size={46} />
-                        <View style={[styles.verifiedDot, { backgroundColor: colors.success, borderColor: colors.card }]}>
-                          <Ionicons name="checkmark" size={8} color="#FFFFFF" />
-                        </View>
+                        {acc.verified && (
+                          <View style={[styles.verifiedDot, { backgroundColor: colors.success, borderColor: colors.card }]}>
+                            <Ionicons name="checkmark" size={8} color="#FFFFFF" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.accountItemText}>
+                        <Text
+                          style={[styles.accountUsername, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}
+                          numberOfLines={1}
+                        >
+                          @{acc.username}
+                        </Text>
+                        <Text
+                          style={[styles.accountStatus, { color: isReviewerDemo ? colors.warning : colors.mutedForeground, fontFamily: "Inter_400Regular" }]}
+                          numberOfLines={1}
+                        >
+                          {isReviewerDemo
+                            ? "Demo preview · not OAuth connected"
+                            : acc.verified
+                            ? "OAuth verified"
+                            : "Manual · public search"}
+                        </Text>
                       </View>
                     </View>
                   ))}
@@ -579,8 +608,20 @@ const styles = StyleSheet.create({
   accountsEmpty: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
   accountsEmptyText: { flex: 1, fontSize: 14 },
   accountsRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  accountItem: { alignItems: "center" },
+  accountItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    maxWidth: 250,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
   accountIconWrap: { position: "relative" },
+  accountItemText: { gap: 3, flexShrink: 1 },
+  accountUsername: { fontSize: 12, maxWidth: 155 },
+  accountStatus: { fontSize: 10, maxWidth: 155 },
   verifiedDot: {
     position: "absolute",
     bottom: 0,

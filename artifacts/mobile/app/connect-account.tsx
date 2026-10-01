@@ -22,6 +22,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp, type Platform as AppPlatform } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 import { getAccounts, getAppUrl, getOAuthRedirectUris, getOAuthState, getXOAuthInit } from "@/lib/api";
 import { INSTAGRAM_APP_ID, FACEBOOK_APP_ID, OAUTH_APP_SCHEME } from "@/constants/oauthConfig";
 
@@ -159,11 +160,15 @@ function OAuthButton({
   platform,
   clientId,
   onSuccess,
+  onDemoConnect,
+  isReviewerDemo,
   disabled,
 }: {
   platform: NonNullable<AppPlatform>;
   clientId: string;
   onSuccess: () => void;
+  onDemoConnect: () => Promise<void>;
+  isReviewerDemo: boolean;
   disabled: boolean;
 }) {
   const colors = useColors();
@@ -171,6 +176,10 @@ function OAuthButton({
   const [loading, setLoading] = useState(false);
 
   const handlePress = useCallback(async (forceEphemeral = false) => {
+    if (isReviewerDemo) {
+      await onDemoConnect();
+      return;
+    }
     setLoading(true);
     try {
       // Snapshot accounts before so we can detect a change after the flow
@@ -305,7 +314,7 @@ function OAuthButton({
     } finally {
       setLoading(false);
     }
-  }, [platform, clientId, config.callbackPath, onSuccess]);
+  }, [platform, clientId, config.callbackPath, onSuccess, onDemoConnect, isReviewerDemo]);
 
   return (
     <TouchableOpacity
@@ -323,7 +332,7 @@ function OAuthButton({
         <>
           <PlatformIcon platform={platform} size={20} />
           <Text style={[styles.oauthBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-            Sign in with {config.label}
+            {isReviewerDemo ? `Preview ${config.label} connection` : `Sign in with ${config.label}`}
           </Text>
         </>
       )}
@@ -335,7 +344,7 @@ export default function ConnectAccount() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ platform?: string; existingId?: string }>();
-  const { addAccount, updateAccount, user, refreshData } = useApp();
+  const { addAccount, updateAccount, user, refreshData, isReviewerDemo } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -406,8 +415,47 @@ export default function ConnectAccount() {
     navigate();
   }, [refreshData, selectedPlatform]);
 
+  const handleDemoConnect = useCallback(async () => {
+    if (!isReviewerDemo || !selectedPlatform || LAUNCH_DISABLED_PLATFORMS.has(selectedPlatform)) return;
+    setSubmitting(true);
+    try {
+      const existing = user.connectedAccounts.find((account) => account.platform === selectedPlatform);
+      const requestedUsername = username.trim().replace(/^@/, "");
+      const account = existing ?? await addAccount(
+        selectedPlatform,
+        requestedUsername || `reviewer_${selectedPlatform}_sample`,
+        undefined,
+        displayName.trim() || undefined,
+      );
+      setOauthDone(true);
+      Alert.alert(
+        "Demo preview",
+        `@${account.username} is sample data only. No ${config?.label ?? selectedPlatform} sign-in, provider access, or OAuth credentials were used.`,
+        [{
+          text: "Continue",
+          onPress: () => router.replace({
+            pathname: "/photo-monitor",
+            params: {
+              justConnected: "1",
+              platform: selectedPlatform,
+              accountId: params.existingId ?? account.id,
+            },
+          } as any),
+        }],
+      );
+    } catch (error) {
+      Alert.alert("Demo preview unavailable", error instanceof Error ? error.message : "The sample account could not be added.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [isReviewerDemo, selectedPlatform, user.connectedAccounts, username, addAccount, displayName, config, params.existingId]);
+
   const handleSubmit = useCallback(async () => {
     if (!selectedPlatform) return;
+    if (isReviewerDemo && LAUNCH_DISABLED_PLATFORMS.has(selectedPlatform)) {
+      Alert.alert("Coming Soon", "This platform is not available in the reviewer preview.");
+      return;
+    }
     const trimmed = username.trim().replace(/^@/, "");
     if (!trimmed) {
       Alert.alert("Username required", "Please enter your username for this platform.");
@@ -419,12 +467,28 @@ export default function ConnectAccount() {
 
     try {
       if (isExistingAccount && params.existingId) {
+        if (isReviewerDemo) {
+          Alert.alert(
+            "Demo preview",
+            "Sample accounts stay unverified in this preview. No OAuth connection or account update was made.",
+            [{ text: "Done", onPress: () => router.back() }],
+          );
+          return;
+        }
         await updateAccount(params.existingId, {});
         Alert.alert("Account Updated", "Account updated.", [
           { text: "OK", onPress: () => router.back() },
         ]);
       } else {
         await addAccount(selectedPlatform, trimmed, undefined, displayName.trim() || undefined);
+        if (isReviewerDemo) {
+          Alert.alert(
+            "Demo preview",
+            `@${trimmed} was added as a local sample entry. This does not connect ${config?.label} or grant provider access.`,
+            [{ text: "Done", onPress: () => router.back() }],
+          );
+          return;
+        }
         const succeedAndGoBack = () => {
           Alert.alert(
             "Account Added",
@@ -441,7 +505,7 @@ export default function ConnectAccount() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedPlatform, username, isExistingAccount, params.existingId, addAccount, updateAccount, config]);
+  }, [selectedPlatform, username, isExistingAccount, params.existingId, addAccount, updateAccount, config, isReviewerDemo, displayName]);
 
   const selectPlatform = (platform: NonNullable<AppPlatform>) => {
     setSelectedPlatform(platform);
@@ -478,6 +542,8 @@ export default function ConnectAccount() {
           <View style={{ width: 24 }} />
         </View>
 
+        {isReviewerDemo && <ReviewerDemoBanner />}
+
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 40 }]}
@@ -489,7 +555,9 @@ export default function ConnectAccount() {
                 Which platform do you want to protect?
               </Text>
               <Text style={[styles.pickSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Add a username for public web-search monitoring, or sign in where supported to verify ownership and enable account access.
+                {isReviewerDemo
+                  ? "Choose a sample platform to explore. Preview accounts are local only and are not OAuth connected."
+                  : "Add a username for public web-search monitoring, or sign in where supported to verify ownership and enable account access."}
               </Text>
 
               <View style={styles.platformGrid}>
@@ -535,18 +603,18 @@ export default function ConnectAccount() {
                           opacity: isConnected ? 0.55 : 1,
                         },
                       ]}
-                      activeOpacity={isConnected ? 1 : 0.7}
-                      onPress={() => !isConnected && selectPlatform(p)}
+                      activeOpacity={isConnected && !isReviewerDemo ? 1 : 0.7}
+                      onPress={() => (!isConnected || isReviewerDemo) && selectPlatform(p)}
                     >
                       <PlatformIcon platform={p} size={38} />
                       <Text style={[styles.platformTileLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
                         {cfg.label}
                       </Text>
                       {isConnected && (
-                        <View style={[styles.connectedChip, { backgroundColor: colors.success + "22" }]}>
-                          <Ionicons name="checkmark-circle" size={11} color={colors.success} />
-                          <Text style={[styles.connectedChipText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
-                            Added
+                        <View style={[styles.connectedChip, { backgroundColor: isReviewerDemo ? colors.warning + "22" : colors.success + "22" }]}>
+                          {!isReviewerDemo && <Ionicons name="checkmark-circle" size={11} color={colors.success} />}
+                          <Text style={[styles.connectedChipText, { color: isReviewerDemo ? colors.warning : colors.success, fontFamily: "Inter_600SemiBold" }]}>
+                            {isReviewerDemo ? "Demo preview" : "Added"}
                           </Text>
                         </View>
                       )}
@@ -563,17 +631,21 @@ export default function ConnectAccount() {
               <View style={styles.platformHero}>
                 <PlatformIcon platform={selectedPlatform} size={64} />
                 <Text style={[styles.platformHeroLabel, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-                  {isExistingAccount ? `Verify ${config.label}` : `Connect ${config.label}`}
+                  {isReviewerDemo
+                    ? `Preview ${config.label}`
+                    : isExistingAccount ? `Verify ${config.label}` : `Connect ${config.label}`}
                 </Text>
                 <Text style={[styles.platformHeroSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  {isExistingAccount
+                  {isReviewerDemo
+                    ? "Explore a sample account without signing in or contacting the platform."
+                    : isExistingAccount
                     ? "Authenticate to prove account ownership and unlock verified monitoring."
                     : "Sign in to verify ownership and enable account access where supported, or add a username for public web-search monitoring."}
                 </Text>
               </View>
 
               {/* OAuth section — hidden when oauthDisabled, replaced by inline note below username */}
-              {!config.oauthDisabled && (
+              {(!config.oauthDisabled || isReviewerDemo) && (
                 <GlassCard style={styles.authSection}>
                   <View style={styles.authHeader}>
                     <View style={[styles.authHeaderIcon, { backgroundColor: colors.success + "22" }]}>
@@ -581,10 +653,12 @@ export default function ConnectAccount() {
                     </View>
                     <View style={styles.authHeaderText}>
                       <Text style={[styles.authHeaderTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                        Sign in with {config.label}
+                        {isReviewerDemo ? `Preview ${config.label} connection` : `Sign in with ${config.label}`}
                       </Text>
                       <Text style={[styles.authHeaderSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        Signing in verifies ownership and may enable access to selected account media where the platform permits it. Rook never posts, likes, or messages on your behalf. A manual username entry only supports public web-search monitoring; it does not connect your account or provide media access.
+                        {isReviewerDemo
+                          ? "This local preview adds sample account data only. It does not sign in, connect to the provider, or create OAuth credentials."
+                          : "Signing in verifies ownership and may enable access to selected account media where the platform permits it. Rook never posts, likes, or messages on your behalf. A manual username entry only supports public web-search monitoring; it does not connect your account or provide media access."}
                       </Text>
                     </View>
                   </View>
@@ -605,15 +679,17 @@ export default function ConnectAccount() {
                         Authenticated successfully
                       </Text>
                     </View>
-                  ) : (clientId || selectedPlatform === "x") ? (
+                  ) : (clientId || selectedPlatform === "x" || isReviewerDemo) ? (
                     <>
                       <OAuthButton
                         platform={selectedPlatform}
                         clientId={clientId ?? ""}
                         onSuccess={handleOAuthDone}
+                        onDemoConnect={handleDemoConnect}
+                        isReviewerDemo={isReviewerDemo}
                         disabled={submitting}
                       />
-                      {selectedPlatform === "instagram" && (
+                      {selectedPlatform === "instagram" && !isReviewerDemo && (
                         <View style={styles.igInfoChip}>
                           <Ionicons name="information-circle-outline" size={13} color="#6B7280" />
                           <Text style={[styles.igInfoChipText, { fontFamily: "Inter_400Regular" }]}>
@@ -658,7 +734,7 @@ export default function ConnectAccount() {
               )}
 
               {/* Divider — only shown when OAuth is available (manual is secondary) */}
-              {!isExistingAccount && !config.oauthDisabled && (
+              {!isExistingAccount && (!config.oauthDisabled || isReviewerDemo) && (
                 <View style={styles.dividerRow}>
                   <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
                   <Text style={[styles.dividerLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -680,7 +756,7 @@ export default function ConnectAccount() {
                     </View>
                   )}
                   <Text style={[styles.usernameLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                    Your {config.label} username
+                    {isReviewerDemo ? "Sample account username" : `Your ${config.label} username`}
                   </Text>
                   <View style={[styles.usernameInput, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                     {config.usernamePrefix && (
@@ -706,14 +782,14 @@ export default function ConnectAccount() {
                   </View>
 
                   <Text style={[styles.usernameLabel, { color: colors.foreground, fontFamily: "Inter_600SemiBold", marginTop: 14 }]}>
-                    Your real name <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>(optional)</Text>
+                    {isReviewerDemo ? "Sample display name" : "Your real name"} <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12 }}>(optional)</Text>
                   </Text>
                   <View style={[styles.usernameInput, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
                     <TextInput
                       style={[styles.usernameField, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
                       value={displayName}
                       onChangeText={setDisplayName}
-                      placeholder="e.g. Jane Smith"
+                      placeholder={isReviewerDemo ? "e.g. Demo Creator" : "e.g. Jane Smith"}
                       placeholderTextColor={colors.mutedForeground}
                       autoCapitalize="words"
                       autoCorrect={false}
@@ -727,7 +803,7 @@ export default function ConnectAccount() {
                     )}
                   </View>
                   <Text style={[styles.usernameSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                    Helps find impersonators who use your real name instead of your handle
+                    {isReviewerDemo ? "Optional — this preview entry stays local and unverified." : "Helps find impersonators who use your real name instead of your handle"}
                   </Text>
                 </GlassCard>
               )}
@@ -752,7 +828,7 @@ export default function ConnectAccount() {
                     <>
                       <Ionicons name="person-add" size={18} color="#FFFFFF" />
                       <Text style={[styles.submitBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                        Add Account
+                        {isReviewerDemo ? "Add Demo Preview Account" : "Add Account"}
                       </Text>
                     </>
                   )}
@@ -770,7 +846,9 @@ export default function ConnectAccount() {
               <View style={styles.privacyRow}>
                 <Ionicons name="lock-closed" size={12} color={colors.mutedForeground} />
                 <Text style={[styles.privacyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                  Rook never posts on your behalf or accesses DMs. Read-only access only.
+              {isReviewerDemo
+                ? "Demo preview only — no provider connection or OAuth credentials."
+                : "Rook never posts on your behalf or accesses DMs. Read-only access only."}
                 </Text>
               </View>
             </>

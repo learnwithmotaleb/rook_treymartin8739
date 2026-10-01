@@ -4,7 +4,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useColors } from "@/hooks/useColors";
-import { Threat, ThreatType } from "@/context/AppContext";
+import { Threat, ThreatType, useApp } from "@/context/AppContext";
 import { GlassCard } from "./GlassCard";
 import { severityColor } from "@/lib/severity";
 
@@ -28,6 +28,7 @@ interface ThreatCardProps {
 
 export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
   const colors = useColors();
+  const { isReviewerDemo } = useApp();
   const isSample = threat.isSample;
   const shouldLock = isLocked && !isSample;
   const sc = severityColor(threat.severity, colors);
@@ -124,11 +125,11 @@ export function ThreatCard({ threat, compact, isLocked }: ThreatCardProps) {
               {threat.title}
             </Text>
             <View style={styles.headerRight}>
-              {threat.highConfidence && !isSample && (
+              {threat.highConfidence && (!isSample || isReviewerDemo) && (
                 <View style={[styles.verifiedBadge, { backgroundColor: colors.success + "22" }]}>
                   <MaterialCommunityIcons name="shield-check" size={10} color={colors.success} />
                   <Text style={[styles.verifiedText, { color: colors.success, fontFamily: "Inter_600SemiBold" }]}>
-                    High confidence
+                    {isSample ? "Sample high confidence" : "High confidence"}
                   </Text>
                 </View>
               )}

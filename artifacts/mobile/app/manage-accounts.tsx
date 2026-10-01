@@ -18,6 +18,7 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 import type { ConnectedAccount } from "@/context/AppContext";
 import { getAccountStatus, type AccountStatus } from "@/lib/api";
 
@@ -87,14 +88,15 @@ function AccountCard({
   deleting: boolean;
 }) {
   const colors = useColors();
+  const { isReviewerDemo } = useApp();
   const [status, setStatus] = useState<AccountStatus | null>(null);
 
   useEffect(() => {
-    if (!account.verified) return;
+    if (!account.verified && !isReviewerDemo) return;
     getAccountStatus(account.id)
       .then(setStatus)
       .catch(() => {});
-  }, [account.id, account.verified]);
+  }, [account.id, account.verified, isReviewerDemo]);
 
   // The reconnect strip should only display when the token is ACTUALLY expired.
   // If the token is still valid (tokenExpiresAt in the future), the needsReconnect
@@ -153,6 +155,13 @@ function AccountCard({
                   Expired
                 </Text>
               </View>
+            ) : isReviewerDemo ? (
+              <View style={[styles.verifiedBadge, { backgroundColor: colors.warning + "22" }]}>
+                <Ionicons name="information-circle-outline" size={12} color={colors.warning} />
+                <Text style={[styles.verifiedText, { color: colors.warning, fontFamily: "Inter_600SemiBold" }]}>
+                  Demo preview
+                </Text>
+              </View>
             ) : account.verified ? (
               <View style={[styles.verifiedBadge, { backgroundColor: colors.primary + "22" }]}>
                 <Ionicons name="checkmark-circle" size={12} color={colors.primary} />
@@ -166,7 +175,9 @@ function AccountCard({
             {PLATFORM_LABELS[account.platform ?? ""] ?? account.platform}
           </Text>
           <Text style={[styles.syncLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            {account.verified ? formatSync(account.lastSynced) : "Manual entry · public web-search monitoring"}
+            {isReviewerDemo
+              ? "Demo preview · not OAuth connected"
+              : account.verified ? formatSync(account.lastSynced) : "Manual entry · public web-search monitoring"}
           </Text>
         </View>
         {deleting ? (
@@ -187,7 +198,7 @@ function AccountCard({
         <View style={styles.stat}>
           <Ionicons name="camera" size={13} color={colors.primary} />
           <Text style={[styles.statValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            {account.verified ? account.photosIndexed : "—"}
+            {account.verified || isReviewerDemo ? account.photosIndexed : "—"}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             photos
@@ -197,7 +208,7 @@ function AccountCard({
         <View style={styles.stat}>
           <Ionicons name="document-text" size={13} color={colors.primary} />
           <Text style={[styles.statValue, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            {account.verified ? account.captionsIndexed : "—"}
+            {account.verified || isReviewerDemo ? account.captionsIndexed : "—"}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
             captions
@@ -240,10 +251,32 @@ function AccountCard({
               },
             ]}
           >
-            {needsReconnect ? "Expired" : account.verified ? "Auth'd" : "Manual"}
+            {needsReconnect ? "Expired" : isReviewerDemo ? "Preview" : account.verified ? "Auth'd" : "Manual"}
           </Text>
         </View>
       </View>
+
+      {isReviewerDemo && (
+        <View style={[styles.statusSection, { borderTopColor: colors.border }]}>
+          <View style={styles.scopeRow}>
+            <Ionicons name="information-circle-outline" size={14} color={colors.warning} />
+            <Text style={[styles.demoStatusText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              Sample profile and media only. No provider access, OAuth connection, or token is present.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.refreshCta, { borderColor: colors.warning + "44", backgroundColor: colors.warning + "0C" }]}
+            activeOpacity={0.7}
+            onPress={() => router.push({ pathname: "/photo-monitor", params: { accountId: account.id } } as any)}
+          >
+            <Ionicons name="images-outline" size={14} color={colors.warning} />
+            <Text style={[styles.refreshCtaText, { color: colors.warning, fontFamily: "Inter_500Medium" }]}>
+              View demo media
+            </Text>
+            <Ionicons name="chevron-forward" size={13} color={colors.warning} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Reconnect CTA — shown when token has expired */}
       {needsReconnect && !["tiktok"].includes(account.platform ?? "") && (
@@ -314,7 +347,7 @@ function AccountCard({
       )}
 
       {/* Verify CTA — shown for unverified accounts that don't need reconnect */}
-      {!needsReconnect && !account.verified && !["tiktok"].includes(account.platform ?? "") && (
+      {!isReviewerDemo && !needsReconnect && !account.verified && !["tiktok"].includes(account.platform ?? "") && (
         <TouchableOpacity
           style={[styles.authCta, { borderColor: colors.primary + "44", backgroundColor: colors.primary + "0C" }]}
           activeOpacity={0.7}
@@ -334,7 +367,7 @@ function AccountCard({
 export default function ManageAccounts() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, removeAccount, refreshData } = useApp();
+  const { user, removeAccount, refreshData, isReviewerDemo } = useApp();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -387,6 +420,8 @@ export default function ManageAccounts() {
         </TouchableOpacity>
       </View>
 
+      {isReviewerDemo && <ReviewerDemoBanner />}
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 24 }]}
@@ -415,16 +450,16 @@ export default function ManageAccounts() {
               {accounts.filter((a) => a.verified).length}
             </Text>
             <Text style={[styles.summaryLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Verified
+              {isReviewerDemo ? "OAuth verified" : "Verified"}
             </Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNum, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              {accounts.reduce((s, a) => s + (a.verified ? a.photosIndexed : 0), 0)}
+              {accounts.reduce((s, a) => s + (a.verified || isReviewerDemo ? a.photosIndexed : 0), 0)}
             </Text>
             <Text style={[styles.summaryLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Synced Photos
+              {isReviewerDemo ? "Sample photos" : "Synced Photos"}
             </Text>
           </View>
           <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
@@ -448,7 +483,9 @@ export default function ManageAccounts() {
               No accounts added
             </Text>
             <Text style={[styles.emptyDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Add a username for public web-search monitoring, or sign in where available to verify ownership and enable supported account access.
+              {isReviewerDemo
+                ? "Add a sample account to preview the connection flow. No provider sign-in or live access is used."
+                : "Add a username for public web-search monitoring, or sign in where available to verify ownership and enable supported account access."}
             </Text>
             <TouchableOpacity
               style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
@@ -499,10 +536,12 @@ export default function ManageAccounts() {
           <Ionicons name="shield-checkmark" size={18} color={colors.primary} />
           <View style={styles.infoText}>
             <Text style={[styles.infoTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-              Why connect accounts?
+              {isReviewerDemo ? "About demo accounts" : "Why connect accounts?"}
             </Text>
             <Text style={[styles.infoDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              A manual username lets Rook search publicly visible profiles and content; it does not connect your account or provide access to its media. Signing in verifies ownership and may enable selected account media where supported. Camera-roll photos can also be monitored separately.
+              {isReviewerDemo
+                ? "These sample profiles and photos are preview data only. Accounts remain unverified and are not OAuth connected; all actions are local to this demo."
+                : "A manual username lets Rook search publicly visible profiles and content; it does not connect your account or provide access to its media. Signing in verifies ownership and may enable selected account media where supported. Camera-roll photos can also be monitored separately."}
             </Text>
           </View>
         </GlassCard>
@@ -585,6 +624,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     gap: 8,
   },
+  demoStatusText: { flex: 1, fontSize: 12, lineHeight: 18 },
   scopeRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   scopePills: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 },
   scopePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },

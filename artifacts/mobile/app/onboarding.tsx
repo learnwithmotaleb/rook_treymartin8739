@@ -36,6 +36,7 @@ import { PhotoConsentModal } from "@/components/PhotoConsentModal";
 import { ScanPulse } from "@/components/ScanPulse";
 import { analytics } from "@/lib/analytics";
 import { useReduceMotion } from "@/hooks/useReduceMotion";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 
 // ─── ScaleButton: TouchableOpacity with spring press-in/out feedback ──────────
 function ScaleButton({ onPress, style, disabled, activeOpacity = 0.85, children }: {
@@ -804,6 +805,7 @@ const ALL_PLATFORMS: Array<{ id: NonNullable<SocialPlatform>; label: string }> =
   { id: "linkedin", label: "LinkedIn" },
 ];
 const COMING_SOON_PLATFORMS = new Set<string>(["tiktok", "youtube", "linkedin", "snapchat"]);
+const REVIEWER_DEMO_CONNECTION_PLATFORMS = new Set<string>(["instagram", "facebook", "x"]);
 
 // ─── S8: Full Profile + Account Setup (merged) ───────────────────────────────
 // Replaces old IdentityInputScreen (step 8) + PlatformHandlesScreen (step 10).
@@ -817,9 +819,11 @@ function FullProfileSetupScreen({
   isAddingAccounts,
   connectedPlatforms,
   onOAuthConnected,
+  onDemoConnect,
   onPhotosPicked,
   photoUri,
   onPhotoSelect,
+  isReviewerDemo,
 }: {
   colors: ReturnType<typeof useColors>;
   nameValue: string;
@@ -829,16 +833,26 @@ function FullProfileSetupScreen({
   isAddingAccounts: boolean;
   connectedPlatforms: Set<string>;
   onOAuthConnected: (platform: string, accountId: string) => void;
+  onDemoConnect: (platform: string, handle: string, onConnected: (platform: string, accountId: string) => void) => Promise<void>;
   onPhotosPicked?: (platform: string, urls: string[]) => void;
   photoUri: string | null;
   onPhotoSelect: (uri: string, base64?: string) => void;
+  isReviewerDemo: boolean;
 }) {
+  const { reviewerDemo } = useApp();
   const [photoConsentVisible, setPhotoConsentVisible] = useState(false);
   const pendingReferencePhoto = useRef<{ uri: string; base64?: string } | null>(null);
+  const demoReferencePhoto = reviewerDemo
+    ? reviewerDemo.accounts.flatMap((account) => reviewerDemo.mediaByAccount[account.id]?.items ?? []).find((item) => item.type === "image")
+    : undefined;
 
   const processReferencePhoto = useCallback(async (uri: string, base64?: string) => {
     if (!uri) {
       onPhotoSelect("", undefined);
+      return;
+    }
+    if (isReviewerDemo) {
+      onPhotoSelect(uri, undefined);
       return;
     }
     try {
@@ -852,9 +866,25 @@ function FullProfileSetupScreen({
     } catch {
       Alert.alert("Photo consent unavailable", "We couldn't confirm your photo-processing consent. Please try again before adding a reference photo.");
     }
-  }, [onPhotoSelect]);
+  }, [onPhotoSelect, isReviewerDemo]);
 
   const pickPhoto = async () => {
+    if (isReviewerDemo) {
+      const samplePhoto = demoReferencePhoto;
+      if (samplePhoto) {
+        Alert.alert(
+          "Choose a sample reference photo",
+          "This fixture image is fictional sample media. No personal photos or camera roll access are used.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Use sample photo", onPress: () => { void processReferencePhoto(samplePhoto.url); } },
+          ],
+        );
+      } else {
+        Alert.alert("Sample photo unavailable", "The reviewer preview does not have a sample reference image right now.");
+      }
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission needed", "Please allow photo access so Rook can search for stolen images of you.");
@@ -877,10 +907,12 @@ function FullProfileSetupScreen({
         {/* Header */}
         <View style={{ gap: 8 }}>
           <Text style={[s.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-            Now let's find out{"\n"}what's out there about you.
+              {isReviewerDemo ? <>Explore the sample{"\n"}identity preview.</> : <>Now let's find out{"\n"}what's out there about you.</>}
           </Text>
           <Text style={[s.sub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Connect your accounts for the richest scan — 10× more signals than a name search alone.
+            {isReviewerDemo
+              ? "Explore sample accounts and preview media. No provider sign-in or live account access is used."
+              : "Connect your accounts for the richest scan — 10× more signals than a name search alone."}
           </Text>
         </View>
 
@@ -889,7 +921,7 @@ function FullProfileSetupScreen({
           <View style={inp.wrap}>
             <View style={[inp.row, { backgroundColor: colors.card, borderColor: nameValue.length > 0 ? colors.primary + "66" : colors.border, borderWidth: nameValue.length > 0 ? 1.5 : 1 }]}>
               <Ionicons name="person-circle-outline" size={22} color={nameValue.length > 0 ? colors.primary : colors.mutedForeground} />
-              <TextInput style={[inp.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} placeholder="Your name or @handle" placeholderTextColor={colors.mutedForeground} value={nameValue} onChangeText={onNameChange} autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
+              <TextInput style={[inp.input, { color: colors.foreground, fontFamily: "Inter_500Medium" }]} placeholder={isReviewerDemo ? "Sample name or @handle" : "Your name or @handle"} placeholderTextColor={colors.mutedForeground} value={nameValue} onChangeText={onNameChange} autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
               {nameValue.length > 0 && <TouchableOpacity onPress={() => onNameChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="close-circle" size={18} color={colors.mutedForeground} /></TouchableOpacity>}
             </View>
           </View>
@@ -898,7 +930,9 @@ function FullProfileSetupScreen({
             {photoUri ? (
               <View style={[inp.photoFilled, { backgroundColor: colors.primary + "14", borderColor: colors.primary + "55" }]}>
                 <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 }]}>Reference photo added — we'll search for copies</Text>
+                <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13, flex: 1 }]}>
+                  {isReviewerDemo ? "Reference photo stored in this demo only" : "Reference photo added — we'll search for copies"}
+                </Text>
                   <TouchableOpacity onPress={() => onPhotoSelect("", undefined)}>
                   <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
                 </TouchableOpacity>
@@ -906,7 +940,9 @@ function FullProfileSetupScreen({
             ) : (
               <View style={[inp.photoPicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Ionicons name="image-outline" size={22} color={colors.mutedForeground} />
-                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>Add a reference photo (optional)</Text>
+                <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 14 }]}>
+                  {isReviewerDemo ? "Choose a sample reference photo" : "Add a reference photo (optional)"}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
@@ -929,7 +965,9 @@ function FullProfileSetupScreen({
             </View>
           </View>
           <Text style={[{ color: colors.mutedForeground, fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18 }]}>
-            OAuth connects read-only — Rook never posts, follows, or messages anyone on your behalf.
+            {isReviewerDemo
+              ? "Sample account connections are local preview entries only — no OAuth, provider access, or tokens."
+              : "OAuth connects read-only — Rook never posts, follows, or messages anyone on your behalf."}
           </Text>
           {ALL_PLATFORMS.map((p) => (
             <PlatformConnectRow
@@ -941,6 +979,8 @@ function FullProfileSetupScreen({
               handle={handles[p.id] ?? ""}
               onHandleChange={(v) => onHandleChange(p.id, v)}
               onConnected={onOAuthConnected}
+              onDemoConnect={onDemoConnect}
+              isReviewerDemo={isReviewerDemo}
               onPhotosPicked={onPhotosPicked}
             />
           ))}
@@ -1388,7 +1428,7 @@ function buildOAuthUrl(platform: string, clientId: string, state: string, redire
 // ─── S12: Platform Connect — OAuth + photo picker + manual handle fallback ────
 const PHOTO_CELL = (width - 48 - 16) / 3; // 3 cols, 24px side padding + 8px gaps
 
-function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHandleChange, onConnected, onPhotosPicked }: {
+function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHandleChange, onConnected, onDemoConnect, isReviewerDemo, onPhotosPicked }: {
   colors: ReturnType<typeof useColors>;
   platform: string;
   label: string;
@@ -1396,6 +1436,8 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
   handle: string;
   onHandleChange: (v: string) => void;
   onConnected: (platform: string, accountId: string) => void;
+  onDemoConnect: (platform: string, handle: string, onConnected: (platform: string, accountId: string) => void) => Promise<void>;
+  isReviewerDemo: boolean;
   onPhotosPicked?: (platform: string, urls: string[]) => void;
 }) {
   const [oauthLoading, setOauthLoading] = useState(false);
@@ -1429,6 +1471,10 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
 
   const loadMediaAfterConsent = useCallback(async (accountId: string): Promise<void> => {
     setMediaFetchError(null);
+    if (isReviewerDemo) {
+      await fetchAccountMedia(accountId);
+      return;
+    }
     try {
       const status = await getPhotoConsent();
       if (!status.hasConsent) {
@@ -1441,9 +1487,13 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
       return;
     }
     await fetchAccountMedia(accountId);
-  }, [fetchAccountMedia]);
+  }, [fetchAccountMedia, isReviewerDemo]);
 
   const showConsentIfNeeded = useCallback(async (after: () => void): Promise<void> => {
+    if (isReviewerDemo) {
+      after();
+      return;
+    }
     try {
       const status = await getPhotoConsent();
       if (!status.hasConsent) {
@@ -1456,9 +1506,23 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
       return;
     }
     after();
-  }, []);
+  }, [isReviewerDemo]);
 
   const handleOAuth = useCallback(async (forceEphemeral = false) => {
+    if (isReviewerDemo) {
+      if (!REVIEWER_DEMO_CONNECTION_PLATFORMS.has(platform)) return;
+      setOauthLoading(true);
+      try {
+        await onDemoConnect(platform, handle, (connectedPlatform, accountId) => {
+          setConnectedAccountId(accountId);
+          onConnected(connectedPlatform, accountId);
+          void loadMediaAfterConsent(accountId);
+        });
+      } finally {
+        setOauthLoading(false);
+      }
+      return;
+    }
     const cfg = ONBOARDING_OAUTH[platform];
     if (!cfg) return;
     // App IDs from shared constants — single source of truth with connect-account.tsx.
@@ -1578,7 +1642,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
     } finally {
       setOauthLoading(false);
     }
-  }, [platform, onConnected, loadMediaAfterConsent]);
+  }, [platform, onConnected, onDemoConnect, isReviewerDemo, handle, loadMediaAfterConsent]);
 
   const togglePhoto = useCallback((url: string) => {
     setSelectedUrls((prev) => {
@@ -1643,8 +1707,10 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
             </View>
             <Text style={[{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14, flex: 1 }]}>{label}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-              <Text style={[{ color: colors.success, fontFamily: "Inter_500Medium", fontSize: 13 }]}>Connected</Text>
+              {!isReviewerDemo && <Ionicons name="checkmark-circle" size={18} color={colors.success} />}
+              <Text style={[{ color: isReviewerDemo ? colors.warning : colors.success, fontFamily: "Inter_500Medium", fontSize: 13 }]}>
+                {isReviewerDemo ? "Demo preview" : "Connected"}
+              </Text>
             </View>
           </View>
 
@@ -1709,7 +1775,11 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
                 activeOpacity={0.85}
               >
                 <Text style={[{ color: selectedUrls.size > 0 ? "#fff" : colors.mutedForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>
-                  {selectedUrls.size > 0 ? `Use ${selectedUrls.size} photo${selectedUrls.size !== 1 ? "s" : ""} for scan` : "Skip — use profile photo only"}
+                  {selectedUrls.size > 0
+                    ? isReviewerDemo
+                      ? `Use ${selectedUrls.size} sample photo${selectedUrls.size !== 1 ? "s" : ""} in preview`
+                      : `Use ${selectedUrls.size} photo${selectedUrls.size !== 1 ? "s" : ""} for scan`
+                    : "Skip — use profile photo only"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1718,7 +1788,7 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Ionicons name="images" size={14} color={colors.success} />
               <Text style={[{ color: colors.success, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
-                {selectedUrls.size} reference photo{selectedUrls.size !== 1 ? "s" : ""} added
+                {selectedUrls.size} reference photo{selectedUrls.size !== 1 ? "s" : ""} {isReviewerDemo ? "added to this demo only" : "added"}
               </Text>
             </View>
           )}
@@ -1755,7 +1825,9 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
           ) : (
             <>
               <Ionicons name="log-in-outline" size={16} color={snapchatText} />
-              <Text style={[{ color: snapchatText, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>Connect with {label}</Text>
+              <Text style={[{ color: snapchatText, fontFamily: "Inter_600SemiBold", fontSize: 14 }]}>
+                {isReviewerDemo ? `Preview ${label} connection` : `Connect with ${label}`}
+              </Text>
             </>
           )}
         </ScaleButton>
@@ -1763,11 +1835,13 @@ function PlatformConnectRow({ colors, platform, label, isConnected, handle, onHa
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 2 }}>
             <Ionicons name="information-circle-outline" size={12} color="#6B7280" />
             <Text style={{ color: "#6B7280", fontFamily: "Inter_400Regular", fontSize: 11, flex: 1 }}>
-              Requires a Professional or Creator account — free and reversible in Instagram Settings.{" "}
+              {isReviewerDemo
+                ? "Demo preview only — no Instagram sign-in or provider connection."
+                : "Requires a Professional or Creator account — free and reversible in Instagram Settings."}{" "}
             </Text>
-            <TouchableOpacity onPress={() => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); }}>
+            {!isReviewerDemo && <TouchableOpacity onPress={() => { void Linking.openURL("https://www.instagram.com/accounts/convert_to_business/"); }}>
               <Text style={{ color: "#E1306C", fontFamily: "Inter_500Medium", fontSize: 11 }}>Switch →</Text>
-            </TouchableOpacity>
+            </TouchableOpacity>}
           </View>
         )}
         <TouchableOpacity onPress={() => setShowManual((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center" }}>
@@ -2136,7 +2210,7 @@ export default function Onboarding() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const rm = useReduceMotion();
-  const { completeOnboarding, addIndexedPhotos } = useApp();
+  const { completeOnboarding, addIndexedPhotos, addAccount: addAccountToContext, user, isReviewerDemo } = useApp();
   const [step, setStep] = useState(0);
   const fadeAnim    = useRef(new Animated.Value(1)).current;
   const slideAnim   = useRef(new Animated.Value(0)).current;
@@ -2170,6 +2244,29 @@ export default function Onboarding() {
   const [isAddingAccounts, setIsAddingAccounts] = useState(false);
   const [scanThreatCount, setScanThreatCount] = useState(0);
   const [oauthConnectedPlatforms, setOauthConnectedPlatforms] = useState<Set<string>>(new Set());
+
+  const handleDemoConnect = useCallback(async (
+    platform: string,
+    handle: string,
+    onConnected: (platform: string, accountId: string) => void,
+  ) => {
+    if (!isReviewerDemo || !REVIEWER_DEMO_CONNECTION_PLATFORMS.has(platform)) return;
+    setIsAddingAccounts(true);
+    try {
+      const existing = user.connectedAccounts.find((account) => account.platform === platform);
+      const username = handle.trim().replace(/^@/, "") || `reviewer_${platform}_sample`;
+      const account = existing ?? await addAccountToContext(platform, username);
+      onConnected(platform, account.id);
+      Alert.alert(
+        "Demo preview",
+        `@${account.username} is available as sample data. This preview did not connect to ${platform} or create OAuth credentials.`,
+      );
+    } catch (error) {
+      Alert.alert("Demo preview unavailable", error instanceof Error ? error.message : "The sample account could not be added.");
+    } finally {
+      setIsAddingAccounts(false);
+    }
+  }, [isReviewerDemo, user.connectedAccounts, addAccountToContext]);
 
   const handleOAuthConnected = useCallback((platform: string, _accountId: string) => {
     setOauthConnectedPlatforms((prev) => new Set([...prev, platform]));
@@ -2220,12 +2317,14 @@ export default function Onboarding() {
     if (!uri) { setPhotoUri(null); setPhotoBase64(undefined); return; }
     setPhotoUri(uri);
     setPhotoBase64(b64);
-    if (b64) {
+    if (isReviewerDemo) {
+      addIndexedPhotos([{ uri }]);
+    } else if (b64) {
       addIndexedPhotos([{ uri, base64: b64 }]);
       // Also save as avatar so threat comparison can show the user's reference photo
       try { await uploadAvatar(b64); } catch { /* graceful — avatarUrl stays null */ }
     }
-  }, [addIndexedPhotos]);
+  }, [addIndexedPhotos, isReviewerDemo]);
 
   const handleTogglePlatform = useCallback((id: string) => {
     setSelectedPlatforms((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
@@ -2236,21 +2335,34 @@ export default function Onboarding() {
   }, []);
 
   const addAccountsForHandles = useCallback(async () => {
-    const filled = Object.entries(platformHandles).filter(([, v]) => v.trim().length > 0);
+    const filled = Object.entries(platformHandles).filter(([platform, value]) =>
+      value.trim().length > 0 &&
+      (!isReviewerDemo || REVIEWER_DEMO_CONNECTION_PLATFORMS.has(platform))
+    );
     if (filled.length === 0) return;
     setIsAddingAccounts(true);
-    await Promise.allSettled(
-      filled.map(([platform, handle]) =>
-        addAccount(platform, handle.replace(/^@/, "").trim())
-      )
+    const results = await Promise.allSettled(
+      filled.map(([platform, handle]) => {
+        const existing = user.connectedAccounts.find((account) => account.platform === platform);
+        return existing ? Promise.resolve(existing) : addAccountToContext(platform, handle.replace(/^@/, "").trim());
+      }),
     );
+    const added = results.filter((result) => result.status === "fulfilled").length;
     setIsAddingAccounts(false);
-  }, [platformHandles]);
+    if (isReviewerDemo && added > 0) {
+      Alert.alert(
+        "Demo preview",
+        `${added} sample account${added !== 1 ? "s were" : " was"} added locally. No OAuth sign-in or provider connection was made.`,
+      );
+    }
+  }, [platformHandles, user.connectedAccounts, addAccountToContext, isReviewerDemo]);
 
   const saveAndFinish = useCallback(async (finalAnswers: OnboardingAnswers): Promise<boolean> => {
     try {
-      await saveOnboardingAnswers(finalAnswers as unknown as Record<string, unknown>);
-      await AsyncStorage.setItem("onboardingAnswers", JSON.stringify(finalAnswers));
+      if (!isReviewerDemo) {
+        await saveOnboardingAnswers(finalAnswers as unknown as Record<string, unknown>);
+      }
+      if (!isReviewerDemo) await AsyncStorage.setItem("onboardingAnswers", JSON.stringify(finalAnswers));
       completeOnboarding();
       analytics.onboardingCompleted({
         user_type: finalAnswers.userType ?? undefined,
@@ -2265,7 +2377,7 @@ export default function Onboarding() {
       );
       return false;
     }
-  }, [completeOnboarding]);
+  }, [completeOnboarding, isReviewerDemo]);
 
   const buildFinalAnswers = useCallback((): OnboardingAnswers => ({
     ...answers,
@@ -2363,7 +2475,7 @@ export default function Onboarding() {
       case 6:  return <PrivacyScreen colors={colors} />;
       case 7:  return <SocialProofScreen colors={colors} />;
       // ── Data collection + account setup + scan ──
-      case 8:  return <FullProfileSetupScreen colors={colors} nameValue={identityInput} onNameChange={setIdentityInput} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={oauthConnectedPlatforms} onOAuthConnected={handleOAuthConnected} onPhotosPicked={handlePhotosPicked} photoUri={photoUri} onPhotoSelect={handlePhotoSelect} />;
+      case 8:  return <FullProfileSetupScreen colors={colors} nameValue={identityInput} onNameChange={setIdentityInput} handles={platformHandles} onHandleChange={handleHandleChange} isAddingAccounts={isAddingAccounts} connectedPlatforms={new Set([...oauthConnectedPlatforms, ...user.connectedAccounts.flatMap((account) => account.platform ? [account.platform] : [])])} onOAuthConnected={handleOAuthConnected} onDemoConnect={handleDemoConnect} isReviewerDemo={isReviewerDemo} onPhotosPicked={handlePhotosPicked} photoUri={photoUri} onPhotoSelect={handlePhotoSelect} />;
       case 9:  return <ProfileSavedScreen colors={colors} identityInput={identityInput} selectedPlatforms={[...new Set([...selectedPlatforms, ...Object.keys(platformHandles).filter((k) => (platformHandles[k] ?? "").trim().length > 0)])]} hasPhoto={!!photoUri} />;
       // ── Scan + results + paywall bridge ──
       case 10: return <ScanSetupScreen colors={colors} onDone={(count) => { setScanThreatCount(count); animateToStep(11); }} />;
@@ -2379,6 +2491,7 @@ export default function Onboarding() {
 
   return (
     <View style={[{ flex: 1 }, { backgroundColor: colors.background }]}>
+      {isReviewerDemo && <ReviewerDemoBanner />}
       {/* Slow-breathing ambient glow — subtle blue warmth cycling in background */}
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primary, opacity: ambientOpacity }]} pointerEvents="none" />
       <View style={[s.header, { paddingTop: topPad + 16 }]}>

@@ -1,0 +1,1 @@
+export const CURRENT_PHOTO_CONSENT_VERSION = "2026-09-15-v4";

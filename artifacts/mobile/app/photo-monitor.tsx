@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Image,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -27,6 +28,7 @@ import {
   type AccountMediaItem,
 } from "@/lib/api";
 import { PhotoConsentModal } from "@/components/PhotoConsentModal";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 
 const FALLBACK_COLORS: [string, string][] = [
   ["#1e3a5f", "#2563eb"],
@@ -53,11 +55,13 @@ function PhotoCell({
   photo,
   hasMatch,
   isReviewExample = false,
+  isReviewerDemo = false,
   onRemove,
 }: {
   photo: { id: string; localUri: string };
   hasMatch: boolean;
   isReviewExample?: boolean;
+  isReviewerDemo?: boolean;
   onRemove: () => void;
 }) {
   const colors = useColors();
@@ -96,7 +100,7 @@ function PhotoCell({
       >
         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
         <Text style={[styles.statusText, { color: statusColor, fontFamily: "Inter_400Regular" }]}>
-          {isReviewExample ? "Review Example" : hasMatch ? "Match" : "Monitored"}
+          {isReviewExample ? "Review Example" : isReviewerDemo ? "Demo preview" : hasMatch ? "Match" : "Monitored"}
         </Text>
       </View>
     </View>
@@ -194,6 +198,8 @@ export default function PhotoMonitorScreen() {
     refreshData,
     threats,
     user,
+    isReviewerDemo,
+    reviewerDemo,
   } = useApp();
   const params = useLocalSearchParams<{ justConnected?: string; platform?: string; accountId?: string }>();
   const justConnected = params.justConnected === "1";
@@ -208,8 +214,17 @@ export default function PhotoMonitorScreen() {
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const [photoConsent, setPhotoConsent] = useState<boolean | null>(null);
   const [showConsentNotice, setShowConsentNotice] = useState(false);
+  const [demoPhotoPickerVisible, setDemoPhotoPickerVisible] = useState(false);
+  const [selectedDemoPhotoIds, setSelectedDemoPhotoIds] = useState<Set<string>>(new Set<string>());
 
   const connectedAccounts = user.connectedAccounts;
+  const demoPhotoChoices = isReviewerDemo && reviewerDemo
+    ? reviewerDemo.accounts.flatMap((account) =>
+        (reviewerDemo.mediaByAccount[account.id]?.items ?? [])
+          .filter((item) => item.type === "image")
+          .map((item) => ({ ...item, accountId: account.id, platform: account.platform }))
+      )
+    : [];
   const accountIdsKey = connectedAccounts.map((a) => a.id).join(",");
   const accountAccessKey = connectedAccounts.map((a) => `${a.id}:${a.verified}`).join(",");
 
@@ -218,7 +233,7 @@ export default function PhotoMonitorScreen() {
     0
   );
   // Approximate: Google Vision processes ~4 s / photo
-  const estScanSecs = totalSelected * 4;
+  const estScanSecs = isReviewerDemo ? 0 : totalSelected * 4;
   const estScanLabel =
     estScanSecs < 60
       ? `~${estScanSecs}s`
@@ -251,14 +266,14 @@ export default function PhotoMonitorScreen() {
     // Account media is photo-derived data too. Do not even call the endpoint
     // until the server has confirmed active consent (and fail closed while it
     // is still loading or unavailable).
-    if (photoConsent !== true) {
+    if (photoConsent !== true && !isReviewerDemo) {
       setAccountMedia({});
       return;
     }
     if (connectedAccounts.length === 0) return;
 
     for (const account of connectedAccounts) {
-      if (!account.verified) continue;
+      if (!account.verified && !isReviewerDemo) continue;
       setAccountMedia((prev) => {
         if (prev[account.id]) return prev;
         return { ...prev, [account.id]: { loading: true, items: [], hasAccess: false } };
@@ -284,12 +299,17 @@ export default function PhotoMonitorScreen() {
         });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountIdsKey, accountAccessKey, photoConsent]);
+  }, [accountIdsKey, accountAccessKey, photoConsent, isReviewerDemo]);
 
   // ── Camera roll: pick photos and add to monitored list ───────────────────
 
   const pickPhotos = useCallback(async () => {
     if (addingPhotos) return;
+    if (isReviewerDemo) {
+      setSelectedDemoPhotoIds(new Set<string>());
+      setDemoPhotoPickerVisible(true);
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
@@ -310,30 +330,54 @@ export default function PhotoMonitorScreen() {
         allowsMultipleSelection: true,
         quality: 0.1,
         selectionLimit: 10,
-        base64: true,
+        base64: !isReviewerDemo,
       });
 
       if (!result.canceled && result.assets.length > 0) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         addIndexedPhotos(
-          result.assets.map((a) => ({ uri: a.uri, base64: a.base64 ?? undefined })),
+          result.assets.map((a) => ({ uri: a.uri, base64: isReviewerDemo ? undefined : a.base64 ?? undefined })),
           "camera_roll"
         );
-        setAddedFeedback(`${result.assets.length} photo${result.assets.length !== 1 ? "s" : ""} added — will be scanned next time you run a scan`);
+        setAddedFeedback(isReviewerDemo
+          ? `${result.assets.length} photo${result.assets.length !== 1 ? "s" : ""} added to this device's demo preview. Nothing was uploaded.`
+          : `${result.assets.length} photo${result.assets.length !== 1 ? "s" : ""} added — will be scanned next time you run a scan`);
         setTimeout(() => setAddedFeedback(null), 4000);
       }
     } finally {
       setAddingPhotos(false);
     }
-  }, [addingPhotos, addIndexedPhotos]);
+  }, [addingPhotos, addIndexedPhotos, isReviewerDemo]);
 
   const handlePickPhotos = useCallback(async () => {
-    if (photoConsent !== true) {
+    if (photoConsent !== true && !isReviewerDemo) {
       setShowConsentNotice(true);
       return;
     }
+    if (isReviewerDemo) {
+      setSelectedDemoPhotoIds(new Set<string>());
+      setDemoPhotoPickerVisible(true);
+      return;
+    }
     await pickPhotos();
-  }, [photoConsent, pickPhotos]);
+  }, [photoConsent, pickPhotos, isReviewerDemo]);
+
+  const addSelectedDemoPhotos = useCallback(() => {
+    const selected = demoPhotoChoices.filter((item) => selectedDemoPhotoIds.has(item.id));
+    const byAccount = new Map<string, typeof selected>();
+    for (const item of selected) {
+      byAccount.set(item.accountId, [...(byAccount.get(item.accountId) ?? []), item]);
+    }
+    for (const [accountId, items] of byAccount) {
+      addIndexedPhotos(items.map((item) => ({ uri: item.url })), "account", accountId);
+    }
+    if (selected.length > 0) {
+      setAddedFeedback(`${selected.length} sample photo${selected.length !== 1 ? "s" : ""} added to this device's demo preview only.`);
+      setTimeout(() => setAddedFeedback(null), 4000);
+    }
+    setDemoPhotoPickerVisible(false);
+    setSelectedDemoPhotoIds(new Set<string>());
+  }, [demoPhotoChoices, selectedDemoPhotoIds, addIndexedPhotos]);
 
   // ── Account photos: select and add to monitored list ─────────────────────
 
@@ -353,7 +397,7 @@ export default function PhotoMonitorScreen() {
     (accountId: string, items: AccountMediaItem[]) => {
       const selected = accountSelections[accountId];
       if (!selected || selected.size === 0) return;
-      if (photoConsent !== true) {
+      if (photoConsent !== true && !isReviewerDemo) {
         setShowConsentNotice(true);
         return;
       }
@@ -372,10 +416,12 @@ export default function PhotoMonitorScreen() {
 
       setAccountSelections((prev) => ({ ...prev, [accountId]: new Set() }));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setAddedFeedback(`${selectedItems.length} photo${selectedItems.length !== 1 ? "s" : ""} added — will be scanned next time you run a scan`);
+      setAddedFeedback(isReviewerDemo
+        ? `${selectedItems.length} sample photo${selectedItems.length !== 1 ? "s" : ""} added to this demo preview only.`
+        : `${selectedItems.length} photo${selectedItems.length !== 1 ? "s" : ""} added — will be scanned next time you run a scan`);
       setTimeout(() => setAddedFeedback(null), 4000);
     },
-    [accountSelections, addIndexedPhotos, photoConsent]
+    [accountSelections, addIndexedPhotos, photoConsent, isReviewerDemo]
   );
 
   return (
@@ -403,8 +449,11 @@ export default function PhotoMonitorScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 40 }]}
       >
+        {isReviewerDemo && <ReviewerDemoBanner />}
         <Text style={[styles.sectionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Choose photos for image matching across publicly available web pages when you run a scan. Manual usernames are checked through public web search; account media is only available after sign-in where the platform supports it.
+          {isReviewerDemo
+            ? "Explore sample media and locally stored photos in this preview. No provider fetch, image analysis, or backend upload is used."
+            : "Choose photos for image matching across publicly available web pages when you run a scan. Manual usernames are checked through public web search; account media is only available after sign-in where the platform supports it."}
         </Text>
 
         {/* Welcome banner: shown after OAuth connect */}
@@ -413,7 +462,7 @@ export default function PhotoMonitorScreen() {
             <View style={styles.welcomeRow}>
               <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
               <Text style={[styles.welcomeTitle, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                Account connected!
+                {isReviewerDemo ? "Demo preview account" : "Account connected!"}
               </Text>
               <TouchableOpacity
                 onPress={() => setWelcomeDismissed(true)}
@@ -423,7 +472,9 @@ export default function PhotoMonitorScreen() {
               </TouchableOpacity>
             </View>
             <Text style={[styles.welcomeDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Select photos below to start monitoring them. Tap "Monitor" when ready — they'll be protected on your next scan.
+              {isReviewerDemo
+                ? "This is sample account data only — no OAuth connection or provider access was made."
+                : "Select photos below to start monitoring them. Tap \"Monitor\" when ready — they'll be protected on your next scan."}
             </Text>
           </View>
         )}
@@ -462,7 +513,9 @@ export default function PhotoMonitorScreen() {
               No photos added yet
             </Text>
             <Text style={[styles.emptyDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Upload from your camera roll or select from a connected account below.
+              {isReviewerDemo
+                ? "Choose fixture photos from the in-app sample picker, or select sample media from an example account below."
+                : "Upload from your camera roll or select from a connected account below."}
             </Text>
           </GlassCard>
         ) : (
@@ -476,6 +529,7 @@ export default function PhotoMonitorScreen() {
                     photo={photo}
                     hasMatch={!isReviewExample && matchedPhotoIds.has(photo.id)}
                     isReviewExample={isReviewExample}
+                    isReviewerDemo={isReviewerDemo}
                     onRemove={() => {
                       if (isReviewExample) {
                         void dismissReviewerSamplePhoto().then((saved) => {
@@ -529,7 +583,7 @@ export default function PhotoMonitorScreen() {
             <>
               <Ionicons name="images" size={20} color="#FFFFFF" />
               <Text style={[styles.addBtnText, { fontFamily: "Inter_600SemiBold" }]}>
-                Add from Camera Roll
+                {isReviewerDemo ? "Add Local Demo Photos" : "Add from Camera Roll"}
               </Text>
             </>
           )}
@@ -541,7 +595,7 @@ export default function PhotoMonitorScreen() {
             <View style={[styles.sectionHeader, { marginTop: 8 }]}>
               <Ionicons name="cloud-download-outline" size={18} color={colors.primary} />
               <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Import from Accounts
+                {isReviewerDemo ? "Sample Account Media" : "Import from Accounts"}
               </Text>
               {totalSelected > 0 && (
                 <View style={[styles.selectionBadge, { backgroundColor: colors.primary }]}>
@@ -552,7 +606,9 @@ export default function PhotoMonitorScreen() {
               )}
             </View>
             <Text style={[styles.importDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Select media from signed-in accounts where the platform allows access. Manually added usernames do not provide account or photo access; those are checked through public web search instead.
+              {isReviewerDemo
+                ? "Sample photos below are for preview only and do not indicate a verified or OAuth-connected account."
+                : "Select media from signed-in accounts where the platform allows access. Manually added usernames do not provide account or photo access; those are checked through public web search instead."}
             </Text>
 
             {connectedAccounts.map((account) => {
@@ -582,8 +638,12 @@ export default function PhotoMonitorScreen() {
                         @{account.username}
                       </Text>
                       <Text style={[styles.accountPlatform, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                        {account.platform}
-                        {account.verified && mediaState.items.length > 0
+                        {isReviewerDemo
+                          ? "Demo preview · not OAuth connected"
+                          : account.platform}
+                        {isReviewerDemo && mediaState.items.length > 0
+                          ? ` · ${mediaState.items.length} sample photos`
+                          : account.verified && mediaState.items.length > 0
                           ? ` · ${mediaState.items.length} photos`
                           : account.verified && account.photosIndexed > 0
                           ? ` · ${account.photosIndexed} indexed`
@@ -598,7 +658,7 @@ export default function PhotoMonitorScreen() {
                   </View>
 
                   {/* Media content */}
-                  {!account.verified ? (
+                  {!account.verified && !isReviewerDemo ? (
                     <View style={styles.noAccessRow}>
                       <Ionicons name="search-outline" size={15} color={colors.primary} />
                       <Text style={[styles.noAccessText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -673,11 +733,13 @@ export default function PhotoMonitorScreen() {
                           ]}
                         >
                           {selectedCount > 0
-                            ? `Monitor ${selectedCount} Photo${selectedCount !== 1 ? "s" : ""}`
-                            : "Select photos to monitor"}
+                            ? isReviewerDemo
+                              ? `Add ${selectedCount} Sample Photo${selectedCount !== 1 ? "s" : ""}`
+                              : `Monitor ${selectedCount} Photo${selectedCount !== 1 ? "s" : ""}`
+                            : isReviewerDemo ? "Select sample photos" : "Select photos to monitor"}
                         </Text>
                       </TouchableOpacity>
-                      {selectedCount > 0 && estScanSecs > 0 && (
+                      {!isReviewerDemo && selectedCount > 0 && estScanSecs > 0 && (
                         <Text style={[styles.scanEstimate, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
                           Est. scan time for selected: {estScanLabel}
                         </Text>
@@ -695,17 +757,91 @@ export default function PhotoMonitorScreen() {
           <View style={styles.infoRow}>
             <Ionicons name="scan-outline" size={18} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Photos you add are searched across publicly available web pages when you run a scan. A manually entered username is checked through public web search only; it does not grant account or media access.
+              {isReviewerDemo
+                ? "Any photos added here stay in this device's demo preview. No photo is sent to a provider, image-analysis service, or backend."
+                : "Photos you add are searched across publicly available web pages when you run a scan. A manually entered username is checked through public web search only; it does not grant account or media access."}
             </Text>
           </View>
           <View style={[styles.infoRow, { marginTop: 10 }]}>
             <Ionicons name="phone-portrait-outline" size={18} color={colors.mutedForeground} />
             <Text style={[styles.infoText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Camera roll photos are processed securely and used only for your scans. Go to the Scan tab and tap Start Full Scan to run now.
+              {isReviewerDemo
+                ? "Demo scans use sample results and local preview actions only."
+                : "Camera roll photos are processed securely and used only for your scans. Go to the Scan tab and tap Start Full Scan to run now."}
             </Text>
           </View>
         </GlassCard>
       </ScrollView>
+      {isReviewerDemo && (
+        <Modal
+          visible={demoPhotoPickerVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setDemoPhotoPickerVisible(false)}
+        >
+          <View style={styles.demoPickerBackdrop}>
+            <View style={[styles.demoPickerSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.demoPickerHeader}>
+                <Text style={[styles.demoPickerTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+                  Choose sample photos
+                </Text>
+                <Text style={[styles.demoPickerNote, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Fictional fixture images only. No camera roll permission or personal photos are accessed.
+                </Text>
+              </View>
+              {demoPhotoChoices.length > 0 ? (
+                <View style={styles.demoPickerGrid}>
+                  {demoPhotoChoices.map((item) => {
+                    const selected = selectedDemoPhotoIds.has(item.id);
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[styles.demoPickerCell, { borderColor: selected ? colors.primary : colors.border }]}
+                        onPress={() => setSelectedDemoPhotoIds((current) => {
+                          const next = new Set(current);
+                          if (next.has(item.id)) next.delete(item.id);
+                          else next.add(item.id);
+                          return next;
+                        })}
+                        activeOpacity={0.8}
+                        accessibilityLabel={`Sample photo from ${item.platform}${selected ? ", selected" : ""}`}
+                      >
+                        <Image source={{ uri: item.thumbnailUrl || item.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                        {selected && (
+                          <View style={[styles.demoPickerCheck, { backgroundColor: colors.primary }]}>
+                            <Ionicons name="checkmark" size={12} color="#fff" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={[styles.demoPickerEmpty, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                  Sample photo fixtures are not available right now.
+                </Text>
+              )}
+              <View style={styles.demoPickerActions}>
+                <TouchableOpacity
+                  style={[styles.demoPickerButton, { borderColor: colors.border }]}
+                  onPress={() => setDemoPhotoPickerVisible(false)}
+                >
+                  <Text style={[styles.demoPickerButtonText, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.demoPickerButton, { backgroundColor: colors.primary, borderColor: colors.primary, opacity: selectedDemoPhotoIds.size > 0 ? 1 : 0.5 }]}
+                  onPress={addSelectedDemoPhotos}
+                  disabled={selectedDemoPhotoIds.size === 0}
+                >
+                  <Text style={[styles.demoPickerButtonText, { color: "#fff", fontFamily: "Inter_600SemiBold" }]}>
+                    Add selected ({selectedDemoPhotoIds.size})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
       <PhotoConsentModal
         visible={showConsentNotice}
         onSkip={() => setShowConsentNotice(false)}
@@ -867,6 +1003,18 @@ const styles = StyleSheet.create({
   infoCard: { gap: 0 },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   infoText: { flex: 1, fontSize: 13, lineHeight: 20 },
+  demoPickerBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.65)" },
+  demoPickerSheet: { maxHeight: "78%", borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, padding: 20, gap: 16 },
+  demoPickerHeader: { gap: 5 },
+  demoPickerTitle: { fontSize: 18 },
+  demoPickerNote: { fontSize: 12, lineHeight: 18 },
+  demoPickerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "flex-start" },
+  demoPickerCell: { width: "31%", aspectRatio: 1, borderRadius: 10, borderWidth: 2, overflow: "hidden" },
+  demoPickerCheck: { position: "absolute", top: 5, right: 5, width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  demoPickerEmpty: { textAlign: "center", paddingVertical: 24, fontSize: 13 },
+  demoPickerActions: { flexDirection: "row", gap: 10 },
+  demoPickerButton: { minHeight: 44, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center", flex: 1 },
+  demoPickerButtonText: { fontSize: 13 },
 
   welcomeBanner: {
     borderRadius: 12,

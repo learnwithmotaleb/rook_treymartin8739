@@ -25,8 +25,9 @@ import { useApp, Severity, type MatchedEvidence, type ThreatScoreBreakdown } fro
 import { GlassCard } from "@/components/GlassCard";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { Skeleton } from "@/components/Skeleton";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 import { severityColor } from "@/lib/severity";
-import { getThreat, resolveThreat as apiResolveThreat, type ThreatDetail } from "@/lib/api";
+import { getThreat, type ThreatDetail } from "@/lib/api";
 import { ShareCard } from "@/components/ShareCard";
 import { useShareCard } from "@/hooks/useShareCard";
 
@@ -152,11 +153,13 @@ function generateReportHtml(opts: {
   breakdown: ThreatScoreBreakdown;
   evidence: MatchedEvidence[];
   postDatingDays: number | null;
+  demoPreview?: boolean;
 }): string {
   const {
     caseId, generatedAt, userName, platform, platformLabel,
     suspiciousUsername, severity, threatScore, type,
     aiExplanation, signals, breakdown, evidence, postDatingDays,
+    demoPreview = false,
   } = opts;
 
   const sevColor = severity === "high" ? "#EF4444" : severity === "medium" ? "#F59E0B" : "#10B981";
@@ -210,7 +213,7 @@ function generateReportHtml(opts: {
             <span style="font-size:13px;font-weight:700;color:${e.similarity >= 85 ? "#EF4444" : "#F59E0B"};">${e.similarity}% match</span>
           </div>
           ${
-            e.stolenPageUrl
+            e.stolenPageUrl && !demoPreview
               ? `<p style="font-size:12px;color:#6B7280;margin:0;word-break:break-all;">Found at: <a href="${e.stolenPageUrl}" style="color:#3B82F6;">${e.stolenPageUrl}</a></p>`
               : ""
           }
@@ -220,13 +223,19 @@ function generateReportHtml(opts: {
     </div>`
     : "";
 
-  const nextSteps = [
-    `Report ${handle} directly on ${platformLabel} using their official impersonation report tool.`,
-    "Screenshot this report and save it to your device as documentation.",
-    "If the account is used for fraud, file a report with your local cybercrime unit or the FTC (reportfraud.ftc.gov).",
-    "Block the account after reporting to prevent further contact.",
-    "Monitor your accounts for additional impersonators using Rook's scheduled scans.",
-  ];
+  const nextSteps = demoPreview
+    ? [
+        "This report contains fictional sample data only; it is not evidence of a real account or finding.",
+        "Do not report, block, contact, or take action against any account based on this sample.",
+        "The PDF is a local demonstration preview and is not submitted to a platform or public report service.",
+      ]
+    : [
+        `Report ${handle} directly on ${platformLabel} using their official impersonation report tool.`,
+        "Screenshot this report and save it to your device as documentation.",
+        "If the account is used for fraud, file a report with your local cybercrime unit or the FTC (reportfraud.ftc.gov).",
+        "Block the account after reporting to prevent further contact.",
+        "Monitor your accounts for additional impersonators using Rook's scheduled scans.",
+      ];
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -245,6 +254,7 @@ function generateReportHtml(opts: {
   .brand-sub { font-size: 11px; color: #6B7280; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
   .report-meta { text-align: right; }
   .report-type { font-size: 13px; font-weight: 700; color: #EF4444; text-transform: uppercase; letter-spacing: 1px; }
+  .demo-watermark { margin: -12px 0 24px; padding: 12px 14px; border: 2px solid #D97706; border-radius: 8px; background: #FFFBEB; color: #92400E; font-size: 14px; font-weight: 900; text-align: center; letter-spacing: 0.5px; }
   .meta-line { font-size: 12px; color: #6B7280; margin-top: 4px; }
   .alert-bar { background: #FEF2F2; border: 2px solid #FECACA; border-radius: 10px; padding: 14px 18px; margin-bottom: 28px; display: flex; align-items: flex-start; gap: 12px; }
   .alert-icon { font-size: 22px; }
@@ -284,21 +294,24 @@ function generateReportHtml(opts: {
       </div>
     </div>
     <div class="report-meta">
-      <div class="report-type">⚠ Investigation Report</div>
+      <div class="report-type">${demoPreview ? "⚠ Demo Preview · Not a Real Finding" : "⚠ Investigation Report"}</div>
       <div class="meta-line">Case ID: ${caseId.slice(0, 8).toUpperCase()}</div>
       <div class="meta-line">Generated: ${generatedAt}</div>
       <div class="meta-line">Subject: ${userName}</div>
     </div>
   </div>
 
+  ${demoPreview ? `<div class="demo-watermark">DEMO PREVIEW — NOT A REAL FINDING · DO NOT REPORT OR ACT ON THIS SAMPLE</div>` : ""}
+
   <!-- Alert -->
   <div class="alert-bar">
     <div class="alert-icon">🚨</div>
     <div class="alert-text">
-      <h3>Active Impersonation Detected</h3>
+      <h3>${demoPreview ? "Illustrative sample alert" : "Active Impersonation Detected"}</h3>
       <p>
-        Rook's AI detected an account on ${platformLabel} using your identity without authorization.
-        This report documents the evidence and recommended actions.
+        ${demoPreview
+          ? "This is fictional reviewer-demo content, not a validated finding. No real account was detected and no action should be taken."
+          : `Rook's AI detected an account on ${platformLabel} using your identity without authorization. This report documents the evidence and recommended actions.`}
       </p>
     </div>
   </div>
@@ -335,7 +348,7 @@ function generateReportHtml(opts: {
 
   <!-- AI Explanation -->
   <div class="section">
-    <h2>🤖 AI Analysis</h2>
+    <h2>${demoPreview ? "🤖 Illustrative Analysis" : "🤖 AI Analysis"}</h2>
     <div class="explanation-box">${aiExplanation}</div>
   </div>
 
@@ -377,9 +390,9 @@ function generateReportHtml(opts: {
     <div class="footer-right">Case ${caseId.slice(0, 8).toUpperCase()} · ${generatedAt}</div>
   </div>
   <p class="disclaimer">
-    This report was generated by Rook AI. Results are probabilistic estimates and should be verified before
-    legal action. Rook is not a law enforcement agency. Keep this report for your records when contacting
-    the platform's Trust & Safety team.
+    ${demoPreview
+      ? "DEMO PREVIEW — NOT A REAL FINDING. This PDF uses fictional sample data and is not a real report, validated evidence, or a submission to any platform."
+      : "This report was generated by Rook AI. Results are probabilistic estimates and should be verified before legal action. Rook is not a law enforcement agency. Keep this report for your records when contacting the platform's Trust & Safety team."}
   </p>
 </div>
 </body>
@@ -578,7 +591,7 @@ export default function ThreatDetail() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { threats, resolveThreat, user } = useApp();
+  const { threats, resolveThreat, user, isReviewerDemo } = useApp();
 
   const [detail, setDetail] = useState<ThreatDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -588,6 +601,7 @@ export default function ThreatDetail() {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [showSignals, setShowSignals] = useState(false);
+  const [demoActionPreview, setDemoActionPreview] = useState<"profile" | "report" | null>(null);
   const { cardRef, isSharing, share } = useShareCard();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -605,6 +619,9 @@ export default function ThreatDetail() {
 
   const threat = detail ?? summary;
   const isSample = detail?.isSample === true || summary?.isSample === true;
+  const isPreviewFinding = isSample || isReviewerDemo;
+  const canPreviewSampleActions = isReviewerDemo && isSample;
+  const canUseLiveThreatActions = !isReviewerDemo && !isSample;
 
   // Show full-screen skeleton only when there is truly no data at all —
   // not even a summary from the threat list. When summary exists (the normal
@@ -734,6 +751,10 @@ export default function ThreatDetail() {
 
   const handleReport = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isReviewerDemo) {
+      if (canPreviewSampleActions) setDemoActionPreview("report");
+      return;
+    }
     const openProfile = () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       const url = profileUrl ?? guideUrl;
@@ -763,6 +784,10 @@ export default function ThreatDetail() {
 
   const handleOpenProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isReviewerDemo) {
+      if (canPreviewSampleActions) setDemoActionPreview("profile");
+      return;
+    }
     if (profileUrl) {
       Linking.openURL(profileUrl).catch(() => {
         Alert.alert("Could not open", "Please open the platform app and search for the account manually.");
@@ -771,6 +796,7 @@ export default function ThreatDetail() {
   };
 
   const handleDownloadReport = async () => {
+    if (isReviewerDemo && !canPreviewSampleActions) return;
     if (isGeneratingPdf) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsGeneratingPdf(true);
@@ -778,7 +804,7 @@ export default function ThreatDetail() {
       const html = generateReportHtml({
         caseId: threat.id,
         generatedAt: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-        userName: user?.name ?? "Rook User",
+        userName: canPreviewSampleActions ? "Reviewer Demo User" : user?.name ?? "Rook User",
         platform,
         platformLabel,
         suspiciousUsername,
@@ -790,6 +816,7 @@ export default function ThreatDetail() {
         breakdown,
         evidence,
         postDatingDays: detail?.postDatingDays ?? null,
+        demoPreview: isReviewerDemo,
       });
 
       const { uri } = await Print.printToFileAsync({ html, base64: false });
@@ -798,11 +825,18 @@ export default function ThreatDetail() {
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: "application/pdf",
-          dialogTitle: `Rook Investigation Report — ${handle}`,
+          dialogTitle: canPreviewSampleActions
+            ? "DEMO PREVIEW — NOT A REAL FINDING"
+            : `Rook Investigation Report — ${handle}`,
           UTI: "com.adobe.pdf",
         });
       } else {
-        Alert.alert("PDF Saved", `Investigation report saved to: ${uri}`);
+        Alert.alert(
+          canPreviewSampleActions ? "Demo PDF Saved" : "PDF Saved",
+          canPreviewSampleActions
+            ? `DEMO PREVIEW — NOT A REAL FINDING. A watermarked sample PDF was saved to: ${uri}`
+            : `Investigation report saved to: ${uri}`,
+        );
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -816,12 +850,21 @@ export default function ThreatDetail() {
 
   const handleShareCard = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isReviewerDemo) {
+      if (!canPreviewSampleActions) return;
+      share(
+        undefined,
+        "DEMO PREVIEW — NOT A REAL FINDING. Fictional sample data only; no live account was detected.",
+      );
+      return;
+    }
     const reportUrl = `https://tryrook.app/report?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(cleanHandle)}`;
     share(reportUrl);
   };
 
   const performResolve = async (action: string) => {
     if (resolving) return;
+    if (isPreviewFinding && !canPreviewSampleActions) return;
     setShowResolveModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setResolving(true);
@@ -833,6 +876,42 @@ export default function ThreatDetail() {
       setResolving(false);
     }
   };
+
+  const responseSteps = canPreviewSampleActions
+    ? [
+        {
+          n: "1",
+          icon: "flag" as const,
+          iconColor: colors.warning,
+          title: "Preview reporting guidance",
+          desc: "Shows a local walkthrough only. No profile, report form, or external guide is opened.",
+          action: handleReport,
+          actionLabel: "Preview",
+        },
+        {
+          n: "2",
+          icon: "document-text-outline" as const,
+          iconColor: colors.primary,
+          title: "Save a watermarked sample PDF",
+          desc: "The exported file is labeled as a demo and is not a real finding or platform submission.",
+          action: handleDownloadReport,
+          actionLabel: isGeneratingPdf ? "Building…" : "Save PDF",
+        },
+        {
+          n: "3",
+          icon: "shield-checkmark-outline" as const,
+          iconColor: colors.success,
+          title: "Block only after verifying a real finding",
+          desc: "This fictional sample cannot be blocked. Do not act on a sample alert.",
+          action: undefined,
+          actionLabel: undefined,
+        },
+      ]
+    : [
+        { n: "1", icon: "flag" as const, iconColor: colors.danger, title: "Report to the platform", desc: `Tap "Report Account" below → go to their profile → select "It's pretending to be someone"`, action: handleReport, actionLabel: "Report" },
+        { n: "2", icon: "document-text-outline" as const, iconColor: colors.primary, title: "Save this as evidence", desc: "Download your investigation report. Keep it if you need to escalate to lawyers or law enforcement.", action: handleDownloadReport, actionLabel: isGeneratingPdf ? "Building…" : "Download" },
+        { n: "3", icon: "shield-checkmark-outline" as const, iconColor: colors.success, title: "Block after reporting", desc: "After the report is filed, block the account so they can't message or follow you while the review is pending.", action: undefined, actionLabel: undefined },
+      ];
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -854,7 +933,7 @@ export default function ThreatDetail() {
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
           {platform ? <PlatformIcon platform={platform as any} size={22} /> : null}
-          {!isSample && <TouchableOpacity
+          {(canUseLiveThreatActions || canPreviewSampleActions) && <TouchableOpacity
             onPress={handleShareCard}
             disabled={isSharing}
             hitSlop={10}
@@ -871,24 +950,32 @@ export default function ThreatDetail() {
           <Pressable onPress={() => {}} style={[resolveModalStyles.sheet, { backgroundColor: colors.card }]}>
             <View style={[resolveModalStyles.handle, { backgroundColor: colors.border }]} />
             <Text style={[resolveModalStyles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              How did you handle this?
+              {canPreviewSampleActions ? "Preview a local response" : "How did you handle this?"}
             </Text>
             <Text style={[resolveModalStyles.subtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              Your response helps Rook learn and improve detection accuracy.
+              {canPreviewSampleActions
+                ? "Demo preview only. This changes the sample alert locally; it does not report, contact, block, or change anything on a platform."
+                : "Your response helps Rook learn and improve detection accuracy."}
             </Text>
 
             <View style={[resolveModalStyles.section, { borderColor: colors.danger + "30" }]}>
               <View style={resolveModalStyles.sectionHeader}>
                 <Ionicons name="warning" size={13} color={colors.danger} />
-                <Text style={[resolveModalStyles.sectionLabel, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>Real Impersonator</Text>
+                <Text style={[resolveModalStyles.sectionLabel, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
+                  {canPreviewSampleActions ? "Sample response · local only" : "Real Impersonator"}
+                </Text>
               </View>
               <TouchableOpacity style={[resolveModalStyles.option, { borderColor: colors.border }]} onPress={() => performResolve("reported_to_platform")} activeOpacity={0.75}>
                 <View style={[resolveModalStyles.optionIcon, { backgroundColor: colors.danger + "18" }]}>
                   <Ionicons name="flag" size={18} color={colors.danger} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Reported to the platform</Text>
-                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Flagged via Instagram, X, TikTok, or another platform's report system</Text>
+                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    {canPreviewSampleActions ? "Preview: reported to platform" : "Reported to the platform"}
+                  </Text>
+                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {canPreviewSampleActions ? "Marks this fictional alert as previewed; no platform report is submitted." : "Flagged via Instagram, X, TikTok, or another platform's report system"}
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
               </TouchableOpacity>
@@ -897,8 +984,12 @@ export default function ThreatDetail() {
                   <Ionicons name="shield-checkmark" size={18} color={colors.warning} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>Removed or handled manually</Text>
-                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Account was taken down, impersonator stopped, or you handled it directly</Text>
+                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    {canPreviewSampleActions ? "Preview: handled manually" : "Removed or handled manually"}
+                  </Text>
+                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {canPreviewSampleActions ? "Demonstrates a local response state; it does not remove or contact an account." : "Account was taken down, impersonator stopped, or you handled it directly"}
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
               </TouchableOpacity>
@@ -907,15 +998,21 @@ export default function ThreatDetail() {
             <View style={[resolveModalStyles.section, { borderColor: colors.border }]}>
               <View style={resolveModalStyles.sectionHeader}>
                 <Ionicons name="checkmark-circle" size={13} color={colors.success} />
-                <Text style={[resolveModalStyles.sectionLabel, { color: colors.success, fontFamily: "Inter_700Bold" }]}>Not a Threat</Text>
+                <Text style={[resolveModalStyles.sectionLabel, { color: colors.success, fontFamily: "Inter_700Bold" }]}>
+                  {canPreviewSampleActions ? "Sample classification · local only" : "Not a Threat"}
+                </Text>
               </View>
               <TouchableOpacity style={[resolveModalStyles.option, { borderColor: colors.border }]} onPress={() => performResolve("approved")} activeOpacity={0.75}>
                 <View style={[resolveModalStyles.optionIcon, { backgroundColor: colors.primary + "18" }]}>
                   <Ionicons name="person-circle" size={18} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>I know and trust this account</Text>
-                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>This is a fan page, a friend, or an account you've authorized</Text>
+                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    {canPreviewSampleActions ? "Preview: trusted account" : "I know and trust this account"}
+                  </Text>
+                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {canPreviewSampleActions ? "Applies only to this fictional sample alert." : "This is a fan page, a friend, or an account you've authorized"}
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
               </TouchableOpacity>
@@ -924,8 +1021,12 @@ export default function ThreatDetail() {
                   <Ionicons name="close-circle" size={18} color={colors.mutedForeground} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>False detection</Text>
-                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Rook flagged this incorrectly — helps us reduce future false alarms</Text>
+                  <Text style={[resolveModalStyles.optionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+                    {canPreviewSampleActions ? "Preview: false detection" : "False detection"}
+                  </Text>
+                  <Text style={[resolveModalStyles.optionDesc, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {canPreviewSampleActions ? "Applies only to this fictional sample alert." : "Rook flagged this incorrectly — helps us reduce future false alarms"}
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
               </TouchableOpacity>
@@ -938,9 +1039,43 @@ export default function ThreatDetail() {
         </Pressable>
       </Modal>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 32 }]}>
+      <Modal
+        visible={demoActionPreview !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDemoActionPreview(null)}
+      >
+        <Pressable style={demoPreviewStyles.backdrop} onPress={() => setDemoActionPreview(null)}>
+          <Pressable style={[demoPreviewStyles.card, { backgroundColor: colors.card, borderColor: colors.warning + "66" }]} onPress={() => {}}>
+            <View style={[demoPreviewStyles.icon, { backgroundColor: colors.warning + "20" }]}>
+              <Ionicons name={demoActionPreview === "profile" ? "person-circle-outline" : "flag-outline"} size={24} color={colors.warning} />
+            </View>
+            <Text style={[demoPreviewStyles.title, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
+              {demoActionPreview === "profile" ? "Local profile preview" : "Reporting guidance preview"}
+            </Text>
+            <Text style={[demoPreviewStyles.notice, { color: colors.warning, fontFamily: "Inter_700Bold" }]}>
+              DEMO PREVIEW · NOT A REAL FINDING
+            </Text>
+            <Text style={[demoPreviewStyles.body, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              {demoActionPreview === "profile"
+                ? `This example uses the sample handle ${handle}. No external profile was opened. In the live app, verify the account directly in the platform before taking action.`
+                : `No report was submitted and no external reporting guide was opened. For a real, verified finding on ${platformLabel}, use the platform's official report flow and review its guidance before taking action.`}
+            </Text>
+            <TouchableOpacity
+              style={[demoPreviewStyles.closeButton, { backgroundColor: colors.primary }]}
+              onPress={() => setDemoActionPreview(null)}
+              activeOpacity={0.8}
+            >
+              <Text style={[demoPreviewStyles.closeText, { fontFamily: "Inter_600SemiBold" }]}>Done</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
-        {isSample && (
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 32 }]}>
+        {isReviewerDemo && <ReviewerDemoBanner message="Sample findings and all response controls stay local to this preview." />}
+
+        {isPreviewFinding && (
           <View
             style={[styles.sampleNotice, { backgroundColor: colors.warning + "14", borderColor: colors.warning + "55" }]}
             accessible
@@ -994,7 +1129,7 @@ export default function ThreatDetail() {
           {/* Account stat chips + Open Profile.
               When accountMeta is available: show follower/post/age chips + Open Profile.
               When no accountMeta: show Copy + Open Profile (existing fallback). */}
-          {!isSample && <View style={[styles.quickActionsRow, { borderTopColor: sc + "22" }]}>
+          {(canUseLiveThreatActions || canPreviewSampleActions) && <View style={[styles.quickActionsRow, { borderTopColor: sc + "22" }]}>
             {accountMeta ? (
               <>
                 <View style={[styles.statChip, { backgroundColor: colors.border + "88" }]}>
@@ -1020,10 +1155,12 @@ export default function ThreatDetail() {
                   </View>
                 )}
                 {/* Always keep Open Profile accessible — needed to tap Report inside the platform */}
-                {profileUrl ? (
+                {profileUrl && canUseLiveThreatActions || canPreviewSampleActions ? (
                   <TouchableOpacity style={styles.quickAction} onPress={handleOpenProfile} activeOpacity={0.7}>
                     <Ionicons name="open-outline" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Open Profile</Text>
+                    <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {canPreviewSampleActions ? "Preview Profile" : "Open Profile"}
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
               </>
@@ -1033,10 +1170,12 @@ export default function ThreatDetail() {
                   <Ionicons name="copy-outline" size={16} color={colors.mutedForeground} />
                   <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Copy</Text>
                 </TouchableOpacity>
-                {profileUrl ? (
+                {profileUrl && canUseLiveThreatActions || canPreviewSampleActions ? (
                   <TouchableOpacity style={styles.quickAction} onPress={handleOpenProfile} activeOpacity={0.7}>
                     <Ionicons name="open-outline" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>Open Profile</Text>
+                    <Text style={[styles.quickActionLabel, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                      {canPreviewSampleActions ? "Preview Profile" : "Open Profile"}
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
               </>
@@ -1050,40 +1189,36 @@ export default function ThreatDetail() {
             <View style={styles.sectionHeader}>
               <MaterialCommunityIcons name="image-search" size={18} color={colors.danger} />
               <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                {isSample ? "Example Evidence" : "Visual Evidence"}
+                {isPreviewFinding ? "Example Evidence" : "Visual Evidence"}
               </Text>
               <View style={[styles.evidenceCountBadge, { backgroundColor: colors.danger + "22" }]}>
                 <Text style={[styles.evidenceCountText, { color: colors.danger, fontFamily: "Inter_700Bold" }]}>
-                  {isSample ? `${threat.matchedMediaCount} examples` : `${threat.matchedMediaCount} matched`}
+                  {isPreviewFinding ? `${threat.matchedMediaCount} examples` : `${threat.matchedMediaCount} matched`}
                 </Text>
               </View>
             </View>
             <Text style={[styles.evidenceSubtitle, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              {isSample
+              {isPreviewFinding
                 ? "Illustrative content only. Source links are disabled because this is not a validated live report."
                 : 'Tap "Suspected Match" to view the flagged post'}
             </Text>
             {evidence.map((item) => (
-              <EvidenceCard key={item.id} item={item} isSample={isSample} />
+              <EvidenceCard key={item.id} item={item} isSample={isPreviewFinding} />
             ))}
           </View>
         )}
 
         {/* ── What to do now ───────────────────────────────────────────────── */}
-        {!isSample ? <GlassCard style={[styles.actNowCard, { borderColor: colors.danger + "33" }]}>
+        {(canUseLiveThreatActions || canPreviewSampleActions) ? <GlassCard style={[styles.actNowCard, { borderColor: (canPreviewSampleActions ? colors.warning : colors.danger) + "44" }]}>
           <View style={styles.actNowHeader}>
             <View style={[styles.actNowIconBg, { backgroundColor: colors.danger + "22" }]}>
               <Ionicons name="flash" size={18} color={colors.danger} />
             </View>
             <Text style={[styles.actNowTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
-              What to do right now
+              {canPreviewSampleActions ? "Preview available actions" : "What to do right now"}
             </Text>
           </View>
-          {[
-            { n: "1", icon: "flag" as const, iconColor: colors.danger, title: "Report to the platform", desc: `Tap "Report Account" below → go to their profile → select "It's pretending to be someone"`, action: handleReport, actionLabel: "Report" },
-            { n: "2", icon: "document-text-outline" as const, iconColor: colors.primary, title: "Save this as evidence", desc: "Download your investigation report. Keep it if you need to escalate to lawyers or law enforcement.", action: handleDownloadReport, actionLabel: isGeneratingPdf ? "Building…" : "Download" },
-            { n: "3", icon: "shield-checkmark-outline" as const, iconColor: colors.success, title: "Block after reporting", desc: "After the report is filed, block the account so they can't message or follow you while the review is pending.", action: undefined, actionLabel: undefined },
-          ].map((step, i) => (
+          {responseSteps.map((step, i) => (
             <View key={i} style={[styles.stepRow, i < 2 && { borderBottomWidth: 1, borderBottomColor: colors.border + "88" }]}>
               <View style={[styles.stepBubble, { backgroundColor: colors.border }]}>
                 <Text style={[styles.stepNum, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>{step.n}</Text>
@@ -1121,7 +1256,7 @@ export default function ThreatDetail() {
         )}
 
         {/* ── Why Rook flagged this (collapsible) ──────────────────────────── */}
-        {aiExplanation && !isSample ? (
+        {aiExplanation && canUseLiveThreatActions ? (
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => { setShowAiAnalysis((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
@@ -1162,7 +1297,7 @@ export default function ThreatDetail() {
         ) : null}
 
         {/* ── Evidence Details — Detected Signals (collapsible) ────────────── */}
-        {detectedSignals.length > 0 && !isSample && (
+        {detectedSignals.length > 0 && canUseLiveThreatActions && (
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => { setShowSignals((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
@@ -1205,7 +1340,7 @@ export default function ThreatDetail() {
         )}
 
         {/* ── Score Breakdown (collapsible) ────────────────────────────────── */}
-        {!isSample && <TouchableOpacity
+        {canUseLiveThreatActions && <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => { setShowBreakdown((v) => !v); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
         >
@@ -1240,11 +1375,13 @@ export default function ThreatDetail() {
         </TouchableOpacity>}
 
         {/* ── Actions ──────────────────────────────────────────────────────── */}
-        {!isSample && <View style={styles.actionsSection}>
+        {(canUseLiveThreatActions || canPreviewSampleActions) && <View style={styles.actionsSection}>
           {/* Primary: Report */}
           <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.danger }]} activeOpacity={0.82} onPress={handleReport}>
             <Ionicons name="flag" size={18} color="#FFFFFF" />
-            <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold" }]}>Report Account</Text>
+            <Text style={[styles.primaryBtnText, { fontFamily: "Inter_600SemiBold" }]}>
+              {canPreviewSampleActions ? "Preview Reporting Guidance" : "Report Account"}
+            </Text>
           </TouchableOpacity>
 
           {/* Secondary row: Download PDF + Share */}
@@ -1261,7 +1398,7 @@ export default function ThreatDetail() {
                 <Ionicons name="document-text-outline" size={17} color={colors.primary} />
               )}
               <Text style={[styles.secondaryBtnText, { color: colors.primary, fontFamily: "Inter_600SemiBold" }]}>
-                {isGeneratingPdf ? "Building…" : "Save Report"}
+                {isGeneratingPdf ? "Building…" : canPreviewSampleActions ? "Save Demo PDF" : "Save Report"}
               </Text>
             </TouchableOpacity>
 
@@ -1273,7 +1410,7 @@ export default function ThreatDetail() {
             >
               <Ionicons name="share-social-outline" size={17} color={colors.foreground} />
               <Text style={[styles.secondaryBtnText, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-                Share Alert
+                {canPreviewSampleActions ? "Share Watermarked Demo" : "Share Alert"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1287,7 +1424,7 @@ export default function ThreatDetail() {
           >
             <Ionicons name="checkmark-circle-outline" size={17} color={colors.mutedForeground} />
             <Text style={[styles.ghostBtnText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              {resolving ? "Resolving…" : "Mark as Resolved"}
+              {resolving ? "Resolving…" : canPreviewSampleActions ? "Mark Sample Resolved" : "Mark as Resolved"}
             </Text>
           </TouchableOpacity>
         </View>}
@@ -1295,17 +1432,35 @@ export default function ThreatDetail() {
       </ScrollView>
 
       {/* Off-screen ShareCard snapshot */}
-      {!isSample && <View style={{ position: "absolute", top: -10000, left: 0 }} pointerEvents="none">
+      {(canUseLiveThreatActions || canPreviewSampleActions) && <View style={{ position: "absolute", top: -10000, left: 0 }} pointerEvents="none">
         <View ref={cardRef} collapsable={false}>
-          <ShareCard
-            userDisplayName={user?.name ?? "Rook User"}
-            userInitials={user?.avatarInitials ?? "R"}
-            userAvatarUrl={user?.avatarUrl}
-            platform={platform}
-            suspiciousUsername={suspiciousUsername || "unknown"}
-            threatScore={threat.threatScore}
-            reportUrl={`https://tryrook.app/report?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(cleanHandle)}`}
-          />
+          {canPreviewSampleActions ? (
+            <View style={demoShareStyles.card}>
+              <Text style={demoShareStyles.brand}>ROOK · REVIEWER PREVIEW</Text>
+              <View style={demoShareStyles.watermark}>
+                <Text style={demoShareStyles.watermarkText}>DEMO PREVIEW</Text>
+                <Text style={demoShareStyles.watermarkSub}>NOT A REAL FINDING</Text>
+              </View>
+              <Text style={demoShareStyles.heading}>Illustrative identity alert</Text>
+              <Text style={demoShareStyles.handle}>{handle} · {platformLabel}</Text>
+              <Text style={demoShareStyles.score}>Example score: {threat.threatScore}</Text>
+              <View style={demoShareStyles.rule} />
+              <Text style={demoShareStyles.disclaimer}>
+                Fictional sample data only. No real account was detected. Do not report, block, contact, or take action based on this image.
+              </Text>
+              <Text style={demoShareStyles.footer}>No external profile or public report link is included.</Text>
+            </View>
+          ) : (
+            <ShareCard
+              userDisplayName={user?.name ?? "Rook User"}
+              userInitials={user?.avatarInitials ?? "R"}
+              userAvatarUrl={user?.avatarUrl}
+              platform={platform}
+              suspiciousUsername={suspiciousUsername || "unknown"}
+              threatScore={threat.threatScore}
+              reportUrl={`https://tryrook.app/report?platform=${encodeURIComponent(platform)}&username=${encodeURIComponent(cleanHandle)}`}
+            />
+          )}
         </View>
       </View>}
     </View>
@@ -1512,4 +1667,40 @@ const resolveModalStyles = StyleSheet.create({
   optionDesc: { fontSize: 12, lineHeight: 16 },
   cancelBtn: { height: 50, borderRadius: 25, borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 4 },
   cancelText: { fontSize: 15 },
+});
+
+const demoPreviewStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.62)", justifyContent: "center", padding: 24 },
+  card: { borderRadius: 20, borderWidth: 1, padding: 22, gap: 12 },
+  icon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", alignSelf: "center" },
+  title: { fontSize: 18, textAlign: "center" },
+  notice: { fontSize: 12, textAlign: "center", letterSpacing: 0.4 },
+  body: { fontSize: 14, lineHeight: 21, textAlign: "center" },
+  closeButton: { height: 46, borderRadius: 23, justifyContent: "center", alignItems: "center", marginTop: 4 },
+  closeText: { color: "#fff", fontSize: 14 },
+});
+
+const demoShareStyles = StyleSheet.create({
+  card: {
+    width: 390,
+    height: 693,
+    paddingHorizontal: 28,
+    paddingVertical: 36,
+    backgroundColor: "#101827",
+    borderColor: "#F59E0B",
+    borderWidth: 3,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  brand: { color: "#93C5FD", fontSize: 13, fontWeight: "800", letterSpacing: 2 },
+  watermark: { borderColor: "#F59E0B", borderWidth: 2, backgroundColor: "#422006", borderRadius: 14, paddingVertical: 18, paddingHorizontal: 24, alignItems: "center", width: "100%" },
+  watermarkText: { color: "#FCD34D", fontSize: 25, fontWeight: "900", letterSpacing: 1.5 },
+  watermarkSub: { color: "#FDE68A", fontSize: 14, fontWeight: "800", marginTop: 5 },
+  heading: { color: "#F8FAFC", fontSize: 25, fontWeight: "800", textAlign: "center" },
+  handle: { color: "#CBD5E1", fontSize: 17, textAlign: "center" },
+  score: { color: "#FCD34D", fontSize: 18, fontWeight: "700" },
+  rule: { height: 1, alignSelf: "stretch", backgroundColor: "#334155" },
+  disclaimer: { color: "#F8FAFC", fontSize: 16, lineHeight: 25, textAlign: "center", fontWeight: "600" },
+  footer: { color: "#94A3B8", fontSize: 12, lineHeight: 18, textAlign: "center" },
 });

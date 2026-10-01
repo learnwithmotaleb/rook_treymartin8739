@@ -19,6 +19,7 @@ export interface UserProfile {
   email: string;
   username: string;
   avatarInitials: string;
+  isPremium: boolean;
   securityScore: number;
   scoreTrend: number;
   monitored: number;
@@ -195,6 +196,253 @@ export interface WaitlistEntry {
   email: string;
   createdAt: string;
   alreadyRegistered: boolean;
+}
+
+export type ReviewerDemoMediaItemType = typeof ReviewerDemoMediaItemType[keyof typeof ReviewerDemoMediaItemType];
+
+
+export const ReviewerDemoMediaItemType = {
+  image: 'image',
+  video: 'video',
+  carousel: 'carousel',
+} as const;
+
+export interface ReviewerDemoMediaItem {
+  /** @pattern ^review-demo- */
+  id: string;
+  type: ReviewerDemoMediaItemType;
+  url: string;
+  thumbnailUrl: string;
+  /** @nullable */
+  caption: string | null;
+  /** @nullable */
+  postedAt: string | null;
+}
+
+export interface ReviewerDemoMediaResponse {
+  items: ReviewerDemoMediaItem[];
+  hasAccess: boolean;
+  reason?: string;
+  isSample: true;
+}
+
+export type ReviewerDemoResponseMediaByAccount = {[key: string]: ReviewerDemoMediaResponse};
+
+export type ReviewerDemoAccountPlatform = typeof ReviewerDemoAccountPlatform[keyof typeof ReviewerDemoAccountPlatform];
+
+
+export const ReviewerDemoAccountPlatform = {
+  instagram: 'instagram',
+  x: 'x',
+  tiktok: 'tiktok',
+  linkedin: 'linkedin',
+  youtube: 'youtube',
+  facebook: 'facebook',
+  snapchat: 'snapchat',
+} as const;
+
+export interface ReviewerDemoAccount {
+  /** @pattern ^review-demo- */
+  id: string;
+  platform: ReviewerDemoAccountPlatform;
+  username: string;
+  displayName: string;
+  followers: number;
+  verified: false;
+  needsReconnect: boolean;
+  photosIndexed: number;
+  captionsIndexed: number;
+  reelsIndexed: number;
+  lastSynced: string;
+  connectionType: 'demo';
+  isSample: true;
+  /** @nullable */
+  profileUrl: string | null;
+}
+
+export type ReviewerDemoThreatDetailSeverity = typeof ReviewerDemoThreatDetailSeverity[keyof typeof ReviewerDemoThreatDetailSeverity];
+
+
+export const ReviewerDemoThreatDetailSeverity = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+} as const;
+
+export interface ReviewerDemoThreatEvidence {
+  /** @pattern ^review-demo- */
+  id: string;
+  type: string;
+  similarity: number;
+  label: string;
+  yourCaption?: string;
+  stolenCaption?: string;
+  yourPhotoUrl?: string;
+  stolenPhotoUrl?: string;
+}
+
+export interface ReviewerDemoAccountMeta {
+  followers: number;
+  following?: number;
+  totalPosts?: number;
+  accountAgeDays?: number;
+  engagementRate?: number;
+}
+
+export interface ReviewerDemoThreatDetail {
+  /** @pattern ^review-demo-threat- */
+  id: string;
+  /** @pattern ^review-demo- */
+  scanJobId: string;
+  type: string;
+  severity: ReviewerDemoThreatDetailSeverity;
+  platform: string;
+  title: string;
+  description: string;
+  details: string;
+  aiExplanation: string;
+  threatScore: number;
+  /** @nullable */
+  suspiciousUsername: string | null;
+  /** @nullable */
+  profileUrl: string | null;
+  matchedMediaCount: number;
+  evidence: ReviewerDemoThreatEvidence[];
+  scoreBreakdown: ThreatScoreBreakdown;
+  accountMeta: ReviewerDemoAccountMeta | null;
+  detectedSignals: string[];
+  isSample: true;
+  /** @nullable */
+  confirmedVictims: number | null;
+  crossUserEscalation: boolean;
+  /** @nullable */
+  postDatingDays: number | null;
+  resolved: boolean;
+  /** @nullable */
+  resolvedAt: string | null;
+  /** @nullable */
+  resolveAction: string | null;
+  isLocked: false;
+  createdAt: string;
+}
+
+export interface ReviewerDemoProfileSummary {
+  securityScore: number;
+  scoreTrend: number;
+  monitored: number;
+  lastScan: string;
+  totalPhotosIndexed: number;
+  totalCaptionsIndexed: number;
+  reelsIndexed: number;
+  fingerprintUpdated: string;
+  isSample: true;
+}
+
+export type ReviewerDemoIdentityBadgeConfidenceTier = typeof ReviewerDemoIdentityBadgeConfidenceTier[keyof typeof ReviewerDemoIdentityBadgeConfidenceTier];
+
+
+export const ReviewerDemoIdentityBadgeConfidenceTier = {
+  UNVERIFIED: 'UNVERIFIED',
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  STRONG: 'STRONG',
+} as const;
+
+export type ReviewerDemoIdentityBadgeBadge = {
+  tier: string;
+  label: string;
+  description: string;
+  color: string;
+};
+
+export interface ReviewerDemoIdentityBadge {
+  /** @pattern ^review-demo- */
+  userId: string;
+  confidenceTier: ReviewerDemoIdentityBadgeConfidenceTier;
+  overallConfidence: number;
+  verifiedPlatformCount: number;
+  anchorHashCount: number;
+  verifiedPlatforms: string[];
+  badge: ReviewerDemoIdentityBadgeBadge;
+  isSample: true;
+}
+
+export interface ReviewerDemoConsent {
+  hasConsent: boolean;
+  /** @nullable */
+  consentedAt: string | null;
+  /** @nullable */
+  consentVersion: string | null;
+  isSample: true;
+}
+
+export type ReviewerDemoQuotaTier = typeof ReviewerDemoQuotaTier[keyof typeof ReviewerDemoQuotaTier];
+
+
+export const ReviewerDemoQuotaTier = {
+  free: 'free',
+  pro: 'pro',
+  premium: 'premium',
+} as const;
+
+export interface ReviewerDemoQuota {
+  canScan: boolean;
+  scansUsed: number;
+  scansAllowed: number;
+  tier: ReviewerDemoQuotaTier;
+  imagesPerScan: number;
+  upgradeTo: string;
+  /** @nullable */
+  message: string | null;
+  /** @nullable */
+  resetsAt: string | null;
+  isSample: true;
+}
+
+export type ReviewerDemoScanStatus = typeof ReviewerDemoScanStatus[keyof typeof ReviewerDemoScanStatus];
+
+
+export const ReviewerDemoScanStatus = {
+  queued: 'queued',
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+} as const;
+
+export interface ReviewerDemoScan {
+  /** @pattern ^review-demo- */
+  id: string;
+  status: ReviewerDemoScanStatus;
+  progress: number;
+  currentStep: string;
+  threatsFound: number;
+  startedAt: string;
+  completedAt: string;
+  isSample: true;
+}
+
+export interface ReviewerDemoCapability {
+  route: string;
+  feature: string;
+}
+
+export interface ReviewerDemoResponse {
+  version: 1;
+  mode: 'reviewer_demo';
+  isSample: true;
+  actions: 'local_preview_only';
+  notice: string;
+  accounts: ReviewerDemoAccount[];
+  mediaByAccount: ReviewerDemoResponseMediaByAccount;
+  threats: ReviewerDemoThreatDetail[];
+  profileSummary: ReviewerDemoProfileSummary;
+  identityBadge: ReviewerDemoIdentityBadge;
+  consent: ReviewerDemoConsent;
+  quota: ReviewerDemoQuota;
+  latestScan: ReviewerDemoScan;
+  scanHistory: ReviewerDemoScan[];
+  capabilities: ReviewerDemoCapability[];
 }
 
 export type ListThreatsParams = {

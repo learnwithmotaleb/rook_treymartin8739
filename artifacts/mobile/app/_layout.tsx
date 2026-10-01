@@ -21,15 +21,14 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AnimatedSplash } from "@/components/AnimatedSplash";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
-import { identifyRevenueCatUser, initializeRevenueCat, isRevenueCatConfigured, resetRevenueCatIdentity, SubscriptionProvider } from "@/lib/revenuecat";
+import { identifyRevenueCatUser, initializeRevenueCat, isRevenueCatConfigured, resetRevenueCatIdentity, revenueCatUnavailableReason, SubscriptionProvider } from "@/lib/revenuecat";
 import { setApiAuthToken } from "@/lib/api";
 
-try {
-  initializeRevenueCat();
-} catch (err: any) {
-  // RC keys not set in this environment — purchases unavailable, app still works.
-  // Dev-mode tier upgrades go directly through the server bypass instead.
-  console.warn("[RevenueCat] Not configured:", err?.message);
+initializeRevenueCat();
+if (revenueCatUnavailableReason) {
+  // Unsupported runtimes and missing SDK configuration disable billing without
+  // blocking app startup or changing actual store entitlements.
+  console.warn("[RevenueCat] Unavailable:", revenueCatUnavailableReason);
 }
 
 // Keep the native splash screen up until our animated one takes over
@@ -90,7 +89,10 @@ function ApiAuthBridge() {
     // Install the Clerk token getter at the root so cold starts and deep links
     // to onboarding, subscription, privacy, or threat detail authenticate API
     // calls even when the tabs layout has never mounted.
-    setApiAuthToken(() => getToken());
+    setApiAuthToken(
+      () => getToken(),
+      isSignedIn ? user?.id ?? null : null,
+    );
   }, [getToken, isLoaded, isSignedIn, user?.id]);
 
   return null;

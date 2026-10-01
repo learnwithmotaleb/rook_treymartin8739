@@ -3,6 +3,10 @@ import { Router, type IRouter } from "express";
 import { eq, and, gt, isNull } from "drizzle-orm";
 import { db, connectedAccountsTable, usersTable, oauthStatesTable } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth";
+import {
+  rejectReviewerDemoOperation,
+  reviewerDemoMutationGuard,
+} from "../middleware/reviewerDemoMutationGuard";
 import { metaFetch } from "../lib/metaFetch";
 import { logger } from "../lib/logger";
 
@@ -114,7 +118,7 @@ async function consumeDurableState(state: string, stateType: string): Promise<bo
   return Boolean(consumed);
 }
 
-async function parseOAuthState(state: string): Promise<{ id: string; notifyUrl?: string } | null> {
+function inspectOAuthState(state: string): { id: string; notifyUrl?: string } | null {
   try {
     const dot = state.lastIndexOf(".");
     if (dot === -1) return null;
@@ -132,11 +136,16 @@ async function parseOAuthState(state: string): Promise<{ id: string; notifyUrl?:
     const id = parsed.clerkId ?? parsed.userId;
     if (!id || typeof parsed.iat !== "number") return null;
     if (Date.now() / 1000 - parsed.iat > 900) return null; // 15-min window
-    if (!(await consumeDurableState(state, "oauth"))) return null;
     return { id, notifyUrl: parsed.nu };
   } catch {
     return null;
   }
+}
+
+async function parseOAuthState(state: string): Promise<{ id: string; notifyUrl?: string } | null> {
+  const parsed = inspectOAuthState(state);
+  if (!parsed || !(await consumeDurableState(state, "oauth"))) return null;
+  return parsed;
 }
 
 // ── X/Twitter PKCE state helpers ─────────────────────────────────────────────
@@ -161,7 +170,7 @@ function createXPkceState(clerkId: string, redirectUri: string, notifyUrl?: stri
   return { state: `${payload}.${sig}`, codeChallenge };
 }
 
-async function parseXPkceState(state: string): Promise<{ clerkId: string; codeVerifier: string; redirectUri?: string; notifyUrl?: string } | null> {
+function inspectXPkceState(state: string): { clerkId: string; codeVerifier: string; redirectUri?: string; notifyUrl?: string } | null {
   try {
     const dot = state.lastIndexOf(".");
     if (dot === -1) return null;
@@ -176,13 +185,19 @@ async function parseXPkceState(state: string): Promise<{ clerkId: string; codeVe
     const id = parsed.clerkId ?? parsed.userId;
     if (!id || typeof parsed.iat !== "number" || !parsed.cv) return null;
     if (Date.now() / 1000 - parsed.iat > 900) return null;
-    // PKCE states are bearer credentials containing the verifier. Consume
-    // them exactly once before exchanging the authorization code.
-    if (!(await consumeDurableState(state, "x-pkce"))) return null;
     return { clerkId: id, codeVerifier: parsed.cv, redirectUri: parsed.ru, notifyUrl: parsed.nu };
   } catch {
     return null;
   }
+}
+
+async function parseXPkceState(state: string): Promise<{ clerkId: string; codeVerifier: string; redirectUri?: string; notifyUrl?: string } | null> {
+  const parsed = inspectXPkceState(state);
+  if (!parsed) return null;
+  // PKCE states are bearer credentials containing the verifier. Consume
+  // them exactly once before exchanging the authorization code.
+  if (!(await consumeDurableState(state, "x-pkce"))) return null;
+  return parsed;
 }
 
 async function resolveUserFromState(
@@ -271,7 +286,7 @@ async function sendAccountNotify(
 // without depending on the Clerk JWT expiry window.
 // In development, embeds DEV_NOTIFY_URL so the production callback can mirror
 // the saved account back to the dev server.
-router.post("/oauth/state", requireAuth, async (req, res): Promise<void> => {
+router.post("/oauth/state", requireAuth, reviewerDemoMutationGuard, async (req, res): Promise<void> => {
   const state = createOAuthState(req.clerkId, _devNotifyBase);
   await persistOAuthState(state, "oauth");
   res.json({ state });
@@ -283,7 +298,7 @@ router.post("/oauth/state", requireAuth, async (req, res): Promise<void> => {
 // (sent to Twitter). The redirect_uri for this server is also embedded in the
 // state so the callback uses the exact same URI regardless of which server
 // (dev vs production) ultimately handles the token exchange.
-router.post("/oauth/x/init", requireAuth, async (req, res): Promise<void> => {
+router.post("/oauth/x/init", requireAuth, reviewerDemoMutationGuard, async (req, res): Promise<void> => {
   const redirectUri = `https://${DOMAIN}/api/oauth/x/callback`;
   const { state, codeChallenge } = createXPkceState(req.clerkId, redirectUri, _devNotifyBase);
   await persistOAuthState(state, "x-pkce");
@@ -309,6 +324,12 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
     return;
   }
 
+  const inspectedState = state ? inspectOAuthState(state) : null;
+  if (
+    inspectedState?.id.startsWith("user_") &&
+    await rejectReviewerDemoOperation(undefined, inspectedState.id, res, req.log)
+  ) return;
+
   const clientId = process.env["INSTAGRAM_CLIENT_ID"];
   const clientSecret = process.env["INSTAGRAM_CLIENT_SECRET"];
 
@@ -322,6 +343,14 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
   }
 
   try {
+    const resolvedUser = await resolveUserFromState(state);
+    if (await rejectReviewerDemoOperation(
+      resolvedUser.userId,
+      resolvedUser.clerkId,
+      res,
+      req.log,
+    )) return;
+
     // Accept either the https server callback URI OR the custom-scheme URI
     // (used by the Expo app so iOS can intercept the redirect immediately).
     // The redirect_uri in the token exchange must exactly match what was sent
@@ -411,7 +440,7 @@ router.get("/oauth/instagram/callback", async (req, res): Promise<void> => {
       req.log?.warn({ body: longLivedBody }, "Could not parse long-lived token response — using short-lived token");
     }
 
-    const { userId, clerkId: resolvedClerkId, notifyUrl } = await resolveUserFromState(state);
+    const { userId, clerkId: resolvedClerkId, notifyUrl } = resolvedUser;
 
     const existing = await db
       .select({ id: connectedAccountsTable.id })
@@ -506,6 +535,12 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
     return;
   }
 
+  const inspectedState = state ? inspectOAuthState(state) : null;
+  if (
+    inspectedState?.id.startsWith("user_") &&
+    await rejectReviewerDemoOperation(undefined, inspectedState.id, res, req.log)
+  ) return;
+
   const clientId = process.env["FACEBOOK_APP_ID"]?.trim();
   const clientSecret = process.env["FACEBOOK_APP_SECRET"]?.trim();
 
@@ -519,6 +554,14 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
   }
 
   try {
+    const resolvedUser = await resolveUserFromState(state);
+    if (await rejectReviewerDemoOperation(
+      resolvedUser.userId,
+      resolvedUser.clerkId,
+      res,
+      req.log,
+    )) return;
+
     const redirectUri = `https://${DOMAIN}/api/oauth/facebook/callback`;
 
     // Exchange code for short-lived token via POST (keeps client_secret out of URL / logs)
@@ -564,7 +607,7 @@ router.get("/oauth/facebook/callback", async (req, res): Promise<void> => {
       throw new Error(profile.error?.message ?? "Failed to fetch Facebook profile");
     }
 
-    const { userId, clerkId: resolvedClerkId, notifyUrl } = await resolveUserFromState(state);
+    const { userId, clerkId: resolvedClerkId, notifyUrl } = resolvedUser;
     const fbUsername = profile.name.toLowerCase().replace(/\s+/g, ".");
 
     const existing = await db
@@ -661,6 +704,16 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
     return;
   }
 
+  const inspectedPkce = state ? inspectXPkceState(state) : null;
+  if (!inspectedPkce) {
+    sendOAuthError(req, res, "x", "Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your X account again.");
+    return;
+  }
+  if (
+    inspectedPkce.clerkId.startsWith("user_") &&
+    await rejectReviewerDemoOperation(undefined, inspectedPkce.clerkId, res, req.log)
+  ) return;
+
   // State must be an X PKCE state (contains embedded code_verifier)
   const pkce = state ? await parseXPkceState(state) : null;
   if (!pkce) {
@@ -683,6 +736,13 @@ router.get("/oauth/x/callback", async (req, res): Promise<void> => {
     sendOAuthError(req, res, "x", "Session Expired", "Your sign-in session expired or the link is invalid. Please try connecting your X account again.");
     return;
   }
+
+  if (await rejectReviewerDemoOperation(
+    userId,
+    pkceClerkId.startsWith("user_") ? pkceClerkId : undefined,
+    res,
+    req.log,
+  )) return;
 
   try {
     // Use the redirect_uri that was embedded at init time so the token exchange
@@ -874,6 +934,8 @@ router.post("/oauth/account-notify", async (req, res): Promise<void> => {
     res.status(401).json({ error: "invalid signature" });
     return;
   }
+
+  if (await rejectReviewerDemoOperation(undefined, clerkId, res, req.log)) return;
 
   try {
     const { getOrCreateUserByClerkId } = await import("../middleware/requireAuth");

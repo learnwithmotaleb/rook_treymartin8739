@@ -2,6 +2,7 @@ import { Expo, type ExpoPushMessage } from "expo-server-sdk";
 import { eq, inArray } from "drizzle-orm";
 import { db, devicePushTokensTable } from "@workspace/db";
 import { logger } from "../lib/logger.js";
+import { shouldSkipReviewerBackgroundWork } from "./backgroundReviewerGuard.js";
 
 const expo = new Expo();
 
@@ -13,6 +14,8 @@ export async function sendPushToUser(
     data?: Record<string, unknown>;
   }
 ): Promise<void> {
+  if (await shouldSkipReviewerBackgroundWork(userId)) return;
+
   const rows = await db
     .select({ token: devicePushTokensTable.token })
     .from(devicePushTokensTable)

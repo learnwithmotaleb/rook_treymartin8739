@@ -1,59 +1,34 @@
-# Rook — iOS 1.0.1 App Review walkthrough
+# Rook — App Review walkthrough
 
 **App:** Rook — Identity Protection
 **Platform:** iOS
-**Version:** 1.0.1
-**Support:** `support@getrook.app`
-**Privacy:** `https://tryrook.app/privacy`
-**Terms:** `https://tryrook.app/terms`
 
-Read-only App Store Connect build GETs on 2026-10-01 found the latest valid, nonexpired iOS build for version 1.0.1 was build 13, uploaded 2026-09-30 at 20:28:43 PDT (2026-10-01 at 03:28:43Z); version 1.0.0 build 15 also remains. Build 13 predates the current Photo Monitor changes. The App Store versions API returned 403, so the exact installed build and build attached to the App Store version remain unverified. No App Store Connect mutations were made. The historical successful managed iOS [Launch workflow](https://expo.dev/workflows/01a0f579-19f5-764a-8fcb-0e4739f102d1) is prior evidence; the latest `getExpoLaunchLogs` returned no current session. Neither proves current attachment or native-device behavior. `app.json` still declares 1.0.1/build 16 as desired source configuration, but managed App Store Launch assigns build numbers independently; do not require build 16. Install and test the exact newly processed build attached to the version under review. Build-15 instructions remain historical in `docs/build-15-apple-review.md`.
+This script describes the reviewer demo behavior; it is not evidence that a particular signed build or production service was tested. Record the exact App Store Connect build attached to review and report observed results only. Do not put usernames, passwords, access codes, tokens, or other credentials in this document. If App Store Connect supplies protected review credentials, use those fields only.
 
-This is an internal walkthrough, not a record that any native-device or production test passed. Use only the current protected credentials in App Store Connect's **App Review Information** fields; never add their values to this document or source control.
+## Reviewer demo authorization
 
-## App Store Connect reviewer notes (copy/paste)
+- Reviewer demo mode is enabled only when the server authorizes the signed-in reviewer account. There is no client email flag. A visible **Reviewer Demo** banner indicates the server-authorized mode; do not infer demo authorization from an email address or a local setting.
+- Sign-in is real authentication. Reviewer mode is not a legal or onboarding bypass: complete the actual minimum-age and Terms acknowledgements and the existing onboarding flow normally before using product screens.
+- OAuth/provider authorization shown as a preview is **not authorized**. Do not connect a personal or third-party social account during this walkthrough.
+- Demo profile, connected-account, scan, alert, photo-consent, notification, and other product data are demo data. Sample scans have **no discoveries**. A sample row or review image is not a live finding, evidence of impersonation, or proof that Rook scanned an external account.
 
-> Please use the normal **Sign In** screen. Enter the username exactly as shown in the protected **App Review Information** field, including its `review:` prefix, in **Email**. Enter the corresponding access code from the protected password field in **Password**, then tap **Sign In**. This reviewer access-code flow does not require mailbox access or an email verification code. If prompted, accept the current Terms and confirm that you are at least 17.
->
-> The bottom tabs are **Dashboard**, **Alerts**, **Scan**, and **Profile**. In **Alerts**, open a sample alert to view its investigation. Examples are labeled **SAMPLE · NOT LIVE**; their images and findings are illustrative, not real impersonation discoveries.
->
-> In **Profile**, scroll to the **Settings** section. Open **Subscription** for plan offerings and **Restore Purchases**, **Photo Monitor** for optional consent-based photo selection, **Privacy & Data** for data controls, or **Legal & Privacy** for policies. The review fixture does not provide a live social-account connection; provider authorization requires an eligible account. Support: support@getrook.app. Privacy: https://tryrook.app/privacy.
+## Walkthrough
 
-## Reviewer access
+1. Install the exact processed build attached to App Review on a supported iPhone. Sign in through the supported review flow using credentials supplied separately in protected App Store Connect fields, if provided. Never copy credentials into this script.
+2. Complete any required live age and Terms acknowledgements and the existing onboarding flow. Confirm that the **Reviewer Demo** banner appears only after server authorization.
+3. Visit **Dashboard**, **Alerts**, and **Scan**. Inspect the existing empty/sample states. Treat sample records as illustrative demo content only; sample scans report no discoveries. Do not report, block, or contact support about a fictitious threat.
+4. From **Profile**, inspect connected accounts, **Edit Profile**, and each existing settings destination. Editing profile fields or choosing an avatar is a local preview only; the avatar selector uses reviewer-demo fixture photos without requesting camera-roll permission, and nothing updates Clerk or uploads an avatar.
+5. In **Notifications**, exercise the existing toggles and frequency controls. They are session-only previews; the demo must not request OS notification permission, register a device, or send/deliver notifications.
+6. In **Security**, inspect the existing controls. Biometric and activity toggles are preview-only; displayed 2FA and session rows are explicitly labeled sample viewmodels, not live account or Clerk session data. A session-revocation preview must not revoke a Clerk session. Do not interpret a preview as a successful security change.
+7. In **Privacy & Data**, the downloadable file must be labeled as a demo export and contain only the demo payload. Consent and photo-data controls preview local demo state only; they do not withdraw real account consent or delete real account/photo data.
+8. Open **Legal & Privacy** and follow the actual Privacy Policy and Terms links. These remain the real legal content. Support contact details remain real; do not contact support using a demo or invented threat.
+9. In **Subscription**, preserve the reviewer account's actual entitlement/tier, including an expired/free state. Demo product context does not grant Premium. Pricing, purchase, and Restore use actual StoreKit/RevenueCat behavior; use the TestFlight build and the App Store sandbox to review billing. Do not claim a purchase or restore succeeded unless the store confirms it.
+10. Sign out using the existing sign-out control if testing session end. Sign-out is real and ends the authenticated review session. The **Delete Account** confirmation is only a demo preview and must not delete the account, log out RevenueCat, or sign out of Clerk.
 
-Use the normal **Sign In** screen:
+## Safety and evidence notes
 
-1. Enter `review:<reviewer email>` in the **Email** field, exactly as shown in App Store Connect's protected username field.
-2. Enter the current protected access code in **Password**, exactly as shown in the protected password field.
-3. Tap **Sign In**.
-
-There is no reviewer-only button or alternate login screen. The mobile source sends the `review:` identifier and password value to the App Review ticket endpoint; the API source validates the configured email/access code and then issues a short-lived Clerk sign-in ticket. The actual access-code value is supplied by `APP_REVIEW_ACCESS_CODE`, is not available in source, and has not been confirmed here. Before submission, an authorized operator must ensure the current production setting and protected App Store Connect password match. Do not use an ordinary Clerk password or a private mailbox/OTP for this ticket flow. Ordinary non-review logins can still be asked for a new-device email verification code.
-
-If prompted for current Terms acceptance or confirmation that the reviewer is at least 17, complete the in-app recovery step before continuing.
-
-## Review walkthrough
-
-1. Install the exact processed 1.0.1 build attached to this App Store version on a clean supported iPhone. `supportsTablet` is false in current source; do not assume iPad is a supported target.
-2. Sign in using the protected username/access-code instructions above. Confirm the actual production ticket flow on this build; source inspection alone is not a sign-in test.
-3. Confirm the initial tab is **Dashboard** and the reviewer reaches the account without needing a private inbox.
-4. Verify the Dashboard displays only the current review account's data.
-5. Open **Alerts** and inspect **Active** and **Resolved** if present. Open a seeded example alert to inspect its detail. The seeded investigation is explicitly marked `SAMPLE · NOT LIVE`; its account, evidence, scores, and match descriptions are illustrative. Workspace fixture evidence points both comparison sides to the same supplied illustrative image, with sample captions **Your Photo** and **Example Image**. The hosted sample JPEG's SHA matches the supplied processed image. Current source normalizes image URLs in detail responses for trusted marked samples only; this fix still requires web/API publication. A read-only production query found six existing marked rows with broken root-photo URLs before this source fix. Do not promise that the corrected image currently renders until publication and verification. Do not treat the sample as evidence of a real impersonation, copied photo, or live discovery; do not ask the reviewer to treat a sample caption as a real accusation or report/block based on it.
-6. Open the **Scan** tab (screen heading **Identity Scan**). Reviewer sample history is not proof of a new live scan. The reviewer seeder creates no verified social accounts and no monitored-photo list; a real scan requires eligible connected account or photo input. Do not describe sample history as live discovery or invent a scan result.
-7. On the **Profile** tab, scroll to the **Settings** section and choose **Photo Monitor**; Settings is a section on the Profile page, not a separate screen. Inspect consent and the current **Monitored Photos** state. The page also has **Add from Camera Roll** and, when an eligible connected account is available, **Import from Accounts**. Photo processing requires explicit consent; account-media import requires a verified account and active consent. Build 13 predates the current Photo Monitor changes. The reviewer fixture does not seed a connected account or monitored photo, and the older build's Photo Monitor list is local to the mobile app. Current workspace mobile source adds a clearly marked, display-only **Review Example** derived from marked server sample evidence. It is excluded from real scans and includes dismissal/account-boundary handling, but requires a newer signed build; a new build can still use version 1.0.1. Its exact managed build number is unknown, so do not describe it as present in build 13 or the currently attached build. Do not treat the sample image in alert evidence or the profile avatar as a monitored photo. Test an upload only with an image authorized for that purpose.
-8. On the **Profile** tab, scroll to the **Settings** section and choose **Subscription**. The reviewer seeder requests a Free/canceled state if no subscription already exists, but it does not overwrite an existing subscription. Verify offerings, localized prices, disclosures, and **Restore Purchases** on the actual build; do not assume the fixture guarantees a particular live StoreKit or RevenueCat state.
-9. From **Profile**, verify the destinations in the scrollable **Settings** section: **Notifications**, **Security**, **Help & Support**, **Privacy & Data**, and **Legal & Privacy**. **Manage** opens account management. Confirm policies and support pages are reachable. In Privacy & Data, inspect export and consent controls; do not perform withdrawal, deletion, or account deletion unless explicitly authorized.
-10. Sign out, confirm protected content is no longer visible, and sign back in. Record the device, app version/build shown by App Store Connect, environment, and observed results.
-
-## Scope and evidence notes
-
-- The actual bottom tabs are **Dashboard**, **Alerts**, **Scan**, and **Profile**. There is no Tools tab or AI Scam Analyzer in this navigation.
-- Reviewer seed data is a sample investigation, not a real target, live provider authorization, or proof that Rook discovered an impersonator. Sample details explicitly disable report/response actions.
-- The authorized review-sample image is for demonstrating the interface only. It does not depict a verified impersonation or establish that anyone copied the image.
-- The current web/API service is deployed at `https://tryrook.app`; the hosted JPEG at `https://tryrook.app/landing/reviewer-sample-photo.jpg?v=1de1d25649bd` matches the supplied processed image by SHA. A read-only production query found six existing marked sample-evidence rows with broken root-photo URLs before the new source response-normalization fix. Once the current web/API source is published, detail responses normalize URLs for trusted marked samples only, avoiding a sign-out/re-seed requirement. Do not claim this new source fix is live until publication and verification.
-- The workspace native **Review Example** is display-only and requires a newer signed build than build 13; another build of version 1.0.1 can include it. Managed App Store Launch independently assigns build numbers, so do not infer a number from `app.json`'s desired build 16. The Review Example's display does not populate an older build's local Photo Monitor list.
-- Complete production testing of Meta provider authorization/access, eligible account media import, and explicit photo permission/consent before claiming those flows work. Verify live policy/API privacy parity separately.
-- Do not claim live Facebook, Instagram, or X authorization, discovery, or media import unless tested using an eligible provider-controlled account on the actual build.
-- Profile and Legal now use dynamic version/build identity that distinguishes Expo Go/browser from a native app; Profile deletion uses the shared authenticated API; OAuth fallbacks and legal URLs use a common validated origin. These are source changes, not proof they are in a signed binary or that sign-in, StoreKit, or device flows work. Production `EXPO_PUBLIC_API_URL=https://tryrook.app` and `EXPO_PUBLIC_APP_ENV=production` are set as nonsecret environment values, but runtime publication is still required and they do not prove a signed binary contains those values.
-- App Store Connect build records, workspace source, seeded records, and screenshots do not establish the exact installed/attached binary, native sign-in success, production API/legal parity, StoreKit behavior, or device test results. Record those only after external verification.
-
-For review support, email `support@getrook.app`.
+- The authenticated `GET /api/reviewer/demo` fixture is read-only and contains marked sample data; it does not bypass the app's actual legal-age, Terms, or onboarding requirements. All product actions and product mutations in reviewer demo mode stay within demo/local state. The exceptions are real authentication and session sign-out, required legal-age/Terms/onboarding completion, actual legal links/content, and real StoreKit sandbox billing operations.
+- OAuth/provider previews do not authorize a connection or prove provider access, account import, monitoring, or discovery.
+- Never treat sample alerts, sample photos, or empty scan results as live detections. Do not claim a scan discovered an impersonator or copied photo.
+- Do not claim notification delivery, 2FA changes, biometric setup, session revocation, profile persistence, consent withdrawal, data deletion, or export of actual account data from a demo preview.
+- Verify the current build, server authorization, legal links, and StoreKit behavior on the actual review build before recording them as tested. Workspace source or demo fixtures alone are not proof of native-device or production behavior.

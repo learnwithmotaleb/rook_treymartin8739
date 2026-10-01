@@ -19,6 +19,7 @@ import { useAuth, useClerk } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { Skeleton } from "@/components/Skeleton";
 import { deleteMyAccount, getIdentityBadge, type IdentityBadge } from "@/lib/api";
@@ -84,7 +85,7 @@ function SettingsRow({
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, logout, isLoading } = useApp();
+  const { user, logout, isLoading, isReviewerDemo } = useApp();
   const { signOut } = useAuth();
   const { signOut: clerkSignOut } = useClerk();
   const navigation = useNavigation();
@@ -137,6 +138,16 @@ export default function ProfileScreen() {
   };
 
   const handleDeleteAccount = async () => {
+    if (isReviewerDemo) {
+      setDeleteModalVisible(false);
+      Alert.alert(
+        "Demo preview only",
+        "Account deletion was simulated for this reviewer demo. Your authenticated account, subscription, and account data were not deleted.",
+        [{ text: "OK" }],
+      );
+      return;
+    }
+
     setDeleteLoading(true);
     try {
       // Disassociate device from RevenueCat before deleting the account so
@@ -176,6 +187,8 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
       >
+        {isReviewerDemo && <ReviewerDemoBanner message="Product data is sample-only; account deletion is never performed here." />}
+
         {/* Avatar */}
         <View style={styles.avatarSection}>
           {isLoading ? (
@@ -528,7 +541,9 @@ export default function ProfileScreen() {
               Delete Account
             </Text>
             <Text style={[styles.deleteBody, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-              This will permanently delete your account, connected social accounts, and all threat history.{"\n\n"}If you have an active subscription, cancel it in your App Store or Play Store settings first — deleting the account does not stop future charges.{"\n\n"}This action cannot be undone.
+              {isReviewerDemo
+                ? "This is a reviewer demo. Continue to preview the account-deletion flow; no account, subscription, connected account, or threat history will be deleted."
+                : "This will permanently delete your account, connected social accounts, and all threat history.\n\nIf you have an active subscription, cancel it in your App Store or Play Store settings first — deleting the account does not stop future charges.\n\nThis action cannot be undone."}
             </Text>
             <TouchableOpacity
               style={[styles.deleteConfirmBtn, { backgroundColor: colors.danger, opacity: deleteLoading ? 0.7 : 1 }]}
@@ -540,7 +555,7 @@ export default function ProfileScreen() {
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={[styles.deleteConfirmText, { fontFamily: "Inter_700Bold" }]}>
-                  Yes, Delete My Account
+                  {isReviewerDemo ? "Preview Account Deletion" : "Yes, Delete My Account"}
                 </Text>
               )}
             </TouchableOpacity>

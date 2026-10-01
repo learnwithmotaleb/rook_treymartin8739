@@ -17,7 +17,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useSessionList, useSession, useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 
 const STORAGE_KEY = "rook:security_prefs";
 
@@ -75,30 +77,36 @@ function isMobileSession(session: AnySession): boolean {
 export default function SecuritySettings() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { isReviewerDemo } = useApp();
   const [prefs, setPrefs] = useState<SecurityPrefs>(DEFAULTS);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const { sessions, isLoaded: sessionsLoaded } = useSessionList();
-  const { session: currentSession } = useSession();
-  const { user } = useUser();
-
   useEffect(() => {
+    if (isReviewerDemo) {
+      setBiometricAvailable(false);
+      setPrefs(DEFAULTS);
+      return;
+    }
     LocalAuthentication.hasHardwareAsync().then(setBiometricAvailable);
     AsyncStorage.getItem(STORAGE_KEY).then((v) => {
       if (v) {
         try { setPrefs({ ...DEFAULTS, ...JSON.parse(v) }); } catch {}
       }
     });
-  }, []);
+  }, [isReviewerDemo]);
 
   const save = (next: SecurityPrefs) => {
     setPrefs(next);
+    if (isReviewerDemo) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
   const handleBiometricToggle = async (v: boolean) => {
+    if (isReviewerDemo) {
+      save({ ...prefs, biometricLogin: v });
+      return;
+    }
     if (v) {
       if (!biometricAvailable) {
         Alert.alert(
@@ -129,33 +137,6 @@ export default function SecuritySettings() {
     }
   };
 
-  const handleRevokeSession = (sessionId: string, deviceLabel: string) => {
-    Alert.alert(
-      "Sign Out Device",
-      `Remove "${deviceLabel}" from your active sessions?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            setRevokingId(sessionId);
-            try {
-              const target = sessions?.find((s) => s.id === sessionId) as AnySession;
-              await target?.revoke?.();
-            } catch {
-              Alert.alert("Error", "Could not remove this session. Please try again.");
-            } finally {
-              setRevokingId(null);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const twoFactorEnabled = user?.twoFactorEnabled ?? false;
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 12, borderBottomColor: colors.border }]}>
@@ -172,6 +153,10 @@ export default function SecuritySettings() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
       >
+        {isReviewerDemo && (
+          <ReviewerDemoBanner message="Security controls preview only · sample 2FA/sessions; no live Clerk session data is loaded." />
+        )}
+
         {/* Security score card */}
         <GlassCard style={[styles.scoreCard, { borderColor: colors.success + "44" }]}>
           <View style={[styles.scoreIconWrap, { backgroundColor: colors.success + "18" }]}>
@@ -181,13 +166,11 @@ export default function SecuritySettings() {
             <Text style={[styles.scoreTitle, { color: colors.foreground, fontFamily: "Inter_700Bold" }]}>
               Account Security
             </Text>
-            <Text style={[styles.scoreStatus, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
-              {twoFactorEnabled && prefs.biometricLogin
-                ? "Excellent — strong account security"
-                : twoFactorEnabled || prefs.biometricLogin
-                  ? "Good — consider enabling more features"
-                  : "Basic — enable 2FA to improve security"}
-            </Text>
+            <SecurityScoreStatus
+              colors={colors}
+              isReviewerDemo={isReviewerDemo}
+              biometricLogin={prefs.biometricLogin}
+            />
           </View>
         </GlassCard>
 
@@ -205,7 +188,9 @@ export default function SecuritySettings() {
                 Biometric Login
               </Text>
               <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                {biometricAvailable ? "Use Face ID or Touch ID to log in" : "Not available on this device"}
+                {isReviewerDemo
+                  ? "Demo preview only — this does not configure Face ID or Touch ID"
+                  : biometricAvailable ? "Use Face ID or Touch ID to log in" : "Not available on this device"}
               </Text>
             </View>
             <Switch
@@ -217,30 +202,7 @@ export default function SecuritySettings() {
               ios_backgroundColor="#3A3A3A"
             />
           </View>
-          <View style={styles.row}>
-            <View style={[styles.rowIcon, { backgroundColor: colors.primary + "18" }]}>
-              <Ionicons name="lock-closed" size={18} color={colors.primary} />
-            </View>
-            <View style={styles.rowText}>
-              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                Two-Factor Auth
-              </Text>
-              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                {twoFactorEnabled ? "Active — managed by your account" : "Not enabled — managed by your account"}
-              </Text>
-            </View>
-            <View style={[
-              styles.statusBadge,
-              { backgroundColor: twoFactorEnabled ? colors.success + "22" : colors.secondary },
-            ]}>
-              <Text style={[
-                styles.statusBadgeText,
-                { color: twoFactorEnabled ? colors.success : colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
-              ]}>
-                {twoFactorEnabled ? "On" : "Off"}
-              </Text>
-            </View>
-          </View>
+          <TwoFactorStatusRow colors={colors} isReviewerDemo={isReviewerDemo} />
         </GlassCard>
 
         {/* Activity Notifications */}
@@ -257,7 +219,7 @@ export default function SecuritySettings() {
                 New Device Alert
               </Text>
               <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                Notify when a new device logs in
+                {isReviewerDemo ? "Session-only preview — no alert is sent" : "Notify when a new device logs in"}
               </Text>
             </View>
             <Switch
@@ -270,76 +232,9 @@ export default function SecuritySettings() {
           </View>
         </GlassCard>
 
-        {/* Active Sessions */}
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
-          Active Sessions
-        </Text>
-        <GlassCard noPadding>
-          {!sessionsLoaded ? (
-            <View style={[styles.loadingRow, { flexDirection: "column", gap: 10, padding: 16 }]}>
-              {[0, 1].map((i) => (
-                <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.secondary }} />
-                  <View style={{ flex: 1, gap: 6 }}>
-                    <View style={{ height: 10, borderRadius: 5, backgroundColor: colors.secondary, width: "60%" }} />
-                    <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.secondary, width: "40%", opacity: 0.6 }} />
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : !sessions || sessions.length === 0 ? (
-            <View style={styles.loadingRow}>
-              <Ionicons name="phone-portrait-outline" size={18} color={colors.mutedForeground} />
-              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                No active sessions found
-              </Text>
-            </View>
-          ) : (
-            sessions.map((session, i) => {
-              const isCurrent = session.id === currentSession?.id;
-              const deviceLabel = formatSessionDevice(session);
-              const location = formatSessionLocation(session);
-              const isRevoking = revokingId === session.id;
-              return (
-                <View
-                  key={session.id}
-                  style={[
-                    styles.sessionRow,
-                    i < sessions.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-                  ]}
-                >
-                  <View style={[styles.rowIcon, { backgroundColor: isCurrent ? colors.success + "18" : colors.secondary }]}>
-                    <Ionicons
-                      name={isMobileSession(session) ? "phone-portrait-outline" : "laptop-outline"}
-                      size={18}
-                      color={isCurrent ? colors.success : colors.mutedForeground}
-                    />
-                  </View>
-                  <View style={styles.rowText}>
-                    <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
-                      {deviceLabel}
-                      {isCurrent ? (
-                        <Text style={{ color: colors.success }}> · Current</Text>
-                      ) : null}
-                    </Text>
-                    <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-                      {[location, formatLastActive(session.lastActiveAt)].filter(Boolean).join(" · ")}
-                    </Text>
-                  </View>
-                  {!isCurrent && (
-                    isRevoking ? (
-                      <ActivityIndicator size="small" color={colors.danger} />
-                    ) : (
-                      <TouchableOpacity onPress={() => handleRevokeSession(session.id, deviceLabel)}>
-                        <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
-                      </TouchableOpacity>
-                    )
-                  )}
-                </View>
-              );
-            })
-          )}
-        </GlassCard>
+        {isReviewerDemo
+          ? <ReviewerDemoSessionsSection colors={colors} />
+          : <LiveSessionsSection colors={colors} />}
 
         {/* Recent Activity — empty state until a real event log is wired up */}
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
@@ -350,11 +245,298 @@ export default function SecuritySettings() {
             <Ionicons name="time-outline" size={22} color={colors.mutedForeground} />
           </View>
           <Text style={[styles.activityEmptyText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-            Security events — new sign-ins, scan completions, and device changes — will appear here.
+            {isReviewerDemo
+              ? "No live security events are shown in this reviewer preview."
+              : "Security events — new sign-ins, scan completions, and device changes — will appear here."}
           </Text>
         </GlassCard>
       </ScrollView>
     </View>
+  );
+}
+
+const REVIEWER_SAMPLE_SECURITY_VIEW_MODEL = {
+  twoFactorEnabled: false,
+  isSample: true,
+} as const;
+
+function TwoFactorStatusRow({
+  colors,
+  isReviewerDemo,
+}: {
+  colors: ReturnType<typeof useColors>;
+  isReviewerDemo: boolean;
+}) {
+  if (isReviewerDemo) {
+    return (
+      <TwoFactorStatusFields
+        colors={colors}
+        enabled={REVIEWER_SAMPLE_SECURITY_VIEW_MODEL.twoFactorEnabled}
+        isSample={REVIEWER_SAMPLE_SECURITY_VIEW_MODEL.isSample}
+      />
+    );
+  }
+  return <LiveTwoFactorStatusRow colors={colors} />;
+}
+
+function LiveTwoFactorStatusRow({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const { user } = useUser();
+  return <TwoFactorStatusFields colors={colors} enabled={user?.twoFactorEnabled ?? false} />;
+}
+
+function TwoFactorStatusFields({
+  colors,
+  enabled,
+  isSample = false,
+}: {
+  colors: ReturnType<typeof useColors>;
+  enabled: boolean;
+  isSample?: boolean;
+}) {
+  return (
+    <View style={styles.row}>
+      <View style={[styles.rowIcon, { backgroundColor: colors.primary + "18" }]}>
+        <Ionicons name="lock-closed" size={18} color={colors.primary} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+          Two-Factor Auth
+        </Text>
+        <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+          {isSample
+            ? `Illustrative sample state: ${enabled ? "on" : "off"} · not read from your account`
+            : enabled ? "Active — managed by your account" : "Not enabled — managed by your account"}
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.statusBadge,
+          { backgroundColor: isSample ? colors.warning + "22" : enabled ? colors.success + "22" : colors.secondary },
+        ]}
+      >
+        <Text
+          style={[
+            styles.statusBadgeText,
+            { color: isSample ? colors.warning : enabled ? colors.success : colors.mutedForeground, fontFamily: "Inter_600SemiBold" },
+          ]}
+        >
+          {isSample ? `Sample ${enabled ? "On" : "Off"}` : enabled ? "On" : "Off"}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function SecurityScoreStatus({
+  colors,
+  isReviewerDemo,
+  biometricLogin,
+}: {
+  colors: ReturnType<typeof useColors>;
+  isReviewerDemo: boolean;
+  biometricLogin: boolean;
+}) {
+  if (isReviewerDemo) {
+    return (
+      <Text style={[styles.scoreStatus, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
+        Reviewer demo — security controls and status are preview-only
+      </Text>
+    );
+  }
+  return <LiveSecurityScoreStatus colors={colors} biometricLogin={biometricLogin} />;
+}
+
+function LiveSecurityScoreStatus({
+  colors,
+  biometricLogin,
+}: {
+  colors: ReturnType<typeof useColors>;
+  biometricLogin: boolean;
+}) {
+  const { user } = useUser();
+  const twoFactorEnabled = user?.twoFactorEnabled ?? false;
+  return (
+    <Text style={[styles.scoreStatus, { color: colors.success, fontFamily: "Inter_500Medium" }]}>
+      {twoFactorEnabled && biometricLogin
+        ? "Excellent — strong account security"
+        : twoFactorEnabled || biometricLogin
+          ? "Good — consider enabling more features"
+          : "Basic — enable 2FA to improve security"}
+    </Text>
+  );
+}
+
+const REVIEWER_SAMPLE_SESSIONS = [
+  {
+    id: "reviewer-sample-current-session",
+    deviceLabel: "Sample mobile device",
+    isCurrent: true,
+    isMobile: true,
+  },
+  {
+    id: "reviewer-sample-other-session",
+    deviceLabel: "Sample desktop device",
+    isCurrent: false,
+    isMobile: false,
+  },
+] as const;
+
+function ReviewerDemoSessionsSection({ colors }: { colors: ReturnType<typeof useColors> }) {
+  return (
+    <>
+      <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+        Sample Sessions
+      </Text>
+      <GlassCard noPadding>
+        {REVIEWER_SAMPLE_SESSIONS.map((session, index) => (
+          <View
+            key={session.id}
+            style={[
+              styles.sessionRow,
+              index < REVIEWER_SAMPLE_SESSIONS.length - 1 && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: colors.warning + "18" }]}>
+              <Ionicons
+                name={session.isMobile ? "phone-portrait-outline" : "laptop-outline"}
+                size={18}
+                color={colors.warning}
+              />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                {session.deviceLabel}
+                {session.isCurrent ? <Text style={{ color: colors.warning }}> · Current sample</Text> : null}
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                Illustrative only · no live location or activity data
+              </Text>
+            </View>
+            {!session.isCurrent && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Preview revoking sample session"
+                onPress={() => Alert.alert(
+                  "Sample Session Preview",
+                  "This sample session was not revoked. No real Clerk session or device data was accessed or changed.",
+                )}
+              >
+                <Ionicons name="close-circle-outline" size={20} color={colors.warning} />
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+      </GlassCard>
+    </>
+  );
+}
+
+function LiveSessionsSection({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const { sessions, isLoaded: sessionsLoaded } = useSessionList();
+  const { session: currentSession } = useSession();
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  const handleRevokeSession = (sessionId: string, deviceLabel: string) => {
+    Alert.alert(
+      "Sign Out Device",
+      `Remove "${deviceLabel}" from your active sessions?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            setRevokingId(sessionId);
+            try {
+              const target = sessions?.find((session) => session.id === sessionId) as AnySession;
+              await target?.revoke?.();
+            } catch {
+              Alert.alert("Error", "Could not remove this session. Please try again.");
+            } finally {
+              setRevokingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  return (
+    <>
+      <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: "Inter_500Medium" }]}>
+        Active Sessions
+      </Text>
+      <GlassCard noPadding>
+        {!sessionsLoaded ? (
+          <View style={[styles.loadingRow, { flexDirection: "column", gap: 10, padding: 16 }]}>
+            {[0, 1].map((i) => (
+              <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.secondary }} />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <View style={{ height: 10, borderRadius: 5, backgroundColor: colors.secondary, width: "60%" }} />
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.secondary, width: "40%", opacity: 0.6 }} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : !sessions || sessions.length === 0 ? (
+          <View style={styles.loadingRow}>
+            <Ionicons name="phone-portrait-outline" size={18} color={colors.mutedForeground} />
+            <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+              No active sessions found
+            </Text>
+          </View>
+        ) : (
+          sessions.map((session, index) => {
+            const isCurrent = session.id === currentSession?.id;
+            const deviceLabel = formatSessionDevice(session);
+            const location = formatSessionLocation(session);
+            const isRevoking = revokingId === session.id;
+            return (
+              <View
+                key={session.id}
+                style={[
+                  styles.sessionRow,
+                  index < sessions.length - 1 && {
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.border,
+                  },
+                ]}
+              >
+                <View style={[styles.rowIcon, { backgroundColor: isCurrent ? colors.success + "18" : colors.secondary }]}>
+                  <Ionicons
+                    name={isMobileSession(session) ? "phone-portrait-outline" : "laptop-outline"}
+                    size={18}
+                    color={isCurrent ? colors.success : colors.mutedForeground}
+                  />
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: "Inter_500Medium" }]}>
+                    {deviceLabel}
+                    {isCurrent ? <Text style={{ color: colors.success }}> · Current</Text> : null}
+                  </Text>
+                  <Text style={[styles.rowSub, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
+                    {[location, formatLastActive(session.lastActiveAt)].filter(Boolean).join(" · ")}
+                  </Text>
+                </View>
+                {!isCurrent && (
+                  isRevoking ? (
+                    <ActivityIndicator size="small" color={colors.danger} />
+                  ) : (
+                    <TouchableOpacity onPress={() => handleRevokeSession(session.id, deviceLabel)}>
+                      <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
+                    </TouchableOpacity>
+                  )
+                )}
+              </View>
+            );
+          })
+        )}
+      </GlassCard>
+    </>
   );
 }
 

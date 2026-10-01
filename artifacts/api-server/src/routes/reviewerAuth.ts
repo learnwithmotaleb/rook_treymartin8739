@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { rateLimit } from "express-rate-limit";
 import { logger } from "../lib/logger";
+import { invalidateReviewerEmailLookup } from "../services/reviewerService";
 
 const router: IRouter = Router();
 
@@ -169,6 +170,7 @@ router.post(
       const reviewer = reviewerEmail
         ? await resolveOrCreateReviewer(reviewerEmail, clerkSecretKey)
         : await resolveReviewer(reviewerUserId!, clerkSecretKey);
+      if (reviewerEmail) invalidateReviewerEmailLookup(reviewerEmail);
       if (!hasReviewerEmail(reviewer, identifier)) {
         res.status(401).json({ error: "Invalid App Review credentials." });
         return;

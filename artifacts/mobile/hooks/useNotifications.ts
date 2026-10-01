@@ -3,7 +3,12 @@ import { Alert, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import { registerPushToken, deregisterPushToken } from "@/lib/api";
+import {
+  capturePinnedPushTokenCleanup,
+  executePinnedPushTokenCleanup,
+  registerPushToken,
+} from "@/lib/api";
+import type { CapturedDevicePushToken } from "@/lib/logoutCleanup";
 
 const PUSH_TOKEN_STORED_KEY = "rook:push_token_sent";
 const NOTIF_PREFS_KEY = "rook:notification_prefs";
@@ -104,18 +109,38 @@ async function upsertToken(userId?: string): Promise<void> {
   await AsyncStorage.setItem(storageKey, token);
 }
 
-async function removeToken(userId?: string): Promise<void> {
-  const platform = Platform.OS === "ios" ? "ios" : "android";
-  const storageKey = getPushTokenStorageKey(userId);
-  const token = (await AsyncStorage.getItem(storageKey)) ?? await getExpoPushToken();
-  if (token) await deregisterPushToken(platform, token);
-  await AsyncStorage.removeItem(storageKey);
+export async function captureCurrentDevicePushToken(
+  userId: string,
+): Promise<CapturedDevicePushToken | null> {
+  if (Platform.OS === "web" || !userId) return null;
+  const token = (await AsyncStorage.getItem(getPushTokenStorageKey(userId))) ??
+    await getExpoPushToken();
+  if (!token) return null;
+  return {
+    ownerId: userId,
+    token,
+    platform: Platform.OS === "ios" ? "ios" : "android",
+  };
+}
+
+export async function forgetCapturedDevicePushToken(
+  device: CapturedDevicePushToken,
+): Promise<void> {
+  const storageKey = getPushTokenStorageKey(device.ownerId);
+  if ((await AsyncStorage.getItem(storageKey)) === device.token) {
+    await AsyncStorage.removeItem(storageKey);
+  }
 }
 
 /** Used by the auth/session owner before Clerk invalidates the API token. */
 export async function deregisterCurrentDevicePushToken(userId?: string): Promise<void> {
-  if (Platform.OS === "web") return;
-  await removeToken(userId);
+  if (!userId || Platform.OS === "web") return;
+  const device = await captureCurrentDevicePushToken(userId);
+  if (!device) return;
+  const cleanup = await capturePinnedPushTokenCleanup(userId, device);
+  if (!cleanup) return;
+  await executePinnedPushTokenCleanup(cleanup);
+  await forgetCapturedDevicePushToken(device);
 }
 
 export async function scheduleScanCompleteNotification(
@@ -239,7 +264,7 @@ export function useNotifications(isLoggedIn: boolean, userId?: string): {
 
   const deregisterPush = useCallback(async () => {
     if (Platform.OS === "web") return;
-    await removeToken(userId);
+    await deregisterCurrentDevicePushToken(userId);
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     const weeklyId = scheduled.find(
       (n) => (n.content.data as any)?.screen === "dashboard"

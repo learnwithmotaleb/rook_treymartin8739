@@ -17,6 +17,7 @@ import Purchases, {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
 import { syncSubscriptionTier } from "@/lib/api";
+import { checkRevenueCatRuntime } from "@/lib/revenuecatRuntime";
 
 const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
 const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
@@ -55,31 +56,63 @@ export function getValidatedPremiumOffering(
   return monthly && annual ? { monthly, annual } : null;
 }
 
-/** True only after a successful Purchases.configure() call. Guarded by _layout.tsx try/catch. */
+/** True only after a successful Purchases.configure() call. */
 export let isRevenueCatConfigured = false;
+export let revenueCatUnavailableReason: string | null = null;
 let identifiedAppUserId: string | null = null;
 let identityRequest: Promise<void> | null = null;
 
 function getRevenueCatApiKey(): string | null {
-  // Dev, Expo Go (storeClient), or web → use test store key
-  if (__DEV__ || Platform.OS === "web" || Constants.executionEnvironment === "storeClient") {
+  // Development native builds use RevenueCat's test store; production
+  // standalone builds use the matching App Store / Play Store key.
+  if (__DEV__) {
     return REVENUECAT_TEST_API_KEY ?? null;
   }
   if (Platform.OS === "ios") return REVENUECAT_IOS_API_KEY ?? null;
   if (Platform.OS === "android") return REVENUECAT_ANDROID_API_KEY ?? null;
-  return REVENUECAT_TEST_API_KEY ?? null;
+  return null;
 }
 
 export function initializeRevenueCat(): void {
-  const apiKey = getRevenueCatApiKey();
-  if (!apiKey) {
-    throw new Error("RevenueCat API key not configured for this build target.");
+  isRevenueCatConfigured = false;
+  revenueCatUnavailableReason = null;
+
+  try {
+    // This check deliberately returns on web and Expo Go before reading a
+    // property from the native SDK default export (which can be undefined).
+    const runtime = checkRevenueCatRuntime(
+      Platform.OS,
+      Constants.executionEnvironment,
+      () => Purchases as unknown,
+    );
+    if (!runtime.available) {
+      revenueCatUnavailableReason = runtime.reason;
+      return;
+    }
+
+    const purchases = Purchases as unknown as {
+      configure: (options: { apiKey: string }) => void;
+      setLogLevel?: (level: unknown) => void;
+      LOG_LEVEL?: { DEBUG?: unknown };
+    };
+    const apiKey = getRevenueCatApiKey();
+    if (!apiKey) {
+      revenueCatUnavailableReason = "RevenueCat API key is not configured for this build target.";
+      return;
+    }
+
+    if (
+      __DEV__ &&
+      typeof purchases.setLogLevel === "function" &&
+      purchases.LOG_LEVEL?.DEBUG !== undefined
+    ) {
+      purchases.setLogLevel(purchases.LOG_LEVEL.DEBUG);
+    }
+    purchases.configure({ apiKey });
+    isRevenueCatConfigured = true;
+  } catch {
+    revenueCatUnavailableReason = "The RevenueCat Purchases SDK could not initialize in this runtime.";
   }
-  if (__DEV__) {
-    Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
-  }
-  Purchases.configure({ apiKey });
-  isRevenueCatConfigured = true;
 }
 
 /**
@@ -186,6 +219,9 @@ function useSubscriptionContext(): SubscriptionContextValue {
 
   const purchaseMutation = useMutation({
     mutationFn: async (pkg: PurchasesPackage) => {
+      if (!isRevenueCatConfigured) {
+        throw new Error(revenueCatUnavailableReason ?? "RevenueCat purchases are unavailable.");
+      }
       if (!user?.id) throw new Error("Please sign in before purchasing.");
       await identifyRevenueCatUser(user.id);
       const { customerInfo } = await Purchases.purchasePackage(pkg);
@@ -200,6 +236,9 @@ function useSubscriptionContext(): SubscriptionContextValue {
 
   const restoreMutation = useMutation({
     mutationFn: async () => {
+      if (!isRevenueCatConfigured) {
+        throw new Error(revenueCatUnavailableReason ?? "RevenueCat purchases are unavailable.");
+      }
       if (!user?.id) throw new Error("Please sign in before restoring purchases.");
       await identifyRevenueCatUser(user.id);
       const info = await Purchases.restorePurchases();

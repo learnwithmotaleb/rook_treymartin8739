@@ -7,7 +7,12 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { deregisterCurrentDevicePushToken, scheduleScanCompleteNotification, scheduleThreatNotification } from "@/hooks/useNotifications";
+import {
+  captureCurrentDevicePushToken,
+  forgetCapturedDevicePushToken,
+  scheduleScanCompleteNotification,
+  scheduleThreatNotification,
+} from "@/hooks/useNotifications";
 import {
   getMe,
   getAccounts,
@@ -32,7 +37,32 @@ import {
   type ThreatSummary,
   type ScanQuotaState,
   ScanQuotaError,
+  authorizeReviewerDemo,
+  capturePinnedPushTokenCleanup,
+  executePinnedPushTokenCleanup,
+  getApiAuthTokenRevision,
+  invalidateApiAuthToken,
 } from "@/lib/api";
+import {
+  AccountSessionGuard,
+  activateReviewerDemo,
+  beginReviewerDemoAuthorization,
+  getReviewerDemoAuthorizationState,
+  getReviewerDemoSnapshot,
+  isReviewerDemoActive,
+  mapThreatSummaryHighConfidence,
+  resetReviewerDemoSession,
+  setReviewerDemoAuthorizationStatus,
+  subscribeReviewerDemoAuthorization,
+  subscribeReviewerDemo,
+  type ReviewerDemoInfo,
+} from "@/lib/reviewerDemo";
+import {
+  shouldCaptureLiveLogoutCleanup,
+  type CapturedDevicePushToken,
+  type PinnedPushTokenCleanup,
+} from "@/lib/logoutCleanup";
+import { isUsableProfile } from "@/lib/profileBootstrap";
 
 export interface IndexedPhoto {
   id: string;
@@ -41,6 +71,7 @@ export interface IndexedPhoto {
   addedAt: string;
   source: "camera_roll" | "account" | "review_example";
   accountId?: string;
+  isSample?: boolean;
 }
 
 export type Severity = "high" | "medium" | "low";
@@ -166,6 +197,8 @@ interface AppContextType {
   indexedPhotos: IndexedPhoto[];
   reviewerSamplePhoto: IndexedPhoto | null;
   isLoggedIn: boolean;
+  reviewerDemo: ReviewerDemoInfo | null;
+  isReviewerDemo: boolean;
   hasSeenOnboarding: boolean;
   /** true while AsyncStorage is being read on first mount — gates all route redirects */
   isInitializing: boolean;
@@ -226,6 +259,8 @@ function formatRelativeTime(isoString: string): string {
 }
 
 function mapSummaryToThreat(t: ThreatSummary): Threat {
+  const detectedSignals =
+    (t as ThreatSummary & { detectedSignals?: unknown }).detectedSignals;
   return {
     id: t.id,
     isSample: t.isSample,
@@ -245,7 +280,11 @@ function mapSummaryToThreat(t: ThreatSummary): Threat {
     suspiciousUsername: t.suspiciousUsername ?? "",
     matchedMediaCount: t.matchedMediaCount,
     evidenceCount: t.evidenceCount ?? 0,
-    highConfidence: t.highConfidence ?? false,
+    highConfidence: mapThreatSummaryHighConfidence(
+      t.isSample === true,
+      t.highConfidence,
+      detectedSignals,
+    ),
     evidence: [],
     scoreBreakdown: {
       mediaSimilarity: 0,
@@ -299,6 +338,10 @@ function mapProfileToUser(
 
 const SURVEY_SHOWN_KEY = "rook:cancellation_survey_shown";
 const REVIEWER_SAMPLE_DISMISSED_KEY = "rook:reviewer_sample_dismissed:";
+const userPhotoStorageKeys = (userId: string) => ({
+  photos: `indexedPhotos:${userId}`,
+  threats: `localPhotoThreats:${userId}`,
+});
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -306,6 +349,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(DEFAULT_USER);
   const [threats, setThreats] = useState<Threat[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [reviewerDemo, setReviewerDemo] = useState<ReviewerDemoInfo | null>(null);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
   // isInitializing stays true until AsyncStorage has been read.
   // The tabs layout must not render any <Redirect> until this is false,
@@ -322,11 +366,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [scanQuota, setScanQuota] = useState<ScanQuotaState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scanSafetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollInFlightRef = useRef(false);
   const isRefreshingRef = useRef(false);
   const lastRefreshedAtRef = useRef(0);
   // Proactive token refresh: only once per app session (not on every render).
   const hasRefreshedTokensRef = useRef(false);
+  const accountSessionGuardRef = useRef(new AccountSessionGuard());
+  const sessionGenerationRef = useRef(0);
+  const refreshRunIdRef = useRef(0);
   const [indexedPhotos, setIndexedPhotos] = useState<IndexedPhoto[]>([]);
   const indexedPhotosRef = useRef<IndexedPhoto[]>([]);
   const [reviewerSample, setReviewerSample] = useState<{
@@ -335,12 +383,106 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const reviewerSampleRequestRef = useRef(0);
   const reviewerSampleDismissedRef = useRef(new Set<string>());
+  const reviewerDemoSampleDismissedRef = useRef(false);
   const [localPhotoThreats, setLocalPhotoThreats] = useState<Threat[]>([]);
   const localPhotoThreatsRef = useRef<Threat[]>([]);
   // hasSeenOnboarding is scoped per Clerk user id (see onboardingKey below) so
   // that signing out and back in with the SAME account never re-shows
   // onboarding, while a brand new account on the same device always does.
   const clerkUserIdRef = useRef<string | null>(null);
+  const reviewerDemoWasActiveRef = useRef(false);
+  const isCurrentAccountSession = useCallback(
+    (generation: number, userId: string | null) =>
+      accountSessionGuardRef.current.isCurrent(generation, userId) &&
+      clerkUserIdRef.current === userId,
+    [],
+  );
+
+  useEffect(() => subscribeReviewerDemo((info) => {
+    const wasActive = reviewerDemoWasActiveRef.current;
+    reviewerDemoWasActiveRef.current = info !== null;
+    setReviewerDemo(info);
+    if (info) {
+      const hasPreviewMedia = Object.values(info.mediaByAccount).some((media) => media.items.length > 0);
+      if (!wasActive) {
+        // Hide the live account's device photos while the reviewer preview is
+        // active, without modifying their persisted per-user photo store.
+        setIndexedPhotos([]);
+        indexedPhotosRef.current = [];
+        setLocalPhotoThreats([]);
+        localPhotoThreatsRef.current = [];
+      }
+      if (!info.consent.hasConsent || !hasPreviewMedia) {
+        setReviewerSample(null);
+        setIndexedPhotos([]);
+        indexedPhotosRef.current = [];
+      }
+      setThreats(info.threats.map(mapSummaryToThreat));
+      setScanQuota({
+        ...info.quota,
+        canScan: true,
+        message: "Preview scans run locally on fictional sample data.",
+      });
+      setUser((previous) => ({
+        ...previous,
+        connectedAccounts: info.accounts.map(mapAccountToConnected),
+        monitored: info.profileSummary.monitored,
+        securityScore: info.profileSummary.securityScore,
+        scoreTrend: info.profileSummary.scoreTrend,
+        lastScan: info.profileSummary.lastScan,
+        totalPhotosIndexed: info.profileSummary.totalPhotosIndexed,
+        totalCaptionsIndexed: info.profileSummary.totalCaptionsIndexed,
+        reelsIndexed: info.profileSummary.reelsIndexed,
+        fingerprintUpdated: info.profileSummary.fingerprintUpdated,
+      }));
+      return;
+    }
+    if (wasActive) {
+      // A token/account reset invalidates the preview authorization. Keep
+      // push registration disabled until login runs the gate again.
+      setIsLoggedIn(false);
+      AsyncStorage.setItem("isLoggedIn", "false");
+      setUser(DEFAULT_USER);
+      setThreats([]);
+      setLastScanThreats([]);
+      setLastScanThreatsFound(null);
+      setReviewerSample(null);
+      setIndexedPhotos([]);
+      indexedPhotosRef.current = [];
+      setLocalPhotoThreats([]);
+      localPhotoThreatsRef.current = [];
+    }
+  }), []);
+
+  useEffect(() => subscribeReviewerDemoAuthorization((authorization) => {
+    if (
+      authorization.status !== "pending" &&
+      authorization.status !== "unavailable"
+    ) return;
+    if (isReviewerDemoActive()) resetReviewerDemoSession();
+    setIsLoggedIn(false);
+    setIsOnboardingReady(false);
+    setUser(DEFAULT_USER);
+    setThreats([]);
+    setLastScanThreats([]);
+    setLastScanThreatsFound(null);
+    setReviewerSample(null);
+    setIndexedPhotos([]);
+    indexedPhotosRef.current = [];
+    setLocalPhotoThreats([]);
+    localPhotoThreatsRef.current = [];
+    setScanQuota(null);
+    setScanQuotaError(null);
+    setTrialEndsAt(null);
+    setSubscriptionStatus(null);
+    setShowCancellationSurvey(false);
+    setIsScanning(false);
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    pollTimerRef.current = null;
+    if (scanSafetyTimerRef.current) clearTimeout(scanSafetyTimerRef.current);
+    scanSafetyTimerRef.current = null;
+    pollInFlightRef.current = false;
+  }), []);
 
   useEffect(() => { indexedPhotosRef.current = indexedPhotos; }, [indexedPhotos]);
   useEffect(() => { localPhotoThreatsRef.current = localPhotoThreats; }, [localPhotoThreats]);
@@ -350,36 +492,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     indexedPhotosRef.current = [];
     setLocalPhotoThreats([]);
     localPhotoThreatsRef.current = [];
-    await AsyncStorage.multiRemove(["indexedPhotos", "localPhotoThreats"]);
+    if (isReviewerDemoActive()) return;
+    const userId = clerkUserIdRef.current;
+    if (userId) {
+      const keys = userPhotoStorageKeys(userId);
+      await AsyncStorage.multiRemove([keys.photos, keys.threats]);
+    }
   }, []);
 
   useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem("isLoggedIn"),
-      AsyncStorage.getItem("indexedPhotos"),
-      AsyncStorage.getItem("localPhotoThreats"),
-    ]).then(([loggedIn, storedPhotos, storedLocalThreats]) => {
-      if (loggedIn !== null) setIsLoggedIn(loggedIn === "true");
+    AsyncStorage.getItem("isLoggedIn").then((loggedIn) => {
+      // Do not restore the push-registration toggle before Clerk's current
+      // identity and any reviewer-demo authorization have been checked.
+      if (loggedIn !== null) setIsLoggedIn(false);
       // hasSeenOnboarding is deliberately NOT restored here — it is scoped per
       // Clerk user id and is loaded/set inside login() once we know who signed in.
-      if (storedPhotos) {
-        try {
-          const parsed: IndexedPhoto[] = JSON.parse(storedPhotos);
-          setIndexedPhotos(parsed);
-          indexedPhotosRef.current = parsed;
-        } catch { /* ignore corrupt storage */ }
-      }
-      if (storedLocalThreats) {
-        try {
-          const parsed: Threat[] = JSON.parse(storedLocalThreats);
-          const restoredThreats = parsed.map((threat) => ({
-            ...threat,
-            isSample: threat.isSample === true,
-          }));
-          setLocalPhotoThreats(restoredThreats);
-          localPhotoThreatsRef.current = restoredThreats;
-        } catch { /* ignore corrupt storage */ }
-      }
       setIsInitializing(false);
     });
   }, []);
@@ -393,11 +520,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadReviewerSample = useCallback(async (
     summaries: ThreatSummary[],
-    userId: string | null
+    userId: string | null,
+    generation: number,
+    authTokenRevision: number,
   ) => {
     const requestId = ++reviewerSampleRequestRef.current;
     if (!userId) {
       setReviewerSample(null);
+      return;
+    }
+
+    if (isReviewerDemoActive()) {
+      if (reviewerDemoSampleDismissedRef.current) {
+        setReviewerSample(null);
+        return;
+      }
+      const demo = getReviewerDemoSnapshot();
+      const sample = demo?.threats.find((threat) =>
+        typeof threat.evidence.find((item) =>
+          typeof item.yourPhotoUrl === "string" &&
+          /^https:\/\//i.test(item.yourPhotoUrl)
+        )?.yourPhotoUrl === "string"
+      );
+      const samplePhoto = sample?.evidence.find((item) =>
+        typeof item.yourPhotoUrl === "string" &&
+        /^https:\/\//i.test(item.yourPhotoUrl)
+      )?.yourPhotoUrl;
+      if (sample && typeof samplePhoto === "string") {
+        setReviewerSample({
+          userId,
+          photo: {
+            id: "review-demo-sample-photo",
+            localUri: samplePhoto,
+            addedAt: sample.createdAt,
+            source: "review_example",
+            isSample: true,
+          },
+        });
+      } else {
+        setReviewerSample(null);
+      }
       return;
     }
 
@@ -426,7 +588,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (
       requestId !== reviewerSampleRequestRef.current ||
-      clerkUserIdRef.current !== userId
+      !isCurrentAccountSession(generation, userId) ||
+      clerkUserIdRef.current !== userId ||
+      getApiAuthTokenRevision() !== authTokenRevision
     ) {
       return;
     }
@@ -465,11 +629,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         source: "review_example",
       },
     });
-  }, []);
+  }, [isCurrentAccountSession]);
 
   const dismissReviewerSamplePhoto = useCallback(async (): Promise<boolean> => {
     const userId = clerkUserIdRef.current;
     if (!userId) return false;
+    if (isReviewerDemoActive()) {
+      reviewerDemoSampleDismissedRef.current = true;
+      setReviewerSample(null);
+      return true;
+    }
     reviewerSampleDismissedRef.current.add(userId);
     setReviewerSample((current) =>
       current?.userId === userId ? null : current
@@ -485,34 +654,160 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const refreshData = useCallback(async () => {
+  const restoreUserPhotoData = useCallback(async (
+    userId: string,
+    generation: number,
+    authTokenRevision: number,
+  ) => {
+    const keys = userPhotoStorageKeys(userId);
+    try {
+      const [storedPhotos, storedThreats] = await Promise.all([
+        AsyncStorage.getItem(keys.photos),
+        AsyncStorage.getItem(keys.threats),
+      ]);
+      if (
+        !isCurrentAccountSession(generation, userId) ||
+        getApiAuthTokenRevision() !== authTokenRevision ||
+        isReviewerDemoActive()
+      ) return;
+      const photos: IndexedPhoto[] = storedPhotos ? JSON.parse(storedPhotos) : [];
+      const restoredThreats: Threat[] = storedThreats
+        ? (JSON.parse(storedThreats) as Threat[]).map((threat) => ({
+            ...threat,
+            isSample: false,
+          }))
+        : [];
+      const realPhotos = photos.filter((photo) => photo.isSample !== true);
+      setIndexedPhotos(realPhotos);
+      indexedPhotosRef.current = realPhotos;
+      setLocalPhotoThreats(restoredThreats);
+      localPhotoThreatsRef.current = restoredThreats;
+    } catch {
+      // Corrupt or unavailable device-local data never blocks sign-in.
+    }
+  }, [isCurrentAccountSession]);
+
+  const refreshData = useCallback(async (session?: {
+    generation: number;
+    userId: string;
+    authTokenRevision: number;
+  }) => {
     // Dedup guard: if a refresh is already in flight, skip this call entirely.
     // This prevents duplicate API bursts when multiple screens call refreshData
     // concurrently (e.g. login() + Alerts focus listener racing on startup).
     if (isRefreshingRef.current) return;
     isRefreshingRef.current = true;
+    const runId = ++refreshRunIdRef.current;
+    const generation = session?.generation ?? sessionGenerationRef.current;
+    const userId = session?.userId ?? clerkUserIdRef.current;
+    const authTokenRevision = session?.authTokenRevision ?? getApiAuthTokenRevision();
+    if (!userId) {
+      isRefreshingRef.current = false;
+      return;
+    }
+    const isCurrent = () =>
+      isCurrentAccountSession(generation, userId) &&
+      getApiAuthTokenRevision() === authTokenRevision;
+    if (!isCurrent()) {
+      isRefreshingRef.current = false;
+      return;
+    }
+    const markAuthorizationUnavailable = () => {
+      setReviewerDemoAuthorizationStatus(userId, "unavailable");
+      if (isReviewerDemoActive()) resetReviewerDemoSession();
+      setIsLoggedIn(false);
+      setIsOnboardingReady(false);
+      setUser(DEFAULT_USER);
+      setThreats([]);
+      setLastScanThreats([]);
+      setLastScanThreatsFound(null);
+      setReviewerSample(null);
+      setIndexedPhotos([]);
+      indexedPhotosRef.current = [];
+      setLocalPhotoThreats([]);
+      localPhotoThreatsRef.current = [];
+      setScanQuota(null);
+      setScanQuotaError(null);
+      setTrialEndsAt(null);
+      setSubscriptionStatus(null);
+    };
     try {
       const attempt = async (): Promise<boolean> => {
         try {
-          const userId = clerkUserIdRef.current;
+          let profile = await getMe();
+          if (!isCurrent()) return true;
+          if (!isUsableProfile(profile)) {
+            markAuthorizationUnavailable();
+            return false;
+          }
+
+          let authorization = getReviewerDemoAuthorizationState();
+          if (authorization.accountKey !== userId) {
+            if (isReviewerDemoActive()) resetReviewerDemoSession();
+            beginReviewerDemoAuthorization(userId);
+            authorization = getReviewerDemoAuthorizationState();
+          }
+          if (
+            authorization.status === "pending" ||
+            authorization.status === "unavailable" ||
+            (authorization.status === "demo" && !isReviewerDemoActive())
+          ) {
+            setReviewerDemoAuthorizationStatus(userId, "pending");
+            const decision = await authorizeReviewerDemo();
+            if (!isCurrent()) return true;
+            if (decision.status === "demo") {
+              activateReviewerDemo(decision.info, userId);
+            } else if (decision.status === "live") {
+              setReviewerDemoAuthorizationStatus(userId, "live");
+            } else {
+              markAuthorizationUnavailable();
+              return false;
+            }
+          }
+          if (!isCurrent()) return true;
+          authorization = getReviewerDemoAuthorizationState();
+          if (
+            authorization.accountKey !== userId ||
+            (authorization.status !== "live" &&
+              !(authorization.status === "demo" && isReviewerDemoActive()))
+          ) {
+            markAuthorizationUnavailable();
+            return false;
+          }
+          if (isReviewerDemoActive()) profile = await getMe();
+          if (!isCurrent()) return true;
+          if (!isUsableProfile(profile)) {
+            markAuthorizationUnavailable();
+            return false;
+          }
+
+          const hasAcceptedLegal =
+            Boolean(profile.termsAcceptedAt || profile.termsVersion) &&
+            Boolean(profile.ageConfirmedAt);
+          if (!hasAcceptedLegal) return true;
+          setIsLoggedIn(true);
+          setIsOnboardingReady(true);
+
           // Keep consent reconciliation independent of the rest of the
           // dashboard requests, so an unrelated API failure cannot skip the
           // local photo cleanup after the server confirms consent is inactive.
           const photoConsent = await getPhotoConsent().catch(() => null);
+          if (!isCurrent()) return true;
           if (photoConsent && !photoConsent.hasConsent) {
             await clearIndexedPhotos();
+            if (!isCurrent()) return true;
           }
 
-          const [profile, accounts, summaries, quotaState, sub] = await Promise.all([
-            getMe(),
+          const [accounts, summaries, quotaState, sub] = await Promise.all([
             getAccounts(),
             listThreats(),
             getScanQuotaState().catch(() => null),
             getSubscription().catch(() => null),
           ]);
+          if (!isCurrent()) return true;
           setUser(mapProfileToUser(profile, accounts));
           setThreats(summaries.map(mapSummaryToThreat));
-          void loadReviewerSample(summaries, userId);
+          void loadReviewerSample(summaries, userId, generation, authTokenRevision);
           // Proactively show quota error banner if the free monthly scan is already used.
           // This surfaces immediately on app open rather than requiring a failed scan attempt.
           if (quotaState && !quotaState.canScan && quotaState.message) {
@@ -526,7 +821,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             // Show cancellation survey once after subscription lapses
             if (sub.status === "canceled") {
               AsyncStorage.getItem(SURVEY_SHOWN_KEY).then((shown) => {
-                if (shown !== "true") setShowCancellationSurvey(true);
+                if (shown !== "true" && isCurrent()) setShowCancellationSurvey(true);
               }).catch(() => {});
             }
           }
@@ -537,12 +832,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // sync the local cache to match (never downgrade an already-true local flag).
           if (profile.onboardingCompleted) {
             setHasSeenOnboarding(true);
-            const userId = clerkUserIdRef.current;
-            AsyncStorage.setItem(userId ? `hasSeenOnboarding:${userId}` : "hasSeenOnboarding", "true");
+            AsyncStorage.setItem(`hasSeenOnboarding:${userId}`, "true");
           }
           lastRefreshedAtRef.current = Date.now();
           return true;
         } catch {
+          if (!isCurrent()) return true;
+          const authorization = getReviewerDemoAuthorizationState();
+          if (authorization.accountKey === userId && authorization.status === "pending") {
+            markAuthorizationUnavailable();
+          }
           return false;
         }
       };
@@ -554,13 +853,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const delays = [1000, 2500];
       for (const delay of delays) {
         await new Promise((r) => setTimeout(r, delay));
+        if (!isCurrent()) return;
         if (await attempt()) return;
       }
       // Silently fail after all retries — user stays on empty default state.
     } finally {
-      isRefreshingRef.current = false;
+      if (runId === refreshRunIdRef.current) isRefreshingRef.current = false;
     }
-  }, [clearIndexedPhotos, loadReviewerSample]);
+  }, [clearIndexedPhotos, isCurrentAccountSession, loadReviewerSample]);
 
   // NOTE: Do NOT trigger refreshData() from the isLoggedIn useEffect.
   // The AsyncStorage restore of isLoggedIn happens before setApiAuthToken() is called
@@ -568,103 +868,247 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // fall back to the demo user. Data loading is triggered explicitly inside login().
 
   const login = useCallback((name: string, email: string, userId?: string) => {
-    setIsLoggedIn(true);
-    AsyncStorage.setItem("isLoggedIn", "true");
+    const nextUserId = userId ?? null;
+    const generation = accountSessionGuardRef.current.begin(nextUserId);
+    sessionGenerationRef.current = generation;
+    const accountChanged = clerkUserIdRef.current !== nextUserId;
+    const previousAuthorization = getReviewerDemoAuthorizationState();
+    const wasAuthorizedForAccount =
+      previousAuthorization.accountKey === nextUserId &&
+      (previousAuthorization.status === "live" ||
+        (previousAuthorization.status === "demo" && isReviewerDemoActive()));
+
+    if (accountChanged || !wasAuthorizedForAccount) {
+      if (accountChanged || isReviewerDemoActive()) resetReviewerDemoSession();
+      beginReviewerDemoAuthorization(nextUserId);
+      reviewerDemoSampleDismissedRef.current = false;
+      reviewerSampleRequestRef.current += 1;
+      setReviewerSample(null);
+      setUser(DEFAULT_USER);
+      setThreats([]);
+      setLastScanThreats([]);
+      setLastScanThreatsFound(null);
+      setIndexedPhotos([]);
+      indexedPhotosRef.current = [];
+      setLocalPhotoThreats([]);
+      localPhotoThreatsRef.current = [];
+      setScanQuota(null);
+      setScanQuotaError(null);
+      setTrialEndsAt(null);
+      setSubscriptionStatus(null);
+      setShowCancellationSurvey(false);
+      if (accountChanged) setHasSeenOnboarding(false);
+      setIsScanning(false);
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+      if (scanSafetyTimerRef.current) clearTimeout(scanSafetyTimerRef.current);
+      scanSafetyTimerRef.current = null;
+      pollInFlightRef.current = false;
+      isRefreshingRef.current = false;
+      refreshRunIdRef.current += 1;
+      if (accountChanged) hasRefreshedTokensRef.current = false;
+    }
+    setIsLoggedIn(false);
     setIsLoading(true);
-    clerkUserIdRef.current = userId ?? null;
+    clerkUserIdRef.current = nextUserId;
     reviewerSampleRequestRef.current += 1;
     setReviewerSample(null);
     setIsOnboardingReady(false);
-    // hasSeenOnboarding is scoped per Clerk user id so switching accounts on
-    // the same device never inherits another account's onboarding state.
-    //
-    // Returning-user fast path: if AsyncStorage already confirms this userId
-    // has seen onboarding, unblock the layout immediately so the app doesn't
-    // stall on a network round-trip every time the user opens it.
-    //
-    // New-user slow path: AsyncStorage has nothing, so we DON'T set
-    // isOnboardingReady yet. We wait until refreshData() completes and the
-    // server's authoritative onboardingCompleted field is known. This prevents
-    // the race where the layout redirects to /onboarding for an existing user
-    // who reinstalled the app and lost their local AsyncStorage cache.
-    if (userId) {
-      AsyncStorage.getItem(`hasSeenOnboarding:${userId}`).then((seen) => {
-        if (seen === "true") {
-          // Confirmed returning user — unblock immediately.
-          setHasSeenOnboarding(true);
-          setIsOnboardingReady(true);
-        }
-        // else: new user or missing cache — isOnboardingReady stays false
-        // until load.finally() below, by which point refreshData() has set
-        // hasSeenOnboarding from the server if onboardingCompleted is true.
-      });
-    } else {
-      setHasSeenOnboarding(false);
-      setIsOnboardingReady(true);
-    }
-    // Proactively refresh account tokens once per app session so scans never
-    // start with stale X / Facebook / Instagram tokens.
-    if (!hasRefreshedTokensRef.current) {
-      hasRefreshedTokensRef.current = true;
-      refreshAccountTokens().catch(() => {
-        // Non-fatal — best-effort proactive refresh; scheduler handles missed refreshes.
-      });
-    }
+    if (!nextUserId) setHasSeenOnboarding(false);
 
-    // Sync Clerk profile claims only when the server profile is stale. In
-    // particular, don't PATCH an email on every sign-in: email is unique across
-    // local profiles and a conflict must never prevent authentication.
-    const load = (name || email)
-      ? (async () => {
-          try {
-            const profile = await getMe();
+    let protectedApiReady = false;
+    let legalAccepted = false;
+    const authTokenRevision = getApiAuthTokenRevision();
+    const isCurrent = () =>
+      isCurrentAccountSession(generation, nextUserId) &&
+      getApiAuthTokenRevision() === authTokenRevision;
+    const session = nextUserId
+      ? { generation, userId: nextUserId, authTokenRevision }
+      : undefined;
+    const load = (async () => {
+      if (!nextUserId || !session) return;
+
+      let profile: UserProfile | null = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (!isCurrent()) return;
+        try {
+          profile = await getMe();
+          if (!isCurrent()) return;
+          if (!isUsableProfile(profile)) {
+            setReviewerDemoAuthorizationStatus(nextUserId, "unavailable");
+            if (isReviewerDemoActive()) resetReviewerDemoSession();
+            profile = null;
+            throw new Error("The authenticated profile response was invalid.");
+          }
+
+          let authorization = getReviewerDemoAuthorizationState();
+          if (authorization.accountKey !== nextUserId) {
+            beginReviewerDemoAuthorization(nextUserId);
+            authorization = getReviewerDemoAuthorizationState();
+          }
+          if (
+            authorization.status === "pending" ||
+            authorization.status === "unavailable" ||
+            (authorization.status === "demo" && !isReviewerDemoActive())
+          ) {
+            setReviewerDemoAuthorizationStatus(nextUserId, "pending");
+            const decision = await authorizeReviewerDemo();
+            if (!isCurrent()) return;
+            if (decision.status === "demo") {
+              activateReviewerDemo(decision.info, nextUserId);
+            } else if (decision.status === "live") {
+              setReviewerDemoAuthorizationStatus(nextUserId, "live");
+            } else {
+              setReviewerDemoAuthorizationStatus(nextUserId, "unavailable");
+              if (isReviewerDemoActive()) resetReviewerDemoSession();
+              throw new Error("Reviewer authorization could not be verified.");
+            }
+          }
+
+          authorization = getReviewerDemoAuthorizationState();
+          if (
+            authorization.accountKey !== nextUserId ||
+            (authorization.status !== "live" &&
+              !(authorization.status === "demo" && isReviewerDemoActive()))
+          ) {
+            profile = null;
+            throw new Error("Account authorization is unavailable.");
+          }
+          legalAccepted =
+            Boolean(profile.termsAcceptedAt || profile.termsVersion) &&
+            Boolean(profile.ageConfirmedAt);
+          if (!legalAccepted) return;
+
+          const cachedOnboarding = await AsyncStorage.getItem(`hasSeenOnboarding:${nextUserId}`);
+          if (!isCurrent()) return;
+          if (cachedOnboarding === "true") {
+            setHasSeenOnboarding(true);
+            setIsOnboardingReady(true);
+          }
+
+          // Device photos and provider tokens are live-account effects. Never
+          // restore or refresh them while preview authorization is pending or unavailable.
+          if (authorization.status === "live") {
+            await restoreUserPhotoData(nextUserId, generation, authTokenRevision);
+            if (!isCurrent()) return;
+          }
+
+          // Clerk claim synchronization remains live for normal accounts, but
+          // never writes profile changes from reviewer preview.
+          if (authorization.status === "live" && (name || email)) {
             const updates: { name?: string; email?: string } = {};
             const normalizedName = name.trim();
             const normalizedEmail = email.trim();
             const currentEmail =
               typeof profile.email === "string" ? profile.email.trim().toLowerCase() : "";
-
-            if (normalizedName && normalizedName !== profile.name) {
-              updates.name = normalizedName;
-            }
-            if (
-              normalizedEmail &&
-              normalizedEmail.toLowerCase() !== currentEmail
-            ) {
+            if (normalizedName && normalizedName !== profile.name) updates.name = normalizedName;
+            if (normalizedEmail && normalizedEmail.toLowerCase() !== currentEmail) {
               updates.email = normalizedEmail;
             }
             if (Object.keys(updates).length > 0) {
               await updateMe(updates);
+              if (!isCurrent()) return;
             }
-          } catch {
-            // Profile synchronization is best-effort. Sign-in remains valid;
-            // refreshData below loads the authenticated server profile.
           }
-          await refreshData();
-        })()
-      : refreshData();
-    // Always unblock the layout after the network call completes.
-    // For returning users this is a no-op (already true). For new users whose
-    // AsyncStorage was empty, this is the first time isOnboardingReady becomes
-    // true — by now refreshData() has already written hasSeenOnboarding if the
-    // server said onboardingCompleted = true, so no onboarding redirect fires.
+
+          protectedApiReady = true;
+          break;
+        } catch {
+          if (!isCurrent()) return;
+          const authorization = getReviewerDemoAuthorizationState();
+          if (
+            authorization.accountKey === nextUserId &&
+            authorization.status === "pending"
+          ) {
+            setReviewerDemoAuthorizationStatus(nextUserId, "unavailable");
+          }
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1000 : 2500));
+            if (!isCurrent()) return;
+            const currentAuthorization = getReviewerDemoAuthorizationState();
+            if (
+              currentAuthorization.accountKey === nextUserId &&
+              currentAuthorization.status === "unavailable"
+            ) {
+              setReviewerDemoAuthorizationStatus(nextUserId, "pending");
+            }
+          }
+        }
+      }
+
+      if (!protectedApiReady || !isCurrent()) return;
+      setIsLoggedIn(true);
+      await refreshData(session);
+    })();
+
     load.finally(() => {
-      setIsOnboardingReady(true);
+      if (!isCurrent()) return;
+      const authorization = getReviewerDemoAuthorizationState();
+      const stillAuthorized =
+        authorization.accountKey === nextUserId &&
+        (authorization.status === "live" ||
+          (authorization.status === "demo" && isReviewerDemoActive()));
+      if (protectedApiReady && stillAuthorized && authorization.status === "live" &&
+          legalAccepted && !hasRefreshedTokensRef.current) {
+        hasRefreshedTokensRef.current = true;
+        refreshAccountTokens().catch(() => {});
+      }
+      if (protectedApiReady && stillAuthorized) setIsOnboardingReady(true);
       setIsLoading(false);
-    });
-  }, [refreshData]);
+    }).catch(() => {});
+  }, [isCurrentAccountSession, refreshData, restoreUserPhotoData]);
 
   const logout = useCallback(async (options?: { skipServerCleanup?: boolean }) => {
-    // The server also reassigns a token on the next account login, but remove
-    // it while this session is valid so a signed-out device gets no alerts.
-    if (!options?.skipServerCleanup) {
+    const ownerId = clerkUserIdRef.current;
+    const generationAtStart = sessionGenerationRef.current;
+    const authorization = getReviewerDemoAuthorizationState();
+    let capturedDevice: CapturedDevicePushToken | null = null;
+    let pinnedCleanup: PinnedPushTokenCleanup | null = null;
+
+    if (
+      shouldCaptureLiveLogoutCleanup(
+        authorization,
+        ownerId,
+        options?.skipServerCleanup === true,
+      )
+    ) {
       try {
-        await deregisterCurrentDevicePushToken(clerkUserIdRef.current ?? undefined);
+        capturedDevice = await captureCurrentDevicePushToken(ownerId);
+        if (
+          capturedDevice &&
+          sessionGenerationRef.current === generationAtStart &&
+          clerkUserIdRef.current === ownerId
+        ) {
+          pinnedCleanup = await capturePinnedPushTokenCleanup(ownerId, capturedDevice);
+        }
       } catch {
-        // Logging out must still succeed when the device is offline.
+        // Logout remains best-effort if a device token or old bearer cannot be captured.
       }
     }
+
+    // A different login/account switch may have completed while token capture
+    // was pending. Never invalidate that newer session from an old logout.
+    if (
+      sessionGenerationRef.current !== generationAtStart ||
+      clerkUserIdRef.current !== ownerId
+    ) return;
+
+    sessionGenerationRef.current = accountSessionGuardRef.current.invalidate();
+    refreshRunIdRef.current += 1;
+    isRefreshingRef.current = false;
+    invalidateApiAuthToken(ownerId);
+    beginReviewerDemoAuthorization(null);
+    clerkUserIdRef.current = null;
+    resetReviewerDemoSession();
+    reviewerDemoSampleDismissedRef.current = false;
     setIsLoggedIn(false);
+    setIsLoading(false);
+    setIsScanning(false);
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    pollTimerRef.current = null;
+    if (scanSafetyTimerRef.current) clearTimeout(scanSafetyTimerRef.current);
+    scanSafetyTimerRef.current = null;
+    pollInFlightRef.current = false;
     setUser(DEFAULT_USER);
     setThreats([]);
     setLastScanThreats([]);
@@ -677,12 +1121,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localPhotoThreatsRef.current = [];
     setHasSeenOnboarding(false);
     setIsOnboardingReady(false);
-    clerkUserIdRef.current = null;
-    // Reset so the next user who logs in also gets a proactive token refresh.
+    setScanQuota(null);
+    setScanQuotaError(null);
+    setTrialEndsAt(null);
+    setSubscriptionStatus(null);
+    setShowCancellationSurvey(false);
     hasRefreshedTokensRef.current = false;
     AsyncStorage.setItem("isLoggedIn", "false");
-    AsyncStorage.removeItem("indexedPhotos");
-    AsyncStorage.removeItem("localPhotoThreats");
+
+    // The request uses the captured owner-bound bearer and the exact device
+    // token, never the global getter that may now belong to another account.
+    if (pinnedCleanup && capturedDevice) {
+      try {
+        await executePinnedPushTokenCleanup(pinnedCleanup);
+        await forgetCapturedDevicePushToken(capturedDevice);
+      } catch {
+        // Keep local token state for a later best-effort cleanup attempt.
+      }
+    }
   }, []);
 
   const completeOnboarding = useCallback(() => {
@@ -696,32 +1152,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     source: "camera_roll" | "account" = "camera_roll",
     accountId?: string
   ) => {
+    const isSample = isReviewerDemoActive();
     const newPhotos: IndexedPhoto[] = photos.map(({ uri, base64 }) => ({
       id: `photo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       localUri: uri,
-      base64,
+      // Imported reviewer-demo photos stay in memory and are never sent to
+      // image search, scan processing, or device storage.
+      base64: isSample ? undefined : base64,
       addedAt: new Date().toISOString(),
       source,
       accountId,
+      ...(isSample ? { isSample: true } : {}),
     }));
     setIndexedPhotos((prev) => {
       const next = [...prev, ...newPhotos];
-      AsyncStorage.setItem("indexedPhotos", JSON.stringify(next));
+      const userId = clerkUserIdRef.current;
+      if (!isSample && userId) {
+        AsyncStorage.setItem(userPhotoStorageKeys(userId).photos, JSON.stringify(next));
+      }
       indexedPhotosRef.current = next;
       return next;
     });
   }, []);
 
   const removeIndexedPhoto = useCallback((id: string) => {
+    const isSample = isReviewerDemoActive();
     setIndexedPhotos((prev) => {
       const next = prev.filter((p) => p.id !== id);
-      AsyncStorage.setItem("indexedPhotos", JSON.stringify(next));
+      const userId = clerkUserIdRef.current;
+      if (!isSample && userId) {
+        AsyncStorage.setItem(userPhotoStorageKeys(userId).photos, JSON.stringify(next));
+      }
       indexedPhotosRef.current = next;
       return next;
     });
     setLocalPhotoThreats((prev) => {
       const next = prev.filter((t) => !t.id.includes(id));
-      AsyncStorage.setItem("localPhotoThreats", JSON.stringify(next));
+      const userId = clerkUserIdRef.current;
+      if (!isSample && userId) {
+        AsyncStorage.setItem(userPhotoStorageKeys(userId).threats, JSON.stringify(next));
+      }
       localPhotoThreatsRef.current = next;
       return next;
     });
@@ -753,7 +1223,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const startScan = useCallback(async () => {
-    if (isScanning) return;
+    const scanUserId = clerkUserIdRef.current;
+    const scanGeneration = sessionGenerationRef.current;
+    const scanAuthTokenRevision = getApiAuthTokenRevision();
+    const scanAuthorization = getReviewerDemoAuthorizationState();
+    const isCurrentScanSession = () => {
+      const authorization = getReviewerDemoAuthorizationState();
+      return Boolean(scanUserId) &&
+        isCurrentAccountSession(scanGeneration, scanUserId) &&
+        getApiAuthTokenRevision() === scanAuthTokenRevision &&
+        authorization.accountKey === scanUserId &&
+        (authorization.status === "live" ||
+          (authorization.status === "demo" && isReviewerDemoActive()));
+    };
+    if (
+      isScanning ||
+      !isLoggedIn ||
+      !scanUserId ||
+      scanAuthorization.accountKey !== scanUserId ||
+      (scanAuthorization.status !== "live" &&
+        !(scanAuthorization.status === "demo" && isReviewerDemoActive()))
+    ) return;
     setScanQuotaError(null);
     setScanError(null);
     setIsScanning(true);
@@ -764,6 +1254,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Safety: never leave isScanning stuck true for more than 3 minutes
     const safetyTimer = setTimeout(() => {
+      if (!isCurrentScanSession()) return;
       setIsScanning(false);
       setScanCurrentStep(null);
       setScanError("The scan took too long to complete. Please check your connection and try again.");
@@ -771,7 +1262,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
+      scanSafetyTimerRef.current = null;
     }, 3 * 60 * 1000);
+    scanSafetyTimerRef.current = safetyTimer;
 
     // Snapshot monitored photos at scan start so the list can't change mid-scan
     // Keep client-side reverse-image searches aligned with the plan's image
@@ -782,19 +1275,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // can never trigger photo processing after withdrawal.
     let photosSnapshot: IndexedPhoto[] = [];
     let photoConsentActive = true;
-    try {
-      const consent = await getPhotoConsent();
-      photoConsentActive = consent.hasConsent;
-      if (photoConsentActive) {
-        photosSnapshot = user.tier === "free"
-          ? indexedPhotosRef.current.slice(0, 1)
-          : [...indexedPhotosRef.current];
-      }
-    } catch {
-      // Fail closed for photo processing when consent cannot be confirmed.
+    if (isReviewerDemoActive()) {
+      // A demo scan operates only on the server-authorized sample findings.
+      // Device photos are deliberately excluded from every scan/search path.
       photoConsentActive = false;
+    } else {
+      try {
+        const consent = await getPhotoConsent();
+        photoConsentActive = consent.hasConsent;
+        if (photoConsentActive) {
+          photosSnapshot = user.tier === "free"
+            ? indexedPhotosRef.current.slice(0, 1)
+            : [...indexedPhotosRef.current];
+        }
+      } catch {
+        // Fail closed for photo processing when consent cannot be confirmed.
+        photoConsentActive = false;
+      }
     }
-    if (!photoConsentActive && indexedPhotosRef.current.length > 0) {
+    if (!isCurrentScanSession()) {
+      clearTimeout(safetyTimer);
+      if (scanSafetyTimerRef.current === safetyTimer) scanSafetyTimerRef.current = null;
+      return;
+    }
+    if (!isReviewerDemoActive() && !photoConsentActive && indexedPhotosRef.current.length > 0) {
       setScanError("Photo monitoring is paused until you enable consent in Privacy & Data. Account and username monitoring will continue.");
     }
 
@@ -816,14 +1320,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Normal app scans use the server cache. This preserves fresh-enough
       // discoveries while avoiding unnecessary external lookups.
       const job = await apiStartScan();
+      if (!isCurrentScanSession()) {
+        clearTimeout(safetyTimer);
+        if (scanSafetyTimerRef.current === safetyTimer) scanSafetyTimerRef.current = null;
+        return;
+      }
 
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
       const handlePollResult = async () => {
+        if (!isCurrentScanSession()) {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+          clearTimeout(safetyTimer);
+          if (scanSafetyTimerRef.current === safetyTimer) scanSafetyTimerRef.current = null;
+          pollInFlightRef.current = false;
+          return;
+        }
         if (pollInFlightRef.current) return;
         pollInFlightRef.current = true;
         try {
           const status = await getScanStatus(job.id);
+          if (!isCurrentScanSession()) return;
           setScanProgress(status.progress);
           if (status.currentStep) {
             setScanCurrentStep(status.currentStep);
@@ -835,6 +1353,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               pollTimerRef.current = null;
             }
             clearTimeout(safetyTimer);
+            if (scanSafetyTimerRef.current === safetyTimer) scanSafetyTimerRef.current = null;
             setIsScanning(false);
             setScanProgress(0);
             setScanCurrentStep(null);
@@ -851,39 +1370,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             // Wait for any in-flight photo scans before the final data refresh
             await photoScanPromise.catch(() => {});
+            if (!isCurrentScanSession()) return;
 
             setScanProgress(100);
             setScanCurrentStep(null);
             const scanResultSummaries = await getScanResults(job.id);
+            if (!isCurrentScanSession()) return;
             const scanThreats = scanResultSummaries.map(mapSummaryToThreat);
             setLastScanThreats(scanThreats);
             setLastScanThreatsFound(scanThreats.length);
             // Refresh historical Alerts separately. A dashboard refresh failure
             // must not erase or relabel the successfully loaded scan result.
             await loadThreats().catch(() => {});
+            if (!isCurrentScanSession()) return;
             try {
               const [profile, accounts] = await Promise.all([getMe(), getAccounts()]);
+              if (!isCurrentScanSession()) return;
               setUser(mapProfileToUser(profile, accounts));
             } catch {
               // The scan-scoped result is already available; keep existing profile data.
             }
+            if (!isCurrentScanSession()) return;
             setIsScanning(false);
-            getScanQuotaState().then(setScanQuota).catch(() => {});
+            getScanQuotaState().then((quota) => {
+              if (isCurrentScanSession()) setScanQuota(quota);
+            }).catch(() => {});
 
             const allActive = scanThreats.filter((t) => !t.resolved);
             const activeCount = allActive.length;
-            scheduleScanCompleteNotification(activeCount).catch(() => {});
-            const highSeverity = allActive.filter((t) => t.severity === "high");
-            if (highSeverity.length > 0 && highSeverity[0]) {
-              scheduleThreatNotification(highSeverity[0].title, highSeverity[0].id).catch(() => {});
+            if (isCurrentScanSession() && !isReviewerDemoActive()) {
+              scheduleScanCompleteNotification(activeCount).catch(() => {});
+              const highSeverity = allActive.filter((t) => t.severity === "high");
+              if (highSeverity.length > 0 && highSeverity[0]) {
+                scheduleThreatNotification(highSeverity[0].title, highSeverity[0].id).catch(() => {});
+              }
             }
           }
         } catch {
+          if (!isCurrentScanSession()) return;
           if (pollTimerRef.current) {
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
           }
           clearTimeout(safetyTimer);
+          if (scanSafetyTimerRef.current === safetyTimer) scanSafetyTimerRef.current = null;
           setIsScanning(false);
           setScanCurrentStep(null);
           setScanError("We could not check the scan status. Please check your connection and try again.");
@@ -897,6 +1427,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pollTimerRef.current = setInterval(handlePollResult, 400);
     } catch (err) {
       clearTimeout(safetyTimer);
+      if (scanSafetyTimerRef.current === safetyTimer) scanSafetyTimerRef.current = null;
+      if (!isCurrentScanSession()) return;
       setIsScanning(false);
       setScanCurrentStep(null);
       if (err instanceof ScanQuotaError) {
@@ -905,11 +1437,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setScanError(err instanceof Error ? err.message : "The scan could not be started. Please try again.");
       }
     }
-  }, [isScanning, loadThreats, user.tier]);
+  }, [isCurrentAccountSession, isLoggedIn, isScanning, loadThreats, user.tier]);
 
   useEffect(() => {
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      if (scanSafetyTimerRef.current) clearTimeout(scanSafetyTimerRef.current);
     };
   }, []);
 
@@ -918,7 +1451,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (id.startsWith("local_photo_")) {
       setLocalPhotoThreats((prev) => {
         const next = prev.map((t) => (t.id === id ? { ...t, resolved: true } : t));
-        AsyncStorage.setItem("localPhotoThreats", JSON.stringify(next));
+        const userId = clerkUserIdRef.current;
+        if (userId && !isReviewerDemoActive()) {
+          AsyncStorage.setItem(userPhotoStorageKeys(userId).threats, JSON.stringify(next));
+        }
         localPhotoThreatsRef.current = next;
         return next;
       });
@@ -1006,6 +1542,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ? reviewerSample.photo
             : null,
         isLoggedIn,
+        reviewerDemo,
+        isReviewerDemo: reviewerDemo !== null,
         hasSeenOnboarding,
         isInitializing,
         isOnboardingReady,

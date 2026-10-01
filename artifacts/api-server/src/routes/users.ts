@@ -18,11 +18,13 @@ import {
 } from "@workspace/db";
 
 import { getFingerprintForUser } from "../services/fingerprintService";
-import { getSubscription } from "../services/subscriptionService";
-import { recalculateScore } from "../services/scoreService";
+import { getMeStartupFields } from "../services/meStartupReadService";
+import { isDesignatedReviewer } from "../services/reviewerService";
+import { CURRENT_PHOTO_CONSENT_VERSION } from "../services/photoConsent";
 import { CURRENT_AGE_VERSION, CURRENT_TERMS_VERSION } from "../middleware/requireLegalCompliance";
 
 const router: IRouter = Router();
+export { CURRENT_PHOTO_CONSENT_VERSION } from "../services/photoConsent";
 
 const PHOTO_EVIDENCE_KEYS = new Set([
   "avatarUrl",
@@ -107,6 +109,7 @@ export async function deletePhotoDerivedData(
 router.get("/me", async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
+    const isReviewer = await isDesignatedReviewer(userId, req.clerkId);
 
     const [user] = await db
       .select()
@@ -144,9 +147,11 @@ router.get("/me", async (req, res): Promise<void> => {
       ? formatRelativeTime(new Date(fingerprint.lastUpdated))
       : "Never";
 
-    const sub = await getSubscription(userId);
-
-    const freshScore = await recalculateScore(userId);
+    const startupFields = await getMeStartupFields(
+      userId,
+      isReviewer,
+      user.securityScore,
+    );
 
     res.json({
       id: user.id,
@@ -155,11 +160,14 @@ router.get("/me", async (req, res): Promise<void> => {
       username: user.username,
       avatarInitials: user.avatarInitials,
       avatarUrl: user.avatarUrl ?? null,
-      tier: sub.tier,
-      securityScore: freshScore,
+      tier: startupFields.tier,
+      securityScore: startupFields.securityScore,
       scoreTrend: user.scoreTrend,
       monitored: accounts.length,
-      onboardingCompleted: user.onboardingAnswers !== null,
+      // Reviewer onboarding answers are device-local demo state and are never
+      // persisted to the real user row. Report completion by role so app startup
+      // does not loop back into onboarding after a local preview completion.
+      onboardingCompleted: isReviewer || user.onboardingAnswers !== null,
       lastScan,
       nextScanDue: user.nextScanDue?.toISOString() ?? null,
       totalPhotosIndexed: fingerprint.totalPhotosIndexed,
@@ -453,8 +461,6 @@ router.post("/me/age-confirm", async (req, res): Promise<void> => {
 });
 
 // ─── Photo Processing Consent ────────────────────────────────────────────────
-export const CURRENT_PHOTO_CONSENT_VERSION = "2026-09-15-v4";
-
 const PhotoConsentBody = z.object({
   consentVersion: z.literal(CURRENT_PHOTO_CONSENT_VERSION).default(CURRENT_PHOTO_CONSENT_VERSION),
 }).strict();

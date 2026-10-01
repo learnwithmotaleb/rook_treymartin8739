@@ -22,6 +22,8 @@ import identityRouter from "./identity";
 import webhooksRouter from "./webhooks";
 import rcWebhookRouter from "./rcWebhook";
 import reviewerAuthRouter from "./reviewerAuth";
+import reviewerDemoRouter from "./reviewerDemo";
+import { reviewerDemoMutationGuard } from "../middleware/reviewerDemoMutationGuard";
 
 const router: IRouter = Router();
 
@@ -38,8 +40,10 @@ router.use(adminRouter); // admin routes use their own X-Admin-Key auth
 router.use(v1Router);
 
 router.use(requireAuth);
+router.use(reviewerDemoRouter);
 router.use(requireLegalCompliance);
 
+router.use(reviewerDemoMutationGuard);
 router.use(usersRouter);
 router.use(accountsRouter);
 router.use("/scan", scanLimiter);

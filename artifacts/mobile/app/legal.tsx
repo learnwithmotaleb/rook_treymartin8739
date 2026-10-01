@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "@/components/GlassCard";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
+import { useApp } from "@/context/AppContext";
 import { getApiUrl } from "@/lib/api";
 import { getAppReleaseInfo } from "@/lib/appRelease";
 import { getAppReleaseRows } from "@/lib/appReleaseDisplay";
@@ -42,6 +44,7 @@ const INFO_ROWS = [
 export default function Legal() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { isReviewerDemo } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -80,6 +83,8 @@ export default function Legal() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 32 }]}
       >
+        {isReviewerDemo && <ReviewerDemoBanner message="Policy, Terms and support links remain the actual app content." />}
+
         <GlassCard style={styles.card}>
           {LEGAL_LINKS.map((item, i) => (
             <React.Fragment key={item.path}>

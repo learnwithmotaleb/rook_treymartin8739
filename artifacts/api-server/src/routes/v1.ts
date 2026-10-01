@@ -26,6 +26,7 @@ import {
 import { requireAuth } from "../middleware/requireAuth";
 import { apiKeyAuth } from "../middleware/apiKeyAuth";
 import { rateLimitMiddleware } from "../services/apiKeyRateLimiter";
+import { reviewerDemoMutationGuard } from "../middleware/reviewerDemoMutationGuard";
 import { startScan } from "../services/scanOrchestrator";
 import { logger } from "../lib/logger";
 
@@ -77,7 +78,7 @@ function isSampleThreat(raw: string | null): boolean {
 // ─── Management routes (Clerk session auth) ───────────────────────────────────
 
 /** Create a new API key. Returns the raw key once — store it now. */
-router.post("/v1/keys", requireAuth, async (req, res): Promise<void> => {
+router.post("/v1/keys", requireAuth, reviewerDemoMutationGuard, async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
     const bodyParsed = CreateKeyBody.safeParse(req.body ?? {});
@@ -141,7 +142,7 @@ router.get("/v1/keys", requireAuth, async (req, res): Promise<void> => {
 });
 
 /** Revoke an API key. */
-router.delete("/v1/keys/:keyId", requireAuth, async (req, res): Promise<void> => {
+router.delete("/v1/keys/:keyId", requireAuth, reviewerDemoMutationGuard, async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
     const keyId = Array.isArray(req.params.keyId) ? req.params.keyId[0]! : req.params.keyId!;
@@ -165,7 +166,7 @@ router.delete("/v1/keys/:keyId", requireAuth, async (req, res): Promise<void> =>
 });
 
 /** Register a webhook endpoint. */
-router.post("/v1/webhooks", requireAuth, async (req, res): Promise<void> => {
+router.post("/v1/webhooks", requireAuth, reviewerDemoMutationGuard, async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
     const bodyParsed = CreateWebhookBody.safeParse(req.body);
@@ -243,7 +244,7 @@ router.get("/v1/webhooks", requireAuth, async (req, res): Promise<void> => {
 });
 
 /** Delete/deactivate a webhook. */
-router.delete("/v1/webhooks/:hookId", requireAuth, async (req, res): Promise<void> => {
+router.delete("/v1/webhooks/:hookId", requireAuth, reviewerDemoMutationGuard, async (req, res): Promise<void> => {
   try {
     const userId = req.userId;
     const hookId = Array.isArray(req.params.hookId) ? req.params.hookId[0]! : req.params.hookId!;
@@ -283,7 +284,7 @@ const apiKeyMiddleware = [apiKeyAuth, rateLimitMiddleware()];
  * Trigger an on-demand scan for the API key owner's identity.
  * Reuses the full existing scan pipeline including cache and quota checks.
  */
-router.post("/v1/scans", ...apiKeyMiddleware, async (req, res): Promise<void> => {
+router.post("/v1/scans", ...apiKeyMiddleware, reviewerDemoMutationGuard, async (req, res): Promise<void> => {
   const userId = req.apiKeyUserId!;
 
   try {

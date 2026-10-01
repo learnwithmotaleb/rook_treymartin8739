@@ -61,6 +61,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /reviewer/demo:
+    get:
+      operationId: getReviewerDemo
+      tags: [users]
+      summary: Get the authenticated designated reviewer's read-only demo
+      description: Returns fictional, clearly marked fixture data only. Requires normal authentication and the server-designated reviewer identity; other authenticated users receive 404. This read-only fixture endpoint intentionally precedes the legal-compliance gate so reviewers can preview it before onboarding or legal acknowledgements. Real product routes remain subject to the existing Terms and age gates; this endpoint writes no feature state and does not invoke social-network, photo-analysis, or scan providers.
+      responses:
+        "200":
+          description: Reviewer demo fixture
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewerDemoResponse"
+        "404":
+          description: This authenticated account is not designated for reviewer demo access; mode is explicitly live
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewerDemoNotAuthorized"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /me:
     get:
       operationId: getMe
@@ -397,6 +423,19 @@ components:
           type: string
       required:
         - error
+
+    ReviewerDemoNotAuthorized:
+      type: object
+      properties:
+        error:
+          type: string
+          enum: [reviewer_demo_not_authorized]
+        mode:
+          type: string
+          enum: [live]
+      required:
+        - error
+        - mode
 
     UserProfile:
       type: object
@@ -789,3 +828,451 @@ components:
           type: string
         alreadyRegistered:
           type: boolean
+
+    ReviewerDemoResponse:
+      type: object
+      required:
+        - version
+        - mode
+        - isSample
+        - actions
+        - notice
+        - accounts
+        - mediaByAccount
+        - threats
+        - profileSummary
+        - identityBadge
+        - consent
+        - quota
+        - latestScan
+        - scanHistory
+        - capabilities
+      properties:
+        version:
+          type: integer
+          const: 1
+        mode:
+          type: string
+          const: reviewer_demo
+        isSample:
+          type: boolean
+          const: true
+        actions:
+          type: string
+          const: local_preview_only
+        notice:
+          type: string
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewerDemoAccount"
+        mediaByAccount:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ReviewerDemoMediaResponse"
+        threats:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewerDemoThreatDetail"
+        profileSummary:
+          $ref: "#/components/schemas/ReviewerDemoProfileSummary"
+        identityBadge:
+          $ref: "#/components/schemas/ReviewerDemoIdentityBadge"
+        consent:
+          $ref: "#/components/schemas/ReviewerDemoConsent"
+        quota:
+          $ref: "#/components/schemas/ReviewerDemoQuota"
+        latestScan:
+          $ref: "#/components/schemas/ReviewerDemoScan"
+        scanHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewerDemoScan"
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewerDemoCapability"
+
+    ReviewerDemoAccount:
+      type: object
+      required:
+        - id
+        - platform
+        - username
+        - displayName
+        - followers
+        - verified
+        - needsReconnect
+        - photosIndexed
+        - captionsIndexed
+        - reelsIndexed
+        - lastSynced
+        - connectionType
+        - isSample
+        - profileUrl
+      properties:
+        id:
+          type: string
+          pattern: "^review-demo-"
+        platform:
+          type: string
+          enum: [instagram, x, tiktok, linkedin, youtube, facebook, snapchat]
+        username:
+          type: string
+        displayName:
+          type: string
+        followers:
+          type: integer
+        verified:
+          type: boolean
+          const: false
+        needsReconnect:
+          type: boolean
+        photosIndexed:
+          type: integer
+        captionsIndexed:
+          type: integer
+        reelsIndexed:
+          type: integer
+        lastSynced:
+          type: string
+        connectionType:
+          type: string
+          const: demo
+        isSample:
+          type: boolean
+          const: true
+        profileUrl:
+          type: ["string", "null"]
+
+    ReviewerDemoMediaResponse:
+      type: object
+      required: [items, hasAccess, isSample]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewerDemoMediaItem"
+        hasAccess:
+          type: boolean
+        reason:
+          type: string
+        isSample:
+          type: boolean
+          const: true
+
+    ReviewerDemoMediaItem:
+      type: object
+      required: [id, type, url, thumbnailUrl, caption, postedAt]
+      properties:
+        id:
+          type: string
+          pattern: "^review-demo-"
+        type:
+          type: string
+          enum: [image, video, carousel]
+        url:
+          type: string
+        thumbnailUrl:
+          type: string
+        caption:
+          type: ["string", "null"]
+        postedAt:
+          type: ["string", "null"]
+
+    ReviewerDemoThreatDetail:
+      type: object
+      required:
+        - id
+        - scanJobId
+        - type
+        - severity
+        - platform
+        - title
+        - description
+        - details
+        - aiExplanation
+        - threatScore
+        - suspiciousUsername
+        - profileUrl
+        - matchedMediaCount
+        - evidence
+        - scoreBreakdown
+        - accountMeta
+        - detectedSignals
+        - isSample
+        - confirmedVictims
+        - crossUserEscalation
+        - postDatingDays
+        - resolved
+        - resolvedAt
+        - resolveAction
+        - isLocked
+        - createdAt
+      properties:
+        id:
+          type: string
+          pattern: "^review-demo-threat-"
+        scanJobId:
+          type: string
+          pattern: "^review-demo-"
+        type:
+          type: string
+        severity:
+          type: string
+          enum: [high, medium, low]
+        platform:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        details:
+          type: string
+        aiExplanation:
+          type: string
+        threatScore:
+          type: integer
+        suspiciousUsername:
+          type: ["string", "null"]
+        profileUrl:
+          type: ["string", "null"]
+        matchedMediaCount:
+          type: integer
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewerDemoThreatEvidence"
+        scoreBreakdown:
+          $ref: "#/components/schemas/ThreatScoreBreakdown"
+        accountMeta:
+          oneOf:
+            - $ref: "#/components/schemas/ReviewerDemoAccountMeta"
+            - type: "null"
+        detectedSignals:
+          type: array
+          items:
+            type: string
+        isSample:
+          type: boolean
+          const: true
+        confirmedVictims:
+          type: ["integer", "null"]
+        crossUserEscalation:
+          type: boolean
+        postDatingDays:
+          type: ["integer", "null"]
+        resolved:
+          type: boolean
+        resolvedAt:
+          type: ["string", "null"]
+        resolveAction:
+          type: ["string", "null"]
+        isLocked:
+          type: boolean
+          const: false
+        createdAt:
+          type: string
+
+    ReviewerDemoThreatEvidence:
+      type: object
+      required: [id, type, similarity, label]
+      properties:
+        id:
+          type: string
+          pattern: "^review-demo-"
+        type:
+          type: string
+        similarity:
+          type: integer
+        label:
+          type: string
+        yourCaption:
+          type: string
+        stolenCaption:
+          type: string
+        yourPhotoUrl:
+          type: string
+        stolenPhotoUrl:
+          type: string
+
+    ReviewerDemoAccountMeta:
+      type: object
+      required: [followers]
+      properties:
+        followers:
+          type: integer
+        following:
+          type: integer
+        totalPosts:
+          type: integer
+        accountAgeDays:
+          type: integer
+        engagementRate:
+          type: number
+
+    ReviewerDemoProfileSummary:
+      type: object
+      required:
+        - securityScore
+        - scoreTrend
+        - monitored
+        - lastScan
+        - totalPhotosIndexed
+        - totalCaptionsIndexed
+        - reelsIndexed
+        - fingerprintUpdated
+        - isSample
+      properties:
+        securityScore:
+          type: integer
+        scoreTrend:
+          type: integer
+        monitored:
+          type: integer
+        lastScan:
+          type: string
+        totalPhotosIndexed:
+          type: integer
+        totalCaptionsIndexed:
+          type: integer
+        reelsIndexed:
+          type: integer
+        fingerprintUpdated:
+          type: string
+        isSample:
+          type: boolean
+          const: true
+
+    ReviewerDemoIdentityBadge:
+      type: object
+      required:
+        - userId
+        - confidenceTier
+        - overallConfidence
+        - verifiedPlatformCount
+        - anchorHashCount
+        - verifiedPlatforms
+        - badge
+        - isSample
+      properties:
+        userId:
+          type: string
+          pattern: "^review-demo-"
+        confidenceTier:
+          type: string
+          enum: [UNVERIFIED, LOW, MEDIUM, HIGH, STRONG]
+        overallConfidence:
+          type: integer
+        verifiedPlatformCount:
+          type: integer
+        anchorHashCount:
+          type: integer
+        verifiedPlatforms:
+          type: array
+          items:
+            type: string
+        badge:
+          type: object
+          required: [tier, label, description, color]
+          properties:
+            tier:
+              type: string
+            label:
+              type: string
+            description:
+              type: string
+            color:
+              type: string
+        isSample:
+          type: boolean
+          const: true
+
+    ReviewerDemoConsent:
+      type: object
+      required: [hasConsent, consentedAt, consentVersion, isSample]
+      properties:
+        hasConsent:
+          type: boolean
+        consentedAt:
+          type: ["string", "null"]
+        consentVersion:
+          type: ["string", "null"]
+        isSample:
+          type: boolean
+          const: true
+
+    ReviewerDemoQuota:
+      type: object
+      required:
+        - canScan
+        - scansUsed
+        - scansAllowed
+        - tier
+        - imagesPerScan
+        - upgradeTo
+        - message
+        - resetsAt
+        - isSample
+      properties:
+        canScan:
+          type: boolean
+        scansUsed:
+          type: integer
+        scansAllowed:
+          type: integer
+        tier:
+          type: string
+          enum: [free, pro, premium]
+        imagesPerScan:
+          type: integer
+        upgradeTo:
+          type: string
+        message:
+          type: ["string", "null"]
+        resetsAt:
+          type: ["string", "null"]
+        isSample:
+          type: boolean
+          const: true
+
+    ReviewerDemoScan:
+      type: object
+      required:
+        - id
+        - status
+        - progress
+        - currentStep
+        - threatsFound
+        - startedAt
+        - completedAt
+        - isSample
+      properties:
+        id:
+          type: string
+          pattern: "^review-demo-"
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        progress:
+          type: integer
+        currentStep:
+          type: string
+        threatsFound:
+          type: integer
+        startedAt:
+          type: string
+        completedAt:
+          type: string
+        isSample:
+          type: boolean
+          const: true
+
+    ReviewerDemoCapability:
+      type: object
+      required: [route, feature]
+      properties:
+        route:
+          type: string
+        feature:
+          type: string

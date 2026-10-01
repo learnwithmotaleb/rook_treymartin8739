@@ -11,6 +11,7 @@ import { lte, and, isNotNull, eq, or, lt } from "drizzle-orm";
 import { sendPushToUser } from "./notificationService";
 import { startScan } from "./scanOrchestrator";
 import { getSubscription } from "./subscriptionService";
+import { shouldSkipReviewerBackgroundWork } from "./backgroundReviewerGuard";
 
 const INTERVAL_MS = 15 * 60 * 1000;
 
@@ -23,6 +24,8 @@ const INTERVAL_MS = 15 * 60 * 1000;
  * Called from both the RC webhook handler and the manual revenuecat-sync route.
  */
 export async function scheduleTrialReminder(userId: string, trialEndsAt: Date): Promise<void> {
+  if (await shouldSkipReviewerBackgroundWork(userId)) return;
+
   const fireAt = new Date(trialEndsAt.getTime() - 2 * 24 * 60 * 60 * 1000);
 
   await db
@@ -73,6 +76,7 @@ async function runScheduledNotifications(): Promise<void> {
 
     for (const row of dueRows) {
       try {
+        if (await shouldSkipReviewerBackgroundWork(row.userId)) continue;
         await fireScheduledNotification(row.id, row.userId, row.type);
       } catch (err) {
         logger.warn({ err, notifId: row.id, type: row.type }, "Scheduled notification failed");
@@ -153,6 +157,7 @@ async function runScheduledScans(): Promise<void> {
 
     for (const { id } of dueUsers) {
       try {
+        if (await shouldSkipReviewerBackgroundWork(id)) continue;
         const sub = await getSubscription(id);
         if (sub.tier === "free") continue;
         await startScan(id, sub.tier);
@@ -202,6 +207,7 @@ async function refreshInstagramTokens(): Promise<void> {
     const staleAccounts = await db
       .select({
         id: connectedAccountsTable.id,
+        userId: connectedAccountsTable.userId,
         platform: connectedAccountsTable.platform,
         accessToken: connectedAccountsTable.accessToken,
         lastSynced: connectedAccountsTable.lastSynced,
@@ -227,6 +233,7 @@ async function refreshInstagramTokens(): Promise<void> {
     const RETRY_DELAYS_MS = [0, 30_000, 120_000] as const;
 
     for (const account of staleAccounts) {
+      if (await shouldSkipReviewerBackgroundWork(account.userId)) continue;
       if (!account.accessToken) continue;
 
       let succeeded = false;
@@ -376,6 +383,7 @@ async function refreshXTokens(): Promise<void> {
 
     for (const account of accounts) {
       if (!account.refreshToken) continue;
+      if (await shouldSkipReviewerBackgroundWork(account.userId)) continue;
 
       let succeeded = false;
 
@@ -511,6 +519,7 @@ async function refreshFacebookTokens(): Promise<void> {
 
     for (const account of accounts) {
       if (!account.accessToken) continue;
+      if (await shouldSkipReviewerBackgroundWork(account.userId)) continue;
 
       let succeeded = false;
 
@@ -607,6 +616,8 @@ async function refreshFacebookTokens(): Promise<void> {
 // platform's proactive refresh window. Returns the updated account list.
 
 export async function refreshAccountTokensForUser(userId: string): Promise<void> {
+  if (await shouldSkipReviewerBackgroundWork(userId)) return;
+
   const clientIdX = process.env["TWITTER_CLIENT_ID"];
   const clientSecretX = process.env["TWITTER_CLIENT_SECRET"];
   const clientIdFB = process.env["FACEBOOK_APP_ID"]?.trim();

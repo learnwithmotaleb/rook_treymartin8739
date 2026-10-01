@@ -24,6 +24,7 @@ import { useApp } from "@/context/AppContext";
 import { ScanPulse } from "@/components/ScanPulse";
 import { GlassCard } from "@/components/GlassCard";
 import { Skeleton } from "@/components/Skeleton";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 
 function formatNextScan(iso: string): string {
   const due = new Date(iso);
@@ -53,6 +54,7 @@ export default function ScanScreen() {
     checkScanQuota,
     threats,
     indexedPhotos,
+    isReviewerDemo,
   } = useApp();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -124,7 +126,7 @@ export default function ScanScreen() {
         // Free users always see the preview gate (even if 0 threats).
         // Subscribed users only navigate to alerts when there are real threats.
         setTimeout(() => {
-          if (user.tier === "free") {
+          if (user.tier === "free" && !isReviewerDemo) {
             Haptics.notificationAsync(
               activeCount > 0
                 ? Haptics.NotificationFeedbackType.Warning
@@ -138,17 +140,17 @@ export default function ScanScreen() {
         }, 2000);
       });
     }
-  }, [isScanning, scanFailure, lastScanThreats, resultOpacity, user.tier]);
+  }, [isScanning, scanFailure, lastScanThreats, resultOpacity, user.tier, isReviewerDemo]);
 
   const hasAccounts = user.connectedAccounts.length > 0;
   const photoCount = indexedPhotos.length;
-  const scanImageCount = user.tier === "free" ? Math.min(photoCount, 1) : photoCount;
+  const scanImageCount = isReviewerDemo || user.tier !== "free" ? photoCount : Math.min(photoCount, 1);
   const photoMatches = threats.filter(
     (t) => !t.resolved && t.type === "stolen_photo"
   ).length;
 
   const canScan = hasAccounts || photoCount > 0;
-  const quotaAllowsScan = scanQuota?.canScan ?? true;
+  const quotaAllowsScan = isReviewerDemo || (scanQuota?.canScan ?? true);
   const quotaResetLabel = scanQuota?.resetsAt
     ? new Date(scanQuota.resetsAt).toLocaleDateString("en-US", { month: "long", day: "numeric" })
     : null;
@@ -168,6 +170,8 @@ export default function ScanScreen() {
   const statusColor = isScanning ? colors.primary : colors.success;
   const statusText = isScanning
     ? `${scanProgress}%  complete`
+    : isReviewerDemo
+    ? "Demo preview ready"
     : "All systems active";
 
   return (
@@ -225,6 +229,7 @@ export default function ScanScreen() {
           { paddingBottom: bottomPad + 110 },
         ]}
       >
+        {isReviewerDemo && <ReviewerDemoBanner />}
         {/* ── Scan Animation ── */}
         <View style={styles.scanCenter}>
           <View style={styles.scanContainer}>
@@ -471,7 +476,7 @@ export default function ScanScreen() {
                     },
                   ]}
                 >
-                  Scan Complete · {lastResult.time}
+                  {isReviewerDemo ? "Demo scan complete" : "Scan Complete"} · {lastResult.time}
                 </Text>
                 <Text
                   style={[
@@ -482,7 +487,9 @@ export default function ScanScreen() {
                     },
                   ]}
                 >
-                  {lastResult.threatsFound > 0
+                  {isReviewerDemo
+                    ? `${lastResult.threatsFound} sample alert${lastResult.threatsFound !== 1 ? "s" : ""} in the demo results`
+                    : lastResult.threatsFound > 0
                     ? `${lastResult.threatsFound} potential threat${lastResult.threatsFound !== 1 ? "s" : ""}${lastResult.photoThreats > 0 ? ` · ${lastResult.photoThreats} photo match${lastResult.photoThreats !== 1 ? "es" : ""}` : ""} flagged`
                     : photoCount > 0
                     ? `No matches found · ${photoCount} photo${photoCount !== 1 ? "s" : ""} checked`
@@ -507,7 +514,7 @@ export default function ScanScreen() {
         )}
 
         {/* ── Bottom action area ── */}
-        {user.tier === "free" && isIdle && scanQuota && (
+        {user.tier === "free" && !isReviewerDemo && isIdle && scanQuota && (
           <View style={[styles.quotaNote, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
             <Ionicons name="calendar-outline" size={16} color={colors.mutedForeground} />
             <Text style={[styles.quotaNoteText, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
@@ -741,7 +748,7 @@ export default function ScanScreen() {
                         { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" },
                       ]}
                     >
-                      Start Full Scan
+                      {isReviewerDemo ? "Start Demo Scan" : "Start Full Scan"}
                     </Text>
                   </>
                 ) : (
@@ -765,7 +772,9 @@ export default function ScanScreen() {
                   },
                 ]}
               >
-                {hasAccounts && photoCount > 0
+                {isReviewerDemo
+                  ? "Runs a local demo scan with sample profiles and preview-only media"
+                  : hasAccounts && photoCount > 0
                   ? `Scans ${user.connectedAccounts.length} account${user.connectedAccounts.length !== 1 ? "s" : ""} · checks ${scanImageCount} photo${scanImageCount !== 1 ? "s" : ""} for misuse${user.tier === "free" && photoCount > scanImageCount ? " (Free plan limit)" : ""}`
                   : hasAccounts
                   ? `Scans ${user.connectedAccounts.length} connected account${user.connectedAccounts.length !== 1 ? "s" : ""} for impersonators & fake profiles`

@@ -29,6 +29,7 @@ import type {
   HealthStatus,
   IdentityFingerprint,
   ListThreatsParams,
+  ReviewerDemoResponse,
   ScamAnalysisResult,
   ScanJob,
   ThreatDetail,
@@ -188,6 +189,84 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetReviewerDemoUrl = () => {
+
+
+
+
+  return `/api/reviewer/demo`
+}
+
+/**
+ * Returns fictional, clearly marked sample data only. Requires normal authentication and legal-compliance middleware plus the server-designated reviewer identity; other authenticated users receive 404. No provider calls or mutations are performed.
+ * @summary Get the authenticated designated reviewer's read-only demo
+ */
+export const getReviewerDemo = async ( options?: RequestInit): Promise<ReviewerDemoResponse> => {
+
+  return customFetch<ReviewerDemoResponse>(getGetReviewerDemoUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReviewerDemoQueryKey = () => {
+    return [
+    `/api/reviewer/demo`
+    ] as const;
+    }
+
+
+export const getGetReviewerDemoQueryOptions = <TData = Awaited<ReturnType<typeof getReviewerDemo>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewerDemo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReviewerDemoQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReviewerDemo>>> = ({ signal }) => getReviewerDemo({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReviewerDemo>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReviewerDemoQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewerDemo>>>
+export type GetReviewerDemoQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get the authenticated designated reviewer's read-only demo
+ */
+
+export function useGetReviewerDemo<TData = Awaited<ReturnType<typeof getReviewerDemo>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReviewerDemo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReviewerDemoQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

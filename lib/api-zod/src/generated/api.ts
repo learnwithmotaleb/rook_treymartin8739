@@ -34,6 +34,175 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * Returns fictional, clearly marked sample data only. Requires normal authentication and legal-compliance middleware plus the server-designated reviewer identity; other authenticated users receive 404. No provider calls or mutations are performed.
+ * @summary Get the authenticated designated reviewer's read-only demo
+ */
+export const getReviewerDemoResponseAccountsItemIdRegExp = new RegExp('^review-demo-');
+export const getReviewerDemoResponseMediaByAccountItemsItemIdRegExp = new RegExp('^review-demo-');
+export const getReviewerDemoResponseThreatsItemIdRegExp = new RegExp('^review-demo-threat-');
+export const getReviewerDemoResponseThreatsItemScanJobIdRegExp = new RegExp('^review-demo-');
+export const getReviewerDemoResponseThreatsItemEvidenceItemIdRegExp = new RegExp('^review-demo-');
+export const getReviewerDemoResponseIdentityBadgeUserIdRegExp = new RegExp('^review-demo-');
+export const getReviewerDemoResponseLatestScanIdRegExp = new RegExp('^review-demo-');
+export const getReviewerDemoResponseScanHistoryItemIdRegExp = new RegExp('^review-demo-');
+
+
+export const GetReviewerDemoResponse = zod.object({
+  "version": zod.number(),
+  "mode": zod.literal("reviewer_demo"),
+  "isSample": zod.boolean(),
+  "actions": zod.literal("local_preview_only"),
+  "notice": zod.string(),
+  "accounts": zod.array(zod.object({
+  "id": zod.string().regex(getReviewerDemoResponseAccountsItemIdRegExp),
+  "platform": zod.enum(['instagram', 'x', 'tiktok', 'linkedin', 'youtube', 'facebook', 'snapchat']),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "followers": zod.number(),
+  "verified": zod.boolean(),
+  "needsReconnect": zod.boolean(),
+  "photosIndexed": zod.number(),
+  "captionsIndexed": zod.number(),
+  "reelsIndexed": zod.number(),
+  "lastSynced": zod.string(),
+  "connectionType": zod.literal("demo"),
+  "isSample": zod.boolean(),
+  "profileUrl": zod.string().nullable()
+})),
+  "mediaByAccount": zod.record(zod.string(), zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.string().regex(getReviewerDemoResponseMediaByAccountItemsItemIdRegExp),
+  "type": zod.enum(['image', 'video', 'carousel']),
+  "url": zod.string(),
+  "thumbnailUrl": zod.string(),
+  "caption": zod.string().nullable(),
+  "postedAt": zod.string().nullable()
+})),
+  "hasAccess": zod.boolean(),
+  "reason": zod.string().optional(),
+  "isSample": zod.boolean()
+})),
+  "threats": zod.array(zod.object({
+  "id": zod.string().regex(getReviewerDemoResponseThreatsItemIdRegExp),
+  "scanJobId": zod.string().regex(getReviewerDemoResponseThreatsItemScanJobIdRegExp),
+  "type": zod.string(),
+  "severity": zod.enum(['high', 'medium', 'low']),
+  "platform": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "details": zod.string(),
+  "aiExplanation": zod.string(),
+  "threatScore": zod.number(),
+  "suspiciousUsername": zod.string().nullable(),
+  "profileUrl": zod.string().nullable(),
+  "matchedMediaCount": zod.number(),
+  "evidence": zod.array(zod.object({
+  "id": zod.string().regex(getReviewerDemoResponseThreatsItemEvidenceItemIdRegExp),
+  "type": zod.string(),
+  "similarity": zod.number(),
+  "label": zod.string(),
+  "yourCaption": zod.string().optional(),
+  "stolenCaption": zod.string().optional(),
+  "yourPhotoUrl": zod.string().optional(),
+  "stolenPhotoUrl": zod.string().optional()
+})),
+  "scoreBreakdown": zod.object({
+  "mediaSimilarity": zod.number(),
+  "contentReuse": zod.number(),
+  "profileSimilarity": zod.number(),
+  "bioSimilarity": zod.number(),
+  "usernameSimilarity": zod.number(),
+  "behavioral": zod.number()
+}),
+  "accountMeta": zod.union([zod.object({
+  "followers": zod.number(),
+  "following": zod.number().optional(),
+  "totalPosts": zod.number().optional(),
+  "accountAgeDays": zod.number().optional(),
+  "engagementRate": zod.number().optional()
+}),zod.null()]),
+  "detectedSignals": zod.array(zod.string()),
+  "isSample": zod.boolean(),
+  "confirmedVictims": zod.number().nullable(),
+  "crossUserEscalation": zod.boolean(),
+  "postDatingDays": zod.number().nullable(),
+  "resolved": zod.boolean(),
+  "resolvedAt": zod.string().nullable(),
+  "resolveAction": zod.string().nullable(),
+  "isLocked": zod.boolean(),
+  "createdAt": zod.string()
+})),
+  "profileSummary": zod.object({
+  "securityScore": zod.number(),
+  "scoreTrend": zod.number(),
+  "monitored": zod.number(),
+  "lastScan": zod.string(),
+  "totalPhotosIndexed": zod.number(),
+  "totalCaptionsIndexed": zod.number(),
+  "reelsIndexed": zod.number(),
+  "fingerprintUpdated": zod.string(),
+  "isSample": zod.boolean()
+}),
+  "identityBadge": zod.object({
+  "userId": zod.string().regex(getReviewerDemoResponseIdentityBadgeUserIdRegExp),
+  "confidenceTier": zod.enum(['UNVERIFIED', 'LOW', 'MEDIUM', 'HIGH', 'STRONG']),
+  "overallConfidence": zod.number(),
+  "verifiedPlatformCount": zod.number(),
+  "anchorHashCount": zod.number(),
+  "verifiedPlatforms": zod.array(zod.string()),
+  "badge": zod.object({
+  "tier": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "color": zod.string()
+}),
+  "isSample": zod.boolean()
+}),
+  "consent": zod.object({
+  "hasConsent": zod.boolean(),
+  "consentedAt": zod.string().nullable(),
+  "consentVersion": zod.string().nullable(),
+  "isSample": zod.boolean()
+}),
+  "quota": zod.object({
+  "canScan": zod.boolean(),
+  "scansUsed": zod.number(),
+  "scansAllowed": zod.number(),
+  "tier": zod.enum(['free', 'pro', 'premium']),
+  "imagesPerScan": zod.number(),
+  "upgradeTo": zod.string(),
+  "message": zod.string().nullable(),
+  "resetsAt": zod.string().nullable(),
+  "isSample": zod.boolean()
+}),
+  "latestScan": zod.object({
+  "id": zod.string().regex(getReviewerDemoResponseLatestScanIdRegExp),
+  "status": zod.enum(['queued', 'running', 'completed', 'failed']),
+  "progress": zod.number(),
+  "currentStep": zod.string(),
+  "threatsFound": zod.number(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string(),
+  "isSample": zod.boolean()
+}),
+  "scanHistory": zod.array(zod.object({
+  "id": zod.string().regex(getReviewerDemoResponseScanHistoryItemIdRegExp),
+  "status": zod.enum(['queued', 'running', 'completed', 'failed']),
+  "progress": zod.number(),
+  "currentStep": zod.string(),
+  "threatsFound": zod.number(),
+  "startedAt": zod.string(),
+  "completedAt": zod.string(),
+  "isSample": zod.boolean()
+})),
+  "capabilities": zod.array(zod.object({
+  "route": zod.string(),
+  "feature": zod.string()
+}))
+})
+
+
+/**
  * @summary Get current user profile
  */
 export const GetMeHeader = zod.object({

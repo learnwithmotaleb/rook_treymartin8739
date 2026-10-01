@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { GlassCard } from "@/components/GlassCard";
+import { ReviewerDemoBanner } from "@/components/ReviewerDemoBanner";
 import { deregisterCurrentDevicePushToken, requestPushPermission, applyNotificationPreferences } from "@/hooks/useNotifications";
 import { registerPushToken } from "@/lib/api";
 import * as Notifications from "expo-notifications";
@@ -164,32 +165,42 @@ function FrequencyOption({
 export default function NotificationSettings() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user } = useApp();
+  const { user, isReviewerDemo } = useApp();
   const { user: clerkUser } = useUser();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULTS);
   const isPro = user.tier === "pro" || user.tier === "premium";
+  const canUseEmailAlerts = isPro || isReviewerDemo;
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   useEffect(() => {
+    if (isReviewerDemo) {
+      setPrefs(DEFAULTS);
+      return;
+    }
     AsyncStorage.getItem(STORAGE_KEY).then((v) => {
       if (v) {
         try { setPrefs({ ...DEFAULTS, ...JSON.parse(v) }); } catch {}
       }
     });
-  }, []);
+  }, [isReviewerDemo]);
 
   const save = useCallback((next: NotifPrefs) => {
     setPrefs(next);
+    if (isReviewerDemo) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).then(() => {
       applyNotificationPreferences().catch(() => {});
     });
-  }, []);
+  }, [isReviewerDemo]);
 
   const toggle = (key: keyof NotifPrefs, value: boolean) => {
     save({ ...prefs, [key]: value });
   };
 
   const handlePushToggle = (v: boolean) => {
+    if (isReviewerDemo) {
+      toggle("pushAlerts", v);
+      return;
+    }
     if (v) {
       (async () => {
         if (Platform.OS === "web") {
@@ -273,11 +284,17 @@ export default function NotificationSettings() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
       >
         {/* Status Banner */}
+        {isReviewerDemo && (
+          <ReviewerDemoBanner message="Session-only notification preview · no permission or delivery." />
+        )}
+
         {!prefs.pushAlerts && (
           <GlassCard style={[styles.warningBanner, { borderColor: colors.warning + "44" }]}>
             <Ionicons name="warning" size={16} color={colors.warning} />
             <Text style={[styles.warningText, { color: colors.warning, fontFamily: "Inter_500Medium" }]}>
-              Push alerts are disabled. You may miss critical threats.
+              {isReviewerDemo
+                ? "Push-alert preview is off. Notification delivery remains disabled in this demo."
+                : "Push alerts are disabled. You may miss critical threats."}
             </Text>
           </GlassCard>
         )}
@@ -291,7 +308,7 @@ export default function NotificationSettings() {
             icon="notifications"
             iconColor={colors.primary}
             label="Push Alerts"
-            sublabel="Real-time notifications on this device"
+            sublabel={isReviewerDemo ? "Session-only preview — no device delivery" : "Real-time notifications on this device"}
             value={prefs.pushAlerts}
             onToggle={handlePushToggle}
           />
@@ -299,10 +316,12 @@ export default function NotificationSettings() {
             icon="mail"
             iconColor={colors.primary}
             label="Email Alerts"
-            sublabel={isPro ? "Sent to your registered email" : "Upgrade to Premium to enable"}
-            value={isPro ? prefs.emailAlerts : false}
+            sublabel={isReviewerDemo
+              ? "Demo preference only — no email is sent"
+              : (isPro ? "Sent to your registered email" : "Upgrade to Premium to enable")}
+            value={canUseEmailAlerts ? prefs.emailAlerts : false}
             onToggle={(v) => toggle("emailAlerts", v)}
-            locked={!isPro}
+            locked={!canUseEmailAlerts}
             lockedLabel="Premium"
             last
           />
@@ -407,7 +426,9 @@ export default function NotificationSettings() {
         </GlassCard>
 
         <Text style={[styles.footer, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]}>
-          Preferences are saved locally. Critical security alerts may always be sent regardless of your settings.
+          {isReviewerDemo
+            ? "Notification preferences are only previewed for this session and do not change your stored settings."
+            : "Preferences are saved locally. Critical security alerts may always be sent regardless of your settings."}
         </Text>
       </ScrollView>
     </View>

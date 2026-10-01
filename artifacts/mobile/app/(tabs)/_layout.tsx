@@ -18,6 +18,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { CURRENT_AGE_VERSION, CURRENT_TERMS_VERSION } from "@/lib/api";
 import { useSubscription, ENTITLEMENT_PREMIUM } from "@/lib/revenuecat";
 import Constants from "expo-constants";
+import { retryStartupInitialization } from "@/lib/startupRetry";
 
 function NativeTabLayout() {
   const { activeThreats } = useApp();
@@ -142,14 +143,20 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { isLoaded, isSignedIn, signOut } = useAuth();
   const { user: clerkUser } = useUser();
-  const { login, logout, hasSeenOnboarding, isInitializing, isOnboardingReady, isLoggedIn, showCancellationSurvey, dismissCancellationSurvey } = useApp();
+  const { login, logout, hasSeenOnboarding, isInitializing, isOnboardingReady, isLoggedIn, isLoading, isReviewerDemo, showCancellationSurvey, dismissCancellationSurvey } = useApp();
   const colors = useColors();
   const { tier, customerInfo } = useSubscription();
-  useNotifications(isLoggedIn, clerkUser?.id);
+  // Do not run the notification hook's native permission/token effects until
+  // account hydration and the server-authorized reviewer-mode check complete.
+  useNotifications(
+    isLoaded && isSignedIn && isLoggedIn && !isInitializing && !isLoading && !isReviewerDemo,
+    clerkUser?.id,
+  );
 
   // Safety valve: if initialization takes more than 12 seconds, stop waiting
   // and show a recoverable error rather than a permanent blank screen.
   const [initTimedOut, setInitTimedOut] = useState(false);
+  const [initRetryAttempt, setInitRetryAttempt] = useState(0);
   const [complianceState, setComplianceState] = useState<
     | { status: "checking" }
     | { status: "error"; userId: string; message: string }
@@ -157,14 +164,30 @@ export default function TabLayout() {
     | { status: "required"; userId: string; requiresTermsAcceptance: boolean; requiresAgeConfirmation: boolean }
   >({ status: "checking" });
   const [complianceRetry, setComplianceRetry] = useState(0);
+  const hasClearedCompliance =
+    complianceState.status === "clear" &&
+    complianceState.userId === clerkUser?.id;
   const isStartupPending =
     !isLoaded || isInitializing ||
-    (isSignedIn && complianceState.status === "clear" && !isOnboardingReady);
+    (isSignedIn && hasClearedCompliance && (isLoading || !isOnboardingReady));
   useEffect(() => {
     if (!isStartupPending) { setInitTimedOut(false); return; }
     const t = setTimeout(() => setInitTimedOut(true), 12_000);
     return () => clearTimeout(t);
-  }, [isStartupPending]);
+  }, [isStartupPending, initRetryAttempt]);
+
+  const retryInitialization = () => {
+    retryStartupInitialization({
+      account: {
+        userId: isLoaded && isSignedIn ? clerkUser?.id ?? null : null,
+        name: clerkUser?.fullName ?? clerkUser?.firstName ?? "",
+        email: clerkUser?.primaryEmailAddress?.emailAddress ?? "",
+      },
+      clearTimedOut: () => setInitTimedOut(false),
+      incrementRetryAttempt: () => setInitRetryAttempt((attempt) => attempt + 1),
+      initialize: login,
+    });
+  };
 
   useEffect(() => {
     // Wait for both Clerk AND AsyncStorage to finish loading before doing anything.
@@ -262,7 +285,7 @@ export default function TabLayout() {
             Rook is taking longer than expected to start. Check your connection, then try again.
           </Text>
           <TouchableOpacity
-            onPress={() => setInitTimedOut(false)}
+            onPress={retryInitialization}
             style={{ backgroundColor: colors.primary, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 }}
             activeOpacity={0.8}
           >
