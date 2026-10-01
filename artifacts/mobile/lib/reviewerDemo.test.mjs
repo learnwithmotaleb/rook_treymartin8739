@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   AccountSessionGuard,
   activateReviewerDemo,
@@ -175,6 +176,41 @@ function fixture(label = "fictional sample") {
     capabilities: [],
   };
 }
+
+test("bundled reviewer photo populates both comparison sides and media without changing server data", (t) => {
+  t.after(() => resetReviewerDemoSession());
+  const { uri } = JSON.parse(readFileSync(new URL("../assets/images/reviewer-sample-photo.json", import.meta.url), "utf8"));
+  assert.ok(uri.startsWith("data:image/jpeg;base64,"));
+  const bytes = Buffer.from(uri.split(",")[1], "base64");
+  assert.equal(bytes.subarray(0, 2).toString("hex"), "ffd8");
+  assert.equal(bytes.subarray(-2).toString("hex"), "ffd9");
+  const original = fixture();
+  original.threats[0].evidence = [
+    { id: "photo-1", type: "profile_photo", similarity: 91, label: "Sample profile match", yourPhotoUrl: "https://example.invalid/old.jpg", stolenPhotoUrl: "https://example.invalid/old.jpg" },
+    { id: "photo-2", type: "post_photo", similarity: 85, label: "Sample post match" },
+    { id: "caption-1", type: "caption", similarity: 82, label: "Sample caption", yourCaption: "Original sample caption", stolenCaption: "Sample caption copy" },
+  ];
+  const before = JSON.stringify(original);
+  beginReviewerDemoAuthorization("clerk-photo-owner");
+  activateReviewerDemo(original, "different-owner", uri);
+  assert.equal(getReviewerDemoSnapshot(), null);
+  activateReviewerDemo(original, "clerk-photo-owner", uri);
+  const snapshot = getReviewerDemoSnapshot();
+  for (const evidence of snapshot.threats[0].evidence.slice(0, 2)) {
+    assert.equal(evidence.yourPhotoUrl, uri);
+    assert.equal(evidence.stolenPhotoUrl, uri);
+  }
+  assert.deepEqual(snapshot.threats[0].evidence[2], original.threats[0].evidence[2]);
+  for (const media of Object.values(snapshot.mediaByAccount)) {
+    for (const item of media.items) {
+      assert.equal(item.url, uri);
+      assert.equal(item.thumbnailUrl, uri);
+    }
+  }
+  assert.equal(JSON.stringify(original), before);
+  resetReviewerDemoSession();
+  assert.equal(getReviewerDemoSnapshot(), null);
+});
 
 test("only a fully marked server payload can be activated as reviewer demo", () => {
   assert.ok(parseReviewerDemoInfo(fixture()));

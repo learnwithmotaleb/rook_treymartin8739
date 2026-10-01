@@ -26,3 +26,9 @@ Nullable display metadata must not prevent determining an authenticated account'
 **Why:** An existing reviewer had a null local profile email despite a valid trusted Clerk identity. Strict display-field validation rejected successful profile responses before authorization could run, leaving startup stuck. HTTP 200 alone did not establish a usable bootstrap.
 
 **How to apply:** Normalize documented nullable display fields at the client boundary; keep identity, consent, role decisions, and malformed-data checks strict. Never infer reviewer status from the normalized display email.
+
+Approved reviewer demonstration photos should be included in the mobile bundle, not depend on a separately published landing site.
+
+**Why:** Website-hosted sample photo references left the evidence comparison blank despite the image existing in the workspace. A native review demonstration must not depend on another artifact's deployment or image-host availability.
+
+**How to apply:** Use the included image for both sides of authorized sample comparisons and sample media; preserve sample labels and isolation. Never substitute it into live findings or real photo stores.

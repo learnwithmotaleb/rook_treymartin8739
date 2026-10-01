@@ -63,6 +63,7 @@ import {
   type PinnedPushTokenCleanup,
 } from "@/lib/logoutCleanup";
 import { isUsableProfile } from "@/lib/profileBootstrap";
+import reviewerSamplePhoto from "@/assets/images/reviewer-sample-photo.json";
 
 export interface IndexedPhoto {
   id: string;
@@ -756,7 +757,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const decision = await authorizeReviewerDemo();
             if (!isCurrent()) return true;
             if (decision.status === "demo") {
-              activateReviewerDemo(decision.info, userId);
+              activateReviewerDemo(decision.info, userId, reviewerSamplePhoto.uri);
             } else if (decision.status === "live") {
               setReviewerDemoAuthorizationStatus(userId, "live");
             } else {
@@ -955,7 +956,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const decision = await authorizeReviewerDemo();
             if (!isCurrent()) return;
             if (decision.status === "demo") {
-              activateReviewerDemo(decision.info, nextUserId);
+              activateReviewerDemo(decision.info, nextUserId, reviewerSamplePhoto.uri);
             } else if (decision.status === "live") {
               setReviewerDemoAuthorizationStatus(nextUserId, "live");
             } else {

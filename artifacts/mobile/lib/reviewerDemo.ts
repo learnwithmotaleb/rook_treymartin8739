@@ -705,7 +705,7 @@ export function getReviewerDemoSnapshot(): ReviewerDemoInfo | null {
   return currentSession ? clone(currentSession.info) : null;
 }
 
-export function activateReviewerDemo(info: ReviewerDemoInfo, accountKey: string): void {
+export function activateReviewerDemo(info: ReviewerDemoInfo, accountKey: string, bundledPhotoUri?: string): void {
   if (!accountKey) return;
   if (authorizationState.accountKey === null) {
     beginReviewerDemoAuthorization(accountKey);
@@ -713,9 +713,28 @@ export function activateReviewerDemo(info: ReviewerDemoInfo, accountKey: string)
   if (authorizationState.accountKey !== accountKey) return;
   setReviewerDemoAuthorizationStatus(accountKey, "demo");
   if (currentSession?.accountKey === accountKey) return;
+  const sampleInfo = clone(info);
+  // Only the authorized sample session uses this embedded image. Live photo
+  // stores, server fixtures and actual findings remain untouched.
+  if (bundledPhotoUri) {
+    for (const media of Object.values(sampleInfo.mediaByAccount)) {
+      for (const item of media.items) {
+        item.url = bundledPhotoUri;
+        item.thumbnailUrl = bundledPhotoUri;
+      }
+    }
+    for (const threat of sampleInfo.threats) {
+      for (const evidence of threat.evidence) {
+        if (["profile_photo", "post_photo", "reel_thumbnail"].includes(String(evidence.type))) {
+          evidence.yourPhotoUrl = bundledPhotoUri;
+          evidence.stolenPhotoUrl = bundledPhotoUri;
+        }
+      }
+    }
+  }
   currentSession = {
     accountKey,
-    info: clone(info),
+    info: sampleInfo,
     profilePatch: {},
     scanStartedAt: null,
     scanId: null,

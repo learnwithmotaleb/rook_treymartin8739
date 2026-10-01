@@ -466,6 +466,9 @@ function EvidencePhotoBox({
   const colors = useColors();
   // "primary" → try photoUrl; "fallback" → primary failed, try fallbackUrl; "failed" → show placeholder
   const [imgState, setImgState] = useState<"primary" | "fallback" | "failed">("primary");
+  useEffect(() => {
+    setImgState("primary");
+  }, [photoUrl, fallbackUrl]);
   const activeUrl = imgState === "primary" ? photoUrl : imgState === "fallback" ? fallbackUrl : undefined;
   const showImage = !!activeUrl;
   const canTap = side === "stolen" && !!onTap;
@@ -519,7 +522,7 @@ function EvidencePhotoBox({
         </View>
       </BoxWrapper>
       <Text style={[styles.evidencePhotoLabel, { color: side === "yours" ? colors.success : simColor, fontFamily: "Inter_600SemiBold" }]}>
-        {side === "yours" ? "Your Photo" : isSample ? "Example Image" : "Suspected Match"}
+        {side === "yours" ? "Your Photo" : isSample ? "Suspected Copy (sample)" : "Suspected Match"}
       </Text>
       {caption && (
         <Text style={[styles.evidenceCaption, { color: colors.mutedForeground, fontFamily: "Inter_400Regular" }]} numberOfLines={2}>
@@ -556,7 +559,7 @@ function EvidenceCard({ item, isSample = false }: { item: MatchedEvidence; isSam
         <EvidencePhotoBox
           side="yours"
           photoUrl={item.yourPhotoUrl}
-          fallbackUrl={user?.avatarUrl ?? undefined}
+          fallbackUrl={isSample ? undefined : user?.avatarUrl ?? undefined}
           caption={item.yourCaption}
           simColor={simColor}
         />
