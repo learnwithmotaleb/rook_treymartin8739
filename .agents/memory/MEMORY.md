@@ -41,3 +41,4 @@
 - [App review production parity](app-review-production-parity.md) — a signed mobile build does not prove its production API or live privacy policy matches workspace source.
 - [Legal compliance release coupling](legal-compliance-release-coupling.md) — strict server-side Terms/age gates must ship with a client that can recover missing acknowledgments, or older clients lose API access.
 - [Reviewer demo boundaries](reviewer-demo-boundaries.md) — real screens with isolated sample actions; no invented capabilities, fake OAuth, or mocked StoreKit entitlements.
+- [Developer review repository](developer-review-repository.md) — separate sanitized source snapshot; preserve app code/assets without importing private uploads or original history.
